@@ -1,7 +1,8 @@
 # Module 0.1 — How Computers Work
 
 **Status:** Not Started
-**Roadmap source:** `Applied_AI_Engineering_Roadmap_Updated.md`, Stage 0 — Module 0.1 — "How Computers Work"
+**Roadmap source:** Stage 0 — Computer, Linux, and Developer Foundations, Module 0.1 — "How
+Computers Work"
 
 This README is a **roadmap and navigation document only**. It defines what this module covers, in
 what order, and why — it does not contain the lessons themselves. Lesson content is written later,
@@ -156,53 +157,48 @@ Why this entire module matters specifically for AI/ML engineering work later in 
 | 19 | [`19-why-ram-and-storage-are-different.md`](./19-why-ram-and-storage-are-different.md) | why RAM and storage are different |
 | 20 | [`20-why-gpus-matter-for-ai.md`](./20-why-gpus-matter-for-ai.md) | why GPUs matter for AI |
 
-## 5. Concept dependencies
+## 5. Why this module matters for AI engineering
 
-A full dependency graph (which concepts must be understood before which) is maintained separately
-in [`concept-dependencies.md`](./concept-dependencies.md). Read it alongside this sequence if the
-reasoning behind the ordering above isn't obvious.
+Every later stage of the roadmap — operating systems, the command line, Python, backend services,
+databases, model training, model serving, and agent engineering — runs on top of the mechanics
+this module introduces. Concretely:
 
-## 6. Practical labs
+- **CPU, cores, and instructions** explain why some workloads (data preprocessing, tokenization)
+  are CPU-bound and why single-threaded Python code doesn't automatically use every core.
+- **Cache, RAM, and storage** explain why loading a large model or dataset is slow the first time,
+  why out-of-memory errors happen, and why RAM and disk are not interchangeable.
+- **The GPU** explains, at a mechanical level, why training and running neural networks is fast on
+  a GPU and slow on a CPU — the basis for every later discussion of model training and inference
+  cost.
+- **Binary, hexadecimal, files, and I/O** explain how data is actually represented and moved,
+  which underlies file formats, serialization, and network payloads used throughout AI systems.
+- **Program start-up and function execution** give you the mental model needed to read a stack
+  trace, understand a crash, or reason about why a Python script behaves the way it does before you
+  have learned to write Python yourself.
 
-Located in [`labs/`](./labs/README.md). Labs give hands-on, observational practice with real
-hardware/OS information (inspecting CPU, memory, and storage on an actual machine) without
-requiring programming knowledge yet.
+Without this module, later error messages, memory limits, and performance problems have no
+mechanical explanation — you would be memorizing fixes instead of understanding causes.
 
-| Lab | Focus |
-|---|---|
-| [`01-system-information-lab.md`](./labs/01-system-information-lab.md) | Identifying real hardware (CPU, cores, RAM, storage, GPU) on your own machine |
-| [`02-memory-and-storage-lab.md`](./labs/02-memory-and-storage-lab.md) | Observing memory vs storage behavior and capacity |
-| [`03-cpu-observation-lab.md`](./labs/03-cpu-observation-lab.md) | Observing CPU activity under load |
-| [`04-program-execution-observation-lab.md`](./labs/04-program-execution-observation-lab.md) | Observing a program launch and run as a process |
+## 6. Practical verification and projects
 
-## 7. Exercises
+This module no longer keeps its own local `labs/`, `exercises/`, `examples/`, `project/`, or
+`concept-dependencies.md` — the practical, verifiable work for all of Stage 0, including this
+module, is now consolidated in the Stage 0 roadmap. See
+[`../00-Stage-0-Overview/learning-plan.md`](../00-Stage-0-Overview/learning-plan.md) for:
 
-Located in [`exercises/`](./exercises/README.md). Organized into 5 increasing levels (Recognition
-→ Understanding → Application → Debugging → Integration), covering every concept in this module.
+- the audit evidence used to verify Module 0.1 is operational, not just read (Section 2 —
+  "Audit of the original four modules");
+- Projects 0.1–0.5, which build the practical, version-controlled proof of this foundation
+  (Section 5 — "Practical projects"); and
+- the Stage 0 completion gate that this module feeds into (Section 8 — "Stage 0 completion gate").
 
-## 8. Examples
+## 7. Projects
 
-Located in [`examples/`](./examples/README.md). An index of beginner-friendly real-world
-scenarios (opening an app, saving a file, running a Python program, GPU-based AI inference) that
-will be used to illustrate concepts during teaching.
-
-## 9. Projects
-
-Located in [`project/`](./project/). Three practical builds required by the roadmap:
-
-| Project | Builds on |
-|---|---|
-| [`01-binary-decimal-hex-converter/`](./project/01-binary-decimal-hex-converter/README.md) | Binary, bits/bytes, hexadecimal |
-| [`02-memory-size-calculator/`](./project/02-memory-size-calculator/README.md) | Binary/bytes, RAM, cache, storage |
-| [`03-cpu-bound-benchmark/`](./project/03-cpu-bound-benchmark/README.md) | CPU, cores, instructions, processes |
-
-## 10. Completion criteria
-
-Module 0.1 is complete only when every item in Stage 0's
-[`stage-gate.md`](../00-Stage-0-Overview/stage-gate.md) under "Conceptual understanding" and the
-first three "Practical builds" rows can be genuinely demonstrated — not merely read. Progress
-toward each concept, lab, exercise group, and project is tracked in
-[`00-Stage-0-Overview/progress-tracker.md`](../00-Stage-0-Overview/progress-tracker.md).
+This module has one local, hands-on project: a practical audit of program execution and GPU
+relevance. See [`Projects/README.md`](./Projects/README.md) for the index, and
+[`Projects/01-program-execution-and-gpu-audit.md`](./Projects/01-program-execution-and-gpu-audit.md)
+to run a small Python example, observe it as a real process, and explain — from launching a Python
+command to seeing output — why GPUs help with parallel tensor operations.
 
 ---
 
