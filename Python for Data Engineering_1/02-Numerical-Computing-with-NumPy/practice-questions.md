@@ -6,12 +6,13 @@
 
 This workbook is the consolidation and applied-practice set for the complete Module 2.2 — Numerical Computing with NumPy. It is designed to test whether you can **reason about NumPy arrays before executing code**, implement correct transformations, break edge cases, measure performance and memory behavior, and explain production trade-offs.
 
-The set contains exactly **32 independent questions**:
+The set contains **40 independent questions** (32 core questions plus 8 targeted roadmap-gap questions):
 
 - **8 Basic** — individual concepts
 - **8 Moderate** — combinations of concepts
 - **8 Hard** — realistic multi-step Data Engineering problems
 - **8 Advanced** — production-oriented engineering decisions under constraints
+- **8 Additional roadmap-coverage questions (Q33–Q40)** — concepts the coverage audit found missing from the core set
 
 Every problem is followed immediately by its **Solution / How to Solve** so that you can compare your reasoning after attempting the problem.
 
@@ -350,7 +351,7 @@ import numpy as np
 prices = np.array([100.0, 120.0, 80.0])
 tax_rate = np.array([[0.05], [0.10]])
 
-result = prices * tax_rate
+result = prices * (1 + tax_rate)
 
 print(result)
 print("shape:", result.shape)
@@ -365,7 +366,7 @@ Expected numeric result:
 
 #### Step 5 — Explain the implementation
 
-The `(2, 1)` array is logically applied across the three price columns. Broadcasting does not require you to manually build a `(2, 3)` copy of `tax_rate`.
+Here `tax_rate` holds the tax rate, and `1 + rate` is the tax-inclusive multiplier (for example `1.05` for a 5% rate), so each result is a tax-inclusive price. The `(2, 1)` array is logically applied across the three price columns. Broadcasting does not require you to manually build a `(2, 3)` copy of `tax_rate`.
 
 #### Step 6 — Verify the result
 
@@ -484,8 +485,8 @@ expected = np.array([1200, 9000, 25000])
 np.testing.assert_array_equal(selected, expected)
 assert match_count == 3
 assert np.isclose(match_rate, 0.5)
-assert has_match is True
-assert all_match is False
+assert has_match
+assert not all_match
 ```
 
 #### Step 7 — Edge cases / production considerations
@@ -999,7 +1000,7 @@ gross = quantity * unit_price
 net_amount = np.where(quantity > 5, gross * 0.90, gross)
 net_amount = np.clip(net_amount, 0.0, None)
 
-risk_bucket = np.where(net_amount < 200.0, "low", "normal")
+risk_bucket = np.where(gross < 200.0, "low", "normal")
 
 print(gross)
 print(net_amount)
@@ -1016,7 +1017,7 @@ Expected values:
 
 #### Step 5 — Explain the implementation
 
-NumPy applies arithmetic element by element over the entire array. `np.where` selects from two vectorized alternatives without writing a Python loop.
+Discounting changes `net_amount`, but the risk bucket is intentionally based on the original `gross` value (`gross < 200` is `low`), so it is computed from `gross`, not `net_amount`. NumPy applies arithmetic element by element over the entire array. `np.where` selects from two vectorized alternatives without writing a Python loop.
 
 #### Step 6 — Verify the result
 
@@ -1236,6 +1237,22 @@ Expected labels:
 #### Step 5 — Explain the implementation
 
 For `100`, the insertion position on the left is `0`, keeping it in the first band. `101` produces index `1`. Values larger than the last bound produce index `3`, selecting `"premium"`.
+
+What changes with `side="right"`? For `upper_bounds = [100, 500, 1000]`:
+
+```text
+side="left"
+100  → index 0
+500  → index 1
+1000 → index 2
+
+side="right"
+100  → index 1
+500  → index 2
+1000 → index 3
+```
+
+With `side="right"` an exact boundary value moves into the next band (`100` becomes `medium`), which would violate the rule "below or equal to 100 is low". The `side` argument is part of the business boundary contract.
 
 #### Step 6 — Verify the result
 
@@ -1460,8 +1477,8 @@ assert overall.shape == ()
 assert per_day_keepdims.shape == (2, 1, 1)
 
 np.testing.assert_array_equal(per_day, np.array([66, 210]))
-np.testing.assert_array_equal(per_store, np.array([36, 92, 128]))
-np.testing.assert_array_equal(per_product, np.array([30, 34, 38, 42]))
+np.testing.assert_array_equal(per_store, np.array([60, 92, 124]))
+np.testing.assert_array_equal(per_product, np.array([60, 66, 72, 78]))
 assert overall == 276
 ```
 
@@ -1905,8 +1922,10 @@ print(a)
 Final array:
 
 ```text
-[ 3 99  5 150  5  7]
+[ 99   5   5 150   5   7]
 ```
+
+After the first assignment the array is `[3, 5, 5, 150, 5, 7]`; the first value below 100 is at index `0`, so that element becomes `99`.
 
 #### Step 5 — Explain the implementation
 
@@ -1917,7 +1936,7 @@ The expression `a[a < 100]` returns a copy. Assigning into that copy cannot upda
 #### Step 6 — Verify the result
 
 ```python
-expected = np.array([3, 99, 5, 150, 5, 7])
+expected = np.array([99, 5, 5, 150, 5, 7])
 np.testing.assert_array_equal(a, expected)
 ```
 
@@ -1933,7 +1952,7 @@ If there are no values below 100, indexing `[0]` would fail. A robust production
 
 **Difficulty:** Hard
 
-**Topics tested:** integer dtypes, overflow, accumulation dtype, `sum`, dtype planning, numerical correctness.
+**Topics tested:** integer dtypes, storage dtype versus accumulation dtype, overflow, `sum(dtype=...)`, dtype planning, numerical correctness.
 
 ### Problem
 
@@ -1942,23 +1961,36 @@ A transaction pipeline stores cents in `int16`:
 ```python
 import numpy as np
 
-amounts = np.array([30_000, 30_000, 30_000], dtype=np.int16)
-total = amounts.sum()
+amounts = np.array(
+    [30_000, 30_000, 30_000],
+    dtype=np.int16,
+)
+
+default_total = amounts.sum()
+
+narrow_total = amounts.sum(
+    dtype=np.int16,
+)
+
+safe_total = amounts.sum(
+    dtype=np.int64,
+)
 ```
 
-The engineer expects `90_000` but gets an incorrect result.
+An engineer believes that a narrow source dtype always means a narrow, overflowing total. Investigate the three totals.
 
 ### What you need to determine/build
 
-1. Explain why the result is wrong.
-2. Inspect the relevant dtypes.
-3. Fix the aggregation safely.
+1. Inspect the values and dtypes of the three totals.
+2. Explain the difference between the storage dtype and the accumulation dtype.
+3. Show where a genuine `int16` overflow occurs.
 4. Decide whether the source array itself should be widened.
 
 ### Constraints / assumptions
 
 - Preserve the source values exactly.
-- Explain the difference between changing the accumulation dtype and changing storage dtype.
+- Do not claim that the default `amounts.sum()` overflows in this example.
+- Assume a typical 64-bit platform, where narrow integer reductions use the platform integer accumulator.
 
 ### Expected skills
 
@@ -1970,25 +2002,28 @@ The engineer expects `90_000` but gets an incorrect result.
 
 #### Step 1 — Understand the problem
 
-`int16` cannot represent `90_000` because its signed range is only:
-
-```text
--32,768 to 32,767
-```
+`int16` can hold `-32,768` to `32,767`, so the true total `90,000` does not fit in `int16`. But the reduction does not have to accumulate in `int16`.
 
 #### Step 2 — Predict shape/dtype/memory behavior
 
-`amounts` is `int16`. The reduction can accumulate in a dtype that is not wide enough for the expected result in this example, so the sum wraps to an incorrect integer result.
+```text
+default_total
+→ 90,000
+→ typically int64
+
+narrow_total
+→ genuine int16 overflow
+
+safe_total
+→ 90,000
+→ int64
+```
+
+By default NumPy accumulates integers narrower than the platform integer in the platform integer type, so `default_total` is correct. Forcing `dtype=np.int16` makes the accumulator too narrow: `90,000 - 65,536 = 24,464`.
 
 #### Step 3 — Choose the NumPy approach
 
-Use a wider accumulation dtype:
-
-```python
-amounts.sum(dtype=np.int64)
-```
-
-If the domain's totals routinely exceed the source dtype's capacity, reconsider the source storage dtype too.
+Compare the default, the forced narrow accumulator, and an explicit wide accumulator.
 
 #### Step 4 — Implement
 
@@ -1997,13 +2032,14 @@ import numpy as np
 
 amounts = np.array([30_000, 30_000, 30_000], dtype=np.int16)
 
-unsafe_total = amounts.sum()
+default_total = amounts.sum()
+narrow_total = amounts.sum(dtype=np.int16)
 safe_total = amounts.sum(dtype=np.int64)
 
 print("source dtype:", amounts.dtype)
-print("unsafe total:", unsafe_total)
-print("safe total:", safe_total)
-print("safe dtype:", safe_total.dtype)
+print("default total:", default_total, default_total.dtype)
+print("narrow total:", narrow_total, narrow_total.dtype)
+print("safe total:", safe_total, safe_total.dtype)
 ```
 
 #### Step 5 — Explain the implementation
@@ -2013,11 +2049,17 @@ There are two distinct decisions:
 - **storage dtype:** how each element is represented,
 - **accumulation dtype:** how the reduction is performed.
 
-A wider accumulation dtype can solve a reduction-overflow problem without immediately changing the source array.
+The wrapped `narrow_total` (`24464`) is a valid-looking integer that is mathematically wrong. Requesting `dtype=np.int64` is an explicit, portable statement of the accumulator you rely on instead of depending on the platform default.
 
 #### Step 6 — Verify the result
 
 ```python
+assert default_total == 90_000
+assert default_total.dtype == np.dtype(np.int64)
+
+assert narrow_total == 24_464
+assert narrow_total.dtype == np.dtype(np.int16)
+
 assert safe_total == 90_000
 assert safe_total.dtype == np.dtype(np.int64)
 
@@ -2026,7 +2068,7 @@ assert amounts.dtype == np.dtype(np.int16)
 
 #### Step 7 — Edge cases / production considerations
 
-Do not choose a storage dtype only from individual values. Consider the range of derived quantities and aggregates.
+The default accumulator is wide, but not unlimited: an `int64` total can still overflow (for example `2**62 + 2**62`). Estimate the maximum mathematical total against the accumulation dtype and against the downstream contract. Also reconsider the storage dtype when derived values (such as `quantity * price`) exceed it.
 
 **Key lesson:** safe element storage and safe accumulation are related but separate engineering decisions.
 
@@ -2119,12 +2161,16 @@ valid_mask = (
 devices, group_codes = np.unique(device, return_inverse=True)
 
 valid_values = np.where(valid_mask, reading, 0.0)
-valid_indicator = valid_mask.astype(np.int64)
 
-sum_by_device = np.bincount(group_codes, weights=valid_values)
-count_by_device = np.bincount(
+sum_by_device = np.bincount(
     group_codes,
-    weights=valid_indicator,
+    weights=valid_values,
+    minlength=devices.size,
+)
+
+count_by_device = np.bincount(
+    group_codes[valid_mask],
+    minlength=devices.size,
 )
 
 mean_by_device = np.full(devices.shape, np.nan, dtype=np.float64)
@@ -2134,10 +2180,24 @@ mean_by_device[has_data] = (
     sum_by_device[has_data] / count_by_device[has_data]
 )
 
-total_count_by_device = np.bincount(group_codes)
-invalid_rate = 1.0 - (count_by_device / total_count_by_device)
+total_count_by_device = np.bincount(
+    group_codes,
+    minlength=devices.size,
+)
 
-quarantine = invalid_rate > (1.0 / 3.0)
+invalid_count_by_device = (
+    total_count_by_device - count_by_device
+)
+
+invalid_rate = (
+    invalid_count_by_device
+    / total_count_by_device
+)
+
+quarantine = (
+    invalid_count_by_device * 3
+    > total_count_by_device
+)
 
 print("devices:", devices)
 print("mean:", mean_by_device)
@@ -2161,6 +2221,8 @@ The representation is intentionally not “sentinel → zero.” Instead, `valid
 For device A, 2 of 3 rows are invalid, so the invalid rate exceeds one-third.
 
 For device B, one of 3 rows is invalid, so the rate is exactly one-third and does not exceed the threshold.
+
+The threshold decision uses integer counts (`invalid_count * 3 > total_count`) instead of comparing a floating-point rate with `1.0 / 3.0`. The float expression `1.0 - 2/3` evaluates to `0.33333333333333337`, which is greater than `1/3`, so a rate-based comparison would wrongly quarantine device B. `invalid_rate` is still reported for observability.
 
 #### Step 6 — Verify the result
 
@@ -3291,94 +3353,121 @@ if valid_values.size:
 
 ---
 
-## Question 28 — Reduce Peak Memory by at Least 40% and Prove It
+## Question 28 — Reduce Peak Memory Through Genuine Allocation Reduction and Measure It
 
 **Difficulty:** Advanced
 
-**Topics tested:** temporaries, `out=`, in-place operations, reusable buffers, `tracemalloc`, peak memory, correctness testing.
+**Topics tested:** temporaries, `out=`, reusable buffers, `tracemalloc`, peak memory, correctness testing, non-mutation.
 
 ### Problem
 
-A preprocessing stage starts from:
+A preprocessing stage combines five large `float32` arrays:
 
 ```python
-result = (a - a.mean()) / a.std() * 100 + 5
+import numpy as np
+
+
+def baseline_transform(
+    a,
+    b,
+    c,
+    d,
+    e,
+):
+    step1 = a * b
+    step2 = step1 + c
+    step3 = step2 * d
+    result = step3 + e
+    return result
 ```
 
-with a large floating-point array `a`.
-
-The team wants a lower-allocation implementation and requires a learning benchmark of at least **40% lower measured peak allocation**.
+The team wants a lower-allocation implementation and uses a learning benchmark of **40% lower measured peak allocation**.
 
 ### What you need to determine/build
 
 1. Measure the baseline with `tracemalloc`.
-2. Rewrite the pipeline to reduce temporary arrays using `out=` and in-place operations where safe.
-3. Verify numerical equivalence.
-4. Compute the percentage peak-memory reduction.
-5. Explain why a successful result on one machine does not make 40% a universal production guarantee.
+2. Rewrite the transformation with one reusable output buffer and `out=`.
+3. Verify numerical equivalence and that the inputs were not mutated.
+4. Compute and report the measured percentage reduction.
+5. Explain which temporary arrays were removed, and why the 40% target is a pedagogical benchmark rather than a guarantee.
 
 ### Constraints / assumptions
 
-- Do not mutate the caller's `a`.
-- Reuse an explicitly allocated destination buffer.
-- Use `float64` for the exercise.
-- Treat `tracemalloc` as an allocation-comparison tool, not as a full OS RSS monitor.
+- Use `float32` input arrays and keep the output `float32`.
+- Do not hard-code `dtype=np.float64` for the output.
+- Do not mutate the inputs.
+- Use the same inputs and measurement method for both versions.
+- Treat `tracemalloc` as an allocation-comparison tool, not an OS RSS monitor.
 
 ### Expected skills
 
 - Peak-memory measurement.
 - Temporary elimination.
 - Mutation safety.
-- Performance-vs-memory trade-off reasoning.
+- Honest reporting of measurements.
 
 ### Solution / How to Solve
 
 #### Step 1 — Understand the problem
 
-The baseline can create multiple full-size temporaries. The optimized version should reuse a caller-independent work buffer.
+In the baseline, `step1`, `step2`, `step3` and `result` are four full-size arrays that are all alive when the function returns. Only one is needed.
 
 #### Step 2 — Predict shape/dtype/memory behavior
 
-Both implementations produce one `(N,)` `float64` output. The key difference is the number of intermediate allocations and their lifetimes.
+Every array is `(N,)` `float32`. The baseline can hold about four output-sized allocations; the optimized version should hold one.
 
 #### Step 3 — Choose the NumPy approach
 
-Compute mean and standard deviation once, then transform a copy using in-place operations and `out=`.
+Allocate one destination with `np.empty_like(a)` (which preserves the dtype) and write every step into it with `out=`.
 
 #### Step 4 — Implement
 
 ```python
 import tracemalloc
+
 import numpy as np
 
-rng = np.random.default_rng(11)
-a = rng.normal(loc=100.0, scale=15.0, size=1_000_000).astype(np.float64)
 
-def baseline(x):
-    return (x - x.mean()) / x.std() * 100.0 + 5.0
+def baseline_transform(a, b, c, d, e):
+    step1 = a * b
+    step2 = step1 + c
+    step3 = step2 * d
+    result = step3 + e
+    return result
 
-def optimized(x):
-    result = x.copy()
 
-    mean = x.mean()
-    std = x.std()
+def optimized_transform(a, b, c, d, e):
+    result = np.empty_like(a)
 
-    np.subtract(result, mean, out=result)
-    np.divide(result, std, out=result)
-    np.multiply(result, 100.0, out=result)
-    np.add(result, 5.0, out=result)
+    np.multiply(a, b, out=result)
+    np.add(result, c, out=result)
+    np.multiply(result, d, out=result)
+    np.add(result, e, out=result)
 
     return result
 
-def measure_peak(func, x):
+
+def measure_peak(func, *arrays):
     tracemalloc.start()
-    result = func(x)
+    result = func(*arrays)
     current, peak = tracemalloc.get_traced_memory()
     tracemalloc.stop()
     return result, current, peak
 
-baseline_result, _, baseline_peak = measure_peak(baseline, a)
-optimized_result, _, optimized_peak = measure_peak(optimized, a)
+
+rng = np.random.default_rng(11)
+a, b, c, d, e = (
+    rng.standard_normal(1_000_000).astype(np.float32)
+    for _ in range(5)
+)
+inputs_before = [x.copy() for x in (a, b, c, d, e)]
+
+baseline_result, _, baseline_peak = measure_peak(
+    baseline_transform, a, b, c, d, e,
+)
+optimized_result, _, optimized_peak = measure_peak(
+    optimized_transform, a, b, c, d, e,
+)
 
 reduction_percent = (
     (baseline_peak - optimized_peak) / baseline_peak
@@ -3391,11 +3480,9 @@ print("reduction %:", reduction_percent)
 
 #### Step 5 — Explain the implementation
 
-The optimized function deliberately makes one independent result copy because it must not mutate `x`. After that, the transformation reuses that buffer.
+The removed temporaries are `step1`, `step2` and `step3`: one output buffer replaces four full-size arrays. `np.empty_like(a)` matters for a `float32` benchmark because it preserves the `float32` dtype; hard-coding `np.float64` would double the output storage and could even make the "optimized" version use more memory. Changing `float32` to `float64` is not an optimization.
 
-The baseline expression may involve several full-size intermediates whose lifetimes overlap.
-
-`tracemalloc` is useful for comparing allocation behavior, but it is not a complete measurement of total operating-system process RSS or every native allocation.
+`tracemalloc` compares Python-visible allocations. It is not the operating-system RSS, and the measured percentage depends on input size, allocator behavior, and the exact expression.
 
 #### Step 6 — Verify the result
 
@@ -3403,25 +3490,35 @@ The baseline expression may involve several full-size intermediates whose lifeti
 np.testing.assert_allclose(
     optimized_result,
     baseline_result,
-    rtol=1e-12,
-    atol=1e-12,
 )
+
+assert optimized_result.dtype == np.float32
+assert baseline_result.dtype == np.float32
+
+for original, saved in zip((a, b, c, d, e), inputs_before):
+    np.testing.assert_array_equal(original, saved)
 
 assert not np.shares_memory(a, optimized_result)
-
-assert reduction_percent >= 40.0, (
-    "The learning benchmark was not reached; "
-    "investigate allocations, input size, and measurement conditions."
-)
 ```
+
+Do not assert that `reduction_percent >= 40.0`. Report the measured value and explain it.
 
 #### Step 7 — Edge cases / production considerations
 
-If the measured reduction is below 40%, inspect the allocation behavior instead of changing the metric. A smaller or larger input can alter allocator behavior and the observed ratio.
+The process is:
 
-Also consider whether in-place mutation would be safe for a specific production caller. This exercise intentionally avoids mutating the input.
+```text
+measure
+→ identify actual allocations
+→ optimize
+→ re-measure
+→ verify correctness
+→ explain result
+```
 
-**Engineering lesson:** memory optimization is valid only when measured and paired with correctness tests.
+The 40% target is a pedagogical benchmark, not a measurement truth condition. Do not manipulate the input dtype, input size, or measurement methodology to manufacture a 40% result; if the measured reduction differs, report it and explain the limiting factor.
+
+**Key lesson:** memory optimization is valid only when it removes real, avoidable allocations, and it must be measured and paired with correctness tests.
 
 ---
 
@@ -4048,6 +4145,968 @@ For a memmap implementation, monitor runtime and access pattern as well as memor
 
 ---
 
+# Additional Roadmap Coverage — Questions 33–40
+
+The first 32 questions are the core workbook. The following 8 questions close gaps found in a roadmap coverage audit (datetime/casting, structured data and binary decoding, `np.select`, ufunc methods, percentile methods, cumulative/rolling/binning, set operations, and an integrated production challenge).
+
+```text
+32 core questions
++
+8 targeted roadmap-gap questions
+=
+40 total questions
+```
+
+---
+
+## Question 33 — Datetime Units, Casting, and NEP 50 Promotion
+
+**Difficulty:** Moderate
+
+**Topics tested:** `datetime64[ms]`, `astype`, unit conversion, NumPy 2 type promotion (NEP 50), Python scalar versus typed NumPy scalar, dtype inspection.
+
+### Problem
+
+A pipeline stores event times with millisecond precision and a small `uint8` counter column:
+
+```python
+import numpy as np
+
+timestamp = np.datetime64(
+    "2026-09-28T12:30:00.125",
+    "ms",
+)
+
+values = np.array(
+    [1, 2, 3],
+    dtype=np.uint8,
+)
+
+python_scalar_result = values + 1
+numpy_scalar_result = values + np.int64(1)
+```
+
+### What you need to determine/build
+
+1. State the dtype of `timestamp`.
+2. Convert it to seconds and show what information is lost.
+3. Predict and verify the dtype of `python_scalar_result` and `numpy_scalar_result`.
+4. Explain why the two results differ.
+
+### Constraints / assumptions
+
+- Use NumPy 2.x semantics.
+- Do not assume the result dtype; inspect it.
+
+### Expected skills
+
+- `datetime64` units and lossy unit conversion.
+- NEP 50: a Python `int` is a weak scalar, an explicitly typed NumPy scalar is not.
+- Inspecting dtype-sensitive expressions.
+
+### Solution / How to Solve
+
+#### Step 1 — Understand the problem
+
+Two separate ideas: datetime resolution is part of the dtype, and NumPy 2 decides result dtypes from the array dtype and the scalar's *type*, not from the scalar's value.
+
+#### Step 2 — Predict shape/dtype/memory behavior
+
+- `timestamp.dtype` is `datetime64[ms]`.
+- `values + 1`: the Python integer is weakly typed, so the result stays `uint8`.
+- `values + np.int64(1)`: the typed scalar participates in promotion, so the result is `int64`.
+
+#### Step 3 — Choose the NumPy approach
+
+Use `.dtype` and `astype` to inspect and convert explicitly.
+
+#### Step 4 — Implement
+
+```python
+import numpy as np
+
+timestamp = np.datetime64(
+    "2026-09-28T12:30:00.125",
+    "ms",
+)
+
+as_seconds = timestamp.astype("datetime64[s]")
+
+values = np.array(
+    [1, 2, 3],
+    dtype=np.uint8,
+)
+
+python_scalar_result = values + 1
+numpy_scalar_result = values + np.int64(1)
+
+print(timestamp.dtype)
+print(as_seconds)
+print(python_scalar_result.dtype)
+print(numpy_scalar_result.dtype)
+```
+
+#### Step 5 — Explain the implementation
+
+Converting to a coarser unit discards the `.125` seconds, so treat unit changes like any other lossy cast. Because the Python scalar `1` does not upcast the array, `uint8` arithmetic can still wrap (for example `np.array([250], dtype=np.uint8) + 10` gives `4`), while the typed `np.int64(1)` produces a wider result.
+
+#### Step 6 — Verify the result
+
+```python
+assert timestamp.dtype == np.dtype("datetime64[ms]")
+assert as_seconds == np.datetime64("2026-09-28T12:30:00", "s")
+assert as_seconds.astype("datetime64[ms]") != timestamp
+
+assert python_scalar_result.dtype == np.uint8
+assert numpy_scalar_result.dtype == np.int64
+
+np.testing.assert_array_equal(python_scalar_result, np.array([2, 3, 4]))
+np.testing.assert_array_equal(numpy_scalar_result, np.array([2, 3, 4]))
+```
+
+#### Step 7 — Edge cases / production considerations
+
+`datetime64` is timezone-naive: normalize to a documented zone (commonly UTC) at the ingestion boundary. Test dtype-sensitive expressions under every supported NumPy version.
+
+**Key lesson:** always inspect actual dtype-sensitive results instead of guessing them.
+
+---
+
+## Question 34 — Structured Arrays, String Types, Endianness, and `frombuffer`
+
+**Difficulty:** Moderate
+
+**Topics tested:** structured dtype, fixed-width `<U`, `object` strings, `StringDType`, little/big endian, `<i8`, `<i2`, `np.frombuffer`, `np.fromfile`.
+
+### Problem
+
+A legacy feed delivers raw bytes and order records:
+
+```python
+import numpy as np
+
+order_dtype = np.dtype(
+    [
+        ("order_id", "<i8"),
+        ("quantity", "<i2"),
+        ("status", "<U8"),
+    ]
+)
+
+raw = bytes([1, 0, 2, 0, 3, 0])
+```
+
+### What you need to determine/build
+
+1. Create a small structured array with this dtype and read one field by name.
+2. Report the record size.
+3. Decode `raw` as little-endian 2-byte signed integers.
+4. Show what the same 8 bytes mean as `<i8` versus `>i8`.
+5. Show the truncation risk of fixed-width strings and how `object` and `StringDType` differ.
+6. Explain when to use `np.frombuffer` versus `np.fromfile`.
+
+### Constraints / assumptions
+
+- Use NumPy 2.x (`StringDType` is available).
+- Do not decode bytes without stating dtype and byte order.
+
+### Expected skills
+
+- Row-oriented structured records versus columnar arrays.
+- Byte order and item size.
+- String representation trade-offs.
+
+### Solution / How to Solve
+
+#### Step 1 — Understand the problem
+
+Binary data has no meaning until dtype, byte order, and structure are known. String width is a data-contract decision.
+
+#### Step 2 — Predict shape/dtype/memory behavior
+
+- Record size: `8 (<i8) + 2 (<i2) + 8×4 (<U8 = 32 bytes) = 42` bytes.
+- `np.frombuffer(raw, dtype="<i2")` sees 6 bytes as 3 values: `[1 2 3]`.
+- The bytes `[0,0,0,0,0,0,0,1]` are `1` as `>i8` but `72057594037927936` as `<i8`.
+
+#### Step 3 — Choose the NumPy approach
+
+`np.dtype([...])` for records, an explicit dtype string for decoding, and `frombuffer` because the bytes are already in memory.
+
+#### Step 4 — Implement
+
+```python
+import numpy as np
+from numpy.dtypes import StringDType
+
+order_dtype = np.dtype(
+    [
+        ("order_id", "<i8"),
+        ("quantity", "<i2"),
+        ("status", "<U8"),
+    ]
+)
+
+orders = np.array(
+    [
+        (1001, 3, "paid"),
+        (1002, 1, "pending"),
+    ],
+    dtype=order_dtype,
+)
+
+raw = bytes([1, 0, 2, 0, 3, 0])
+
+decoded = np.frombuffer(
+    raw,
+    dtype="<i2",
+)
+
+eight = bytes([0, 0, 0, 0, 0, 0, 0, 1])
+big = np.frombuffer(eight, dtype=">i8")[0]
+little = np.frombuffer(eight, dtype="<i8")[0]
+
+codes = np.array(["ABC"], dtype="<U3")
+codes[0] = "ABCDEFG"
+
+as_object = np.array(["short", "much longer text"], dtype=object)
+as_variable = np.array(
+    ["short", "much longer text"],
+    dtype=StringDType(),
+)
+
+print(orders["order_id"])
+print(order_dtype.itemsize)
+print(decoded)
+print(big, little)
+print(codes)
+print(as_object.dtype, as_variable.dtype)
+```
+
+#### Step 5 — Explain the implementation
+
+A structured array is row-oriented; separate arrays per column usually suit analytics better. `frombuffer` interprets bytes already in memory (and returns a read-only array for `bytes`, so use `.copy()` if writes are needed); `np.fromfile` reads raw values from a file and is only valid when the file is a plain sequence of one dtype with known byte order. Fixed-width `<U3` silently truncates `"ABCDEFG"` to `"ABC"`. `object` stores references to Python strings (flexible but memory-heavy); `StringDType` stores variable-width strings without fixed padding or truncation.
+
+#### Step 6 — Verify the result
+
+```python
+assert order_dtype.itemsize == 42
+np.testing.assert_array_equal(orders["order_id"], np.array([1001, 1002]))
+
+np.testing.assert_array_equal(decoded, np.array([1, 2, 3]))
+assert decoded.dtype == np.dtype("<i2")
+
+assert big == 1
+assert little == 72057594037927936
+
+assert codes[0] == "ABC"
+assert as_object.dtype == np.dtype(object)
+assert as_variable[1] == "much longer text"
+```
+
+#### Step 7 — Edge cases / production considerations
+
+Document byte order, header length, and record layout before parsing any binary file. Choose the string width from the contract, not from a sample.
+
+**Key lesson:** raw bytes are only data once dtype, byte order, and structure are part of the contract.
+
+---
+
+## Question 35 — Multi-Condition Classification with `np.select`
+
+**Difficulty:** Moderate
+
+**Topics tested:** `np.select`, ordered conditions, default value, boundary values.
+
+### Problem
+
+Classify order amounts (in cents):
+
+```python
+import numpy as np
+
+amount = np.array([50, 100, 999, 1000, 4999, 5000, 20_000])
+```
+
+Rules: under 100 is `small`, under 1000 is `medium`, under 5000 is `large`, anything else is `critical`.
+
+### What you need to determine/build
+
+Return one label per amount without a Python loop, and explain which condition wins when several are true.
+
+### Constraints / assumptions
+
+- Use `np.select`.
+- Test every boundary value.
+
+### Expected skills
+
+- Ordered vectorized conditional logic.
+
+### Solution / How to Solve
+
+#### Step 1 — Understand the problem
+
+Conditions overlap (`amount < 100` implies `amount < 1000`), so order defines the result.
+
+#### Step 2 — Predict shape/dtype/memory behavior
+
+Every condition has shape `(7,)`; the result is a `(7,)` string array.
+
+#### Step 3 — Choose the NumPy approach
+
+`np.select(conditions, choices, default=...)` evaluates conditions in order; the first matching condition wins.
+
+#### Step 4 — Implement
+
+```python
+import numpy as np
+
+amount = np.array([50, 100, 999, 1000, 4999, 5000, 20_000])
+
+conditions = [
+    amount < 100,
+    amount < 1000,
+    amount < 5000,
+]
+
+choices = [
+    "small",
+    "medium",
+    "large",
+]
+
+risk = np.select(
+    conditions,
+    choices,
+    default="critical",
+)
+
+print(risk)
+```
+
+#### Step 5 — Explain the implementation
+
+For `50`, all three conditions are true, but the first one wins, giving `small`. Values matching no condition receive the default.
+
+#### Step 6 — Verify the result
+
+```python
+expected = np.array(
+    ["small", "medium", "medium", "large", "large", "critical", "critical"]
+)
+
+assert risk.tolist() == expected.tolist()
+```
+
+#### Step 7 — Edge cases / production considerations
+
+Boundaries (`99/100`, `999/1000`, `4999/5000`) are business definitions; test them explicitly. Reordering the conditions changes the result.
+
+**Key lesson:** in `np.select`, condition order is part of the business rule.
+
+---
+
+## Question 36 — Ufunc Methods: `reduce`, `accumulate`, and `add.at`
+
+**Difficulty:** Moderate
+
+**Topics tested:** `np.add.reduce`, `np.add.accumulate`, `np.add.at`, repeated indices.
+
+### Problem
+
+```python
+import numpy as np
+
+amount = np.array([10, 20, 30, 40])
+group = np.array([0, 1, 0, 1])
+```
+
+Compute the total, the running totals, and per-group totals. Then show why `totals[group] += amount` is not a correct grouped sum.
+
+### What you need to determine/build
+
+- `np.add.reduce`
+- `np.add.accumulate`
+- grouped totals with `np.add.at`
+- a demonstration of the repeated-index problem with plain indexed `+=`
+
+### Constraints / assumptions
+
+- Group IDs repeat.
+- The grouped total must be an integer array.
+
+### Expected skills
+
+- Ufunc methods.
+- Unbuffered indexed updates.
+
+### Solution / How to Solve
+
+#### Step 1 — Understand the problem
+
+`reduce` collapses, `accumulate` keeps intermediates, and `at` applies repeated indexed updates one by one.
+
+#### Step 2 — Predict shape/dtype/memory behavior
+
+`reduce` returns a scalar, `accumulate` returns `(4,)`, and the grouped result is `(2,)`.
+
+#### Step 3 — Choose the NumPy approach
+
+Use `np.add.at(totals, group, amount)` for repeated group IDs.
+
+#### Step 4 — Implement
+
+```python
+import numpy as np
+
+amount = np.array([10, 20, 30, 40])
+group = np.array([0, 1, 0, 1])
+
+total = np.add.reduce(amount)
+running = np.add.accumulate(amount)
+
+grouped = np.zeros(2, dtype=np.int64)
+np.add.at(grouped, group, amount)
+
+buffered = np.zeros(2, dtype=np.int64)
+buffered[group] += amount
+
+print(total)
+print(running)
+print(grouped)
+print(buffered)
+```
+
+#### Step 5 — Explain the implementation
+
+Group `0` appears twice. With `buffered[group] += amount`, NumPy reads, adds, and writes back, so only one contribution per repeated index survives (`[30 40]`). `np.add.at` is unbuffered and applies every contribution, giving `[40 60]`.
+
+#### Step 6 — Verify the result
+
+```python
+assert total == 100
+np.testing.assert_array_equal(running, np.array([10, 30, 60, 100]))
+np.testing.assert_array_equal(grouped, np.array([40, 60]))
+np.testing.assert_array_equal(buffered, np.array([30, 40]))
+```
+
+#### Step 7 — Edge cases / production considerations
+
+`np.add.at` is correct but not always the fastest; `np.bincount` or sort plus `reduceat` can be quicker. `bincount(weights=...)` returns `float64`, so prefer `add.at` when exact large integer totals matter.
+
+**Key lesson:** repeated indices need unbuffered updates; plain indexed `+=` silently drops contributions.
+
+---
+
+## Question 37 — Percentile `method=` Is Part of the Metric Definition
+
+**Difficulty:** Moderate
+
+**Topics tested:** `np.percentile`, `method=`, reproducible statistical semantics.
+
+### Problem
+
+```python
+import numpy as np
+
+values = np.array([0, 10, 20, 30])
+```
+
+Compute the 25th percentile using the `linear`, `nearest`, `lower`, `higher`, and `midpoint` methods, and explain why the method must be recorded with the metric.
+
+### What you need to determine/build
+
+A dictionary mapping each method name to its p25 value.
+
+### Constraints / assumptions
+
+- Do not average percentiles from separate chunks.
+- State the method explicitly.
+
+### Expected skills
+
+- Percentile estimation methods.
+- Metric contracts.
+
+### Solution / How to Solve
+
+#### Step 1 — Understand the problem
+
+With 4 observations, the 25th percentile falls at fractional position `0.25 × (4 - 1) = 0.75` between the first and second sorted values (`0` and `10`).
+
+#### Step 2 — Predict shape/dtype/memory behavior
+
+Each call returns a scalar.
+
+#### Step 3 — Choose the NumPy approach
+
+`np.percentile(values, 25, method=...)`.
+
+#### Step 4 — Implement
+
+```python
+import numpy as np
+
+values = np.array([0, 10, 20, 30])
+
+methods = ["linear", "nearest", "lower", "higher", "midpoint"]
+
+p25 = {
+    method: np.percentile(values, 25, method=method)
+    for method in methods
+}
+
+print(p25)
+```
+
+#### Step 5 — Explain the implementation
+
+`linear` interpolates (`7.5`), `nearest` picks the closest observation (`10`), `lower` and `higher` pick the neighbor below or above (`0` and `10`), and `midpoint` averages the two neighbors (`5`).
+
+#### Step 6 — Verify the result
+
+```python
+assert p25["linear"] == 7.5
+assert p25["nearest"] == 10
+assert p25["lower"] == 0
+assert p25["higher"] == 10
+assert p25["midpoint"] == 5
+```
+
+#### Step 7 — Edge cases / production considerations
+
+Record the method next to every published p50/p95/p99, keep it identical across environments and versions, and test the one-element and two-element cases.
+
+**Key lesson:** the percentile method is part of the statistical definition, not an implementation detail.
+
+---
+
+## Question 38 — Cumulative Sums, Differences, Rolling Totals, Histograms, and Bins
+
+**Difficulty:** Moderate
+
+**Topics tested:** `np.cumsum`, `np.diff`, rolling totals via cumulative sums, `np.histogram`, `np.digitize`.
+
+### Problem
+
+```python
+import numpy as np
+
+daily = np.array([10, 20, 15, 5, 30])
+```
+
+Compute the running total, day-over-day change, and 3-day rolling totals (complete windows only). Then bucket the values into bins.
+
+### What you need to determine/build
+
+- `np.cumsum`
+- `np.diff`
+- 3-day rolling totals using cumulative-sum differencing
+- `np.histogram` counts for edges `[0, 10, 20, 40]`
+- `np.digitize` bin index for each value using the same edges
+
+### Constraints / assumptions
+
+- Rolling totals use complete windows only.
+- The rolling code must also work for `window=1`.
+
+### Expected skills
+
+- Cumulative operations.
+- Off-by-one reasoning.
+- Bin semantics.
+
+### Solution / How to Solve
+
+#### Step 1 — Understand the problem
+
+A rolling total is the current cumulative sum minus the cumulative sum `window` positions earlier.
+
+#### Step 2 — Predict shape/dtype/memory behavior
+
+`cumsum` has shape `(5,)`, `diff` has shape `(4,)`, the 3-day rolling result has shape `(3,)`.
+
+#### Step 3 — Choose the NumPy approach
+
+Use cumulative sums and slice arithmetic instead of re-summing each window.
+
+#### Step 4 — Implement
+
+```python
+import numpy as np
+
+daily = np.array([10, 20, 15, 5, 30])
+
+cumulative = np.cumsum(daily)
+change = np.diff(daily)
+
+window = 3
+rolling = cumulative[window - 1:].copy()
+rolling[1:] -= cumulative[:-window]
+
+edges = np.array([0, 10, 20, 40])
+counts, hist_edges = np.histogram(daily, bins=edges)
+bin_index = np.digitize(daily, edges)
+
+print(cumulative, change, rolling)
+print(counts, bin_index)
+```
+
+#### Step 5 — Explain the implementation
+
+`diff` shortens the array by one. The first rolling total is `cumulative[2]`; each later one subtracts the cumulative value just before the window. `np.histogram` bins are left-inclusive and right-exclusive except the last, which includes its right edge. `np.digitize` (default `right=False`) returns `0` below the first edge, `i` when `edges[i-1] <= value < edges[i]`, and `len(edges)` at or above the last edge.
+
+#### Step 6 — Verify the result
+
+```python
+np.testing.assert_array_equal(cumulative, np.array([10, 30, 45, 50, 80]))
+np.testing.assert_array_equal(change, np.array([10, -5, -10, 25]))
+np.testing.assert_array_equal(rolling, np.array([45, 40, 50]))
+
+np.testing.assert_array_equal(counts, np.array([1, 2, 2]))
+np.testing.assert_array_equal(bin_index, np.array([2, 3, 2, 1, 3]))
+
+one = cumulative[0:].copy()
+one[1:] -= cumulative[:-1]
+np.testing.assert_array_equal(one, daily)
+```
+
+#### Step 7 — Edge cases / production considerations
+
+Test `window=1`, `window=len(daily)`, and a window larger than the input. Decide whether partial windows are allowed.
+
+**Key lesson:** state the window and bin-edge conventions before writing the code.
+
+---
+
+## Question 39 — Set-Style Operations: `isin`, `intersect1d`, `setdiff1d`
+
+**Difficulty:** Moderate
+
+**Topics tested:** `np.isin`, `np.intersect1d`, `np.setdiff1d`, membership masks.
+
+### Problem
+
+```python
+import numpy as np
+
+incoming_ids = np.array([105, 101, 108, 101, 103, 110])
+known_ids = np.array([101, 102, 103, 104, 105])
+```
+
+Find which incoming rows are known, which IDs appear on both sides, and which incoming IDs are unknown.
+
+### What you need to determine/build
+
+- a per-row membership mask,
+- the common IDs,
+- the unknown IDs.
+
+### Constraints / assumptions
+
+- Incoming IDs contain duplicates.
+- Explain what question each function answers.
+
+### Expected skills
+
+- Choosing the right set function.
+
+### Solution / How to Solve
+
+#### Step 1 — Understand the problem
+
+Three different questions: is each row a member, which values exist on both sides, and which values exist only on one side.
+
+#### Step 2 — Predict shape/dtype/memory behavior
+
+`isin` keeps the input shape `(6,)`. `intersect1d` and `setdiff1d` return sorted, de-duplicated 1-D arrays.
+
+#### Step 3 — Choose the NumPy approach
+
+Use `isin` for row filters and the `1d` functions for value sets.
+
+#### Step 4 — Implement
+
+```python
+import numpy as np
+
+incoming_ids = np.array([105, 101, 108, 101, 103, 110])
+known_ids = np.array([101, 102, 103, 104, 105])
+
+known_row_mask = np.isin(incoming_ids, known_ids)
+common_ids = np.intersect1d(incoming_ids, known_ids)
+unknown_ids = np.setdiff1d(incoming_ids, known_ids)
+
+print(known_row_mask)
+print(common_ids)
+print(unknown_ids)
+```
+
+#### Step 5 — Explain the implementation
+
+`isin` answers "is this row's ID allowed?" and keeps duplicates and order. `intersect1d` answers "which distinct IDs are on both sides?". `setdiff1d(a, b)` answers "which distinct IDs are in `a` but not in `b`?".
+
+#### Step 6 — Verify the result
+
+```python
+np.testing.assert_array_equal(
+    known_row_mask,
+    np.array([True, True, False, True, True, False]),
+)
+np.testing.assert_array_equal(common_ids, np.array([101, 103, 105]))
+np.testing.assert_array_equal(unknown_ids, np.array([108, 110]))
+```
+
+#### Step 7 — Edge cases / production considerations
+
+Empty inputs, duplicates, and dtype mismatches (for example `int64` versus `float64` IDs) deserve tests. Report the count of unknown IDs rather than silently dropping them.
+
+**Key lesson:** pick the set function that matches the question: row mask, common values, or missing values.
+
+---
+
+## Question 40 — Integrated Production Challenge: Lookup, Forward Fill, Safe Errors, and a Quality Gate
+
+**Difficulty:** Advanced
+
+**Topics tested:** `searchsorted` as-of lookup, sorted-key join, per-device forward fill, `np.maximum.accumulate`, `np.errstate`, `np.vectorize`, non-zero exit code.
+
+### Problem
+
+A sensor pipeline receives:
+
+```python
+import numpy as np
+
+device = np.array([2, 1, 2, 1, 1, 2, 2, 1])
+timestamp = np.array([3, 1, 1, 3, 2, 2, 4, 4])
+reading = np.array([np.nan, np.nan, np.nan, 5.0, np.nan, 20.0, np.nan, 7.0])
+```
+
+plus a sorted table of reference times and a sorted device-key table:
+
+```python
+reference_time = np.array([10, 20, 30])
+reference_value = np.array([100.0, 200.0, 300.0])
+query_time = np.array([5, 20, 25, 99])
+
+right_keys = np.array([1, 2, 3])
+right_names = np.array(["alpha", "beta", "gamma"])
+left_keys = np.array([2, 4, 1])
+```
+
+### What you need to determine/build
+
+1. An as-of lookup of `reference_value` for each `query_time` (latest reference time `<=` the query; no match must not use a negative index).
+2. An exact-key lookup join of `left_keys` against the sorted `right_keys`.
+3. A per-device forward fill of `reading` without a Python loop, in original row order, that never crosses device boundaries.
+4. A ratio with `np.errstate` that reports how many results are non-finite.
+5. A demonstration that `np.vectorize` is a convenience wrapper, not native vectorization.
+6. A quality gate that exits with a non-zero status when more than 25% of readings are missing, on a dataset where it fails.
+
+### Constraints / assumptions
+
+- No Python loop over rows for the forward fill.
+- `np.errstate` controls warnings only; it does not decide business validity.
+- The quality gate must use integer arithmetic for the threshold.
+
+### Expected skills
+
+- Integration of the whole module.
+- Boundary-safe vectorized algorithms.
+- Explicit data-quality gates.
+
+### Solution / How to Solve
+
+#### Step 1 — Understand the problem
+
+Each requirement guards a different failure: a negative index, a missing exact key, a device boundary, silent warnings, a hidden Python loop, and a metric that continues on bad data.
+
+#### Step 2 — Predict shape/dtype/memory behavior
+
+All row-aligned arrays have shape `(8,)`. The lookups return one value per query. For the forward fill, device `1` sorted by time is `[nan, nan, 5, 7]` and device `2` is `[nan, 20, nan, nan]`. Device `2` starts with a NaN that sits right after device `1`'s last valid value.
+
+#### Step 3 — Choose the NumPy approach
+
+`searchsorted(side="right") - 1` with a validity mask; `searchsorted` plus bounds and equality checks; `lexsort` plus `maximum.accumulate` twice for the fill; a guarded `errstate` block; and `SystemExit(1)` for the gate.
+
+#### Step 4 — Implement
+
+```python
+import numpy as np
+
+device = np.array([2, 1, 2, 1, 1, 2, 2, 1])
+timestamp = np.array([3, 1, 1, 3, 2, 2, 4, 4])
+reading = np.array([np.nan, np.nan, np.nan, 5.0, np.nan, 20.0, np.nan, 7.0])
+
+# 1. As-of lookup
+reference_time = np.array([10, 20, 30])
+reference_value = np.array([100.0, 200.0, 300.0])
+query_time = np.array([5, 20, 25, 99])
+
+idx = np.searchsorted(
+    reference_time,
+    query_time,
+    side="right",
+) - 1
+matched = idx >= 0
+
+asof = np.full(query_time.shape, np.nan)
+asof[matched] = reference_value[idx[matched]]
+
+# 2. Exact-key lookup join
+right_keys = np.array([1, 2, 3])
+right_names = np.array(["alpha", "beta", "gamma"])
+left_keys = np.array([2, 4, 1])
+
+pos = np.searchsorted(right_keys, left_keys)
+in_bounds = pos < right_keys.size
+found = np.zeros(left_keys.shape, dtype=bool)
+found[in_bounds] = right_keys[pos[in_bounds]] == left_keys[in_bounds]
+
+joined = np.full(left_keys.shape, "", dtype=right_names.dtype)
+joined[found] = right_names[pos[found]]
+
+# 3. Per-device forward fill
+order = np.lexsort(
+    (timestamp, device)
+)
+
+sorted_device = device[order]
+sorted_reading = reading[order]
+
+positions = np.arange(
+    sorted_reading.size
+)
+
+is_first_of_device = np.r_[
+    True,
+    sorted_device[1:]
+    != sorted_device[:-1],
+]
+
+seg_start = np.maximum.accumulate(
+    np.where(
+        is_first_of_device,
+        positions,
+        0,
+    )
+)
+
+valid = ~np.isnan(sorted_reading)
+
+last_valid = np.where(
+    valid,
+    positions,
+    -1,
+)
+
+last_valid = np.maximum.accumulate(
+    last_valid
+)
+
+fillable = last_valid >= seg_start
+
+filled_sorted = sorted_reading.copy()
+
+filled_sorted[fillable] = (
+    sorted_reading[
+        last_valid[fillable]
+    ]
+)
+
+filled = np.empty_like(
+    filled_sorted
+)
+
+filled[order] = filled_sorted
+
+# 4. Controlled floating-point error handling
+numerator = np.array([1.0, 0.0, 5.0])
+denominator = np.array([0.0, 0.0, 2.0])
+
+with np.errstate(
+    divide="ignore",
+    invalid="ignore",
+):
+    ratio = numerator / denominator
+
+non_finite_count = np.count_nonzero(~np.isfinite(ratio))
+
+# 5. np.vectorize is a convenience wrapper around Python calls
+def classify(value):
+    return "high" if value >= 100 else "normal"
+
+classify_wrapped = np.vectorize(classify)
+labels = classify_wrapped(np.array([50, 100, 150]))
+native_labels = np.where(np.array([50, 100, 150]) >= 100, "high", "normal")
+
+# 6. Quality gate (fails on this dataset)
+def enforce_quality(values):
+    missing_count = np.count_nonzero(
+        np.isnan(values)
+    )
+
+    total_count = values.size
+
+    quality_failed = (
+        missing_count * 4
+        > total_count
+    )
+
+    if quality_failed:
+        raise SystemExit(1)
+
+print(asof, joined, filled, non_finite_count, labels)
+```
+
+#### Step 5 — Explain the implementation
+
+`side="right"` followed by `-1` gives the latest reference time `<=` the query; `idx == -1` means no eligible time, so the mask keeps `-1` from silently selecting the last element. `searchsorted` only returns an insertion position, so the exact join needs both the bounds check and the equality check (key `4` is in range for insertion but not equal).
+
+For the fill, `seg_start` is the sorted position where the current device began, and `last_valid` is the latest valid position anywhere earlier in the sorted array. The condition `fillable = last_valid >= seg_start` accepts a valid position only if it lies inside the current device's segment, so device `1`'s last reading (`7`) can never fill device `2`'s leading NaN; it stays NaN. Consecutive NaNs are filled because `last_valid` keeps pointing at the same valid position. Stale-value limits (for example a maximum fill age) still need an explicit policy.
+
+`np.errstate` only silences the divide/invalid warnings; the `inf` and `nan` results are still there, and the business must decide what to do with them (here they are counted). `np.vectorize` calls the Python function once per element, so it is a convenience wrapper and is not equivalent to a native NumPy expression such as `np.where`.
+
+The gate compares `missing_count * 4 > total_count` (more than 25%) with integers, avoiding floating-point boundary errors.
+
+#### Step 6 — Verify the result
+
+```python
+np.testing.assert_allclose(
+    asof,
+    np.array([np.nan, 200.0, 200.0, 300.0]),
+    equal_nan=True,
+)
+np.testing.assert_array_equal(idx, np.array([-1, 1, 1, 2]))
+
+np.testing.assert_array_equal(found, np.array([True, False, True]))
+np.testing.assert_array_equal(joined, np.array(["beta", "", "alpha"]))
+
+np.testing.assert_allclose(
+    filled,
+    np.array([20.0, np.nan, np.nan, 5.0, np.nan, 20.0, 20.0, 7.0]),
+    equal_nan=True,
+)
+
+assert non_finite_count == 2
+assert labels.tolist() == native_labels.tolist() == ["normal", "high", "high"]
+
+try:
+    enforce_quality(reading)
+except SystemExit as exc:
+    assert exc.code == 1
+else:
+    raise AssertionError("The quality gate should have failed")
+```
+
+#### Step 7 — Edge cases / production considerations
+
+Test a device with no valid readings, a single-device batch, leading NaNs, unsorted input, and a dataset exactly at the 25% boundary (which must pass). In a real job the `SystemExit(1)` (or the orchestrator's failure mechanism) must happen after the missingness report is written.
+
+**Key lesson:** correct pipelines combine boundary-safe vectorized algorithms with explicit, testable quality decisions.
+
+---
 # Module Coverage Map
 
 | Question | Difficulty | Primary topics | Secondary topics |
@@ -4084,6 +5143,29 @@ For a memmap implementation, monitor runtime and access pattern as well as memor
 | 30 | Advanced | contiguity and interop | zero-copy concepts |
 | 31 | Advanced | NumPy 2 copy semantics | API ownership, read-only |
 | 32 | Advanced | full-module integration | quality, memory, scalability |
+| 33 | Moderate | datetime64 / casting / NEP 50 | dtype inspection |
+| 34 | Moderate | structured arrays / strings / endianness / frombuffer | fromfile |
+| 35 | Moderate | np.select | ordered conditions |
+| 36 | Moderate | ufunc reduce / accumulate / at | repeated indices |
+| 37 | Moderate | percentile method= | metric contracts |
+| 38 | Moderate | cumsum / diff / rolling / histogram / digitize | window conventions |
+| 39 | Moderate | isin / intersect1d / setdiff1d | membership questions |
+| 40 | Advanced | searchsorted as-of/join / forward fill / errstate / vectorize / quality gate | boundary safety |
+
+# Roadmap Gap Coverage
+
+| Roadmap concept | Question |
+|---|---|
+| datetime64 units, casting, NEP 50 promotion | 33 |
+| structured arrays, string types, endianness, `frombuffer` | 34 |
+| `np.select` | 35 |
+| ufunc methods `reduce`, `accumulate`, `at` | 36 |
+| percentile `method=` | 37 |
+| `cumsum`, `diff`, rolling totals, `histogram`, `digitize` | 38 |
+| `isin`, `intersect1d`, `setdiff1d` | 39 |
+| `searchsorted` as-of lookup and sorted-key join | 40 |
+| per-device forward fill with `np.maximum.accumulate` | 40 |
+| `np.errstate`, `np.vectorize`, non-zero exit quality gate | 40 |
 
 # Topic Coverage Summary
 
@@ -4153,4 +5235,4 @@ For any large NumPy operation, ask:
 20. Have I verified the result with deterministic tests?
 ```
 
-The goal is not to memorize 32 solutions. The goal is to develop the habit of predicting **shape, dtype, memory, ownership, mutation, and performance** before writing production NumPy code.
+The goal is not to memorize 40 solutions. The goal is to develop the habit of predicting **shape, dtype, memory, ownership, mutation, and performance** before writing production NumPy code.
