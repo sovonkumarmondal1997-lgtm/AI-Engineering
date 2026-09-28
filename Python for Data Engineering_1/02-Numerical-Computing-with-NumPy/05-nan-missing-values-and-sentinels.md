@@ -392,6 +392,46 @@ The correct approach is:
 np.isnan(a)
 ```
 
+### NaN in ordered comparisons
+
+Ordered comparisons with NaN are also `False`:
+
+```python
+import numpy as np
+
+a = np.array(
+    [3.0, 7.0, np.nan],
+)
+
+print(a > 5)
+print(a <= 5)
+print(~(a > 5))
+print(np.nan > 5)
+print(np.nan == 5)
+print(np.nan != 5)
+```
+
+Output:
+
+```text
+[False  True False]
+[ True False False]
+[ True False  True]
+False
+False
+True
+```
+
+The trap: `~(a > 5)` is **not** equivalent to `a <= 5` when NaN exists. `NaN > 5` is `False`, and negating that makes it `True`, while `NaN <= 5` is still `False`.
+
+State the validity rule explicitly:
+
+```python
+le_5_and_valid = (a <= 5) & ~np.isnan(a)
+```
+
+This matters for filtering, range checks, quality rules, metric classification, and production validation: a NaN can silently pass a negated condition or silently fail a direct one.
+
 ---
 
 # 8. Detecting NaN with `np.isnan`
@@ -827,6 +867,34 @@ Similarly, an empty input has no observations at all.
 
 The exact warnings and return values of individual NumPy functions can differ, so production code should test the relevant edge case rather than relying on memory.
 
+A concrete trap:
+
+```python
+import numpy as np
+
+a = np.array(
+    [np.nan, np.nan],
+)
+
+print(np.nansum(a))
+```
+
+Output:
+
+```text
+0.0
+```
+
+With all observations missing, `np.nansum` returns `0.0`. That does **not** prove there was a real zero-valued aggregate. A production pipeline should separately retain:
+
+```text
+valid_count
+missing_count
+missing_rate
+```
+
+so that "sum = 0 from 0 valid observations" can be distinguished from "sum = 0 from real data".
+
 Engineering rule:
 
 > **Define the meaning of "no valid observations" explicitly.**
@@ -855,6 +923,19 @@ print(a.dtype)
 ```
 
 The resulting dtype is floating-point.
+
+The reverse direction is also a trap:
+
+```python
+values = np.array([np.nan])
+converted = values.astype(np.int64)
+
+print(converted)
+```
+
+Converting NaN directly to an integer is invalid. On common 64-bit NumPy builds it may produce `-9223372036854775808` together with an invalid-value warning (warning and result details may be platform-dependent). That cast result must never be interpreted as a legitimate missing-value representation or used as an intentional sentinel.
+
+The production-safe alternatives are `float + NaN`, or `integer values + validity mask`.
 
 This creates a serious risk for identifiers.
 
@@ -2286,7 +2367,6 @@ Output:
 
 ```text
 [ True False False  True False]
-[ 0 -1 -1  3 -1]
 [ 0  0  0  3  3]
 ```
 
@@ -2475,6 +2555,70 @@ device B
 -------
 fill only inside B
 ```
+
+### Concrete vectorized algorithm (no Python loop)
+
+First sort by `(device_id, timestamp)` and mark where each device starts:
+
+```python
+order = np.lexsort((timestamp, device_id))
+
+sorted_device = device_id[order]
+sorted_temperature = temperature[order]
+positions = np.arange(sorted_temperature.size)
+
+is_first_of_device = np.r_[
+    True,
+    sorted_device[1:] != sorted_device[:-1],
+]
+
+seg_start = np.maximum.accumulate(
+    np.where(is_first_of_device, positions, 0)
+)
+```
+
+Then track the latest valid position, exactly as in the single-series version:
+
+```python
+valid = ~np.isnan(sorted_temperature)
+
+last_valid = np.where(
+    valid,
+    positions,
+    -1,
+)
+
+last_valid = np.maximum.accumulate(last_valid)
+```
+
+The critical boundary condition is:
+
+```python
+fillable = last_valid >= seg_start
+```
+
+Fill only positions whose latest valid observation is inside the same device, then restore the original row order:
+
+```python
+filled = sorted_temperature.copy()
+
+filled[fillable] = sorted_temperature[
+    last_valid[fillable]
+]
+
+filled_original_order = np.empty_like(filled)
+filled_original_order[order] = filled
+```
+
+How it works:
+
+- `seg_start` holds the sorted position where the current device began.
+- `last_valid` holds the latest valid position seen so far in the whole sorted array, which may belong to the previous device.
+- `last_valid >= seg_start` rejects a `last_valid` that lies before the current device began, so a previous device's value cannot cross the boundary.
+- Leading NaNs of a device stay NaN, because no valid position at or after `seg_start` exists yet (`-1` and earlier-device positions both fail the test).
+- Consecutive NaNs are handled because `last_valid` keeps pointing at the same valid position until a new one appears.
+- No Python loop is used; every step is a whole-array operation.
+- Stale-value limits (for example "at most 15 minutes") still need an explicit business/data-quality policy, for example by also comparing timestamps at `last_valid` and at each row.
 
 ---
 
@@ -2927,9 +3071,9 @@ sorted
 
 ---
 
-# 80. `np.unique` and NaN in NumPy 2
+# 80. `np.unique` and NaN equality
 
-NumPy 2's `np.unique` behavior includes the `equal_nan` option.
+NumPy 1.21 changed `np.unique` so that NaN values are treated as equal for uniqueness and collapse to a single NaN by default. The explicit `equal_nan` parameter was added in NumPy 1.24, so `equal_nan=True` is available in the NumPy 2.x target of this chapter.
 
 Conceptually:
 
@@ -3035,10 +3179,6 @@ Do not use exact equality just because the values "look equal."
 ---
 
 # 83. Debugging missing-value problems
-
-Create:
-
-## Debugging Missing-Value Problems
 
 When a metric unexpectedly changes, inspect:
 
@@ -3695,6 +3835,81 @@ For every metric record, also preserve:
 ```text
 valid observation count
 missing count/rate
+```
+
+### Recipe: NaN-safe p95 per device and day
+
+`np.bincount` and `np.add.reduceat` are not percentile functions. A percentile must be computed on the values that belong to each group, and the day key must be derived explicitly.
+
+First exclude records whose timestamp is `NaT`, because a missing timestamp cannot be assigned to a real calendar day (report how many were excluded):
+
+```python
+known_timestamp = ~np.isnat(timestamp)
+
+ts = timestamp[known_timestamp]
+devices = device_id[known_timestamp]
+values = clean_temperature[known_timestamp]
+```
+
+Derive the day key and sort into device/day groups:
+
+```python
+day = ts.astype("datetime64[D]")
+
+order = np.lexsort((day, devices))
+
+sorted_devices = devices[order]
+sorted_days = day[order]
+sorted_values = values[order]
+```
+
+Identify group boundaries:
+
+```python
+is_first_group = np.r_[
+    True,
+    (sorted_devices[1:] != sorted_devices[:-1])
+    | (sorted_days[1:] != sorted_days[:-1]),
+]
+
+starts = np.flatnonzero(is_first_group)
+ends = np.r_[starts[1:], sorted_values.size]
+```
+
+Compute p95 per group (the loop runs over groups, not over rows):
+
+```python
+p95 = np.array([
+    (
+        np.nanpercentile(
+            sorted_values[start:end],
+            95,
+        )
+        if np.any(
+            ~np.isnan(sorted_values[start:end])
+        )
+        else np.nan
+    )
+    for start, end in zip(starts, ends)
+])
+```
+
+Preserve the group keys:
+
+```python
+group_device = sorted_devices[starts]
+group_day = sorted_days[starts]
+```
+
+`group_device[i]`, `group_day[i]` and `p95[i]` form one logical metric record.
+
+For a group where every value is missing:
+
+```text
+all values missing
+→ p95 remains NaN
+→ do not invent zero
+→ report missing/valid counts separately
 ```
 
 ---
