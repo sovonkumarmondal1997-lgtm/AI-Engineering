@@ -2904,7 +2904,9 @@ import statistics
 import sys
 import time
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
+from queue import Empty, Queue
+from threading import Thread
 from typing import Iterable
 
 
@@ -2958,35 +2960,56 @@ def parse_args():
         "--stream-delay",
         type=float,
         default=0.25,
-        help="Delay between simulated stream events.",
+        help="Delay between simulated event releases (stream and micro-batch modes).",
     )
 
     return parser.parse_args()
 
 
+def make_order(order_id: int) -> Order:
+    # Each order is created at the moment it actually becomes
+    # available, never at a timestamp offset into the future.
+    return Order(
+        order_id=order_id,
+        customer_id=random.randint(1, 10),
+        amount=round(
+            random.uniform(10, 500),
+            2,
+        ),
+        created_at=datetime.now(timezone.utc),
+    )
+
+
 def generate_orders(count: int) -> list[Order]:
-    now = datetime.now(timezone.utc)
+    return [
+        make_order(order_id)
+        for order_id in range(1, count + 1)
+    ]
 
-    orders = []
 
+def order_stream(
+    count: int,
+    delay_seconds: float,
+) -> Iterable[Order]:
     for order_id in range(1, count + 1):
-        created_at = now + timedelta(
-            seconds=order_id * 0.1
-        )
+        # Teaching simulation:
+        # this represents time passing before
+        # the next event becomes available.
+        time.sleep(delay_seconds)
+        yield make_order(order_id)
 
-        orders.append(
-            Order(
-                order_id=order_id,
-                customer_id=random.randint(1, 10),
-                amount=round(
-                    random.uniform(10, 500),
-                    2,
-                ),
-                created_at=created_at,
-            )
-        )
 
-    return orders
+def produce_orders(
+    count: int,
+    delay_seconds: float,
+    order_queue: "Queue[Order | None]",
+) -> None:
+    """Release orders one at a time, each created at its real arrival moment."""
+    for order in order_stream(count, delay_seconds):
+        order_queue.put(order)
+
+    # Sentinel value: signals that no further orders will arrive.
+    order_queue.put(None)
 
 
 def process_order(order: Order) -> ProcessedOrder:
@@ -3007,6 +3030,7 @@ def print_metrics(
     mode: str,
     duration_seconds: float,
     processed: list[ProcessedOrder],
+    run_count: int,
 ) -> None:
     latencies = [
         item.latency_seconds
@@ -3014,10 +3038,11 @@ def print_metrics(
     ]
 
     logging.info(
-        "mode=%s records=%d duration_seconds=%.3f",
+        "mode=%s records=%d duration_seconds=%.3f run_count=%d",
         mode,
         len(processed),
         duration_seconds,
+        run_count,
     )
 
     if not latencies:
@@ -3044,17 +3069,12 @@ def run_batch(
 
 
 def run_stream(
-    orders: list[Order],
+    count: int,
     delay_seconds: float,
 ) -> list[ProcessedOrder]:
     results = []
 
-    for order in orders:
-        # Teaching simulation:
-        # this represents time passing before
-        # the next event becomes available.
-        time.sleep(delay_seconds)
-
+    for order in order_stream(count, delay_seconds):
         result = process_order(order)
 
         logging.info(
@@ -3070,70 +3090,96 @@ def run_stream(
 
 
 def run_micro_batch(
-    orders: list[Order],
+    count: int,
     interval_seconds: float,
-) -> list[ProcessedOrder]:
-    results = []
-    processed_ids: set[int] = set()
+    release_delay_seconds: float,
+) -> tuple[list[ProcessedOrder], int]:
+    # A background producer releases orders incrementally, one at a
+    # time, instead of materializing the whole dataset up front.
+    order_queue: "Queue[Order | None]" = Queue()
+
+    producer = Thread(
+        target=produce_orders,
+        args=(count, release_delay_seconds, order_queue),
+        daemon=True,
+    )
+    producer.start()
+
+    results: list[ProcessedOrder] = []
+    pending: list[Order] = []
+    run_count = 0
+    producer_finished = False
 
     # This is a teaching model of a moving processing boundary.
     # Production systems need durable progress tracking.
-    start = time.monotonic()
+    while not producer_finished or pending:
+        time.sleep(interval_seconds)
+        run_count += 1
 
-    while len(processed_ids) < len(orders):
-        elapsed = time.monotonic() - start
+        while True:
+            try:
+                item = order_queue.get_nowait()
+            except Empty:
+                break
 
-        if elapsed < interval_seconds:
-            time.sleep(
-                interval_seconds - elapsed
-            )
+            if item is None:
+                producer_finished = True
+                break
 
-        new_orders = [
+            pending.append(item)
+
+        now = datetime.now(timezone.utc)
+
+        available = [
             order
-            for order in orders
-            if order.order_id not in processed_ids
+            for order in pending
+            if order.created_at <= now
         ]
 
-        if not new_orders:
-            break
+        pending = [
+            order
+            for order in pending
+            if order.created_at > now
+        ]
 
         logging.info(
-            "micro_batch_size=%d",
-            len(new_orders),
+            "micro_batch_run=%d micro_batch_size=%d",
+            run_count,
+            len(available),
         )
 
-        for order in new_orders:
-            result = process_order(order)
-            results.append(result)
-            processed_ids.add(order.order_id)
+        for order in available:
+            results.append(process_order(order))
 
-        start = time.monotonic()
+    producer.join()
 
-    return results
+    return results, run_count
 
 
 def main() -> int:
     args = parse_args()
 
-    orders = generate_orders(args.count)
-
     start = time.monotonic()
 
     try:
         if args.mode == "batch":
+            orders = generate_orders(args.count)
             results = run_batch(orders)
+            run_count = 1
 
         elif args.mode == "micro-batch":
-            results = run_micro_batch(
-                orders,
-                args.interval,
+            results, run_count = run_micro_batch(
+                count=args.count,
+                interval_seconds=args.interval,
+                release_delay_seconds=args.stream_delay,
             )
 
         elif args.mode == "stream":
             results = run_stream(
-                orders,
-                args.stream_delay,
+                count=args.count,
+                delay_seconds=args.stream_delay,
             )
+            run_count = 1
 
         else:
             raise ValueError(
@@ -3152,6 +3198,7 @@ def main() -> int:
         mode=args.mode,
         duration_seconds=duration,
         processed=results,
+        run_count=run_count,
     )
 
     logging.info(
@@ -3183,9 +3230,9 @@ stream
 
 but it is **not** a real benchmark.
 
-Some generated timestamps may even appear slightly in the future relative to processing time if the simulation creates the entire dataset at once.
+Earlier versions of this simulator generated timestamps slightly in the future relative to processing time, because the whole dataset was time-stamped at once before any processing began. The reference implementation above avoids this: every order's `created_at` is set at the actual moment that order is generated or released, whether in batch, micro-batch, or stream mode.
 
-For a cleaner experiment, you can instead generate event timestamps when each event is released into the simulated stream.
+For a cleaner experiment, event timestamps are generated when each event is released into the simulated stream.
 
 The lesson is about architecture, not stopwatch precision.
 

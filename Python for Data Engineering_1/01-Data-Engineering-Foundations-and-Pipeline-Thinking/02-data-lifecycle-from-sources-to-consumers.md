@@ -3252,6 +3252,12 @@ source_created_at
 ingestion_timestamp
 ```
 
+### Optional JSON Landing Variant
+
+The reference pipeline in this lesson lands data as CSV because the example orders are flat, tabular records with a fixed set of columns. JSON is a useful landing choice instead when source data is semi-structured — for example when records are nested, contain arrays, or have optional or varying fields (see the structured/semi-structured/unstructured discussion earlier in this topic). Landing as JSON lets you preserve that structure without forcing early flattening, at the cost of a slightly less compact file than CSV. CSV remains preferable when records are already stable, row-and-column-shaped, like the orders used here.
+
+The reference implementation below therefore adds an optional `ingest_orders_json()` function alongside the default `ingest_orders()`. It is an alternative landing format for the same source data, not a replacement — the default lifecycle run in this lesson still lands to CSV.
+
 ---
 
 # 75. Step 3 — Transform
@@ -3363,6 +3369,7 @@ The following implementation is intentionally procedural and beginner-friendly.
 from __future__ import annotations
 
 import csv
+import json
 import logging
 import random
 import sqlite3
@@ -3532,6 +3539,32 @@ def ingest_orders() -> int:
 
     logging.info("ingestion_rows=%d", len(orders))
     return len(orders)
+
+
+def ingest_orders_json() -> int:
+    """Optionally export the same source data into a JSON landing file."""
+    orders = read_source_orders()
+
+    ingestion_timestamp = datetime.now(timezone.utc).isoformat()
+    records = []
+
+    for order in orders:
+        record = order.copy()
+        record["ingestion_timestamp"] = ingestion_timestamp
+        records.append(record)
+
+    json_file = LANDING_DIR / "orders_raw.json"
+
+    with json_file.open("w", encoding="utf-8") as file:
+        json.dump(records, file, indent=2)
+        file.write("\n")
+
+    logging.info(
+        "json_ingestion_rows=%d file=%s",
+        len(records),
+        json_file,
+    )
+    return len(records)
 
 
 def transform_orders() -> tuple[list[dict[str, object]], int]:
