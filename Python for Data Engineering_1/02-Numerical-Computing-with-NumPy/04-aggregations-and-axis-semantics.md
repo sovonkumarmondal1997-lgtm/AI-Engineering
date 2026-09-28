@@ -1955,9 +1955,7 @@ cumulative = np.cumsum(daily)
 window = 7
 
 rolling_7 = cumulative[window - 1:].copy()
-
-if window > 1:
-    rolling_7[1:] -= cumulative[:-window]
+rolling_7[1:] -= cumulative[:-window]
 
 print(rolling_7)
 ```
@@ -2038,6 +2036,34 @@ customer 2 → 300           = 300
 
 The output position is the group ID.
 
+### Precision warning for weighted `bincount`
+
+Weighted `np.bincount` returns floating-point totals, normally `float64`. `float64` cannot represent every integer exactly above `2**53`, so very large exact integer totals can lose units of precision:
+
+```python
+import numpy as np
+
+group_idx = np.array([0, 0])
+weights = np.array([2**53, 1], dtype=np.int64)
+
+weighted = np.bincount(
+    group_idx,
+    weights=weights,
+)
+
+print(weighted)
+print(weighted.dtype)
+```
+
+The mathematical result is `2**53 + 1`, but the `float64` result cannot represent that integer exactly (it is rounded to `2**53`).
+
+An integer-preserving alternative:
+
+```python
+totals = np.zeros(1, dtype=np.int64)
+np.add.at(totals, group_idx, weights)
+```
+
 ---
 
 # 47. Why `weights` matters
@@ -2087,6 +2113,29 @@ customer_C
 you first need to encode them as compact integer group IDs.
 
 That is where `np.unique(return_inverse=True)` becomes useful.
+
+### `minlength`
+
+Without `minlength`, `np.bincount` stops at the highest group ID present, so empty trailing groups can disappear and downstream array shapes can become inconsistent.
+
+```python
+import numpy as np
+
+counts = np.bincount(
+    np.array([0, 2, 2]),
+    minlength=4,
+)
+
+print(counts)
+```
+
+Output:
+
+```text
+[1 0 2 0]
+```
+
+In production, pass `minlength` (the known number of groups) so every run returns the same shape.
 
 ---
 
@@ -2307,6 +2356,64 @@ It is useful when a prior ordering step has made group boundaries explicit.
 
 The start positions define each segment. The next start position determines the end of the current segment; the final segment runs to the end of the input.
 
+### Starting from unsorted keys
+
+`reduceat` needs contiguous segments, so unsorted keys must be ordered first:
+
+```python
+import numpy as np
+
+keys = np.array([2, 0, 2, 1, 0, 2])
+values = np.array([30, 10, 20, 40, 50, 60])
+
+order = np.argsort(
+    keys,
+    kind="stable",
+)
+
+sorted_keys = keys[order]
+sorted_values = values[order]
+
+starts = np.flatnonzero(
+    np.r_[True, np.diff(sorted_keys) != 0]
+)
+
+totals = np.add.reduceat(
+    sorted_values,
+    starts,
+)
+
+print(sorted_keys)
+print(starts)
+print(totals)
+```
+
+Output:
+
+```text
+[0 0 1 2 2 2]
+[0 2 3]
+[ 60  40 110]
+```
+
+The workflow is:
+
+```text
+unsorted keys
+→ stable sort
+→ contiguous equal-key groups
+→ identify group starts
+→ reduce each segment
+```
+
+`np.flatnonzero(np.r_[True, np.diff(sorted_keys) != 0])` marks the first position of every group.
+
+### Boundary warning
+
+If `starts[i] >= starts[i + 1]`, then `np.add.reduceat` does **not** represent an empty segment. It reduces the single element at `starts[i]`.
+
+So `reduceat` is not an ordinary groupby replacement until contiguous segments have been established.
+
 ---
 
 # 54. When to choose the three group patterns
@@ -2342,9 +2449,18 @@ print(counts)
 print(edges)
 ```
 
+Output:
+
+```text
+counts → [4 3 3]
+edges  → [1.         3.66666667 6.33333333 9.        ]
+```
+
 `counts` tells you how many values fell into each interval.
 
 `edges` defines the interval boundaries.
+
+The bins are left-inclusive and right-exclusive, except the final bin, which also includes its right edge.
 
 ---
 
@@ -2384,6 +2500,25 @@ bins = np.digitize(
 )
 
 print(bins)
+```
+
+Output:
+
+```text
+[1 2 3 4]
+```
+
+With the default `right=False`:
+
+```text
+value < first edge
+→ 0
+
+edge[i-1] <= value < edge[i]
+→ i
+
+value >= last edge
+→ len(edges)
 ```
 
 The important concept is:
@@ -2492,6 +2627,32 @@ The important engineering point is not to assume a universal guarantee:
 
 For sensitive numerical pipelines, test the actual calculation and define acceptable tolerances.
 
+### Demonstration: float32 accumulation
+
+```python
+import numpy as np
+
+values = np.full(
+    1_000_000,
+    0.1,
+    dtype=np.float32,
+)
+
+linear = np.float32(0.0)
+
+for value in values:
+    linear += value
+
+np_total = values.sum()
+expected = 100_000.0
+
+print("linear float32:", linear)
+print("np.sum:", np_total)
+print("expected:", expected)
+```
+
+The exact displayed values are implementation-dependent, but the concept matters: naïve left-to-right `float32` accumulation accumulates substantial error, NumPy's reduction can use a more accurate strategy where applicable, and accumulation order matters. Do not treat these numbers as guarantees for every dtype, axis, or configuration.
+
 ---
 
 # 61. Catastrophic cancellation
@@ -2520,6 +2681,31 @@ This can matter in:
 The practical lesson is:
 
 > **Mathematically equivalent formulas are not always numerically equivalent in finite-precision arithmetic.**
+
+### Demonstration: large-offset variance
+
+```python
+import numpy as np
+
+x = np.array(
+    [
+        1_000_000_000_001.0,
+        1_000_000_000_002.0,
+        1_000_000_000_003.0,
+        1_000_000_000_004.0,
+        1_000_000_000_005.0,
+    ],
+    dtype=np.float64,
+)
+
+naive_variance = np.mean(x * x) - np.mean(x) ** 2
+stable_variance = np.var(x)
+
+print("naive:", naive_variance)
+print("np.var:", stable_variance)
+```
+
+The mathematically correct population variance is `2.0`. The naïve `mean(x²) - mean(x)²` expression is numerically unstable at large offsets: catastrophic cancellation can produce a badly inaccurate or even negative result. `np.var` uses a numerically safer approach (deviations from the mean).
 
 ---
 
@@ -2555,79 +2741,79 @@ result
 
 This is especially important for integer reductions.
 
-NumPy's documentation explicitly notes that using a larger dtype can help avoid overflow during reductions. citeturn350872search2
+NumPy's documentation explicitly notes that using a larger dtype can help avoid overflow during reductions.
 
 ---
 
 # 63. Integer overflow in reductions
 
-A value can fit safely into an integer dtype while its total does not.
-
-Suppose an `int32` value can be roughly up to 2.1 billion.
-
-Now imagine:
+Keep three things separate:
 
 ```text
-1,000,000 records
-each contributes 10,000
+source dtype
+→ accumulation dtype
+→ maximum mathematical total
+→ overflow risk
 ```
 
-The total is:
+Integer inputs narrower than the default integer are normally accumulated using the platform integer type. On a typical 64-bit platform this is `int64`. Therefore a plain `.sum()` on an `int16` or `int32` array does not automatically overflow merely because the source dtype is narrow:
+
+```python
+import numpy as np
+
+values = np.array(
+    [30_000, 30_000],
+    dtype=np.int16,
+)
+
+total = values.sum()
+
+print(total)
+print(total.dtype)
+```
+
+Output on a typical 64-bit platform:
 
 ```text
-10,000,000,000
+60000
+int64
 ```
 
-which is larger than the positive `int32` range.
-
-The problem is:
-
-```text
-each individual value is safe
-but
-the aggregate is not
-```
+The real risk is a total that exceeds the accumulation dtype itself.
 
 ---
 
 # 64. Demonstrating reduction overflow
 
-For an explicit demonstration, deliberately use a narrow integer dtype and inspect the result.
+A genuine overflow needs a mathematical total outside the accumulation range, for example with `int64`:
 
 ```python
 import numpy as np
 
-values = np.full(
-    1_000,
-    30_000,
-    dtype=np.int16,
-)
-
-narrow_total = values.sum(
-    dtype=np.int16,
-)
-
-wide_total = values.sum(
+values = np.array(
+    [2**62, 2**62],
     dtype=np.int64,
 )
 
-print(narrow_total)
-print(wide_total)
+true_total = 2**63
+observed_total = values.sum()
+
+print("true total:", true_total)
+print("observed:", observed_total)
+print("dtype:", observed_total.dtype)
 ```
 
-The narrow accumulation cannot represent the true total, while the wider accumulation can.
-
-The exact overflowed value is less important than the engineering lesson:
+The observed value is `-9223372036854775808`, not `2**63`:
 
 ```text
-small dtype
-+
-large reduction
-=
-overflow risk
+2**63 is outside the positive int64 range
+→ fixed-width reduction cannot represent it
+→ the result wraps
 ```
 
-Use a deliberate wider accumulation dtype when the expected total can exceed the source range.
+The exact overflowed value is less important than the engineering lesson: check the maximum mathematical total against the accumulation dtype.
+
+`dtype=np.int64` is useful when a narrower source needs wider accumulation, but only when the mathematical result itself fits in `int64`. It does not make every possible integer aggregation safe.
 
 ---
 
@@ -3223,6 +3409,47 @@ Interpretation at a high level:
 
 Use this for quick profiling, not as proof of causation.
 
+### 2-D observation matrices: use `rowvar=False`
+
+A matrix of shape `(n_samples, n_features)` has rows = observations and columns = variables/features. Use:
+
+```python
+np.corrcoef(X, rowvar=False)
+```
+
+rather than relying on the default `rowvar=True`:
+
+```python
+import numpy as np
+
+X = np.array(
+    [
+        [20, 100],
+        [22, 110],
+        [24, 125],
+        [26, 135],
+        [28, 150],
+    ],
+    dtype=np.float64,
+)
+
+corr = np.corrcoef(
+    X,
+    rowvar=False,
+)
+
+print(corr)
+print(corr.shape)
+```
+
+Expected shape:
+
+```text
+(2, 2)
+```
+
+Omitting `rowvar=False` treats each row as a variable and produces a `5 × 5` (`n_samples × n_samples`) matrix that describes the wrong entities.
+
 ---
 
 # 79. Correlation does not prove causation
@@ -3285,8 +3512,6 @@ Again, these functions are particularly useful for quick numerical profiling in 
 ---
 
 # 81. Debugging aggregation problems
-
-Create:
 
 ## Debugging NumPy Aggregation Problems
 
@@ -4121,19 +4346,24 @@ Expected result shape:
 
 For each store, calculate:
 
-```text
-store sales by the chosen product dimension
-/
-store total
-```
-
-Use:
-
 ```python
-keepdims=True
+store_totals = sales.sum(
+    axis=(0, 2),
+    keepdims=True,
+)
+
+store_share = sales / store_totals
 ```
 
-so the aggregate remains broadcast-compatible.
+with:
+
+```text
+sales.shape        = (365, 50, 200)
+store_totals.shape = (1, 50, 1)
+store_share.shape  = (365, 50, 200)
+```
+
+Axes `0` (day) and `2` (product) are collapsed, leaving the store axis `1`. `keepdims=True` keeps the aggregate broadcast-compatible.
 
 Your implementation should make the shape relationship obvious.
 
