@@ -129,7 +129,7 @@ Their dimensions are:
 
 ```text
 one_d   → 1 dimension
- two_d  → 2 dimensions
+two_d  → 2 dimensions
 three_d → 3 dimensions
 ```
 
@@ -857,6 +857,27 @@ A wider type generally provides greater precision and a larger representable ran
 | `float32` | 4 | ML features, large numeric batches | lower precision than `float64` |
 | `float64` | 8 | general scientific/data analysis | higher memory cost |
 
+#### Precision checkpoints
+
+Inspect machine epsilon (the gap between 1.0 and the next representable value) with:
+
+```python
+np.finfo(np.float32).eps
+np.finfo(np.float64).eps
+```
+
+```text
+float32 eps → 1.1920929e-07
+float64 eps → 2.2204460e-16
+```
+
+| dtype | eps | Every integer is exactly representable through |
+|---|---:|---:|
+| `float32` | ≈ 1.1920929e-07 | 2^24 = 16,777,216 |
+| `float64` | ≈ 2.2204460e-16 | 2^53 = 9,007,199,254,740,992 |
+
+Above 2^24 for `float32`, or 2^53 for `float64`, not every integer is exactly representable.
+
 The exact finite-range limits are less useful than learning to ask whether your domain values, intermediate operations, and error tolerance fit the dtype.
 
 ### 6.6 Complex types
@@ -1040,10 +1061,16 @@ Imagine:
 
 ```python
 quantity = np.array([500], dtype=np.int16)
-price = np.array([100_000], dtype=np.int16)
+price = np.array([30_000], dtype=np.int16)
 ```
 
-Each input fits in `int16`, but their product may not.
+Both inputs fit in `int16`, but:
+
+```text
+500 × 30,000 = 15,000,000
+```
+
+does not fit in the `int16` range (-32,768 to 32,767).
 
 A common mistake is to validate only the input columns and forget to validate the arithmetic result.
 
@@ -1341,8 +1368,7 @@ Will precision remain adequate?
 Is the cast part of an explicit schema contract?
 ```
 
-Do not use `
-unsafe` merely to make an error disappear. If a conversion is intentionally lossy, make that decision visible in the code and tests.
+Do not use `unsafe` merely to make an error disappear. If a conversion is intentionally lossy, make that decision visible in the code and tests.
 
 ---
 
@@ -2665,6 +2691,12 @@ Many binary formats contain headers, metadata, checksums, compression, variable-
 
 This can be memory-efficient, but it also means you should understand the lifetime and mutability characteristics of the original buffer.
 
+For a read-only source such as `bytes`, the resulting array is read-only. If writes are needed, use `.copy()`:
+
+```python
+values = np.frombuffer(raw, dtype="<i2").copy()
+```
+
 Topic 06 will go deeper into view/copy and aliasing behavior.
 
 ---
@@ -2860,6 +2892,39 @@ object for country_code
 
 Be explicit about what `object` means: the array itself contains references to Python objects; those Python objects have additional memory costs beyond the pointer/reference storage.
 
+#### Worked reference calculation (50 million rows)
+
+One reasonable fixed-width candidate:
+
+| Column | Candidate dtype | Bytes/row |
+|---|---|---:|
+| `order_id` | `uint32` | 4 |
+| `quantity` | `uint16` | 2 |
+| `unit_price_cents` | `uint32` | 4 |
+| `country_code` | `S2` | 2 |
+| `is_gift` | `bool` | 1 |
+| `created_at` | `datetime64[ms]` | 8 |
+| **Total** | | **21** |
+
+```text
+50,000,000 × 21
+= 1,050,000,000 bytes
+≈ 1.05 GB
+```
+
+`S2` is only a reference design for two fixed-width bytes; it is not a universal text-storage recommendation.
+
+Intentionally inefficient design: `int64` for the four integer columns (32 bytes), an 8-byte timestamp, and `object` for `country_code` (8-byte reference):
+
+```text
+48 bytes/row
+50,000,000 × 48
+= 2,400,000,000 bytes
+≈ 2.40 GB
+```
+
+The `object` figure is only the array's reference storage. It does **not** include the additional memory consumed by the referenced Python string objects.
+
 ### Part C — Generate a realistic sample
 
 Create a deterministic 1,000,000-row synthetic dataset using `np.random.default_rng()`.
@@ -3007,7 +3072,7 @@ print(a.__array_interface__)
 
 This exposes low-level array-interface metadata such as shape, strides, data pointer information, and dtype description. It is useful for understanding representation, but it should not be treated as an everyday business-logic API.
 
-### Bug 1 — Unexpected `float64`
+### Bug 1 — dtype changes after an operation
 
 #### Broken code
 
@@ -3018,9 +3083,7 @@ ids = np.array([1, 2, 3])
 print(ids.dtype)
 ```
 
-The inferred dtype is platform-dependent in general, although common 64-bit builds use a 64-bit default integer.
-
-More importantly, an arithmetic operation may change a result dtype:
+An arithmetic operation may change a result dtype:
 
 ```python
 values = np.array([1, 2, 3], dtype=np.int32)
