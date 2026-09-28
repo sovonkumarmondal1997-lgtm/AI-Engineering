@@ -4,7 +4,9 @@
 > **Total:** 32 questions  
 > **Distribution:** 8 Basic + 8 Moderate + 8 Hard + 8 Advanced  
 > **Coverage rule:** Every topic appears exactly once at every difficulty level.  
-> **Answer rule:** Attempt the **Problem** yourself before reading **How to Solve the Problem** and **Solution**.
+> **Answer rule:** Attempt the **Problem** yourself before reading **How to Solve the Problem** and **Solution**.  
+> **Independence:** Each question is an independent scenario — repeated names such as `daily_revenue` do not imply a shared storyline, dataset, or SLO between questions.  
+> **No code here:** Hands-on coding lives in the per-topic exercises and the module mini-project; this file intentionally focuses on design, calculation, diagnosis, and architectural reasoning.
 
 ---
 
@@ -669,6 +671,8 @@ Object storage and broad data-type flexibility are important.
 **C → Lakehouse may fit.**
 
 The organization wants object-storage flexibility plus table-management capabilities and potential multi-engine access through open table formats.
+
+**Decision:** A → Warehouse, B → Lake, C → Lakehouse — each choice follows directly from what dominates the workload: structured SQL analytics for A, raw-format flexibility for B, and the need for both object-storage flexibility and managed table semantics for C.
 
 ### Why This Is the Solution
 
@@ -1553,6 +1557,8 @@ The final decision still depends on:
 - data scale
 - operational maturity
 
+**Decision:** Start the platform evaluation with a Lakehouse, then validate it against team skills, operational complexity, cost, governance, scale, and engine-independence requirements before adoption.
+
 ### Why This Is the Solution
 
 The correct reasoning is not:
@@ -1924,6 +1930,8 @@ Potential risks:
 - governance must actually work
 - self-service platform capability must exist
 - data-product ownership must be real, not only a label
+
+**Decision:** Move toward a hybrid operating model — domain-owned data products on top of a central self-service platform, under federated governance — rather than picking a pure centralized or pure embedded model.
 
 ### Why This Is the Solution
 
@@ -2618,6 +2626,8 @@ a lakehouse is a strong candidate to evaluate.
 
 But the decision should explicitly account for the team's limited distributed-systems skills.
 
+**Decision:** Select the lakehouse as the primary candidate, conditional on validating it against the team's limited distributed-systems expertise before committing — for example through a managed offering, targeted training, or a phased rollout.
+
 ### Why This Is the Solution
 
 A technically capable architecture can still be operationally inappropriate.
@@ -2744,7 +2754,7 @@ The architecture is valuable precisely because the raw-preserving boundary remai
 
 ---
 
-## Question 24 — The Pipeline Succeeded, but the SLO Failed
+## Question 24 — The Pipeline Succeeded, and the SLO Was Met With Zero Slack
 
 **Difficulty:** Hard
 
@@ -2818,13 +2828,23 @@ Then sum the latency components.
 
 ### Solution
 
-The pipeline execution may be considered **successful** if the process completed normally:
+Pipeline execution status:
+
+```text
+successful
+```
+
+The process completed normally:
 
 ```text
 exit code = 0
 ```
 
-But the consumer SLO can still be breached.
+Consumer SLO status:
+
+```text
+met exactly, with zero slack
+```
 
 Total timing contribution:
 
@@ -2834,9 +2854,16 @@ Total timing contribution:
 60 minutes
 ```
 
-The timing budget is exactly 60 minutes.
+The source arrived at 06:30 UTC. Adding the full 60-minute timing contribution gives the modeled finish time:
 
-However, because the source itself arrived late relative to its expected delivery time, the downstream system has consumed available budget before processing could fully execute.
+```text
+06:00 UTC
++ 60 minutes
+=
+07:00 UTC
+```
+
+The consumer SLO requires `daily_revenue` by 07:00 UTC. The modeled finish time lands exactly on that deadline — the SLO is met, but it is **not comfortably met**: there is zero margin, zero slack. Any additional unmodeled delay anywhere in the chain (source, ingestion, Silver, Gold, serving) would push the finish time past 07:00 UTC and cause a breach.
 
 The primary dependency issue is:
 
@@ -2844,17 +2871,18 @@ The primary dependency issue is:
 upstream source delivery
 ```
 
+Even though this run still met the deadline, the source's 30-minute lateness against its contractual 06:00 UTC delivery time consumed the entire buffer that would otherwise protect the SLO. That upstream dependency — not anything inside the pipeline itself — is what should be tracked and negotiated.
+
 The team should:
 
 1. confirm the measurement
 2. record the dependency delay
-3. evaluate consumer impact
-4. determine whether the finance SLO was breached
-5. communicate status
-6. investigate the source dependency
-7. review the latency budget
-8. assess error-budget consumption
-9. consider whether the upstream contract or downstream architecture needs improvement
+3. recognize that the SLO was met this run, but with zero margin
+4. communicate the near-miss, not just a pass
+5. investigate the source dependency
+6. review the latency budget for remaining slack
+7. assess error-budget consumption
+8. consider whether the upstream contract or downstream architecture needs improvement
 
 ### Why This Is the Solution
 
@@ -2866,7 +2894,7 @@ Pipeline Success
 Data Reliability Success
 ```
 
-The process can execute correctly while the data is still too late for the consumer.
+Here, the pipeline succeeded and the SLO also happened to be met — but only because the six timing components summed to exactly the 60 minutes of margin available between the source's 06:00 UTC commitment and the 07:00 UTC deadline. A run that is technically compliant with zero slack is a different operational reality from a run that comfortably meets its SLO, and it should be treated as a near-miss, not a clean pass.
 
 A downstream SLO cannot ignore the reliability constraints of the systems it depends on.
 
@@ -3009,6 +3037,8 @@ ML/AI teams can consume reusable domain data products while platform teams provi
 - feature pipelines
 - retrieval pipelines
 - embedding pipelines
+
+**Decision:** Centralize reusable platform capabilities and shared governance; leave domain data products, business meaning, and domain pipelines owned by the domain teams.
 
 ### Why This Is the Solution
 
