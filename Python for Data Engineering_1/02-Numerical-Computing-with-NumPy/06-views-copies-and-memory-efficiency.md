@@ -460,19 +460,6 @@ Output:
 
 ```text
 same Python object: False
-share memory:", np.shares_memory(a, b))
-```
-
-The second line contains an accidental syntax typo if written that way; the correct code is:
-
-```python
-print("share memory:", np.shares_memory(a, b))
-```
-
-Output:
-
-```text
-same Python object: False
 share memory: True
 ```
 
@@ -2223,6 +2210,48 @@ The process can access only the pages it actually needs rather than eagerly mate
 
 This makes it useful for datasets larger than comfortable RAM capacity.
 
+## Creating and writing a `np.memmap`
+
+`np.memmap` can also create a file-backed array directly:
+
+```python
+import numpy as np
+
+
+mapped = np.memmap(
+    "values.dat",
+    dtype=np.float32,
+    mode="w+",
+    shape=(10,),
+)
+
+try:
+    mapped[:] = np.arange(
+        10,
+        dtype=np.float32,
+    )
+
+    print(mapped)
+
+    mapped.flush()
+finally:
+    del mapped
+```
+
+The lifecycle is:
+
+```text
+np.memmap(..., mode="w+")
+        ↓
+write through mapped array
+        ↓
+flush()
+        ↓
+release mapping
+```
+
+Direct `np.memmap` gives a raw binary file layout: the dtype and shape must be known externally. By contrast, `np.lib.format.open_memmap(...)` creates a `.npy` file with NumPy's format metadata (dtype and shape are stored in the file header).
+
 ---
 
 # 34. Memory mapping is not "free RAM"
@@ -2409,6 +2438,22 @@ print(loaded["labels"])
 ```
 
 It is convenient when several arrays belong together.
+
+### Important memory-mapping limitation
+
+```text
+.npy
+→ single NumPy array
+→ can be memory-mapped
+
+.npz
+→ ZIP archive containing arrays
+→ individual members are not returned as np.memmap arrays
+```
+
+`mmap_mode` is useful for individual `.npy` arrays. An `.npz` archive is a ZIP container, so loading an item such as `loaded["features"]` returns an ordinary `ndarray`, not a memory-mapped array.
+
+Use `.npy` plus `mmap_mode` or `open_memmap` when file-backed array access is the requirement.
 
 ## CSV
 
@@ -3378,10 +3423,28 @@ You will combine:
 
 ## Task 1 — Create a large `.npy` dataset
 
-Create a sufficiently large `float32` dataset and save it with:
+Create a large `float32` dataset **without ever holding it whole in RAM**, using a file-backed `.npy` written chunk by chunk.
 
-```python
+```text
+BAD larger-file demonstration
+
+generate entire array in RAM
+        ↓
 np.save(...)
+```
+
+```text
+CORRECT larger-file demonstration
+
+create file-backed .npy
+        ↓
+generate one chunk
+        ↓
+write chunk
+        ↓
+next chunk
+        ↓
+...
 ```
 
 A reference pattern:
@@ -3394,31 +3457,48 @@ import numpy as np
 
 path = Path("large_dataset.npy")
 
+# Roughly 2 GiB of float32 data.
+N = 2**29
+chunk_size = 8_000_000
+
 rng = np.random.default_rng(2026)
 
-# Choose a safe size for your machine.
-data = rng.standard_normal(10_000_000).astype(np.float32)
+data = np.lib.format.open_memmap(
+    path,
+    mode="w+",
+    dtype=np.float32,
+    shape=(N,),
+)
 
-np.save(path, data, allow_pickle=False)
+try:
+    for start in range(0, N, chunk_size):
+        stop = min(start + chunk_size, N)
+
+        data[start:stop] = rng.standard_normal(
+            stop - start,
+        ).astype(np.float32)
+
+    data.flush()
+finally:
+    del data
 
 print(path)
-print(data.shape)
-print(data.dtype)
-print(data.nbytes)
+print("elements:", N)
+print(
+    "bytes:",
+    N * np.dtype(np.float32).itemsize,
+)
 ```
 
-For a production-style exercise, scale the row count until loading the full array is uncomfortable but still safe.
-
-A roughly 2 GiB `float32` array contains approximately:
+The size is:
 
 ```text
-2 GiB / 4 bytes
-≈ 536,870,912 elements
+2**29 float32 values
+≈ 536,870,912 values
+≈ 2 GiB
 ```
 
-That is intentionally large and may not be appropriate for every learner's machine.
-
-Your exercise should adapt the size.
+The exercise may be scaled down for a machine with limited disk/RAM, but the algorithm must remain chunked and file-backed. Do not allocate the whole dataset as a normal `ndarray`.
 
 ---
 
@@ -3569,41 +3649,58 @@ Your task is to explain why:
 
 ## Task 5 — Temporary-memory optimization
 
-Start from:
-
-```python
-result = (a - a.mean()) / a.std() * 100 + 5
-```
-
-Measure its peak memory.
-
-Then create a lower-allocation version using some combination of:
-
-- `out=`,
-- in-place operations,
-- reusable buffers.
-
-A reusable-buffer pattern can look like:
+Start from a transformation with several avoidable full-size named intermediates:
 
 ```python
 import numpy as np
 
 
-def optimized_transform(a: np.ndarray) -> np.ndarray:
-    result = np.empty_like(a, dtype=np.float64)
+def baseline_transform(
+    a: np.ndarray,
+    b: np.ndarray,
+    c: np.ndarray,
+    d: np.ndarray,
+    e: np.ndarray,
+) -> np.ndarray:
+    step1 = a * b
+    step2 = step1 + c
+    step3 = step2 * d
+    result = step3 + e
+    return result
+```
 
-    mean = float(a.mean())
-    std = float(a.std())
+Here `step1`, `step2`, `step3` and `result` are four full-size arrays that are all alive at the same time.
 
-    np.subtract(a, mean, out=result)
-    np.divide(result, std, out=result)
-    np.multiply(result, 100.0, out=result)
-    np.add(result, 5.0, out=result)
+Measure its peak memory, then create a lower-allocation version using `out=` and one reusable output buffer:
+
+```python
+import numpy as np
+
+
+def optimized_transform(
+    a: np.ndarray,
+    b: np.ndarray,
+    c: np.ndarray,
+    d: np.ndarray,
+    e: np.ndarray,
+) -> np.ndarray:
+    result = np.empty_like(a)
+
+    np.multiply(a, b, out=result)
+    np.add(result, c, out=result)
+    np.multiply(result, d, out=result)
+    np.add(result, e, out=result)
 
     return result
 ```
 
-Then compare it to the straightforward implementation.
+Both versions perform the same mathematical calculation. The removed temporaries are `step1`, `step2` and `step3`: one output buffer replaces four full-size arrays.
+
+`np.empty_like(a)` is important, especially for a `float32` benchmark: it preserves the input dtype. Hard-coding `np.float64` would double the output storage, and changing `float32` to `float64` is not an optimization.
+
+> The objective is to measure avoidable allocation reduction. Do not manipulate dtype, data size, or measurement methodology to manufacture a percentage.
+
+Then compare the two versions for memory, runtime, and numerical equivalence (`np.testing.assert_allclose`).
 
 Important:
 
@@ -3721,27 +3818,27 @@ For serious production benchmarking, also inspect:
 
 Your exercise is complete only when you have attempted a genuine measured reduction.
 
-Required workflow:
+Required workflow (applied to the `baseline_transform` / `optimized_transform` pair from Task 5):
 
 ```text
-Straightforward pipeline
+baseline with explicit full-size intermediates
         ↓
-measure peak memory
+measure
         ↓
-identify large temporary arrays
+identify avoidable allocations
         ↓
-replace avoidable allocations
+reuse one output buffer
         ↓
-reuse storage
+use out=
         ↓
-use out= where appropriate
-        ↓
-use in-place updates where safe
-        ↓
-re-measure
+measure again
         ↓
 verify correctness
 ```
+
+Use the same input arrays, dtype, mathematical computation, and measurement method for both implementations.
+
+Do not change `float32` to `float64` to manipulate the memory comparison.
 
 Your report should record:
 
@@ -3759,7 +3856,9 @@ The benchmark target is:
 reduction_percent >= 40%
 ```
 
-But a failure to reach 40% is not a failure of the learning process.
+If a particular environment does not reach exactly 40%, report the measured result and explain the limiting factor rather than falsifying the measurement.
+
+A failure to reach 40% is not a failure of the learning process.
 
 The important requirement is:
 
@@ -4003,7 +4102,8 @@ The following matrix is intentionally phrased carefully. Some NumPy operations h
 | `a[[1, 4, 7]]` | **Copy** | Fancy integer indexing materializes selection | `np.shares_memory` | Additional selected-data allocation |
 | `a.flatten()` | **Copy** | Guarantees independent 1-D storage | `np.shares_memory` | Full 1-D copy |
 | `a.astype(np.float32)` | **Typically copy** | Values must be converted | `np.shares_memory` | May halve or increase storage depending on dtype |
-| `a.astype(a.dtype)` | **May avoid copy depending on arguments/version semantics** | No dtype conversion is needed | `np.shares_memory` | Conditional |
+| `a.astype(a.dtype)` | **Copy by default** | `astype(copy=True)` allocates a new array even when the dtype is unchanged | `np.shares_memory` | Full copy |
+| `a.astype(a.dtype, copy=False)` | **Original array when no change is needed** | Explicit no-copy request; can return `a` when dtype, order, and other requirements are already satisfied | `a is result` | No allocation in that case |
 | `a.copy()` | **Copy** | Explicit independent storage | `np.shares_memory` | Full copy |
 | `np.copy(a)` | **Copy** | Explicit independent storage | `np.shares_memory` | Full copy |
 | `a + b` | **New result** | Arithmetic produces result storage | `a is result` / memory checks | Additional output allocation |
@@ -4013,6 +4113,9 @@ The following matrix is intentionally phrased carefully. Some NumPy operations h
 | `np.multiply(a, b, out=result)` | **Writes destination** | Explicit output reuse | compare `result` | Lower allocation pressure |
 | `np.concatenate((a, b))` | **Copy / new array** | Values from multiple arrays must be assembled | `np.shares_memory` | New combined storage |
 | `np.stack((a, b))` | **New array** | Adds a new axis and materializes result | `np.shares_memory` | New storage |
+| `np.broadcast_to(a, shape)` | **View; typically read-only** | Broadcasting uses stride metadata without physically duplicating the values | `np.shares_memory`, `.flags.writeable` | Logical result can be much larger than the underlying data buffer |
+| `np.squeeze(a)` | **View when possible** | Removing length-1 axes is primarily a metadata/stride operation | `np.shares_memory` | Usually no data copy |
+| `np.expand_dims(a, axis)` | **View** | Adding a length-1 axis does not require copying the data buffer | `np.shares_memory` | No data copy |
 | `np.repeat(a, repeats)` | **New array** | Values are duplicated | `np.shares_memory` | Can be substantially larger than input |
 | `np.tile(a, reps)` | **New array** | Pattern is materialized | `np.shares_memory` | Can multiply memory footprint |
 | `np.asarray(a)` | **Same array when already compatible** | Avoids unnecessary conversion/copy | `a is result` | Often zero-copy for ndarray input |
