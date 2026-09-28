@@ -33,8 +33,8 @@ For example, instead of writing:
 
 ```python
 line_totals = []
-for quantity, unit_price in zip(quantity, unit_prices):
-    line_totals.append(quantity * unit_price)
+for qty, unit_price in zip(quantities, unit_prices):
+    line_totals.append(qty * unit_price)
 ```
 
 you can write:
@@ -248,7 +248,7 @@ The goal is not “never write loops.” The goal is to stop writing Python loop
 
 A **universal function**, usually abbreviated **ufunc**, is a NumPy object designed to apply an operation element-by-element to array inputs, while handling broadcasting, dtype resolution, and other array semantics.
 
-Examples include:
+Examples include ufuncs and ufunc-like functions such as:
 
 ```python
 np.add
@@ -1090,13 +1090,13 @@ Predict first. Run second.
 | 11 | `(4, 5, 6)` | `(6,)` | Yes | `(4, 5, 6)` |
 | 12 | `(4, 5, 6)` | `(5, 1)` | Yes | `(4, 5, 6)` |
 | 13 | `(4, 5, 6)` | `(4, 1, 1)` | Yes | `(4, 5, 6)` |
-| 14 | `(6, 1)` | `(6, 1, 8)` | No | — |
+| 14 | `(6, 1)` | `(6, 1, 8)` | Yes | `(6, 6, 8)` |
 | 15 | `(4, 3)` | `(2, 3)` | No | — |
 | 16 | `(9, 1, 2)` | `(7, 2)` | Yes | `(9, 7, 2)` |
-| 17 | `(9, 2, 1)` | `(7, 2)` | Yes | `(9, 7, 2)` |
+| 17 | `(9, 2, 1)` | `(7, 2)` | No | — |
 | 18 | `(2, 1, 4, 1)` | `(3, 1, 4)` | Yes | `(2, 3, 4, 4)` |
 | 19 | `(100,)` | `()` | Yes | `(100,)` |
-| 20 | `(8, 1, 6, 1)` | `(7, 1, 5)` | Yes | `(8, 7, 6, 5)` |
+| 20 | `(12, 1, 4)` | `(7, 4)` | Yes | `(12, 7, 4)` |
 
 ### Important warning about the drill
 
@@ -1676,6 +1676,39 @@ label 0 → 10 + 30 = 40
 label 1 → 20 + 40 = 60
 ```
 
+Now compare plain indexed `+=` when an index repeats:
+
+```python
+a = np.zeros(3, dtype=np.int64)
+idx = np.array([0, 0, 1])
+
+a[idx] += 1
+print(a)
+```
+
+Output:
+
+```text
+[1 1 0]
+```
+
+Index `0` occurs twice, but only one update is applied. The correct repeated-update behavior is:
+
+```python
+a = np.zeros(3, dtype=np.int64)
+np.add.at(a, idx, 1)
+
+print(a)
+```
+
+Output:
+
+```text
+[2 1 0]
+```
+
+`np.add.at` expresses the required unbuffered repeated updates, so repeated index `0` is incremented twice.
+
 ### Why is `at` important?
 
 Some indexing operations use buffered behavior, which means repeated indices can produce surprising results if you expect repeated updates to accumulate one by one.
@@ -1940,15 +1973,20 @@ Now you provide the destination storage explicitly.
 Suppose:
 
 ```python
-result = a * b
+result = a * b + c
 ```
 
-You can write:
+The first form can require a temporary for `a * b` and a separate allocation for the final result.
+
+You can instead write:
 
 ```python
-result = np.empty_like(a)
-np.multiply(a, b, out=result)
+t = np.multiply(a, b)
+np.add(t, c, out=t)
+result = t
 ```
+
+Here `t` is reused for the second step.
 
 The key idea is storage reuse:
 
@@ -2470,60 +2508,40 @@ Some bugs are more dangerous than exceptions because the calculation succeeds.
 Suppose:
 
 ```python
-X.shape == (1000, 4)
-weights.shape == (1000,)
+row_values.shape == (1000,)
+column_values.shape == (1000, 1)
 ```
 
-You wanted one weight per row.
+You wanted an element-by-element result of 1,000 values.
 
 Writing:
 
 ```python
-X * weights
+row_values * column_values
 ```
 
-does **not** mean “apply each row weight to each row.” The shapes are:
+succeeds. NumPy interprets the first operand as `(1, 1000)`:
 
 ```text
-(1000, 4)
-(1000,)
-```
-
-Align from the right:
-
-```text
-(1000, 4)
-(   1000)
-```
-
-The final dimensions compare:
-
-```text
-4 vs 1000 → incompatible
-```
-
-So this one fails.
-
-The correct row-weight shape is:
-
-```python
-X * weights[:, None]
-```
-
-Now:
-
-```text
-(1000, 4)
+(1,    1000)
 (1000, 1)
 ```
 
-Result:
+and produces:
 
 ```text
-(1000, 4)
+(1000, 1000)
 ```
 
-The important idea is to make the intended dimension explicit.
+rather than the intended 1,000-element result. That is one million elements instead of one thousand, with no error.
+
+A compact fix:
+
+```python
+result = row_values * column_values.ravel()
+```
+
+The important idea is to make the intended dimension explicit and check the result shape.
 
 ---
 
@@ -2795,6 +2813,8 @@ The `nan` and `inf` values demonstrate that vectorization propagates numerical s
 
 This is the production-style exercise required by the Module 2.2 roadmap.
 
+**Roadmap practice step:** Convert five loop-based functions from your Stage 1 projects into vectorized NumPy versions.
+
 ## Scenario
 
 You have **5,000,000 generated order records**.
@@ -2817,8 +2837,6 @@ rng = np.random.default_rng(42)
 Generate deterministic test data so your correctness experiments are reproducible.
 
 ### Important constraints
-
-Keep all exercise code inside this Markdown file for now. Do not create a separate source file from this chapter.
 
 The exercise is designed to teach:
 
@@ -2850,6 +2868,14 @@ line_total_cents = quantity × unit_price_cents
 
 Use suitable integer dtypes based on the range of values.
 
+The maximum business values are `quantity = 500` and `unit_price_cents = 10,000,000`, so the maximum product is:
+
+```text
+500 × 10,000,000 = 5,000,000,000
+```
+
+This does not fit in `uint32`, so the NumPy multiplication must use `dtype=np.int64`.
+
 Write a pure-Python reference version first.
 
 Then write the NumPy version.
@@ -2865,14 +2891,18 @@ for q, price in zip(quantity.tolist(), unit_price_cents.tolist()):
 Vectorized form:
 
 ```python
-line_total_cents = quantity * unit_price_cents
+line_total_cents = np.multiply(
+    quantity,
+    unit_price_cents,
+    dtype=np.int64,
+)
 ```
 
 ### Requirements
 
 - compare the outputs,
 - inspect the result dtype,
-- reason about possible integer overflow,
+- reason about integer overflow explicitly (maximum product `5,000,000,000`),
 - benchmark both implementations.
 
 ---
