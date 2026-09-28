@@ -1693,11 +1693,9 @@ medallion_pipeline
     +-- gold.py
 ```
 
-### File-safety instruction for this lesson
+### Implementation instruction for this lesson
 
-The learning module itself does **not** create these Python files.
-
-The complete learner-ready code is provided here so the learner can implement them later.
+Create the three learner files shown in the structure below and copy the corresponding complete implementations from this lesson into them.
 
 ---
 
@@ -1748,6 +1746,7 @@ medallion_lab/
         orders.json
     bronze/
         orders.jsonl
+        manifest.json
     silver/
         orders.jsonl
     gold/
@@ -1791,6 +1790,116 @@ Example:
 ]
 ```
 
+## Reproducible Sample Source Dataset
+
+The single-record example above is enough to explain the shape of a record, but the hands-on exercise needs enough records to actually exercise deduplication, quarantine, and multi-group Gold aggregation. Use this 12-record dataset as `source/orders.json`:
+
+```json
+[
+  {
+    "order_id": "1001",
+    "customer_id": "C1",
+    "amount": "199.99",
+    "country": "IN",
+    "created_at": "2026-09-25T10:30:00+05:30",
+    "updated_at": "2026-09-25T10:31:00+05:30"
+  },
+  {
+    "order_id": "1001",
+    "customer_id": "C1",
+    "amount": "249.99",
+    "country": "IN",
+    "created_at": "2026-09-25T10:30:00+05:30",
+    "updated_at": "2026-09-25T11:15:00+05:30"
+  },
+  {
+    "order_id": "1002",
+    "customer_id": "C2",
+    "amount": "50.00",
+    "country": "US",
+    "created_at": "2026-09-25T11:00:00+00:00",
+    "updated_at": "2026-09-25T11:01:00+00:00"
+  },
+  {
+    "order_id": "1003",
+    "customer_id": "C3",
+    "amount": "abc",
+    "country": "JP",
+    "created_at": "2026-09-25T12:00:00+09:00",
+    "updated_at": "2026-09-25T12:01:00+09:00"
+  },
+  {
+    "order_id": "1004",
+    "customer_id": "C4",
+    "amount": "89.50",
+    "country": "",
+    "created_at": "2026-09-26T09:00:00+00:00",
+    "updated_at": "2026-09-26T09:01:00+00:00"
+  },
+  {
+    "order_id": "1005",
+    "customer_id": "C5",
+    "amount": "120.00",
+    "country": "US",
+    "created_at": "2026-09-26T14:00:00+00:00",
+    "updated_at": "2026-09-26T14:01:00+00:00"
+  },
+  {
+    "order_id": "1006",
+    "customer_id": "C6",
+    "amount": "75.25",
+    "country": "IN",
+    "created_at": "2026-09-27T08:00:00+05:30",
+    "updated_at": "2026-09-27T08:01:00+05:30"
+  },
+  {
+    "order_id": "1007",
+    "customer_id": "C7",
+    "amount": "310.10",
+    "country": "JP",
+    "created_at": "2026-09-27T15:00:00+09:00",
+    "updated_at": "2026-09-27T15:01:00+09:00"
+  },
+  {
+    "order_id": "1008",
+    "customer_id": "C8",
+    "amount": "45.00",
+    "country": "US",
+    "created_at": "2026-09-28T10:00:00+00:00",
+    "updated_at": "2026-09-28T10:01:00+00:00"
+  },
+  {
+    "order_id": "1009",
+    "customer_id": "C1",
+    "amount": "60.00",
+    "country": "IN",
+    "created_at": "2026-09-28T11:00:00+05:30",
+    "updated_at": "2026-09-28T11:01:00+05:30"
+  },
+  {
+    "order_id": "1010",
+    "customer_id": "C9",
+    "amount": "-15.00",
+    "country": "JP",
+    "created_at": "2026-09-28T13:00:00+09:00",
+    "updated_at": "2026-09-28T13:01:00+09:00"
+  },
+  {
+    "order_id": "1011",
+    "customer_id": "C10",
+    "amount": "999.99",
+    "country": "IN",
+    "created_at": "2026-09-29T09:00:00+05:30",
+    "updated_at": "2026-09-29T09:01:00+05:30"
+  }
+]
+```
+
+- **Duplicate:** `order_id = "1001"` appears twice. The second version has the later `updated_at` (`11:15:00+05:30` vs `10:31:00+05:30`), so Silver's deduplication keeps that second version — amount `249.99`, not `199.99`.
+- **Quarantined records:** `1003` has a non-numeric `amount` (`"abc"`), `1004` has an empty `country`, and `1010` has a negative `amount` (`-15.00`). All three fail `validate_and_transform()` and land in `quarantine/rejected_orders.jsonl` for different reasons.
+- **Multiple countries:** `IN`, `US`, and `JP` all appear, so `normalize_country()` maps them to distinct Gold groups (`India`, `United States`, `Japan`).
+- **Multiple dates:** records span five calendar dates (2026-09-25 through 2026-09-29), so `daily_revenue_by_country` produces more than one row per country instead of collapsing into a single group.
+
 ## Output
 
 JSON Lines Bronze file containing source fields plus ingestion metadata.
@@ -1815,12 +1924,37 @@ def load_source(path: Path) -> list[dict]:
     return data
 
 
+def load_manifest(manifest_path: Path) -> list[str]:
+    if not manifest_path.exists():
+        return []
+
+    with manifest_path.open("r", encoding="utf-8") as handle:
+        return json.load(handle)
+
+
+def write_manifest(
+    manifest_path: Path,
+    ingested_batch_ids: list[str],
+) -> None:
+    manifest_path.parent.mkdir(parents=True, exist_ok=True)
+
+    with manifest_path.open("w", encoding="utf-8") as handle:
+        json.dump(ingested_batch_ids, handle)
+
+
 def append_bronze(
     source_path: Path,
     bronze_path: Path,
+    manifest_path: Path,
     source_name: str,
     batch_id: str,
 ) -> None:
+    ingested_batch_ids = load_manifest(manifest_path)
+
+    if batch_id in ingested_batch_ids:
+        print(f"batch_already_ingested={batch_id}; bronze_ingestion=no-op")
+        return
+
     records = load_source(source_path)
 
     bronze_path.parent.mkdir(parents=True, exist_ok=True)
@@ -1839,15 +1973,35 @@ def append_bronze(
 
             handle.write(json.dumps(enriched) + "\n")
 
+    ingested_batch_ids.append(batch_id)
+    write_manifest(manifest_path, ingested_batch_ids)
+
 
 if __name__ == "__main__":
     append_bronze(
         source_path=Path("source/orders.json"),
         bronze_path=Path("bronze/orders.jsonl"),
+        manifest_path=Path("bronze/manifest.json"),
         source_name="orders_api",
         batch_id="batch-001",
     )
 ```
+
+## Idempotency Behavior
+
+`append_bronze()` checks `bronze/manifest.json` before writing anything:
+
+```text
+same batch_id
+    ↓
+already recorded
+    ↓
+no-op
+    ↓
+Bronze row count unchanged
+```
+
+Running the same `batch_id` a second time performs no write and prints `batch_already_ingested=batch-001; bronze_ingestion=no-op` instead of duplicating records. A **new** `batch_id` is still appended normally — the manifest only blocks batches it has already recorded, not ingestion itself.
 
 ## Block-by-block explanation
 
@@ -4901,127 +5055,3 @@ Gold
   +--> business meaning
   +--> consumer optimization
 ```
-
----
-
-# 119. Final Review Checklist
-
-## Bronze
-
-- [x] Definition
-- [x] Source-preserving purpose
-- [x] Raw values
-- [x] Append-oriented principle
-- [x] Ingestion metadata
-- [x] `_ingested_at`
-- [x] `_source`
-- [x] `_batch_id`
-- [x] `_source_file`
-- [x] Debugging
-- [x] Replay
-- [x] Auditability
-- [x] Why business logic should not generally be there
-
-## Silver
-
-- [x] Definition
-- [x] Cleaning
-- [x] Type casting
-- [x] UTC standardization
-- [x] Deduplication
-- [x] Latest-version selection
-- [x] Validation
-- [x] Quarantine
-- [x] Conformance
-- [x] Reference-data enrichment
-- [x] Clear grain
-- [x] Reusable downstream dataset
-
-## Gold
-
-- [x] Definition
-- [x] Business-level models
-- [x] Consumer-specific design
-- [x] Aggregates
-- [x] Features
-- [x] Reports
-- [x] KPI datasets
-- [x] Explicit grain
-- [x] Multiple Gold outputs from Silver
-
-## Architecture
-
-- [x] Why layering exists
-- [x] Separation of concerns
-- [x] Layer responsibilities
-- [x] Layer contracts
-- [x] Ownership
-- [x] Naming conventions
-- [x] Folder/schema layouts
-- [x] Raw/staging/marts comparison
-- [x] Landing/curated/consumption comparison
-- [x] When medallion is overkill
-- [x] Additional layers
-- [x] Quarantine
-- [x] Storage duplication trade-off
-- [x] Cost considerations
-
-## Reliability
-
-- [x] Replayability
-- [x] Rebuilds
-- [x] Backfill concept
-- [x] Idempotency
-- [x] Failure modes
-- [x] Rule placement
-- [x] Data quality by layer
-
-## Hands-on
-
-- [x] `bronze.py` learner implementation
-- [x] `silver.py` learner implementation
-- [x] `gold.py` learner implementation
-- [x] Standard library Python
-- [x] Bronze metadata
-- [x] Silver validation
-- [x] Deduplication
-- [x] UTC normalization
-- [x] Quarantine
-- [x] Gold aggregations/models
-- [x] Rerun experiment
-- [x] Idempotency experiment
-- [x] Business-rule change
-- [x] Rebuild from Bronze
-- [x] No source re-extraction
-- [x] Replay experiment
-
-## Real-world
-
-- [x] E-commerce
-- [x] Banking
-- [x] LLM/RAG
-- [x] ML
-- [x] Consumer-specific Gold
-
-## Learning
-
-- [x] Beginner -> intermediate -> advanced
-- [x] Simple explanations
-- [x] Detailed explanations
-- [x] Python examples
-- [x] Mermaid diagrams
-- [x] Real-world examples
-- [x] Trade-offs
-- [x] Common misconceptions
-- [x] Production perspective
-- [x] Failure modes
-- [x] ADR exercise
-- [x] Interview questions
-- [x] Self-explanation test
-- [x] Official roadmap checkpoint
-
----
-
-# 120. Final Engineering Principle
-
-> **Create a layer only when it establishes a meaningful responsibility, contract, or reuse boundary; preserve raw data, make trusted data reusable, and keep consumer-specific business logic explicit.**

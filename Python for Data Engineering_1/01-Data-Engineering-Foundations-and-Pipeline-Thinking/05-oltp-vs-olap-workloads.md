@@ -853,6 +853,8 @@ Potential effects:
 - lock contention can appear in some query patterns
 - operational workload becomes less predictable
 
+This can contribute to operational **outages** when customer-facing workloads cannot get the resources or performance they require.
+
 The exact behavior depends on the database engine and query.
 
 The general problem is **resource competition**.
@@ -2094,7 +2096,7 @@ oltp_vs_olap_bench.py
 
 For this Markdown lesson, the complete learner-ready implementation is provided below.
 
-**Do not create or modify that Python file as part of this authoring task.**
+Copy the code below into `oltp_vs_olap_bench.py` in your learning workspace, then run it to perform the benchmark.
 
 The benchmark will:
 
@@ -2793,6 +2795,8 @@ individual attributes can be read independently
 
 This helps explain why analytical systems often use columnar formats.
 
+For physical storage formats, compression, and file-layout decisions, see **Module 2.5 — Data Formats, Compression, and File Layout**.
+
 ---
 
 # 96. Writing the Toy Columnar Files
@@ -2863,6 +2867,46 @@ def write_toy_columnar_files(
     finally:
         for handle in handles.values():
             handle.close()
+```
+
+The row-oriented counterpart writes the same records into a single wide CSV file. This creates the row-oriented representation that the byte-comparison experiment reads alongside the columnar files.
+
+```python
+def write_toy_row_file(
+    conn: sqlite3.Connection,
+) -> None:
+    with ROW_FILE.open(
+        "w",
+        newline="",
+        encoding="utf-8",
+    ) as file:
+        writer = csv.writer(file)
+
+        writer.writerow(
+            [
+                "order_id",
+                "customer_id",
+                "country",
+                "amount",
+                "created_at",
+            ]
+        )
+
+        cursor = conn.execute(
+            """
+            SELECT
+                order_id,
+                customer_id,
+                country,
+                amount,
+                created_at
+            FROM orders
+            ORDER BY order_id
+            """
+        )
+
+        for row in cursor:
+            writer.writerow(row)
 ```
 
 ---
@@ -4711,11 +4755,21 @@ def run_benchmark() -> None:
             after_olap,
         )
 
+        write_toy_row_file(conn)
+        write_toy_columnar_files(conn)
+
+        amount_bytes = compare_amount_bytes()
+
+        print(
+            "Amount bytes comparison:",
+            amount_bytes,
+        )
+
     finally:
         conn.close()
 ```
 
-The columnar experiment can be run separately.
+The row-file and columnar-file comparison now runs inside this same driver, immediately after the primary-key and aggregation benchmarks complete.
 
 ---
 

@@ -1847,9 +1847,7 @@ elt_pipeline.py
 reverse_etl.py
 ```
 
-For this lesson file, the implementations are provided here for learning.
-
-**Do not create or modify those Python files as part of this Markdown authoring task.**
+For this lesson, copy the code below into the three named learner files: `etl_pipeline.py`, `elt_pipeline.py`, and `reverse_etl.py`.
 
 The exercise uses:
 
@@ -1951,6 +1949,8 @@ It:
 ```python
 from __future__ import annotations
 
+import argparse
+import json
 import logging
 import sqlite3
 from datetime import datetime, timezone
@@ -1959,11 +1959,26 @@ from pathlib import Path
 
 
 DB_PATH = Path("etl_demo.db")
+EXTRACT_PATH = Path("etl_extract.json")
 
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s %(levelname)s %(message)s",
 )
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="ETL pipeline: separate extract and rebuild steps"
+    )
+
+    parser.add_argument(
+        "--step",
+        choices=["extract", "rebuild"],
+        required=True,
+    )
+
+    return parser.parse_args()
 
 
 def create_source(conn: sqlite3.Connection) -> None:
@@ -2067,8 +2082,44 @@ def extract_orders(
     return rows
 
 
+def save_extract(rows: list[sqlite3.Row]) -> None:
+    """Persist extracted source-shaped records so rebuild can run independently."""
+    records = [dict(row) for row in rows]
+
+    EXTRACT_PATH.write_text(
+        json.dumps(records, indent=2),
+        encoding="utf-8",
+    )
+
+    logging.info(
+        "extract_saved_rows=%d file=%s",
+        len(records),
+        EXTRACT_PATH,
+    )
+
+
+def load_extract() -> list[dict[str, object]]:
+    """Read the previously extracted source-shaped records."""
+    if not EXTRACT_PATH.exists():
+        raise FileNotFoundError(
+            f"Missing extracted data: {EXTRACT_PATH}. "
+            "Run 'python etl_pipeline.py --step extract' first."
+        )
+
+    records = json.loads(
+        EXTRACT_PATH.read_text(encoding="utf-8")
+    )
+
+    logging.info(
+        "extract_loaded_rows=%d",
+        len(records),
+    )
+
+    return records
+
+
 def transform_orders(
-    rows: list[sqlite3.Row],
+    rows: list[dict[str, object]],
 ) -> list[dict[str, object]]:
     transformed = []
 
@@ -2167,23 +2218,42 @@ def load_final_table(
     )
 
 
-def main() -> int:
+def run_extract() -> int:
     with sqlite3.connect(DB_PATH) as conn:
         create_source(conn)
-
         source_rows = extract_orders(conn)
+        save_extract(source_rows)
 
-        transformed_rows = transform_orders(
-            source_rows
-        )
+    logging.info("etl_status=EXTRACT_SUCCESS")
+    return 0
 
+
+def run_rebuild() -> int:
+    try:
+        extracted_rows = load_extract()
+    except FileNotFoundError as exc:
+        logging.error(str(exc))
+        return 1
+
+    transformed_rows = transform_orders(extracted_rows)
+
+    with sqlite3.connect(DB_PATH) as conn:
         load_final_table(
             conn,
             transformed_rows,
         )
 
-    logging.info("etl_status=SUCCESS")
+    logging.info("etl_status=REBUILD_SUCCESS")
     return 0
+
+
+def main() -> int:
+    args = parse_args()
+
+    if args.step == "extract":
+        return run_extract()
+
+    return run_rebuild()
 
 
 if __name__ == "__main__":
@@ -2323,6 +2393,7 @@ This version deliberately loads raw data first and performs the analytical trans
 ```python
 from __future__ import annotations
 
+import argparse
 import logging
 import sqlite3
 from pathlib import Path
@@ -2334,6 +2405,20 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s %(levelname)s %(message)s",
 )
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="ELT pipeline: separate extract and rebuild steps"
+    )
+
+    parser.add_argument(
+        "--step",
+        choices=["extract", "rebuild"],
+        required=True,
+    )
+
+    return parser.parse_args()
 
 
 def create_source(
@@ -2438,6 +2523,19 @@ def load_raw(
     return int(row_count)
 
 
+def raw_orders_exists(
+    conn: sqlite3.Connection,
+) -> bool:
+    cursor = conn.execute(
+        """
+        SELECT name FROM sqlite_master
+        WHERE type = 'table' AND name = 'raw_orders'
+        """
+    )
+
+    return cursor.fetchone() is not None
+
+
 def transform_in_sql(
     conn: sqlite3.Connection,
 ) -> int:
@@ -2471,15 +2569,10 @@ def transform_in_sql(
     return int(row_count)
 
 
-def main() -> int:
+def run_extract() -> int:
     with sqlite3.connect(DB_PATH) as conn:
         source_count = create_source(conn)
-
         raw_count = load_raw(conn)
-
-        analytical_count = transform_in_sql(
-            conn
-        )
 
     if source_count != raw_count:
         logging.error(
@@ -2487,14 +2580,38 @@ def main() -> int:
         )
         return 1
 
+    logging.info("elt_status=EXTRACT_SUCCESS")
+    return 0
+
+
+def run_rebuild() -> int:
+    with sqlite3.connect(DB_PATH) as conn:
+        if not raw_orders_exists(conn):
+            logging.error(
+                "raw_orders table not found. "
+                "Run 'python elt_pipeline.py --step extract' first."
+            )
+            return 1
+
+        analytical_count = transform_in_sql(conn)
+
     if analytical_count == 0:
         logging.error(
             "ELT produced no analytical rows"
         )
         return 1
 
-    logging.info("elt_status=SUCCESS")
+    logging.info("elt_status=REBUILD_SUCCESS")
     return 0
+
+
+def main() -> int:
+    args = parse_args()
+
+    if args.step == "extract":
+        return run_extract()
+
+    return run_rebuild()
 
 
 if __name__ == "__main__":
@@ -2710,16 +2827,32 @@ because there is light transformation before loading and heavier transformation 
 
 The roadmap requires deliberately introducing a transformation bug.
 
-Start with:
+The reference implementations group revenue by day using these expressions.
+
+ETL, in `load_final_table()`:
 
 ```python
-revenue = quantity * unit_price
+day = created_at.date().isoformat()
 ```
 
-Introduce:
+ELT, in `transform_in_sql()`:
+
+```sql
+GROUP BY substr(created_at, 1, 10)
+```
+
+Introduce a bug that changes the grouping grain from day to month.
+
+ETL:
 
 ```python
-revenue = quantity + unit_price
+day = created_at.strftime("%Y-%m")
+```
+
+ELT:
+
+```sql
+GROUP BY substr(created_at, 1, 7)
 ```
 
 Now run the pipeline.
@@ -2728,26 +2861,22 @@ Now run the pipeline.
 
 # 76. Observe the Bug
 
-Suppose:
+The sample source data contains orders on two different days:
 
 ```text
-quantity = 2
-unit_price = 100
+2026-09-25
+2026-09-26
 ```
 
-Correct:
+Correct output should contain two daily groups, one per date.
+
+Buggy output collapses both dates into a single monthly group:
 
 ```text
-2 × 100 = 200
+2026-09
 ```
 
-Buggy:
-
-```text
-2 + 100 = 102
-```
-
-The pipeline may still execute successfully.
+The pipeline may still execute successfully and still produce a `daily_revenue` table.
 
 That is the important lesson:
 
@@ -2761,16 +2890,30 @@ correct business logic
 
 # 77. Fix the Bug
 
-Change:
+Change the grouping expression back to the daily grain.
+
+ETL:
 
 ```python
-revenue = quantity + unit_price
+day = created_at.strftime("%Y-%m")
 ```
 
-to:
+back to:
 
 ```python
-revenue = quantity * unit_price
+day = created_at.date().isoformat()
+```
+
+ELT:
+
+```sql
+GROUP BY substr(created_at, 1, 7)
+```
+
+back to:
+
+```sql
+GROUP BY substr(created_at, 1, 10)
 ```
 
 Then rebuild the affected analytical output.
@@ -2782,6 +2925,64 @@ Then rebuild the affected analytical output.
 Ask:
 
 > **Do I need to extract the source again?**
+
+Both reference scripts in this lesson separate this into two explicit steps:
+
+```text
+--step extract
+--step rebuild
+```
+
+`--step extract` creates the SQLite source table, loads the sample data, and (for ETL) extracts and persists the source-shaped rows. `--step rebuild` only transforms and reloads the final analytical table — it never recreates or re-queries the source.
+
+### Running the ETL Two-Step Exercise
+
+Run:
+
+```bash
+python etl_pipeline.py --step extract
+python etl_pipeline.py --step rebuild
+```
+
+The extract step writes the retained source-shaped snapshot to:
+
+```text
+etl_extract.json
+```
+
+After changing the grouping bug (see the Transformation Bug Exercise) and fixing it, rebuild again without re-extracting:
+
+```bash
+python etl_pipeline.py --step rebuild
+```
+
+`etl_extract.json` is intentionally retained so the rebuild step can be rerun independently, any number of times. It exists purely to make this two-step exercise runnable — it is not a hidden re-extraction from the source.
+
+To simulate a pure ETL design that does **not** retain extracted/raw data, delete the snapshot and try to rebuild:
+
+```bash
+rm etl_extract.json
+python etl_pipeline.py --step rebuild
+```
+
+The rebuild fails, with a clear error message telling you to extract again. This makes the original lesson concrete: without retained raw data, a pure ETL design must go back to the source to rebuild history.
+
+### Running the ELT Two-Step Exercise
+
+Run:
+
+```bash
+python elt_pipeline.py --step extract
+python elt_pipeline.py --step rebuild
+```
+
+After fixing the grouping bug, rebuild again:
+
+```bash
+python elt_pipeline.py --step rebuild
+```
+
+This second rebuild does not recreate `source_orders` and does not reload `raw_orders` — it reads the `raw_orders` table that the extract step already retained. Running `--step rebuild` again keeps succeeding without ever touching the source.
 
 ### ETL without raw retention
 

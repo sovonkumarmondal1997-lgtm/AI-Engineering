@@ -2424,6 +2424,129 @@ The actual production metadata model can be richer.
 
 This is a learning representation.
 
+## Complete `run_metadata.py` Helper
+
+The example above shows what `run_metadata.json` should look like, but a pipeline has to actually produce that file. The following standard-library-only helper does that.
+
+```python
+from __future__ import annotations
+
+import json
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Mapping
+
+
+def utc_now() -> str:
+    return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+def max_event_time(
+    records: list[dict],
+    field: str = "event_time",
+) -> str | None:
+    timestamps = [
+        record[field]
+        for record in records
+        if record.get(field)
+    ]
+
+    if not timestamps:
+        return None
+
+    return max(timestamps)
+
+
+def write_run_metadata(
+    path: Path,
+    run_id: str,
+    started_at: str,
+    ended_at: str,
+    expected_rows: int,
+    layer_counts: Mapping[str, tuple[int, int]],
+    gold_max_event_time: str | None,
+) -> None:
+    layers = {
+        layer: {
+            "rows_in": rows_in,
+            "rows_out": rows_out,
+        }
+        for layer, (rows_in, rows_out) in layer_counts.items()
+    }
+
+    metadata = {
+        "run_id": run_id,
+        "started_at": started_at,
+        "ended_at": ended_at,
+        "expected_rows": expected_rows,
+        "layers": layers,
+        "gold_max_event_time": gold_max_event_time,
+    }
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    with path.open("w", encoding="utf-8") as handle:
+        json.dump(metadata, handle, indent=2)
+```
+
+### Where This Fits in the Pipeline
+
+```text
+overall pipeline starts
+        ↓
+started_at
+        ↓
+Bronze
+        ↓
+Silver
+        ↓
+Gold
+        ↓
+ended_at
+        ↓
+write_run_metadata()
+        ↓
+run_metadata.json
+        ↓
+freshness_check.py
+```
+
+A driver wires the real Bronze/Silver/Gold row counts into `write_run_metadata()` like this:
+
+```python
+def run_pipeline_with_metadata() -> None:
+    run_id = "run-2026-09-26-001"
+    started_at = utc_now()
+
+    # bronze_rows_in, bronze_rows_out = run_bronze(...)
+    bronze_rows_in, bronze_rows_out = 100_000, 100_000
+
+    # silver_rows_in, silver_rows_out = run_silver(...)
+    silver_rows_in, silver_rows_out = 100_000, 99_500
+
+    # gold_rows_in, gold_rows_out, gold_records = run_gold(...)
+    gold_rows_in, gold_rows_out = 99_500, 500
+    gold_records = [{"event_time": "2026-09-26T05:20:00Z"}]
+
+    ended_at = utc_now()
+
+    write_run_metadata(
+        path=Path("run_metadata.json"),
+        run_id=run_id,
+        started_at=started_at,
+        ended_at=ended_at,
+        expected_rows=100_000,
+        layer_counts={
+            "bronze": (bronze_rows_in, bronze_rows_out),
+            "silver": (silver_rows_in, silver_rows_out),
+            "gold": (gold_rows_in, gold_rows_out),
+        },
+        gold_max_event_time=max_event_time(gold_records),
+    )
+```
+
+Each commented-out call (`run_bronze()`, `run_silver()`, `run_gold()`) stands in for the actual `bronze.py`, `silver.py`, and `gold.py` logic from Topic 07 — this helper only cares about the row counts and the maximum Gold event timestamp those steps produce.
+
 ---
 
 # 88. Complete `freshness_check.py`
@@ -2459,7 +2582,7 @@ LOGGER = logging.getLogger("freshness_check")
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Check freshness, completeness, and latency SLOs."
+        description="Check freshness, completeness, and run duration SLOs."
     )
     parser.add_argument(
         "--metadata",
@@ -2467,19 +2590,27 @@ def parse_args() -> argparse.Namespace:
         default=Path("run_metadata.json"),
     )
     parser.add_argument(
+        "--config",
+        type=Path,
+        default=Path("slo_config.json"),
+    )
+    parser.add_argument(
         "--max-freshness-minutes",
         type=float,
-        default=120.0,
+        default=None,
+        help="Overrides freshness_minutes from --config when set.",
     )
     parser.add_argument(
         "--min-completeness-percent",
         type=float,
-        default=99.5,
+        default=None,
+        help="Overrides completeness_percent from --config when set.",
     )
     parser.add_argument(
-        "--max-latency-minutes",
+        "--max-run-duration-minutes",
         type=float,
-        default=60.0,
+        default=None,
+        help="Overrides max_run_duration_minutes from --config when set.",
     )
     return parser.parse_args()
 
@@ -2501,6 +2632,29 @@ def load_metadata(path: Path) -> dict:
         raise ValueError("metadata must be a JSON object")
 
     return data
+
+
+def load_slo_config(path: Path) -> dict[str, float]:
+    with path.open("r", encoding="utf-8") as handle:
+        data = json.load(handle)
+
+    if not isinstance(data, dict):
+        raise ValueError("SLO configuration must be a JSON object")
+
+    required_keys = (
+        "freshness_minutes",
+        "completeness_percent",
+        "max_run_duration_minutes",
+    )
+
+    missing = [key for key in required_keys if key not in data]
+
+    if missing:
+        raise ValueError(
+            f"SLO configuration is missing required keys: {', '.join(missing)}"
+        )
+
+    return {key: float(data[key]) for key in required_keys}
 
 
 def calculate_freshness_minutes(
@@ -2543,14 +2697,14 @@ def calculate_run_duration_minutes(metadata: dict) -> float:
 def check_slos(
     freshness_minutes: float,
     completeness_percent: float,
-    latency_minutes: float,
+    run_duration_minutes: float,
     max_freshness_minutes: float,
     min_completeness_percent: float,
-    max_latency_minutes: float,
+    max_run_duration_minutes: float,
 ) -> bool:
     freshness_ok = freshness_minutes <= max_freshness_minutes
     completeness_ok = completeness_percent >= min_completeness_percent
-    latency_ok = latency_minutes <= max_latency_minutes
+    run_duration_ok = run_duration_minutes <= max_run_duration_minutes
 
     LOGGER.info(
         "Freshness: observed=%.2f min target<=%.2f status=%s",
@@ -2567,13 +2721,13 @@ def check_slos(
     )
 
     LOGGER.info(
-        "Latency: observed=%.2f min target<=%.2f status=%s",
-        latency_minutes,
-        max_latency_minutes,
-        "PASS" if latency_ok else "BREACH",
+        "Run duration: observed=%.2f min target<=%.2f status=%s",
+        run_duration_minutes,
+        max_run_duration_minutes,
+        "PASS" if run_duration_ok else "BREACH",
     )
 
-    return freshness_ok and completeness_ok and latency_ok
+    return freshness_ok and completeness_ok and run_duration_ok
 
 
 def main() -> int:
@@ -2586,18 +2740,37 @@ def main() -> int:
 
     try:
         metadata = load_metadata(args.metadata)
+        config = load_slo_config(args.config)
+
+        max_freshness_minutes = (
+            args.max_freshness_minutes
+            if args.max_freshness_minutes is not None
+            else config["freshness_minutes"]
+        )
+
+        min_completeness_percent = (
+            args.min_completeness_percent
+            if args.min_completeness_percent is not None
+            else config["completeness_percent"]
+        )
+
+        max_run_duration_minutes = (
+            args.max_run_duration_minutes
+            if args.max_run_duration_minutes is not None
+            else config["max_run_duration_minutes"]
+        )
 
         freshness = calculate_freshness_minutes(metadata)
         completeness = calculate_completeness_percent(metadata)
-        latency = calculate_run_duration_minutes(metadata)
+        run_duration = calculate_run_duration_minutes(metadata)
 
         passed = check_slos(
             freshness_minutes=freshness,
             completeness_percent=completeness,
-            latency_minutes=latency,
-            max_freshness_minutes=args.max_freshness_minutes,
-            min_completeness_percent=args.min_completeness_percent,
-            max_latency_minutes=args.max_latency_minutes,
+            run_duration_minutes=run_duration,
+            max_freshness_minutes=max_freshness_minutes,
+            min_completeness_percent=min_completeness_percent,
+            max_run_duration_minutes=max_run_duration_minutes,
         )
 
         if passed:
@@ -2639,7 +2812,7 @@ Human-readable logs:
 ```text
 Freshness: PASS/BREACH
 Completeness: PASS/BREACH
-Latency: PASS/BREACH
+Run duration: PASS/BREACH
 Overall SLO STATUS = PASS/BREACH
 ```
 
@@ -2710,7 +2883,7 @@ A healthy example may look like:
 ```text
 INFO: Freshness: observed=87.00 min target<=120.00 status=PASS
 INFO: Completeness: observed=99.80% target>=99.50% status=PASS
-INFO: Latency: observed=42.00 min target<=60.00 status=PASS
+INFO: Run duration: observed=42.00 min target<=60.00 status=PASS
 INFO: Overall SLO STATUS = PASS
 ```
 
@@ -2725,7 +2898,7 @@ Example:
 ```text
 INFO: Freshness: observed=180.00 min target<=120.00 status=BREACH
 INFO: Completeness: observed=99.80% target>=99.50% status=PASS
-INFO: Latency: observed=42.00 min target<=60.00 status=PASS
+INFO: Run duration: observed=42.00 min target<=60.00 status=PASS
 ERROR: Overall SLO STATUS = BREACH
 ```
 
@@ -2739,17 +2912,27 @@ non-zero
 
 # 93. Configured SLOs
 
-Example:
+Example — save this as `slo_config.json`:
 
 ```json
 {
   "freshness_minutes": 120,
   "completeness_percent": 99.5,
-  "max_latency_minutes": 60
+  "max_run_duration_minutes": 60
 }
 ```
 
-This is a learning-friendly representation.
+This is a learning-friendly representation, and unlike an illustration, `load_slo_config()` in `freshness_check.py` actually reads this exact file and uses its values as the default thresholds.
+
+Run the checker against it:
+
+```bash
+python freshness_check.py \
+  --metadata run_metadata.json \
+  --config slo_config.json
+```
+
+Command-line flags such as `--max-freshness-minutes` remain available as explicit overrides for a single experimental run, without editing the configuration file.
 
 Production systems may store thresholds in:
 
@@ -2836,7 +3019,7 @@ Production completeness may instead use:
 The exercise calculates:
 
 ```python
-latency = ended_at - started_at
+run_duration = ended_at - started_at
 ```
 
 Important nuance:
@@ -3011,7 +3194,7 @@ SLO:
 Result:
 
 ```text
-Latency SLO BREACH
+Run Duration SLO BREACH
 ```
 
 The pipeline may be fully correct.
@@ -3027,7 +3210,7 @@ Create a scenario where:
 ```text
 Freshness = 180 min
 Completeness = 98.5%
-Latency = 75 min
+Run Duration = 75 min
 ```
 
 Targets:
@@ -3035,7 +3218,7 @@ Targets:
 ```text
 Freshness <= 120 min
 Completeness >= 99.5%
-Latency <= 60 min
+Run Duration <= 60 min
 ```
 
 The checker should identify all three.
