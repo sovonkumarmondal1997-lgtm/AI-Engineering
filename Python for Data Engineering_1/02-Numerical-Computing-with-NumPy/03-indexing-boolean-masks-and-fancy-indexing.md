@@ -1,4 +1,4 @@
-# NumPy Indexing, Boolean Masks, and Fancy Indexing
+# Topic 03 — NumPy Indexing, Boolean Masks, and Fancy Indexing
 
 > **Stage 2 — Python for Data Engineering**  
 > **Module 2.2 — Numerical Computing with NumPy**  
@@ -854,22 +854,22 @@ Suppose we have:
 import numpy as np
 
 order_id = np.array([101, 102, 103, 104, 105])
-status_code = np.array([1, 2, 1, 3, 1])
+status_code = np.array([0, 1, 0, 2, 0])
 amount_cents = np.array([5000, 15000, 22000, 8000, 50000])
 ```
 
 Assume:
 
 ```text
-1 = pending
-2 = paid
-3 = cancelled
+0 = pending
+1 = paid
+2 = cancelled
 ```
 
 Filter paid orders over 10,000 cents:
 
 ```python
-mask = (status_code == 2) & (amount_cents > 10_000)
+mask = (status_code == 1) & (amount_cents > 10_000)
 
 print(mask)
 print(order_id[mask])
@@ -990,7 +990,7 @@ Build one mask:
 
 ```python
 mask = (
-    (status_code == 2)
+    (status_code == 1)
     & (amount_cents > 10_000)
 )
 ```
@@ -1687,6 +1687,20 @@ top_k = candidates[np.argsort(amount[candidates])[::-1]]
 
 This is often a better fit than a complete sort when only a small top-k subset matters.
 
+### Edge case: `k = 0`
+
+For `k = 0`, `-k` is `0` and `[-0:]` is the same as `[0:]`, so the pattern returns **all** positions instead of none. A robust implementation validates `0 <= k <= values.size` and handles `k == 0` explicitly:
+
+```python
+if k == 0:
+    top_k = np.empty(0, dtype=np.intp)
+else:
+    candidates = np.argpartition(amount, -k)[-k:]
+    top_k = candidates[np.argsort(amount[candidates])[::-1]]
+
+print(top_k)  # [] when k == 0
+```
+
 ---
 
 # 33. `np.unique`
@@ -1742,9 +1756,9 @@ print(values)
 print(first_positions)
 ```
 
-The returned positions identify where each unique value was first selected according to NumPy's documented behavior for that operation.
+With `return_index=True`, NumPy returns the indices of the **first occurrence** of each unique value in the input. The unique values themselves are returned in sorted order.
 
-This becomes useful for deduplication once we deliberately establish the desired ordering first.
+After the input has been deliberately ordered so the desired record comes first, the returned first-occurrence position identifies that record. `unique` itself does not understand business rules such as “latest”.
 
 ## 33.3 `return_inverse=True`
 
@@ -2017,6 +2031,79 @@ positions = np.searchsorted(thresholds, values)
 ```
 
 This is one reason it is useful in batch-processing code.
+
+## 40.1 As-of lookup
+
+An as-of lookup answers:
+
+> Find the latest value whose timestamp is less than or equal to a query timestamp.
+
+```python
+import numpy as np
+
+ts = np.array([10, 20, 30])
+values = np.array([100, 200, 300])
+q = np.array([5, 20, 25, 99])
+
+idx = np.searchsorted(ts, q, side="right") - 1
+mask = idx >= 0
+
+result = np.full(q.shape, -1, dtype=values.dtype)
+result[mask] = values[idx[mask]]
+
+print(idx)
+print(result)
+```
+
+Output:
+
+```text
+[-1  1  1  2]
+[ -1 200 200 300]
+```
+
+The four queries show: `5` is earlier than the first timestamp (`idx == -1`), `20` equals an existing timestamp, `25` falls between timestamps, and `99` is after the last timestamp.
+
+Rules:
+
+- `ts` must be sorted.
+- `side="right"` followed by `-1` finds the latest timestamp `<=` the query.
+- `idx == -1` means there is no eligible earlier timestamp.
+- Never index with the unchecked `idx`: `-1` would silently select the last element. Use the validity mask first.
+
+## 40.2 Sorted-key join
+
+When the right-side keys are sorted, `searchsorted` gives a simple vectorized lookup join:
+
+```python
+right_keys = np.array([10, 20, 30, 40])
+right_values = np.array([1.5, 2.5, 3.5, 4.5])
+left_keys = np.array([20, 25, 40, 50, 5])
+
+pos = np.searchsorted(right_keys, left_keys)
+in_bounds = pos < right_keys.size
+found = np.zeros(left_keys.shape, dtype=bool)
+found[in_bounds] = right_keys[pos[in_bounds]] == left_keys[in_bounds]
+
+joined = np.full(left_keys.shape, np.nan)
+joined[found] = right_values[pos[found]]
+
+print(pos)
+print(found)
+print(joined)
+```
+
+Output:
+
+```text
+[1 2 3 4 0]
+[ True False  True False False]
+[2.5 nan 4.5 nan nan]
+```
+
+`searchsorted` returns an insertion position; it does not prove that the key exists. The bounds check and the exact equality check are mandatory.
+
+This is a bounded in-memory lookup pattern, not a replacement for a general database join.
 
 ---
 
@@ -2471,7 +2558,7 @@ import numpy as np
 order_id = np.array([101, 102, 101, 103, 102, 101])
 customer_id = np.array([10, 20, 10, 30, 20, 10])
 updated_at = np.array([100, 200, 300, 150, 400, 350])
-status_code = np.array([1, 1, 2, 1, 2, 3])
+status_code = np.array([0, 0, 1, 0, 1, 2])
 amount_cents = np.array([5000, 7000, 5500, 9000, 7200, 5600])
 ```
 
@@ -2506,17 +2593,26 @@ There is an important complication:
 
 `np.lexsort` sorts ascending by its keys. A simple way to request descending timestamps is to transform the timestamp key.
 
-For non-negative integer timestamps:
+Directly negating the timestamp key is fragile:
+
+- `datetime64` values cannot be negated (NumPy raises `UFuncTypeError`).
+- Unsigned integer timestamps wrap around in fixed-width arithmetic, so negation does not reverse the order.
+
+Convert to a signed integer first. This is appropriate when the timestamp values fit in `int64`:
 
 ```python
-order = np.lexsort((-updated_at, order_id))
+order = np.lexsort(
+    (-updated_at.astype(np.int64), order_id)
+)
 ```
+
+An alternative design is to sort timestamps ascending and select the **last** occurrence per key.
 
 The last key is primary:
 
 ```text
 primary   = order_id
-secondary = -updated_at
+secondary = -updated_at.astype(np.int64)
 ```
 
 So within each order, later timestamps come first.
@@ -2524,7 +2620,7 @@ So within each order, later timestamps come first.
 Let's inspect:
 
 ```python
-order = np.lexsort((-updated_at, order_id))
+order = np.lexsort((-updated_at.astype(np.int64), order_id))
 
 print(order_id[order])
 print(updated_at[order])
@@ -2617,11 +2713,11 @@ import numpy as np
 order_id = np.array([101, 102, 101, 103, 102, 101])
 customer_id = np.array([10, 20, 10, 30, 20, 10])
 updated_at = np.array([100, 200, 300, 150, 400, 350])
-status_code = np.array([1, 1, 2, 1, 2, 3])
+status_code = np.array([0, 0, 1, 0, 1, 2])
 amount_cents = np.array([5000, 7000, 5500, 9000, 7200, 5600])
 
 # 1. Sort by order_id ascending, then updated_at descending.
-order = np.lexsort((-updated_at, order_id))
+order = np.lexsort((-updated_at.astype(np.int64), order_id))
 
 # 2. Work with order IDs in the deliberate sort order.
 sorted_order_id = order_id[order]
@@ -2646,6 +2742,15 @@ print(latest_order_id)
 print(latest_updated_at)
 print(latest_status_code)
 print(latest_amount_cents)
+```
+
+Expected output:
+
+```text
+[101 102 103]
+[350 400 150]
+[2 1 0]
+[5600 7200 9000]
 ```
 
 The exact row order of the output follows the ordering produced by the sort. The essential correctness property is:
@@ -3391,11 +3496,11 @@ mask = a > 10 & a < 100
 
 ### Symptom
 
-The expression may be parsed in an unintended way or produce a confusing error.
+The expression is parsed as a chained comparison and raises a `ValueError` because the truth value of an intermediate Boolean array is ambiguous.
 
 ### Root cause
 
-Operator precedence.
+Operator precedence: `&` binds more tightly than the comparisons.
 
 ### Correct code
 
