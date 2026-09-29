@@ -3310,6 +3310,41 @@ The output is one scalar per customer.
 
 But this specific calculation can often be expressed more directly using grouped aggregation.
 
+> **Pandas 3.0 change — `DataFrameGroupBy.apply()` no longer passes grouping columns**
+>
+> In pandas 3.0, the grouping columns are excluded from the DataFrame that `DataFrameGroupBy.apply()` passes to your function. The `include_groups` argument now defaults to `False`, and `include_groups=True` is no longer allowed: pandas raises `ValueError`. Code written for older pandas that reads the grouping column inside the function can therefore raise `KeyError`.
+>
+> ```python
+> def old_style(group):
+>     return group["k"].iloc[0]      # "k" is the grouping column
+>
+> df.groupby("k").apply(old_style)   # KeyError: 'k'
+> ```
+>
+> Do not try to restore the old behavior with `include_groups=True`. Change the code so it does not need the grouping column inside the function:
+>
+> - If the task is aggregation, use `agg(..., as_index=False)`; the keys come back as ordinary columns:
+>
+>   ```python
+>   result = (
+>       df.groupby("k", as_index=False)
+>       .agg(total=("amount", "sum"))
+>   )
+>   ```
+>
+> - If the result must stay aligned to the original rows, use `transform()`, for example `df.groupby("k")["amount"].transform("sum")`.
+> - If a grouped result has the keys in its index, restore them as ordinary columns with `reset_index()`:
+>
+>   ```python
+>   result = (
+>       df.groupby("k")["amount"]
+>       .apply(lambda group: group.sum())
+>       .reset_index(name="total")
+>   )
+>   ```
+>
+> Even when the replacement is a plain `agg` or `transform`, the earlier rule still holds: prefer them over `apply` because they avoid one Python call per group.
+
 ---
 
 # 43. Why `apply()` Can Be Slow
@@ -3347,7 +3382,7 @@ orders.groupby("customer_id")["amount"].sum()
 
 uses a specialized built-in grouped reduction.
 
-Current pandas documentation explicitly recommends trying more specific methods such as `agg` or `transform` before `apply` when they express the same operation. citeturn245631search0turn245631search1
+Current pandas documentation explicitly recommends trying more specific methods such as `agg` or `transform` before `apply` when they express the same operation. 
 
 ### Important qualification
 
@@ -3763,7 +3798,7 @@ df.groupby("customer_id")["amount"].apply(lambda s: s.sum())
 
 The built-in operation has a clearer semantic contract and usually gives pandas more opportunity to use optimized internals.
 
-Current pandas documentation makes the same practical recommendation for `apply`: specific methods such as `agg` and `transform` can be considerably faster for their intended operations. citeturn245631search1turn245631search2
+Current pandas documentation makes the same practical recommendation for `apply`: specific methods such as `agg` and `transform` can be considerably faster for their intended operations. 
 
 ---
 
@@ -4214,10 +4249,6 @@ and then relate those costs to your measured environment.
 ---
 
 # 59. Hands-on Exercise — `customer_metrics.py`
-
-> **Do not create `customer_metrics.py` as part of this chapter task.**
->
-> This section is the complete implementation specification for the learner. The actual exercise file and test file belong outside this Markdown-only deliverable.
 
 ## Business scenario
 
@@ -6931,7 +6962,7 @@ For current pandas 3.x behavior, consult the official documentation:
 - [pandas `DataFrameGroupBy.apply`](https://pandas.pydata.org/docs/reference/api/pandas.api.typing.DataFrameGroupBy.apply.html)
 - [pandas GroupBy reference](https://pandas.pydata.org/docs/reference/groupby.html)
 
-A particularly important current-version detail is that pandas 3.0 changed the default for categorical grouping to `observed=True`; `dropna` remains `True` by default. Verify the installed version in your own environment when reproducing examples. citeturn245631search3
+A particularly important current-version detail is that pandas 3.0 changed the default for categorical grouping to `observed=True`; `dropna` remains `True` by default. Verify the installed version in your own environment when reproducing examples. 
 
 ---
 
