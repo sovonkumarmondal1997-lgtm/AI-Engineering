@@ -4,7 +4,7 @@
 
 > **Central production principle:** Write DataFrame transformations so that mutation is explicit, ownership is understandable, and functions do not unexpectedly modify caller-owned inputs.
 
-This chapter uses the **modern pandas 3.x Copy-on-Write (CoW)** model as the primary context. In pandas 3.0, CoW is the default and only mode. Indexing results behave as copies from the user's perspective, chained assignment cannot update the original pandas object, and pandas may defer physical copying until a write requires storage separation. citeturn446716search1turn446716search0
+This chapter uses the **modern pandas 3.x Copy-on-Write (CoW)** model as the primary context. In pandas 3.0, CoW is the default and only mode. Indexing results behave as copies from the user's perspective, chained assignment cannot update the original pandas object, and pandas may defer physical copying until a write requires storage separation. 
 
 The most important assignment rule is:
 
@@ -26,7 +26,7 @@ After writing enough pandas code, you will create subsets, helper Series, tempor
 
 > “When I modify this object, which other objects can change?”
 
-In legacy pandas, views and copies could make that answer difficult to predict. Modern CoW gives a stronger user-facing rule: derived pandas objects behave independently, even when pandas can avoid an immediate physical copy. citeturn446716search1
+In legacy pandas, views and copies could make that answer difficult to predict. Modern CoW gives a stronger user-facing rule: derived pandas objects behave independently, even when pandas can avoid an immediate physical copy. 
 
 Start with a prediction:
 
@@ -121,7 +121,7 @@ Modern CoW changes the practical rule:
 
 > A derived DataFrame or Series behaves as an independent object from the user's point of view.
 
-This removes the need to reason about many historical “is this slice a view?” cases merely to predict whether a mutation will leak into the parent. citeturn446716search1turn446716search6
+This removes the need to reason about many historical “is this slice a view?” cases merely to predict whether a mutation will leak into the parent. 
 
 ---
 
@@ -141,7 +141,7 @@ This does **not** mean:
 
 > “A full physical copy is always allocated immediately.”
 
-Instead, pandas can delay physical copying where safe. citeturn446716search1
+Instead, pandas can delay physical copying where safe. 
 
 ---
 
@@ -162,7 +162,7 @@ temp[df["x"] > 0] = 1
 
 The second assignment targets `temp`, an intermediate object.
 
-Under pandas 3.x CoW, this cannot update the parent `df`. pandas reports a `ChainedAssignmentError` warning for this pattern. citeturn446716search0
+Under pandas 3.x CoW, this cannot update the parent `df`. pandas reports a `ChainedAssignmentError` warning for this pattern. 
 
 ### Another chained form
 
@@ -235,7 +235,7 @@ assert df["foo"].iloc[0] == 1
 
 The derived Series changes. The parent DataFrame does not.
 
-This is exactly the kind of behavior CoW was designed to make predictable. citeturn446716search1
+This is exactly the kind of behavior CoW was designed to make predictable. 
 
 ---
 
@@ -341,7 +341,7 @@ Storage may be shared
         +--> separation/copy is materialized as needed
 ```
 
-pandas documents that CoW makes derived DataFrames and Series behave like copies and delays copies where possible. citeturn446716search1
+pandas documents that CoW makes derived DataFrames and Series behave like copies and delays copies where possible. 
 
 This explains why:
 
@@ -397,7 +397,7 @@ subset = df.loc[mask].copy()
 
 used everywhere simply because the developer feared view behavior.
 
-Modern CoW reduces the need for **defensive copying solely for mutation isolation**. Derived objects already have predictable logical semantics. citeturn446716search1
+Modern CoW reduces the need for **defensive copying solely for mutation isolation**. Derived objects already have predictable logical semantics. 
 
 But `.copy()` is still a valid tool when it expresses a real ownership decision.
 
@@ -420,7 +420,7 @@ This history explains why older resources often discuss:
 - adding `.copy()` to silence warnings;
 - chained assignment folklore.
 
-Modern pandas 3.x uses CoW as the default and only mode. Code should be migrated to the modern semantics. citeturn446716search1turn446716search4
+Modern pandas 3.x uses CoW as the default and only mode. Code should be migrated to the modern semantics. 
 
 ---
 
@@ -442,13 +442,13 @@ Historically, the warning tried to communicate that the developer might be assig
 
 The difficulty was that developers had to reason about an ambiguous view/copy model.
 
-In modern pandas 3.x, this historical warning is no longer the primary model. Chained assignment is instead incompatible with CoW and produces the modern `ChainedAssignmentError` warning. citeturn446716search0turn446716search1
+In modern pandas 3.x, this historical warning is no longer the primary model. Chained assignment is instead incompatible with CoW and produces the modern `ChainedAssignmentError` warning. 
 
 ---
 
 ## 16. `ChainedAssignmentError` in Modern pandas
 
-Modern pandas explicitly describes chained assignment as something that can never update the original object under CoW. citeturn446716search0
+Modern pandas explicitly describes chained assignment as something that can never update the original object under CoW. 
 
 Example:
 
@@ -737,13 +737,13 @@ arr2 = df.values
 
 For new code, `to_numpy()` is the clearer explicit conversion API.
 
-Its `copy=False` default does **not** guarantee zero-copy. pandas documents that conversion may still allocate or coerce to a common NumPy dtype; `copy=True` guarantees a copy. citeturn446716search3
+Its `copy=False` default does **not** guarantee zero-copy. pandas documents that conversion may still allocate or coerce to a common NumPy dtype; `copy=True` guarantees a copy. 
 
 The key question for this chapter is:
 
 > **If I mutate the NumPy array, can I accidentally mutate pandas-owned data?**
 
-Under CoW, pandas can return a read-only array to prevent this. citeturn446716search1
+Under CoW, pandas can return a read-only array to prevent this. 
 
 ---
 
@@ -774,9 +774,9 @@ if not arr.flags.writeable:
     print("Array is read-only")
 ```
 
-The official pandas documentation demonstrates this protection with a `ValueError` from an attempted write to a read-only shared array. citeturn446716search1
+The official pandas documentation demonstrates this protection with a `ValueError` from an attempted write to a read-only shared array. 
 
-Do not assume every mixed-dtype DataFrame produces the same physical array. `to_numpy()` may coerce or allocate. citeturn446716search3
+Do not assume every mixed-dtype DataFrame produces the same physical array. `to_numpy()` may coerce or allocate. 
 
 ---
 
@@ -807,7 +807,7 @@ independent NumPy storage
 safe to mutate
 ```
 
-pandas also documents that manually overriding the writeable flag is possible but bypasses CoW protection and should therefore be treated cautiously. citeturn446716search1
+pandas also documents that manually overriding the writeable flag is possible but bypasses CoW protection and should therefore be treated cautiously. 
 
 ---
 
@@ -1152,7 +1152,7 @@ df["y"][df["x"] > 0] = 0
 assert df["y"].tolist() == [10, 20, 30]
 ```
 
-Under pandas 3.x, the chained assignment cannot update the parent. A `ChainedAssignmentError` warning is expected from the operation. citeturn446716search0turn446716search1
+Under pandas 3.x, the chained assignment cannot update the parent. A `ChainedAssignmentError` warning is expected from the operation. 
 
 ### Experiment 4 — Direct `.loc` assignment
 
@@ -1399,7 +1399,7 @@ Start with:
 
 
 ```python
-def prepare_orders(df: pd.DataFrame) -> pd.DataFrame:
+def prepare_orders_legacy(df: pd.DataFrame) -> pd.DataFrame:
     work = df.loc[df["status"].eq("active")].copy()
     work.drop(columns=["debug"], inplace=True)
     work.reset_index(drop=True, inplace=True)
@@ -1412,35 +1412,65 @@ Refactor:
 
 ```python
 def prepare_orders(df: pd.DataFrame) -> pd.DataFrame:
-    work = df.loc[df["status"].eq("active")].copy()
+    work = df.loc[df["status"].eq("active")]
     work = work.drop(columns=["debug"])
     work = work.reset_index(drop=True)
     return work
 ```
 
-Explain the purpose of the one remaining `.copy()`.
+Explain why the defensive `.copy()` can be removed under pandas 3.x Copy-on-Write: `df.loc[...]` already returns an object that behaves as an independent copy, `drop` and `reset_index` return new objects, and nothing in the function modifies `df` or a view of it.
 
 ### Task 6 — Measure memory before and after
 
-Use:
+Compare the legacy and refactored functions from Task 5 on the same input DataFrame:
 
 
 ```python
-before = df.memory_usage(deep=True).sum()
+import gc
+import tracemalloc
 
-subset = df.loc[df["status"].eq("active")].copy()
 
-after = subset.memory_usage(deep=True).sum()
+def measure_peak_traced_memory(fn, df):
+    gc.collect()
+    tracemalloc.start()
+
+    before_current, before_peak = tracemalloc.get_traced_memory()
+    result = fn(df)
+    after_current, after_peak = tracemalloc.get_traced_memory()
+
+    tracemalloc.stop()
+
+    return result, {
+        "before_current_bytes": before_current,
+        "before_peak_bytes": before_peak,
+        "after_current_bytes": after_current,
+        "peak_bytes": after_peak,
+    }
+
+
+_, legacy_memory = measure_peak_traced_memory(
+    prepare_orders_legacy,
+    df,
+)
+
+_, refactored_memory = measure_peak_traced_memory(
+    prepare_orders,
+    df,
+)
 
 print(
     {
-        "parent_bytes": before,
-        "subset_bytes": after,
+        "legacy": legacy_memory,
+        "refactored": refactored_memory,
     }
 )
 ```
 
-Record actual measurements. Never invent benchmark values.
+Compare the traced peak allocations of the legacy and refactored implementations.
+
+- The comparison must use equivalent input data: the same `df` for both functions.
+- Record actual measurements. Never fabricate benchmark values.
+- `tracemalloc` measures traceable Python allocations. It is not the same as OS-level RSS/process-memory measurement, and memory allocated outside Python's allocator may not appear in it.
 
 ---
 
@@ -1478,7 +1508,7 @@ Then add a regression test that proves:
 8. Run the test suite under pandas 3.x.
 9. Record any migration-specific failures.
 
-pandas' migration guidance states that chained assignment will never work under CoW and recommends `loc` as the alternative. citeturn446716search1turn446716search4
+pandas' migration guidance states that chained assignment will never work under CoW and recommends `loc` as the alternative. 
 
 ---
 
@@ -1566,7 +1596,7 @@ c = b.loc[mask].copy()
 
 **Root cause:** historical warning model.
 
-**Correction:** in pandas 3.x, chained assignment is incompatible with CoW and produces `ChainedAssignmentError` warnings. citeturn446716search0
+**Correction:** in pandas 3.x, chained assignment is incompatible with CoW and produces `ChainedAssignmentError` warnings. 
 
 ### 7. Ignoring `ChainedAssignmentError`
 
@@ -1787,8 +1817,10 @@ def test_numpy_copy_is_independent():
 
 ```python
 empty = pd.DataFrame({"x": pd.Series(dtype="int64")})
-mask = empty["x"] > 0
-empty.loc[mask, "y"] = 1
+result = empty.assign(y=1)
+
+assert result.empty
+assert "y" in result.columns
 ```
 
 Test the resulting schema intentionally if a new column is introduced.
@@ -1848,7 +1880,7 @@ Treat this as a memory-lifetime experiment. Measure rather than generalize.
 
 ### Mixed-dtype `to_numpy()`
 
-`to_numpy()` may coerce to a common NumPy dtype and may allocate. citeturn446716search3
+`to_numpy()` may coerce to a common NumPy dtype and may allocate. 
 
 ### Read-only array
 
@@ -1972,7 +2004,7 @@ print(
 - What is final DataFrame memory versus process peak memory?
 - Is the measured difference large enough to matter operationally?
 
-pandas itself notes that CoW can improve average performance and memory usage by delaying copies, but this is not a guarantee for every workload. citeturn446716search1
+pandas itself notes that CoW can improve average performance and memory usage by delaying copies, but this is not a guarantee for every workload. 
 
 ---
 
@@ -2105,7 +2137,7 @@ Use this when upgrading old code.
 13. Remove assumptions that depended on legacy view/copy behavior.
 14. Keep a short migration note for any intentional behavioral change.
 
-pandas' migration guidance states that Copy-on-Write is the default and only mode in pandas 3.0. citeturn446716search1turn446716search4
+pandas' migration guidance states that Copy-on-Write is the default and only mode in pandas 3.0. 
 
 ---
 
@@ -2234,7 +2266,7 @@ The user-facing contract is more important:
 
 ### Misconception 6 — “`to_numpy()` is always writable.”
 
-**Correction:** pandas may return a read-only array when a writable view would violate CoW. citeturn446716search1
+**Correction:** pandas may return a read-only array when a writable view would violate CoW. 
 
 ### Misconception 7 — “CoW guarantees better performance everywhere.”
 
@@ -2370,7 +2402,7 @@ df = pd.DataFrame({"foo": [1, 2, 3]})
 df["foo"].replace(1, 5, inplace=True)
 ```
 
-This is another chained-operation pattern. Under CoW it does not provide a mechanism for changing the parent through the derived Series. pandas documents this as a pattern that does not work under CoW. citeturn446716search1
+This is another chained-operation pattern. Under CoW it does not provide a mechanism for changing the parent through the derived Series. pandas documents this as a pattern that does not work under CoW. 
 
 Prefer a direct parent operation:
 
@@ -2454,7 +2486,7 @@ arr = df.to_numpy()
 print(arr.dtype)
 ```
 
-The returned representation can differ from the column-level pandas dtypes. pandas explicitly notes that conversion can require coercion and copying. citeturn446716search3
+The returned representation can differ from the column-level pandas dtypes. pandas explicitly notes that conversion can require coercion and copying. 
 
 This matters because the NumPy array is now a different representation with its own mutability rules.
 
@@ -2702,7 +2734,7 @@ A strong answer:
 
 A strong answer:
 
-> Chained assignment mutates an intermediate object produced by indexing. Under CoW, that intermediate behaves independently, so the statement cannot update the original pandas object. pandas surfaces the operation with a `ChainedAssignmentError` warning. citeturn446716search0
+> Chained assignment mutates an intermediate object produced by indexing. Under CoW, that intermediate behaves independently, so the statement cannot update the original pandas object. pandas surfaces the operation with a `ChainedAssignmentError` warning. 
 
 #### 3. Write every conditional assignment as a single `.loc` call.
 
@@ -3199,11 +3231,11 @@ depends on the operations performed.
 
 The chapter's version-sensitive statements are aligned with the current pandas documentation consulted for this topic.
 
-- The pandas 3.0 Copy-on-Write user guide states that CoW is the default and only mode, makes derived objects behave like copies, and delays copies where possible. citeturn446716search1
-- The pandas 3.0.6 `ChainedAssignmentError` documentation states that chained assignment can never update the original Series/DataFrame under CoW. citeturn446716search0
-- The pandas `to_numpy()` documentation states that `copy=False` does not guarantee that no copy is made, while `copy=True` ensures a copy. citeturn446716search3
-- The pandas CoW guide documents read-only NumPy arrays as a protection against mutating pandas-owned data through the returned array. citeturn446716search1
-- pandas 3.0 release documentation describes the user-facing copy/view behavior as consistent: indexing results and methods returning pandas objects behave as copies. citeturn446716search6
+- The pandas 3.0 Copy-on-Write user guide states that CoW is the default and only mode, makes derived objects behave like copies, and delays copies where possible. 
+- The pandas 3.0.6 `ChainedAssignmentError` documentation states that chained assignment can never update the original Series/DataFrame under CoW. 
+- The pandas `to_numpy()` documentation states that `copy=False` does not guarantee that no copy is made, while `copy=True` ensures a copy. 
+- The pandas CoW guide documents read-only NumPy arrays as a protection against mutating pandas-owned data through the returned array. 
+- pandas 3.0 release documentation describes the user-facing copy/view behavior as consistent: indexing results and methods returning pandas objects behave as copies. 
 
 ---
 
@@ -3272,13 +3304,3 @@ The mature pandas engineer does not memorize view/copy folklore.
 The mature engineer can state:
 
 > **Who owns the state, what should change, what must not change, and what test proves that contract?**
-
----
-
-## Primary References
-
-- pandas 3.0.6 — Copy-on-Write user guide. citeturn446716search1
-- pandas 3.0.6 — `pandas.errors.ChainedAssignmentError`. citeturn446716search0
-- pandas 3.0.5 — `DataFrame.to_numpy()`. citeturn446716search3
-- pandas 3.0.6 — DataFrame API reference. citeturn446716search5
-- pandas 3.0.0 — Copy-on-Write release notes. citeturn446716search6
