@@ -498,7 +498,7 @@ s.str.contains(
 )
 ```
 
-Current pandas documentation says the default `na` behavior depends on dtype; for pandas' `"str"` dtype it is `False`, while nullable string dtype uses `pd.NA`, and object dtype can produce `np.nan`. citeturn976423search0
+Current pandas documentation says the default `na` behavior depends on dtype; for pandas' `"str"` dtype it is `False`, while nullable string dtype uses `pd.NA`, and object dtype can produce `np.nan`. 
 
 ### `na=False` is semantic
 
@@ -514,7 +514,7 @@ That is correct only when "missing" logically means "not matched" for the rule.
 
 # 13. `replace()`
 
-Current pandas uses an explicit `regex` parameter; string patterns are treated as literal by default in the ordinary case, so make regex intent explicit. citeturn976423search9
+Current pandas uses an explicit `regex` parameter; string patterns are treated as literal by default in the ordinary case, so make regex intent explicit. 
 
 ### Literal replacement
 
@@ -644,7 +644,7 @@ Expected:
 ["A----", "AB---", "ABC--"]
 ```
 
-`pad()` supports left, right, and both-side padding. citeturn976423search7
+`pad()` supports left, right, and both-side padding. 
 
 Use `zfill()` when the intent is specifically zero-padding.
 
@@ -1084,7 +1084,7 @@ result = s.str.extractall(
 print(result)
 ```
 
-`extractall` can create multiple match rows from one source row and returns a MultiIndex whose final level identifies the match. citeturn976423search6
+`extractall` can create multiple match rows from one source row and returns a MultiIndex whose final level identifies the match. 
 
 ### Grain is the key concept
 
@@ -1251,7 +1251,7 @@ Conceptually:
 1      Mumbai   MH 400001
 ```
 
-`expand=True` changes the dimensionality to separate columns. Current pandas documentation also makes its regex behavior explicit through the `regex` parameter. citeturn976423search5
+`expand=True` changes the dimensionality to separate columns. Current pandas documentation also makes its regex behavior explicit through the `regex` parameter. 
 
 ### Production caution
 
@@ -1289,7 +1289,7 @@ Conceptually:
 
 Use it when the last token has a stable meaning.
 
-Pandas documents that `rsplit` performs the split from the end and supports `n` to limit the number of splits. citeturn976423search4
+Pandas documents that `rsplit` performs the split from the end and supports `n` to limit the number of splits. 
 
 ---
 
@@ -1324,7 +1324,7 @@ Conceptually:
 1  country  =  US
 ```
 
-If the separator is absent, the first field contains the input and the other fields are empty. citeturn976423search12
+If the separator is absent, the first field contains the input and the other fields are empty. 
 
 Use it for simple first-separator key/value formats.
 
@@ -1417,7 +1417,7 @@ Use `floor` when the business meaning is:
 
 > "Put every event in the bucket it started in."
 
-Current pandas documents `floor` as a fixed-frequency operation; fixed frequencies such as hours or seconds are appropriate, while month-end is not a fixed frequency. citeturn976423search14
+Current pandas documents `floor` as a fixed-frequency operation; fixed frequencies such as hours or seconds are appropriate, while month-end is not a fixed frequency. 
 
 ---
 
@@ -1541,7 +1541,7 @@ A queue SLA, billing interval, sensor aggregation, and report label may require 
 s.dt.tz_convert("America/New_York")
 ```
 
-It requires timezone-aware data. Pandas documents that calling it on timezone-naive data raises an error. citeturn976423search1
+It requires timezone-aware data. Pandas documents that calling it on timezone-naive data raises an error. 
 
 ### Example
 
@@ -1638,7 +1638,7 @@ Expected:
 ["2025-09-26", "2025-09-27"]
 ```
 
-Pandas documents `Series.dt.strftime` as formatting datetime values according to the supplied `strftime` pattern. citeturn976423search2
+Pandas documents `Series.dt.strftime` as formatting datetime values according to the supplied `strftime` pattern. 
 
 ### Common format codes
 
@@ -1779,7 +1779,7 @@ status = pd.Series(
 print(status.cat.categories)
 ```
 
-Pandas describes categoricals as values drawn from a defined category set and internally represented through categories and integer codes. citeturn990257search2turn990257search3
+Pandas describes categoricals as values drawn from a defined category set and internally represented through categories and integer codes. 
 
 Useful `.cat` operations include:
 
@@ -1874,7 +1874,7 @@ Expected:
 ["pending", "paid", "shipped", "delivered"]
 ```
 
-Pandas documents that an ordered categorical uses its category order for sorting rather than lexical order. citeturn990257search2
+Pandas documents that an ordered categorical uses its category order for sorting rather than lexical order. 
 
 ---
 
@@ -2140,15 +2140,15 @@ The transformation must be domain-specific and documented.
 
 ---
 
-# 62. Non-Breaking Spaces
+# 62. Zero-Width Spaces
 
-A non-breaking space can appear visually like an ordinary space but behave differently.
+A zero-width space can be invisible when printed while still changing string equality.
 
 Example:
 
 ```python
 s = pd.Series(
-    ["C001", "C001\u00A0"],
+    ["C001", "C001\u200b"],
     dtype="string",
 )
 
@@ -2156,7 +2156,7 @@ print(s.str.len().tolist())
 print([repr(value) for value in s.tolist()])
 ```
 
-The second value contains an additional Unicode character.
+The second value contains an invisible zero-width Unicode character.
 
 ### Detection lesson
 
@@ -2175,11 +2175,13 @@ print(value)
 
 ### Normalization
 
-Where appropriate:
+`str.strip()` removes leading and trailing whitespace, but it does not remove a zero-width space. NFKC normalization also does not remove it.
+
+Handle the known artifact explicitly:
 
 ```python
 clean = (
-    s.str.normalize("NFKC")
+    s.str.replace("\u200b", "", regex=False)
     .str.strip()
 )
 ```
@@ -2238,7 +2240,7 @@ Free text often should not.
 
 Modern pandas has a dedicated string dtype.
 
-Pandas 3.0 changed ordinary string inference so that string data uses the new dedicated string dtype by default rather than the old generic object representation in common Series construction. citeturn990257search4turn990257search0
+Pandas 3.0 changed ordinary string inference so that string data uses the new dedicated string dtype by default rather than the old generic object representation in common Series construction. 
 
 ### Conceptual comparison
 
@@ -2281,7 +2283,7 @@ s = pd.Series(
 )
 ```
 
-Current pandas documentation describes PyArrow integration as offering additional data types, missing-data support, interoperability, IO integration, and native Arrow computation for some supported operations, including strings and datetimes. citeturn990257search1
+Current pandas documentation describes PyArrow integration as offering additional data types, missing-data support, interoperability, IO integration, and native Arrow computation for some supported operations, including strings and datetimes. 
 
 ### Important distinction
 
@@ -2293,7 +2295,7 @@ pd.StringDtype("pyarrow")
 pd.ArrowDtype(pa.string())
 ```
 
-Pandas explicitly documents differences between the string dtype using Arrow storage and a generic ArrowDtype around `pa.string()`. citeturn990257search1
+Pandas explicitly documents differences between the string dtype using Arrow storage and a generic ArrowDtype around `pa.string()`. 
 
 ---
 
@@ -3408,7 +3410,7 @@ canonical = (
 
 ---
 
-# 93. Debugging Case 5 — Non-Breaking Space
+# 93. Debugging Case 5 — Zero-Width Space
 
 ### Symptom
 
@@ -3418,7 +3420,7 @@ The printed values look the same.
 
 ```python
 s = pd.Series(
-    ["C001", "C001\u00A0"],
+    ["C001", "C001\u200b"],
     dtype="string",
 )
 
@@ -3429,6 +3431,17 @@ print(s.str.len().tolist())
 ### Prevention
 
 Treat invisible whitespace as a real data-quality dimension.
+
+```text
+A zero-width space is invisible,
+survives strip(),
+survives NFKC,
+and should be removed explicitly when identified as an unwanted artifact.
+```
+
+```python
+clean = s.str.replace("\u200b", "", regex=False)
+```
 
 ---
 
@@ -5002,7 +5015,7 @@ Consider Arrow-backed strings when:
 - supported operations benefit in your environment;
 - memory measurements justify the representation.
 
-Current pandas documents Arrow integration for strings and datetimes, but also notes that supported functionality depends on integration with the pandas API. citeturn990257search1
+Current pandas documents Arrow integration for strings and datetimes, but also notes that supported functionality depends on integration with the pandas API. 
 
 ### Decision rule
 
@@ -5440,58 +5453,6 @@ A professional learner completing this chapter should be able to:
 - benchmark accessor vs `apply`;
 - test regexes with positive and negative cases;
 - debug malformed production data.
-
----
-
-# 172. Technical Accuracy Notes
-
-### String accessor
-
-Pandas provides vectorized string operations through `Series.str`. citeturn976423search11
-
-### `contains`
-
-The `regex` argument determines whether a pattern is treated as a regular expression, and the default missing-value behavior varies by dtype. citeturn976423search0
-
-### `replace`
-
-Use the `regex` parameter explicitly when regex replacement is intended. citeturn976423search9
-
-### `split`
-
-`split` supports `expand=True` and an explicit `regex` argument for controlling pattern interpretation. citeturn976423search5
-
-### `rsplit`
-
-`rsplit` performs splits from the right and supports `n`. citeturn976423search4
-
-### `extractall`
-
-`extractall` produces one row per regex match and exposes match position through its MultiIndex. citeturn976423search6
-
-### `partition`
-
-`partition` returns three pieces around the first separator: before, separator, after. citeturn976423search12
-
-### Datetime timezone conversion
-
-`tz_convert` requires timezone-aware data and converts the same instant to the target timezone. citeturn976423search1
-
-### Datetime formatting
-
-`strftime` formats datetime values into strings. citeturn976423search2
-
-### Categoricals
-
-Categoricals have categories and integer codes, and ordered categoricals sort according to category order. citeturn990257search2turn990257search3
-
-### Arrow
-
-Pandas supports Arrow-backed data types and Arrow-based execution for supported APIs; performance and behavior depend on the specific operation and representation. citeturn990257search1
-
-### Pandas 3 string dtype
-
-Pandas 3.0 introduced a dedicated string dtype as the default representation for ordinary string data in common Series construction. citeturn990257search4turn990257search0
 
 ---
 
