@@ -792,7 +792,7 @@ That is not a substitute for understanding the data model, but it is a useful fi
 
 # 10. pandas `json_normalize`
 
-`pandas.json_normalize` transforms semi-structured JSON-like records into a DataFrame. Its `record_path`, `meta`, and `sep` parameters are particularly useful when nested data contains repeated child records. The current pandas documentation describes `record_path` as the path to the list of records and `meta` as fields carried into the resulting records. citeturn296478search0
+`pandas.json_normalize` transforms semi-structured JSON-like records into a DataFrame. Its `record_path`, `meta`, and `sep` parameters are particularly useful when nested data contains repeated child records. The current pandas documentation describes `record_path` as the path to the list of records and `meta` as fields carried into the resulting records.
 
 ## 10.1 Simple Struct Flattening
 
@@ -1119,7 +1119,7 @@ Test the actual library/version
 Document the chosen semantics
 ```
 
-Current DuckDB documentation states that `unnest(NULL)` and `unnest([])` produce zero rows, while Polars exposes explicit `empty_as_null` and `keep_nulls` controls on list explosion expressions. citeturn722838search0turn774852search5
+Current DuckDB documentation states that `unnest(NULL)` and `unnest([])` produce zero rows, while Polars exposes explicit `empty_as_null` and `keep_nulls` controls on list explosion expressions.
 
 Pandas also needs to be tested against the actual transformation path, especially when empty lists, nulls, and nested records are mixed.
 
@@ -1127,7 +1127,7 @@ Pandas also needs to be tested against the actual transformation path, especiall
 
 # 14. Polars `unnest`
 
-Polars provides struct-oriented operations for turning a struct into its individual fields. Its current expression API includes `Expr.struct.unnest()`, which expands a struct into its member fields. citeturn296478search3
+Polars provides struct-oriented operations for turning a struct into its individual fields. Its current expression API includes `Expr.struct.unnest()`, which expands a struct into its member fields.
 
 Example:
 
@@ -1187,7 +1187,7 @@ Use expression syntax when you want explicit control over what enters the output
 
 # 15. Polars `explode`
 
-Polars supports exploding list columns into separate rows. The current DataFrame API supports `DataFrame.explode`, and the expression API also provides `Expr.explode`. citeturn774852search10turn774852search19
+Polars supports exploding list columns into separate rows. The current DataFrame API supports `DataFrame.explode`, and the expression API also provides `Expr.explode`.
 
 Example:
 
@@ -1257,7 +1257,7 @@ result = df.select(
 )
 ```
 
-The current Polars documentation describes `struct.unnest()` as an alias for expanding all struct fields. citeturn296478search3
+The current Polars documentation describes `struct.unnest()` as an alias for expanding all struct fields.
 
 ### Engineering reason
 
@@ -1325,7 +1325,7 @@ The exact API surface evolves across Polars versions, so pin your project versio
 
 # 18. DuckDB Nested Data
 
-DuckDB has native `LIST`, `STRUCT`, `MAP`, `ARRAY`, and `UNION`-style nested types and provides `unnest` for `LIST` and `STRUCT` values. Its current documentation states that unnesting a list creates one row per element, while unnesting a struct emits its fields as columns. citeturn722838search0turn722838search6
+DuckDB has native `LIST`, `STRUCT`, `MAP`, `ARRAY`, and `UNION`-style nested types and provides `unnest` for `LIST` and `STRUCT` values. Its current documentation states that unnesting a list creates one row per element, while unnesting a struct emits its fields as columns.
 
 This is particularly useful when the downstream audience prefers SQL.
 
@@ -1349,7 +1349,7 @@ SELECT
 FROM orders;
 ```
 
-DuckDB also supports `struct_extract` and bracket notation for struct entries. citeturn722838search2turn722838search3
+DuckDB also supports `struct_extract` and bracket notation for struct entries.
 
 The engineering meaning is the same:
 
@@ -1395,7 +1395,7 @@ FROM orders,
 UNNEST(items) AS t(item);
 ```
 
-DuckDB documents `unnest()` as a special function that changes result cardinality for lists and can also expand structs into columns. citeturn722838search0turn722838search2
+DuckDB documents `unnest()` as a special function that changes result cardinality for lists and can also expand structs into columns.
 
 Important:
 
@@ -1419,7 +1419,7 @@ SELECT list_count(items)
 FROM orders;
 ```
 
-and list transformation functions such as `list_transform`, as supported by the current DuckDB release. citeturn722838search1
+and list transformation functions such as `list_transform`, as supported by the current DuckDB release.
 
 For example:
 
@@ -1452,7 +1452,7 @@ Arrow can represent nested values such as:
 - lists
 - maps
 
-When the transformation only needs to flatten a struct, `Table.flatten()` is the direct Arrow concept. The current Arrow documentation states that `Table.flatten()` creates one column per struct field while leaving other columns unchanged. citeturn296478search1
+When the transformation only needs to flatten a struct, `Table.flatten()` is the direct Arrow concept. The current Arrow documentation states that `Table.flatten()` creates one column per struct field while leaving other columns unchanged.
 
 Example:
 
@@ -1503,7 +1503,7 @@ Arrow's compute layer includes nested-data functions such as:
 - `list_parent_indices`
 - `struct_field`
 
-The current Arrow documentation exposes these as structural transform functions. citeturn774852search3
+The current Arrow documentation exposes these as structural transform functions.
 
 Example:
 
@@ -1538,7 +1538,7 @@ list_flatten
 → output cardinality can increase
 ```
 
-The current Arrow documentation states that `list_flatten` emits elements from the top list level and does not emit values for null list entries. citeturn774852search17
+The current Arrow documentation states that `list_flatten` emits elements from the top list level and does not emit values for null list entries.
 
 ---
 
@@ -1847,7 +1847,7 @@ empty_as_null=False
 keep_nulls=True
 ```
 
-These controls make the semantics more explicit than relying purely on default behavior. citeturn774852search5turn774852search10
+These controls make the semantics more explicit than relying purely on default behavior.
 
 Example:
 
@@ -1894,7 +1894,7 @@ and:
 SELECT unnest(NULL);
 ```
 
-produce no output rows. citeturn722838search0
+produce no output rows.
 
 That means a direct child `UNNEST` result does not preserve a parent row with zero children.
 
@@ -3338,7 +3338,7 @@ The grain becomes:
 1 row = 1 order line
 ```
 
-DuckDB documents that a list unnest duplicates the input row's scalar values for each list element. citeturn722838search0
+DuckDB documents that a list unnest duplicates the input row's scalar values for each list element.
 
 ---
 
@@ -3383,7 +3383,7 @@ order_lines.line_id
 
 # 65. Lab Part 12 — Empty Arrays in DuckDB
 
-Because DuckDB returns zero rows when unnesting a `NULL` or empty list, the child query naturally contains only real child elements. citeturn722838search0
+Because DuckDB returns zero rows when unnesting a `NULL` or empty list, the child query naturally contains only real child elements.
 
 Therefore:
 

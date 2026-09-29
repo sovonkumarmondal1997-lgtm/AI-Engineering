@@ -221,7 +221,7 @@ That architecture is why an apparently tiny workbook can contain more structure 
 
 Classic `.xls` is a legacy binary Excel format. Conceptually, it is different from `.xlsx`: it is not simply “older `.xlsx`”. Reader compatibility therefore depends on the engine.
 
-For pandas, the current documentation lists `openpyxl` for newer Excel formats and `calamine` for Excel `.xls`, `.xlsx`, `.xlsm`, and `.xlsb` among supported inputs. citeturn650868search0turn650868search6
+For pandas, the current documentation lists `openpyxl` for newer Excel formats and `calamine` for Excel `.xls`, `.xlsx`, `.xlsm`, and `.xlsb` among supported inputs.
 
 ### Why spreadsheets are hard ingestion sources
 
@@ -247,7 +247,7 @@ A parser mostly sees stored cells. It does not automatically know that a bold ro
 
 The central API is `pandas.read_excel()`.
 
-Current pandas supports `sheet_name`, `header`, `usecols`, `skiprows`, `dtype`, `converters`, and explicit `engine` selection. A string/integer/list can select one or several sheets; `sheet_name=None` returns a dictionary of DataFrames. citeturn650868search0
+Current pandas supports `sheet_name`, `header`, `usecols`, `skiprows`, `dtype`, `converters`, and explicit `engine` selection. A string/integer/list can select one or several sheets; `sheet_name=None` returns a dictionary of DataFrames.
 
 ### Basic example
 
@@ -318,7 +318,7 @@ df = pd.read_excel(
 )
 ```
 
-Pandas combines multiple header rows into a `MultiIndex`. citeturn650868search0
+Pandas combines multiple header rows into a `MultiIndex`.
 
 ### `skiprows`
 
@@ -331,7 +331,7 @@ df = pd.read_excel(
 )
 ```
 
-`skiprows` is zero-based and can also accept a list-like object or callable. citeturn650868search0
+`skiprows` is zero-based and can also accept a list-like object or callable.
 
 ### `usecols`
 
@@ -369,7 +369,7 @@ calamine_df = pd.read_excel("report.xlsx", engine="calamine")
 Current pandas documentation lists:
 
 - `openpyxl` for newer Excel files;
-- `calamine` for `.xls`, `.xlsx`, `.xlsm`, and `.xlsb` inputs, among others. citeturn650868search0turn650868search6
+- `calamine` for `.xls`, `.xlsx`, `.xlsm`, and `.xlsb` inputs, among others.
 
 A practical decision process is:
 
@@ -391,7 +391,7 @@ with pd.ExcelFile("report.xlsx", engine="openpyxl") as xls:
     print(xls.sheet_names)
 ```
 
-`ExcelFile` is useful when you need to inspect workbook structure or read several sheets without repeatedly reopening the file. citeturn650868search6
+`ExcelFile` is useful when you need to inspect workbook structure or read several sheets without repeatedly reopening the file.
 
 ---
 
@@ -399,7 +399,7 @@ with pd.ExcelFile("report.xlsx", engine="openpyxl") as xls:
 
 Polars provides `read_excel()` as well.
 
-Current Polars documentation describes `calamine`/`fastexcel` as the default engine for Excel reading, with support for selecting sheets and overriding inferred schemas. citeturn423182search6turn869149search3
+Current Polars documentation describes `calamine`/`fastexcel` as the default engine for Excel reading, with support for selecting sheets and overriding inferred schemas.
 
 ```python
 import polars as pl
@@ -428,7 +428,7 @@ df = pl.read_excel(
 )
 ```
 
-Polars can also read multiple sheets by passing multiple sheet names; the result is a mapping of sheet names to DataFrames. citeturn423182search6
+Polars can also read multiple sheets by passing multiple sheet names; the result is a mapping of sheet names to DataFrames.
 
 ### pandas vs Polars for Excel
 
@@ -985,7 +985,7 @@ A simple tree walk is often enough when:
 
 ## 18. XML Parsing with lxml
 
-`lxml` adds a mature XML toolset including XPath, streaming iteration, validation, and other features useful in ingestion systems. Its API supports element XPath evaluation with namespace mappings and `iterparse()` for event-driven processing. citeturn869149search1turn869149search2
+`lxml` adds a mature XML toolset including XPath, streaming iteration, validation, and other features useful in ingestion systems. Its API supports element XPath evaluation with namespace mappings and `iterparse()` for event-driven processing.
 
 ### Basic parse
 
@@ -1178,7 +1178,7 @@ continue
 
 ## 23. `iterparse` and Bounded Memory
 
-Python's `ElementTree.iterparse()` incrementally parses sections and yields events such as `start` and `end`. It still performs blocking reads, so “streaming” here means incremental parsing rather than asynchronous network streaming. citeturn869149search6turn869149search7
+Python's `ElementTree.iterparse()` incrementally parses sections and yields events such as `start` and `end`. It still performs blocking reads, so “streaming” here means incremental parsing rather than asynchronous network streaming.
 
 ### Educational parent/child streaming parser
 
@@ -1258,7 +1258,7 @@ for event, elem in etree.iterparse(
     # your document structure to prevent the parent from retaining them.
 ```
 
-`lxml.etree.iterparse` supports event selection and tag filtering and documents options such as `no_network` and entity-resolution behavior. citeturn869149search2
+`lxml.etree.iterparse` supports event selection and tag filtering and documents options such as `no_network` and entity-resolution behavior.
 
 ### Bounded-memory output
 
@@ -1369,6 +1369,16 @@ The danger is not “XML syntax”; the danger is **parser behavior applied to u
 
 An attacker can create entities that expand repeatedly. A tiny document can therefore cause extremely large in-memory expansions.
 
+A well-known form of entity-expansion abuse is the **"billion laughs" attack**, where nested entity references can expand a small XML document into an extremely large amount of data.
+
+```xml
+<!DOCTYPE lolz [
+  <!ENTITY a "ha"><!ENTITY b "&a;&a;&a;&a;&a;&a;">
+]><lolz>&b;</lolz>
+```
+
+This small example shows one entity expanding another. Each extra level of nesting multiplies the expansion, which can consume disproportionate CPU and memory. That is the "billion laughs" class of attack. `defusedxml` rejects DTD and entity-expansion behavior like this instead of letting the unsafe expansion proceed.
+
 For this chapter, remember:
 
 > The parser must be configured so untrusted XML cannot unexpectedly resolve external entities or perform dangerous expansion.
@@ -1377,7 +1387,7 @@ For this chapter, remember:
 
 ## 27. `defusedxml`
 
-`defusedxml` provides hardened wrappers around Python's XML APIs for common unsafe XML behaviors. Its implementation exposes defensive controls around DTDs, entities, and external references. citeturn650868search2turn650868search3
+`defusedxml` provides hardened wrappers around Python's XML APIs for common unsafe XML behaviors. Its implementation exposes defensive controls around DTDs, entities, and external references.
 
 ### Safe basic parsing pattern
 
@@ -1490,7 +1500,7 @@ if not schema.validate(xml_doc):
     raise ValueError("XML failed XSD validation")
 ```
 
-`lxml.etree.XMLSchema` creates a schema validator and provides validation/error-log behavior. citeturn869149search8
+`lxml.etree.XMLSchema` creates a schema validator and provides validation/error-log behavior.
 
 ### When to validate
 
@@ -2139,7 +2149,7 @@ The engineering task is to translate that contract accurately into a parser spec
 
 EBCDIC is a family of character encodings historically used by IBM mainframe systems. It is not the same byte encoding as ASCII or UTF-8.
 
-Python provides several EBCDIC-related codec aliases; `cp037` is one example documented by the Python standard-library codec registry. citeturn423182search1
+Python provides several EBCDIC-related codec aliases; `cp037` is one example documented by the Python standard-library codec registry.
 
 ### Conceptual flow
 
@@ -2465,7 +2475,7 @@ pq.write_table(
 )
 ```
 
-PyArrow's Parquet writer supports Zstandard and other codecs; it writes Arrow tables to Parquet with explicit compression settings. citeturn650868search1
+PyArrow's Parquet writer supports Zstandard and other codecs; it writes Arrow tables to Parquet with explicit compression settings.
 
 ### Reusing Topics 01–09
 
@@ -2999,7 +3009,7 @@ pq.write_table(
 )
 ```
 
-For a partitioned dataset, use `pyarrow.dataset.write_dataset()` rather than inventing a custom file writer. Current PyArrow exposes `partitioning`, `max_rows_per_file`, row-group settings, and `existing_data_behavior`; these are important knobs for production layout. citeturn423182search0turn423182search2
+For a partitioned dataset, use `pyarrow.dataset.write_dataset()` rather than inventing a custom file writer. Current PyArrow exposes `partitioning`, `max_rows_per_file`, row-group settings, and `existing_data_behavior`; these are important knobs for production layout.
 
 Example:
 
@@ -3026,7 +3036,7 @@ ds.write_dataset(
 )
 ```
 
-Remember: `max_rows_per_file` controls row count, not a guaranteed byte size. File size still depends on schema, encoding, and compression. citeturn423182search0turn423182search2
+Remember: `max_rows_per_file` controls row count, not a guaranteed byte size. File size still depends on schema, encoding, and compression.
 
 ---
 

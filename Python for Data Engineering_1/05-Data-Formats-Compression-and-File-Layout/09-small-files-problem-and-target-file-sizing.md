@@ -945,7 +945,7 @@ But prevention can increase ingestion latency or introduce buffering state. That
 
 # 21. `max_rows_per_file`
 
-PyArrow's dataset writer provides `max_rows_per_file` to cap how many rows are placed into an output file. The documented default is no row-per-file limit (`0`), and the writer also has controls for row groups and open-file behavior. The important limitation is that a row cap is **not a byte-size guarantee**. citeturn169376search0
+PyArrow's dataset writer provides `max_rows_per_file` to cap how many rows are placed into an output file. The documented default is no row-per-file limit (`0`), and the writer also has controls for row groups and open-file behavior. The important limitation is that a row cap is **not a byte-size guarantee**.
 
 ## Example
 
@@ -980,7 +980,7 @@ def write_partitioned_dataset(table: pa.Table, output_root: str | Path) -> None:
 - `existing_data_behavior="error"` is useful for a first write because it avoids silently overwriting an existing output.
 - The partitioning settings decide where files are created, not the byte size of each file.
 
-Current PyArrow documentation also notes that reducing `max_open_files` too aggressively can fragment writes into additional small files; this is a useful example of two writer controls interacting rather than acting independently. citeturn169376search0
+Current PyArrow documentation also notes that reducing `max_open_files` too aggressively can fragment writes into additional small files; this is a useful example of two writer controls interacting rather than acting independently.
 
 ## Production lesson
 
@@ -1448,7 +1448,7 @@ Therefore:
 
 # 30. Compaction with `pyarrow.dataset`
 
-PyArrow's dataset API can discover a collection of Parquet fragments and scan them as one dataset. Its scanner supports filtering and batch reads; `to_table()` materializes the selected data into memory, while `to_batches()` provides record-batch iteration. Current documentation describes dataset fragments as the physical files consumed by a `FileSystemDataset`. citeturn305983search0
+PyArrow's dataset API can discover a collection of Parquet fragments and scan them as one dataset. Its scanner supports filtering and batch reads; `to_table()` materializes the selected data into memory, while `to_batches()` provides record-batch iteration. Current documentation describes dataset fragments as the physical files consumed by a `FileSystemDataset`.
 
 For a moderate-sized partition, the simplest educational flow is:
 
@@ -1474,7 +1474,7 @@ filtered = partition.to_table(
 )
 ```
 
-The current PyArrow documentation notes that dataset filters can use partition information and file-format metadata such as Parquet statistics when possible. citeturn305983search0
+The current PyArrow documentation notes that dataset filters can use partition information and file-format metadata such as Parquet statistics when possible.
 
 ## Important production nuance
 
@@ -2489,7 +2489,7 @@ Those are not bugs in the lesson. They are explicit boundaries.
 
 For much larger partitions, a production implementation should challenge the assumption that the entire partition fits comfortably in memory.
 
-The current PyArrow dataset API exposes batch-oriented scanning via `to_batches()` and scanner controls such as batch size and read-ahead. citeturn305983search0
+The current PyArrow dataset API exposes batch-oriented scanning via `to_batches()` and scanner controls such as batch size and read-ahead.
 
 A production architecture can therefore use:
 
@@ -3404,6 +3404,103 @@ Output should meet the configured target range as closely as practical.
 
 If sorting is required, verify the specified sort order.
 
+## Runnable crash-midway test
+
+This test uses the reference `compact_partition` from Topic 53, saved next to the test as `compactor.py`. It simulates an abrupt crash after the temporary output was written and validated, but before publication.
+
+Why a subprocess? `os._exit()` ends the process immediately, so it must not run inside the test runner.
+
+Why crash after the temporary write? That is the boundary that shows whether the old partition is still intact.
+
+```python
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+import pyarrow as pa
+import pyarrow.dataset as ds
+import pyarrow.parquet as pq
+
+CRASH_EXIT_CODE = 17
+
+
+def _child(partition: str) -> None:
+    import compactor
+
+    def crash_before_publish(temp_path, target_path):
+        # Temporary output is already written and validated at this point.
+        os._exit(CRASH_EXIT_CODE)
+
+    compactor._publish_local_partition_best_effort = crash_before_publish
+    compactor.compact_partition(partition, target_bytes=1_000_000)
+
+
+def _parquet_files(path: Path) -> list[str]:
+    return sorted(p.name for p in path.rglob("*.parquet"))
+
+
+def test_crash_before_publish_leaves_partition_readable() -> None:
+    root = Path(tempfile.mkdtemp(prefix="compaction_crash_test_"))
+    try:
+        partition = root / "day=01"
+        partition.mkdir()
+
+        for i in range(3):
+            table = pa.table(
+                {
+                    "order_id": pa.array(
+                        range(i * 100, (i + 1) * 100), type=pa.int64()
+                    ),
+                    "amount": pa.array(
+                        [float(n) for n in range(100)], type=pa.float64()
+                    ),
+                }
+            )
+            pq.write_table(table, partition / f"part-{i}.parquet")
+
+        expected = ds.dataset(partition, format="parquet").to_table()
+        files_before = _parquet_files(partition)
+
+        result = subprocess.run(
+            [sys.executable, __file__, "child", str(partition)],
+            cwd=Path(__file__).parent,
+        )
+
+        # 1. The child crashed abruptly.
+        assert result.returncode == CRASH_EXIT_CODE
+
+        # 2. The last valid production state is still readable and unchanged.
+        assert partition.exists()
+        actual = ds.dataset(partition, format="parquet").to_table()
+        assert actual.num_rows == expected.num_rows
+        assert actual.equals(expected)
+        assert _parquet_files(partition) == files_before
+
+        # 3. Publication never started: no backup directory exists.
+        assert not list(root.glob("*__backup__*"))
+
+        # 4. The abandoned temporary output is isolated from the partition.
+        abandoned = list(root.glob(".day=01.__compaction_tmp__*"))
+        assert len(abandoned) == 1
+        assert _parquet_files(abandoned[0])
+        assert abandoned[0] != partition
+    finally:
+        shutil.rmtree(root, ignore_errors=True)
+
+
+if __name__ == "__main__":
+    if len(sys.argv) == 3 and sys.argv[1] == "child":
+        _child(sys.argv[2])
+    else:
+        test_crash_before_publish_leaves_partition_readable()
+        print("crash-midway test passed")
+```
+
+The crash happens after the replacement files were prepared but before publication, so the last valid production state remains readable. The abandoned temporary directory is left behind on purpose. A real job needs a separate policy to detect and clean it up. This test shows behavior for the local directory example only, not transactional semantics.
+
 ---
 
 # 77. Required Hands-On Lab — `compactor.py`
@@ -4151,7 +4248,7 @@ All examples should:
 - avoid hard-coded credentials;
 - use deterministic synthetic data where appropriate.
 
-The examples in this module were checked against current Apache Arrow Python API documentation for the dataset writer/scanner patterns used here. PyArrow's `write_dataset` exposes row/file controls including `max_rows_per_file`, `min_rows_per_group`, `max_rows_per_group`, `max_open_files`, and output handling parameters; the exact behavior should still be verified against the version pinned by the learner's project. citeturn169376search0
+The examples in this module were checked against current Apache Arrow Python API documentation for the dataset writer/scanner patterns used here. PyArrow's `write_dataset` exposes row/file controls including `max_rows_per_file`, `min_rows_per_group`, `max_rows_per_group`, `max_open_files`, and output handling parameters; the exact behavior should still be verified against the version pinned by the learner's project.
 
 When behavior is version-sensitive:
 

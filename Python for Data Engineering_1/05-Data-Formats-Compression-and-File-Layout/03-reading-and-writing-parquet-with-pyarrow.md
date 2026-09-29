@@ -117,7 +117,7 @@ PyArrow is useful because the Arrow model and Parquet model fit together natural
 - Parquet is a **columnar storage format on disk**.
 - PyArrow provides APIs for moving between them.
 
-The Apache Arrow documentation describes `ParquetFile`, `read_table`, datasets, and S3-compatible filesystems as first-class parts of this ecosystem. citeturn617091search0turn617091search3
+The Apache Arrow documentation describes `ParquetFile`, `read_table`, datasets, and S3-compatible filesystems as first-class parts of this ecosystem.
 
 ## 1.2 Why not just use pandas?
 
@@ -318,7 +318,7 @@ Do not assume the defaults are bad. Defaults are often useful. The engineering p
 
 > **Use defaults deliberately, not invisibly.**
 
-Current PyArrow documentation exposes `write_table()` options including `row_group_size`, `version`, `compression`, `write_statistics`, `compression_level`, `use_byte_stream_split`, `coerce_timestamps`, `write_page_index`, and other controls. Exact defaults can vary across versions, so inspect your installed version when a default matters to a production contract. citeturn467189search2
+Current PyArrow documentation exposes `write_table()` options including `row_group_size`, `version`, `compression`, `write_statistics`, `compression_level`, `use_byte_stream_split`, `coerce_timestamps`, `write_page_index`, and other controls. Exact defaults can vary across versions, so inspect your installed version when a default matters to a production contract.
 
 ## 3.2 Read it back
 
@@ -573,7 +573,7 @@ The second statement is much stronger and may be false.
 
 A filter still has to be executed. If statistics are broad or the predicate is not selective, the reader may still need to inspect a large amount of data.
 
-Current PyArrow documentation describes filtering/predicate pushdown for Parquet and dataset scanning, but the amount of physical data skipped depends on the available metadata and scan plan. citeturn617091search0turn693043search4
+Current PyArrow documentation describes filtering/predicate pushdown for Parquet and dataset scanning, but the amount of physical data skipped depends on the available metadata and scan plan.
 
 ---
 
@@ -686,7 +686,7 @@ print(pf.metadata)
 print(pf.schema_arrow)
 ```
 
-The current PyArrow documentation exposes file metadata through `ParquetFile.metadata`, and the Arrow schema through `ParquetFile.schema_arrow`. It also exposes row-group-oriented methods such as `read_row_group`. citeturn617091search0
+The current PyArrow documentation exposes file metadata through `ParquetFile.metadata`, and the Arrow schema through `ParquetFile.schema_arrow`. It also exposes row-group-oriented methods such as `read_row_group`.
 
 ## 8.2 File-level information
 
@@ -1052,7 +1052,7 @@ finally:
     writer.close()
 ```
 
-Current PyArrow documentation exposes `write_table()` and `write_batch()` on `ParquetWriter`, both with optional `row_group_size`. citeturn467189search1
+Current PyArrow documentation exposes `write_table()` and `write_batch()` on `ParquetWriter`, both with optional `row_group_size`.
 
 ## 12.3 Why `close()` matters
 
@@ -1188,7 +1188,7 @@ Measure memory for the workload you actually care about.
 
 `row_group_size` controls the maximum number of rows in each row group when writing a table or batch through the Parquet writer APIs.
 
-Current PyArrow documentation describes the default behavior as using the smaller of the input row count and a default maximum of 1,048,576 rows when `row_group_size` is not explicitly supplied to a writer write operation; exact behavior and defaults should be verified against the version you deploy. citeturn467189search1
+Current PyArrow documentation describes the default behavior as using the smaller of the input row count and a default maximum of 1,048,576 rows when `row_group_size` is not explicitly supplied to a writer write operation; exact behavior and defaults should be verified against the version you deploy.
 
 The key engineering idea is not the default number.
 
@@ -1284,7 +1284,7 @@ The important engineering approach is to classify each option by what it changes
 | `use_byte_stream_split` | encoding for eligible columns | encoding efficiency for some numeric data | encoding + file size |
 | `write_page_index` | page-level index writing | finer-grained metadata | metadata availability and reader behavior |
 
-Current PyArrow documentation lists these options on `write_table()` and `ParquetWriter`; some arguments are version-sensitive, so production environments should pin and test the PyArrow version. citeturn467189search1turn467189search2
+Current PyArrow documentation lists these options on `write_table()` and `ParquetWriter`; some arguments are version-sensitive, so production environments should pin and test the PyArrow version.
 
 ---
 
@@ -1300,7 +1300,7 @@ pq.write_table(
 )
 ```
 
-The value is a target threshold for the approximate encoded size of data pages inside a column chunk. It is not a guarantee that every page will have exactly that many bytes. Current PyArrow documentation describes a default target of approximately 1 MiB when this parameter is not supplied. citeturn467189search1turn467189search2
+The value is a target threshold for the approximate encoded size of data pages inside a column chunk. It is not a guarantee that every page will have exactly that many bytes. Current PyArrow documentation describes a default target of approximately 1 MiB when this parameter is not supplied.
 
 ## 16.2 Why change it?
 
@@ -1383,7 +1383,7 @@ level 9 = universally better
 
 A higher level may reduce file size while increasing CPU and write time, and the incremental size reduction may diminish.
 
-Current PyArrow documentation states that compression levels are codec-specific and that unsupported levels/codecs can raise exceptions. citeturn467189search1
+Current PyArrow documentation states that compression levels are codec-specific and that unsupported levels/codecs can raise exceptions.
 
 ## 17.3 Dictionary encoding
 
@@ -1436,7 +1436,7 @@ C-0000000003
 
 dictionary benefits may be limited, and the writer can abandon dictionary encoding when it is no longer effective.
 
-Current PyArrow documentation allows `use_dictionary` to be configured globally or for selected columns. It also documents interactions with other encoding controls. citeturn467189search1
+Current PyArrow documentation allows `use_dictionary` to be configured globally or for selected columns. It also documents interactions with other encoding controls.
 
 ## 17.4 Statistics
 
@@ -1492,7 +1492,7 @@ pq.write_table(
 )
 ```
 
-Current PyArrow documentation lists `1.0`, `2.4`, and `2.6` as version choices for its Parquet writer APIs. These settings affect which Parquet logical types/features are available, and consumer compatibility must be considered. citeturn467189search1
+Current PyArrow documentation lists `1.0`, `2.4`, and `2.6` as version choices for its Parquet writer APIs. These settings affect which Parquet logical types/features are available, and consumer compatibility must be considered.
 
 Do not hard-code a version merely because it is newer.
 
@@ -1516,7 +1516,7 @@ pq.write_table(
 )
 ```
 
-Current PyArrow documentation supports coercion targets such as milliseconds (`ms`) and microseconds (`us`). It also documents behavior around loss of precision and the separate `allow_truncated_timestamps` option. citeturn467189search1turn467189search2
+Current PyArrow documentation supports coercion targets such as milliseconds (`ms`) and microseconds (`us`). It also documents behavior around loss of precision and the separate `allow_truncated_timestamps` option.
 
 ### Why this matters
 
@@ -1569,7 +1569,7 @@ pq.write_table(
 
 `BYTE_STREAM_SPLIT` is an encoding designed for eligible fixed-width values such as floating-point data and some fixed-size binary/decimal representations.
 
-Current PyArrow documentation describes it as an encoding option and notes that combining it with a compression codec is useful for size reduction. If dictionary encoding and byte-stream split are both enabled for a column, dictionary encoding takes precedence where applicable. citeturn467189search1turn467189search2
+Current PyArrow documentation describes it as an encoding option and notes that combining it with a compression codec is useful for size reduction. If dictionary encoding and byte-stream split are both enabled for a column, dictionary encoding takes precedence where applicable.
 
 The key distinction is:
 
@@ -1609,7 +1609,7 @@ Page index
 
 ## 19.2 An important PyArrow reader caveat
 
-Current PyArrow documentation states that `write_page_index=True` writes page-index statistics, but PyArrow does not yet use the page index on the read side for its own reads. citeturn467189search6
+Current PyArrow documentation states that `write_page_index=True` writes page-index statistics, but PyArrow does not yet use the page index on the read side for its own reads.
 
 That is exactly the kind of production detail you should know.
 
@@ -1669,7 +1669,7 @@ pq.write_table(
 )
 ```
 
-Current documentation explicitly shows per-column compression and selected-column dictionary configuration. citeturn617091search0
+Current documentation explicitly shows per-column compression and selected-column dictionary configuration.
 
 If you need exact per-column encoding controls, use the API appropriate for your installed PyArrow version. Do not invent a dictionary-shaped parameter when the version you deploy expects a boolean or list.
 
@@ -1715,7 +1715,7 @@ The dataset layer introduces additional concerns:
 - file count
 - object-store listing
 
-PyArrow's dataset API is specifically designed for tabular multi-file datasets and supports filesystem abstraction, schema discovery, filtering, projection, and iterative reads. citeturn693043search4
+PyArrow's dataset API is specifically designed for tabular multi-file datasets and supports filesystem abstraction, schema discovery, filtering, projection, and iterative reads.
 
 ## 21.2 Why many files?
 
@@ -1749,7 +1749,7 @@ print(orders_dataset.files)
 
 The `Dataset` object represents a potentially multi-file collection of data.
 
-Current Apache Arrow documentation describes dataset discovery as a process that can crawl directories, infer schema, and represent files as fragments. Creating the Dataset object itself does not necessarily materialize all data into memory. citeturn693043search4
+Current Apache Arrow documentation describes dataset discovery as a process that can crawl directories, infer schema, and represent files as fragments. Creating the Dataset object itself does not necessarily materialize all data into memory.
 
 ## 22.2 Dataset mental model
 
@@ -1812,7 +1812,7 @@ That gives the dataset machinery an opportunity to apply:
 - column projection
 - parallel scanning
 
-Current PyArrow dataset documentation describes filtering, projection, and iterative scanning as core dataset capabilities. citeturn693043search4
+Current PyArrow dataset documentation describes filtering, projection, and iterative scanning as core dataset capabilities.
 
 Again, the word is **opportunity**, not guarantee.
 
@@ -1827,7 +1827,7 @@ for fragment in orders_dataset.get_fragments(
     print(fragment)
 ```
 
-The dataset API can use partition expressions and Parquet information such as statistics when determining relevant fragments. citeturn617091search8
+The dataset API can use partition expressions and Parquet information such as statistics when determining relevant fragments.
 
 ---
 
@@ -1886,7 +1886,7 @@ ds.write_dataset(
 )
 ```
 
-The current `write_dataset()` API accepts Arrow tables, record batches, datasets, and other supported inputs. It exposes controls for partitioning, file naming, rows per file, rows per row group, existing-data behavior, filesystem, and more. citeturn467189search0
+The current `write_dataset()` API accepts Arrow tables, record batches, datasets, and other supported inputs. It exposes controls for partitioning, file naming, rows per file, rows per row group, existing-data behavior, filesystem, and more.
 
 ## 25.2 Why use dataset writing instead of a loop of `write_table()` calls?
 
@@ -2000,7 +2000,7 @@ Therefore:
 
 > **`max_rows_per_file` is a row-count control, not a direct file-byte target.**
 
-Current `write_dataset()` documentation also distinguishes `max_rows_per_file` from row-group controls. citeturn467189search0
+Current `write_dataset()` documentation also distinguishes `max_rows_per_file` from row-group controls.
 
 ## 27.3 When it is useful
 
@@ -2029,7 +2029,7 @@ ds.write_dataset(
 )
 ```
 
-Current documentation explains that the dataset writer can buffer incoming data until the minimum is reached and can split large incoming batches according to the maximum. It also warns that setting only a maximum without the minimum can result in very small row groups. citeturn467189search0
+Current documentation explains that the dataset writer can buffer incoming data until the minimum is reached and can split large incoming batches according to the maximum. It also warns that setting only a maximum without the minimum can result in very small row groups.
 
 This makes the relationship clearer:
 
@@ -2068,7 +2068,7 @@ Current documentation lists supported values including:
 - `overwrite_or_ignore`
 - `delete_matching`
 
-and explains their different operational semantics. citeturn467189search0
+and explains their different operational semantics.
 
 ## 29.2 Why explicit behavior matters
 
@@ -2119,7 +2119,7 @@ ds.write_dataset(
 )
 ```
 
-The current API documents `{i}` as the incrementing token in the basename template. citeturn467189search0
+The current API documents `{i}` as the incrementing token in the basename template.
 
 ## 30.2 Why predictable names help
 
@@ -2219,7 +2219,48 @@ Useful concepts include:
 - missing-column policy
 - compatibility checks
 
-Current dataset documentation notes schema discovery and basic normalization behavior. citeturn693043search4
+Current dataset documentation notes schema discovery and basic normalization behavior.
+
+```python
+import pyarrow as pa
+import pyarrow.parquet as pq
+
+s1 = pq.read_schema("part-001.parquet")
+s2 = pq.read_schema("part-002.parquet")
+
+unified_schema = pa.unify_schemas(
+    [s1, s2],
+    promote_options="permissive",
+)
+
+print(unified_schema)
+```
+
+An incompatible pair, where the same field is `string` in one schema and `int64` in the other, should fail:
+
+```python
+incompatible_1 = pa.schema(
+    [
+        pa.field("amount", pa.string()),
+    ]
+)
+
+incompatible_2 = pa.schema(
+    [
+        pa.field("amount", pa.int64()),
+    ]
+)
+
+try:
+    pa.unify_schemas(
+        [incompatible_1, incompatible_2],
+        promote_options="permissive",
+    )
+except Exception as exc:
+    print("Expected incompatible-schema error:", exc)
+```
+
+Compatible schemas are unified under an explicit policy. Incompatible schemas fail before the dataset is published or combined.
 
 ### Production rule
 
@@ -2296,7 +2337,7 @@ writer.add_key_value_metadata(
 )
 ```
 
-The method is documented by the current ParquetWriter API. citeturn467189search1
+The method is documented by the current ParquetWriter API.
 
 For a project that supports multiple PyArrow versions, choose one metadata approach and test it under the pinned version.
 
@@ -2358,7 +2399,7 @@ s3 = fs.S3FileSystem(
 
 Then pass the filesystem to a reader/writer API when appropriate.
 
-Current PyArrow documentation shows `filesystem=` support for Parquet APIs and S3 filesystem usage. citeturn617091search0
+Current PyArrow documentation shows `filesystem=` support for Parquet APIs and S3 filesystem usage.
 
 ## 33.3 MinIO
 
@@ -2385,7 +2426,7 @@ dataset = ds.dataset(
 )
 ```
 
-Apache Arrow's dataset documentation explicitly documents MinIO/S3-compatible use through `S3FileSystem`, including `scheme="http"` and `endpoint_override` for a local MinIO instance. citeturn693043search0
+Apache Arrow's dataset documentation explicitly documents MinIO/S3-compatible use through `S3FileSystem`, including `scheme="http"` and `endpoint_override` for a local MinIO instance.
 
 ### Security rule
 
@@ -2756,7 +2797,7 @@ pq.write_table(
 
 ### Important version/API note
 
-The exact interaction among dictionary settings, byte-stream split, compression, and writer options should be verified against the PyArrow version pinned in your project. Current documentation notes, for example, that dictionary encoding can take precedence over byte-stream split when both are enabled for a column. citeturn467189search1
+The exact interaction among dictionary settings, byte-stream split, compression, and writer options should be verified against the PyArrow version pinned in your project. Current documentation notes, for example, that dictionary encoding can take precedence over byte-stream split when both are enabled for a column.
 
 ## 38.3 Part 3 — Generate and stream a logical 20 GB workload
 
@@ -3257,7 +3298,7 @@ A single dataset write creates many more files than expected.
 - row/file settings
 - high writer parallelism
 
-Current `write_dataset()` documentation warns that setting `max_open_files` too low can fragment output into many small files. citeturn467189search0
+Current `write_dataset()` documentation warns that setting `max_open_files` too low can fragment output into many small files.
 
 ### Inspect
 
@@ -4512,7 +4553,7 @@ Useful official references include:
 - Apache Arrow: `write_dataset` — https://arrow.apache.org/docs/python/generated/pyarrow.dataset.write_dataset.html
 - Apache Arrow: Parquet encryption — https://arrow.apache.org/docs/python/parquet/encryption.html
 
-The official documentation confirms, among other things, the current single-file writer controls, `ParquetFile` metadata inspection, dataset filtering/iteration, `S3FileSystem`, and MinIO support used in this module. citeturn467189search1turn467189search2turn693043search4turn693043search0
+The official documentation confirms, among other things, the current single-file writer controls, `ParquetFile` metadata inspection, dataset filtering/iteration, `S3FileSystem`, and MinIO support used in this module.
 
 ---
 

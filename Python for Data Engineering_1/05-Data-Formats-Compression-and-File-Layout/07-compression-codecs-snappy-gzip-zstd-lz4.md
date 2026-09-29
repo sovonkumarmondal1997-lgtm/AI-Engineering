@@ -756,6 +756,20 @@ Use this as a starting framework, not a ranking:
 | zstd | tunable range | configurable | adjustable size/CPU balance | broad workload range |
 | LZ4 | strongly speed-oriented | low | often more bytes | low-latency/high-throughput cases |
 
+### Additional Codec Awareness
+
+The roadmap also names three further lossless codecs. Treat this as awareness of workload fit, not as a ranking:
+
+| Codec | Ratio | Speed | Splittable | When to Use |
+| --- | --- | --- | --- | --- |
+| Brotli | high | slower to compress | not as a standalone compressed stream | cold/archival-style data where ratio matters more than maximum throughput |
+| bzip2 | high | slow | yes, on its own, because the format is block-oriented | large batch files where splittability is useful |
+| xz | very high | slow | not as a standalone compressed stream | cold/archival data; not a default for frequently read hot data |
+
+bzip2 is splittable on its own because its format is block-oriented. Whether a reader actually exploits that depends on the reader and the deployment.
+
+Brotli and xz suit cold data, where reads are rare and stored bytes dominate the cost. They are not universally better than gzip or zstd. Splittability depends on the container or reader, so verify it for your stack.
+
 The word **typical** is important.
 
 These are not guarantees.
@@ -2179,6 +2193,7 @@ Therefore:
 The roadmap requires an experiment comparing:
 
 - a large CSV compressed with gzip
+- the same CSV compressed with zstd
 - equivalent Parquet
 
 ### Procedure
@@ -2186,14 +2201,33 @@ The roadmap requires an experiment comparing:
 1. Create a large orders dataset.
 2. Write `orders.csv`.
 3. Compress it as `orders.csv.gz`.
-4. Write the same logical data as Parquet.
-5. Query both with DuckDB or Polars.
-6. Compare:
+4. Compress it as `orders.csv.zst`.
+5. Write the same logical data as Parquet.
+6. Query all three with DuckDB or Polars.
+7. Compare:
    - file size,
    - full-scan time,
    - one-column access,
    - filtered-query behavior,
    - observed parallel-read behavior where the tool exposes it.
+8. Explain why the gzip file cannot be split as a single compressed stream.
+
+Create the two compressed files from the same `orders.csv`:
+
+```bash
+gzip -c orders.csv > orders.csv.gz
+zstd -f orders.csv -o orders.csv.zst
+```
+
+Read them with DuckDB `read_csv` and read Parquet with `read_parquet`:
+
+```sql
+SELECT COUNT(*) FROM read_csv('orders.csv.gz', compression = 'gzip');
+SELECT COUNT(*) FROM read_csv('orders.csv.zst', compression = 'zstd');
+SELECT COUNT(*) FROM read_parquet('orders.parquet');
+```
+
+DuckDB can usually detect compression from the file extension. The explicit `compression` argument is shown for clarity. Confirm support in your installed DuckDB version.
 
 Keep the query semantically equivalent.
 
@@ -2231,7 +2265,34 @@ decode typed values
 execute
 ```
 
+`orders.csv.zst` follows the same path as `orders.csv.gz`: a compressed CSV, then text parsing, then the query.
+
+### Parallel query execution vs splitting the compressed stream
+
+```sql
+SET threads = 8;
+
+SELECT COUNT(*)
+FROM read_csv('orders.csv.gz', compression = 'gzip');
+```
+
+```text
+orders.csv.gz
+    ↓
+one gzip-compressed stream
+    ↓
+cannot be divided into independent compressed byte ranges
+    ↓
+a parallel reader cannot simply split it into independent gzip chunks
+```
+
+Setting the DuckDB thread count does not make a single gzip stream splittable. The compressed stream itself cannot simply be divided into independent byte ranges for parallel decompression.
+
+This does not mean the whole query is necessarily single-threaded. Other stages of execution may still use parallelism. Parallel query execution is different from parallel splitting of the compressed input stream. Parquet avoids the problem because each row group, column chunk and page is compressed independently.
+
 The formats have different physical capabilities.
+
+The comparison involves more than compressed file size: compression ratio, decompression work, text parsing, column pruning, filtering, parallel-read characteristics and file structure. The results depend on the workload, so measure in your environment.
 
 Do not compare them only by compressed file size.
 

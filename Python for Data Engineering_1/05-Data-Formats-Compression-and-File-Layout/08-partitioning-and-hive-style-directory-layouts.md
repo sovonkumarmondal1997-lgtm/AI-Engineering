@@ -242,7 +242,7 @@ dataset/
 
 The defining convention is `key=value`.
 
-Current PyArrow documentation describes `HivePartitioning` as a multi-level `$key=$value` directory scheme. The partition parser also supports URI decoding of path segments and a configurable null fallback. citeturn916880search2
+Current PyArrow documentation describes `HivePartitioning` as a multi-level `$key=$value` directory scheme. The partition parser also supports URI decoding of path segments and a configurable null fallback.
 
 ---
 
@@ -303,7 +303,7 @@ Important distinction:
 
 > **Partition information in the path is separate from whether the same fields are physically stored as ordinary columns in each Parquet file.**
 
-Some tools can reconstruct partition columns from the path during dataset discovery. DuckDB's current documentation explicitly describes partition columns as being read from directory structure when Hive partitioning is enabled. citeturn807253search3
+Some tools can reconstruct partition columns from the path during dataset discovery. DuckDB's current documentation explicitly describes partition columns as being read from directory structure when Hive partitioning is enabled.
 
 ---
 
@@ -591,7 +591,7 @@ partition parser
 logical type
 ```
 
-PyArrow supports explicit partition schemas. citeturn916880search2
+PyArrow supports explicit partition schemas.
 
 Example:
 
@@ -628,7 +628,7 @@ Example:
 orders/country=__HIVE_DEFAULT_PARTITION__/
 ```
 
-PyArrow currently documents `__HIVE_DEFAULT_PARTITION__` as the default `null_fallback` for `HivePartitioning`. citeturn916880search2
+PyArrow currently documents `__HIVE_DEFAULT_PARTITION__` as the default `null_fallback` for `HivePartitioning`.
 
 Do not assume every tool uses exactly the same sentinel.
 
@@ -662,7 +662,7 @@ path segment
 read/decode
 ```
 
-Current PyArrow `HivePartitioning` documents `segment_encoding="uri"` by default, with `"none"` available for leaving segments unchanged. citeturn916880search2
+Current PyArrow `HivePartitioning` documents `segment_encoding="uri"` by default, with `"none"` available for leaving segments unchanged.
 
 Do not invent a custom escape scheme casually.
 
@@ -697,7 +697,7 @@ The key rule is:
 
 # 20. PyArrow Partitioned Writes
 
-Current PyArrow `dataset.write_dataset` supports partitioning via field names plus `partitioning_flavor="hive"`. It also supports controls including `max_rows_per_file`, `min_rows_per_group`, `max_rows_per_group`, and `existing_data_behavior`. citeturn916880search0
+Current PyArrow `dataset.write_dataset` supports partitioning via field names plus `partitioning_flavor="hive"`. It also supports controls including `max_rows_per_file`, `min_rows_per_group`, `max_rows_per_group`, and `existing_data_behavior`.
 
 ### Basic write
 
@@ -808,7 +808,7 @@ df.to_parquet(
 )
 ```
 
-for writing a partitioned dataset. pandas also delegates Parquet writing to a selected backend such as PyArrow. citeturn807253search0
+for writing a partitioned dataset. pandas also delegates Parquet writing to a selected backend such as PyArrow.
 
 Example:
 
@@ -852,7 +852,7 @@ df.write_parquet(
 )
 ```
 
-Current Polars documentation labels this Hive partition-writing functionality as **unstable**, so pin and test the library version used by production. citeturn807253search6
+Current Polars documentation labels this Hive partition-writing functionality as **unstable**, so pin and test the library version used by production.
 
 Do not assume Polars' API is identical to pandas or PyArrow.
 
@@ -871,7 +871,7 @@ TO 'orders'
 );
 ```
 
-DuckDB documents `PARTITION_BY` as producing a Hive partitioned folder hierarchy. citeturn916880search4
+DuckDB documents `PARTITION_BY` as producing a Hive partitioned folder hierarchy.
 
 If fields must be derived:
 
@@ -890,7 +890,7 @@ TO 'orders'
 );
 ```
 
-Current DuckDB documentation shows this general pattern. citeturn807253search3
+Current DuckDB documentation shows this general pattern.
 
 ---
 
@@ -920,7 +920,7 @@ WHERE year = 2026
 GROUP BY year, month;
 ```
 
-DuckDB's current documentation states that partition columns can be read from the directory structure when Hive partitioning is enabled. citeturn807253search3
+DuckDB's current documentation states that partition columns can be read from the directory structure when Hive partitioning is enabled.
 
 ---
 
@@ -950,7 +950,7 @@ Inspect what your DuckDB version exposes:
 
 Do not fabricate plan output.
 
-DuckDB's `COPY` documentation also exposes file-writing statistics options such as `RETURN_STATS`; available metrics should be interpreted according to the version and operation. citeturn807253search2
+DuckDB's `COPY` documentation also exposes file-writing statistics options such as `RETURN_STATS`; available metrics should be interpreted according to the version and operation.
 
 ---
 
@@ -1379,7 +1379,7 @@ overwrite_or_ignore
 delete_matching
 ```
 
-The `delete_matching` behavior is specifically useful for partitioned writes because the first time an output partition is encountered, its destination directory can be deleted before replacement files are written. citeturn916880search0
+The `delete_matching` behavior is specifically useful for partitioned writes because the first time an output partition is encountered, its destination directory can be deleted before replacement files are written.
 
 This is a writer behavior setting, not a full transaction system.
 
@@ -3173,7 +3173,7 @@ DuckDB's current `COPY` documentation exposes:
 WRITE_PARTITION_COLUMNS
 ```
 
-for partitioned writes. It controls whether partition columns are written into the output files as well as represented in the directory path. citeturn807253search2
+for partitioned writes. It controls whether partition columns are written into the output files as well as represented in the directory path.
 
 This reinforces:
 
@@ -3189,7 +3189,7 @@ The right choice depends on consumer needs.
 
 # 97. `FILENAME_PATTERN` Awareness
 
-DuckDB supports `FILENAME_PATTERN` for partitioned writes, with tokens including `{i}` and UUID variants in current documentation. citeturn916880search4
+DuckDB supports `FILENAME_PATTERN` for partitioned writes, with tokens including `{i}` and UUID variants in current documentation.
 
 Example:
 
@@ -3209,7 +3209,7 @@ Filename control is useful operationally, but it does not fix a poor partition s
 
 # 98. Remote-Write Semantics
 
-DuckDB's current partitioned-write documentation distinguishes local and remote filesystem behavior for overwrites. Do not assume local-directory replacement semantics carry over unchanged to object storage. citeturn916880search4
+DuckDB's current partitioned-write documentation distinguishes local and remote filesystem behavior for overwrites. Do not assume local-directory replacement semantics carry over unchanged to object storage.
 
 General lesson:
 

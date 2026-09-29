@@ -197,7 +197,7 @@ ORC stands for **Optimized Row Columnar**.
 
 The name reflects a hybrid physical organization: rows are grouped into large regions, while the data inside those regions is organized by column and accompanied by metadata/index structures.
 
-ORC has strong historical ties to the Hadoop and Hive ecosystem. The Apache ORC specification defines a file with stripes, indexes, data streams, stripe footers, a file footer, and a postscript. citeturn376172view0turn376172view1
+ORC has strong historical ties to the Hadoop and Hive ecosystem. The Apache ORC specification defines a file with stripes, indexes, data streams, stripe footers, a file footer, and a postscript.
 
 ## Why does ORC exist?
 
@@ -211,7 +211,7 @@ Older Hadoop-era storage choices such as plain text or earlier row/columnar form
 
 that large analytical Hive workloads needed.
 
-ORC was introduced in the Hive ecosystem to improve how structured data could be stored and scanned. Hive's documentation describes ORC as a format with lightweight indexes, type-aware encodings, projection support, and compression. citeturn999783search5
+ORC was introduced in the Hive ecosystem to improve how structured data could be stored and scanned. Hive's documentation describes ORC as a format with lightweight indexes, type-aware encodings, projection support, and compression.
 
 ## Why is ORC not simply "another Parquet"?
 
@@ -337,7 +337,7 @@ ORC File
     └── Postscript Length
 ```
 
-The ORC specification describes the body as a collection of self-contained stripes. Each stripe has index data, row data, and a stripe footer. The file tail contains metadata that helps interpret the body. citeturn376172view0turn786309view6
+The ORC specification describes the body as a collection of self-contained stripes. Each stripe has index data, row data, and a stripe footer. The file tail contains metadata that helps interpret the body.
 
 ### Another useful mental model
 
@@ -376,7 +376,7 @@ This is a **conceptual comparison**, not a claim that the structures are identic
 
 A **stripe** is a major physical region of an ORC file containing a group of whole rows and the column-oriented streams for those rows.
 
-The ORC specification states that stripes are self-contained and contain only complete rows, so rows do not straddle stripe boundaries. It also states that both the index and data sections are divided by columns so readers can avoid reading unneeded column data. citeturn786309view5
+The ORC specification states that stripes are self-contained and contain only complete rows, so rows do not straddle stripe boundaries. It also states that both the index and data sections are divided by columns so readers can avoid reading unneeded column data.
 
 ### Why does ORC use stripes?
 
@@ -411,7 +411,7 @@ Stripe 0
 └── Stripe footer
 ```
 
-The actual ORC file contains multiple encoded streams rather than one contiguous "column block" per simple table column. The stripe footer records stream locations and column encodings. citeturn376172view1
+The actual ORC file contains multiple encoded streams rather than one contiguous "column block" per simple table column. The stripe footer records stream locations and column encodings.
 
 ## Why do stripes matter?
 
@@ -425,7 +425,7 @@ They affect:
 
 ## Stripe size is a design/implementation setting
 
-PyArrow exposes `stripe_size` when writing ORC. The current Apache Arrow Python documentation states that this controls the approximate amount of data in a stripe and documents a current default of 64 MiB for that PyArrow release. Defaults can change with library versions, so production code should verify the installed version rather than assume a lifetime constant. citeturn786309view2
+PyArrow exposes `stripe_size` when writing ORC. The current Apache Arrow Python documentation states that this controls the approximate amount of data in a stripe and documents a current default of 64 MiB for that PyArrow release. Defaults can change with library versions, so production code should verify the installed version rather than assume a lifetime constant.
 
 ### Trade-off intuition
 
@@ -452,7 +452,7 @@ This is one of ORC's most important ideas.
 
 An ORC row index provides information that helps a reader locate and reason about row groups within a stripe.
 
-The ORC specification defines a `ROW_INDEX` stream for primitive columns. It describes one entry for each row group, and each entry contains positions plus column statistics. The specification states that row groups are controlled by the writer and uses **10,000 rows by default** for its described format behavior. citeturn376172view1
+The ORC specification defines a `ROW_INDEX` stream for primitive columns. It describes one entry for each row group, and each entry contains positions plus column statistics. The specification states that row groups are controlled by the writer and uses **10,000 rows by default** for its described format behavior.
 
 > **Version/default discipline:** treat 10,000 rows as the ORC specification/Hive learning baseline required by this module, not as a guarantee about every implementation or writer version.
 
@@ -472,7 +472,7 @@ A selective predicate may only match one or two row groups.
 
 The reader can use index/statistical information to avoid work on row groups that cannot satisfy the predicate.
 
-The ORC specification describes row-index entries as carrying both stream positions and statistics; the index streams are placed at the front of a stripe and are loaded when predicate pushdown or targeted row seeking needs them. citeturn376172view2
+The ORC specification describes row-index entries as carrying both stream positions and statistics; the index streams are placed at the front of a stripe and are loaded when predicate pushdown or targeted row seeking needs them.
 
 ## What statistics can say
 
@@ -537,7 +537,7 @@ The ORC specification says the stripe footer contains:
 - locations of streams;
 - the encoding of each column;
 - writer timezone information where applicable;
-- encryption-related information when present. citeturn376172view1
+- encryption-related information when present.
 
 The specification also defines stream kinds such as:
 
@@ -546,7 +546,7 @@ The specification also defines stream kinds such as:
 - `LENGTH` — lengths for variable-length values;
 - `DICTIONARY_DATA` — dictionary contents;
 - `ROW_INDEX` — row-index information;
-- bloom-filter streams. citeturn376172view1
+- bloom-filter streams.
 
 ## Why does the stripe footer exist?
 
@@ -596,7 +596,7 @@ The ORC specification states that the footer contains:
 - user metadata when present;
 - row-index stride information;
 - writer information;
-- encryption information when present. citeturn376172view0
+- encryption information when present.
 
 Conceptually:
 
@@ -621,9 +621,9 @@ The ORC specification says the postscript contains information including:
 - compression kind;
 - compression block size;
 - ORC/Hive version information;
-- an ORC magic value in the postscript structure. citeturn786309view6
+- an ORC magic value in the postscript structure.
 
-The specification also describes the reader working backwards from the end of the file: a reader can inspect the final bytes, determine the postscript length, and then locate/decode the footer. citeturn786309view6
+The specification also describes the reader working backwards from the end of the file: a reader can inspect the final bytes, determine the postscript length, and then locate/decode the footer.
 
 ### Why put metadata at the end?
 
@@ -678,7 +678,7 @@ The current Apache Arrow Python ORC documentation exposes:
 - `pyarrow.orc.read_table()`;
 - `pyarrow.orc.write_table()`;
 - `pyarrow.orc.ORCFile`;
-- `pyarrow.orc.ORCWriter`. citeturn786309view0turn786309view2
+- `pyarrow.orc.ORCWriter`.
 
 > **API version note:** PyArrow APIs evolve. The examples in this chapter follow the current documented interface consulted for this module, while the exact available options should always be checked with the installed PyArrow version.
 
@@ -747,7 +747,7 @@ Stripes + streams + metadata
 orders.orc
 ```
 
-The Apache Arrow documentation demonstrates `orc.write_table(table, 'example.orc')` for writing a single ORC file. citeturn786309view2
+The Apache Arrow documentation demonstrates `orc.write_table(table, 'example.orc')` for writing a single ORC file.
 
 ## Example 3 — Read ORC
 
@@ -760,7 +760,7 @@ print(orders)
 print(orders.schema)
 ```
 
-`read_table()` reads the ORC file into an Arrow `Table`. The documented API also allows selecting a subset of columns. citeturn786309view3
+`read_table()` reads the ORC file into an Arrow `Table`. The documented API also allows selecting a subset of columns.
 
 ## Example 4 — Read selected columns
 
@@ -821,7 +821,7 @@ print(orc_file.schema)
 print(orc_file.metadata)
 ```
 
-The Apache Arrow documentation demonstrates `ORCFile` with `metadata`, `schema`, `nrows`, and `nstripes`, and shows that individual stripes can be read using `read_stripe()`. citeturn786309view1turn786309view4
+The Apache Arrow documentation demonstrates `ORCFile` with `metadata`, `schema`, `nrows`, and `nstripes`, and shows that individual stripes can be read using `read_stripe()`.
 
 ### Inspect one stripe
 
@@ -837,7 +837,7 @@ first_stripe = orc_file.read_stripe(0)
 print(first_stripe)
 ```
 
-The result of `read_stripe()` is a `RecordBatch` according to the documented API. citeturn786309view4
+The result of `read_stripe()` is a `RecordBatch` according to the documented API.
 
 ### What should you inspect?
 
@@ -911,7 +911,7 @@ What do my measurements show?
 
 ORC's index model is important because it is more than "the file has metadata."
 
-The ORC specification describes row-index streams with positions and statistics for row groups within stripes. These indexes can help with predicate pushdown and row seeking. citeturn376172view2
+The ORC specification describes row-index streams with positions and statistics for row groups within stripes. These indexes can help with predicate pushdown and row seeking.
 
 ## Coarse-to-fine mental model
 
@@ -980,7 +980,7 @@ A Bloom filter can be particularly useful for equality/membership-style checks s
 WHERE customer_id = 'C12345'
 ```
 
-The ORC specification states that Bloom filters can participate in predicate pushdown and may improve pruning of row groups; it also describes one Bloom-filter entry per row group for configured columns. citeturn376172view1turn376172view2
+The ORC specification states that Bloom filters can participate in predicate pushdown and may improve pruning of row groups; it also describes one Bloom-filter entry per row group for configured columns.
 
 ### Conceptual flow
 
@@ -1056,7 +1056,7 @@ Think about:
 - maps;
 - structs.
 
-ORC's schema is represented as a tree, and compound types have child columns under them. citeturn376172view0
+ORC's schema is represented as a tree, and compound types have child columns under them.
 
 ## The wrong question
 
@@ -1119,7 +1119,7 @@ Historically important ORC consumers include:
 - Spark;
 - and other ORC-capable tools.
 
-Hive documentation explicitly describes ORC storage and its use in Hive, while modern engine ecosystems may provide their own ORC readers and writers. citeturn999783search1turn999783search5
+Hive documentation explicitly describes ORC storage and its use in Hive, while modern engine ecosystems may provide their own ORC readers and writers.
 
 ## What should you verify?
 
@@ -1166,7 +1166,7 @@ Instead say:
 
 Hive has a transactional/ACID model, and ORC has a specific historical role in that system.
 
-Apache Hive documentation states that Hive ACID support was implemented for ORC and describes ORC transactional tables as part of the Hive transaction architecture. citeturn999783search0turn999783search2
+Apache Hive documentation states that Hive ACID support was implemented for ORC and describes ORC transactional tables as part of the Hive transaction architecture.
 
 The reason this matters in a format-selection lesson is architectural context:
 
@@ -1357,7 +1357,7 @@ Neither statement is a universal performance claim.
 
 Arrow is both an in-memory data model and the basis of IPC/file representations.
 
-Feather V2 is an Arrow IPC file format, and current Arrow documentation describes `pyarrow.feather.read_table()`/`write_feather()` alongside direct IPC APIs. Feather V2 supports LZ4 and ZSTD compression. citeturn636805search3
+Feather V2 is an Arrow IPC file format, and current Arrow documentation describes `pyarrow.feather.read_table()`/`write_feather()` alongside direct IPC APIs. Feather V2 supports LZ4 and ZSTD compression.
 
 ## Why might Arrow IPC/Feather be useful?
 
@@ -2126,7 +2126,7 @@ orc.write_table(
 )
 ```
 
-The current PyArrow ORC documentation exposes `orc.write_table()` for writing a `pyarrow.Table` to a single ORC file. citeturn786309view2
+The current PyArrow ORC documentation exposes `orc.write_table()` for writing a `pyarrow.Table` to a single ORC file.
 
 ---
 
@@ -3446,7 +3446,7 @@ from pyarrow import orc
 orc.write_table(table, "orders.orc")
 ```
 
-This uses the documented `pyarrow.orc.write_table()` API. citeturn786309view2
+This uses the documented `pyarrow.orc.write_table()` API.
 
 ---
 
@@ -3459,7 +3459,7 @@ orders = orc.read_table("orders.orc")
 print(orders)
 ```
 
-The API reads the file as an Arrow table. citeturn786309view3
+The API reads the file as an Arrow table.
 
 ---
 
@@ -3478,7 +3478,7 @@ print("metadata:")
 print(orc_file.metadata)
 ```
 
-The documented `ORCFile` interface exposes these properties. citeturn786309view1
+The documented `ORCFile` interface exposes these properties.
 
 ---
 
@@ -3500,7 +3500,7 @@ This is useful for:
 - troubleshooting;
 - learning physical boundaries.
 
-The documented API returns a `RecordBatch` from `read_stripe()`. citeturn786309view4
+The documented API returns a `RecordBatch` from `read_stripe()`.
 
 ---
 
@@ -3516,7 +3516,7 @@ orc.write_table(
 )
 ```
 
-The exact optimal value is workload-dependent. The current PyArrow documentation exposes `stripe_size` as an approximate stripe-size control. citeturn786309view2
+The exact optimal value is workload-dependent. The current PyArrow documentation exposes `stripe_size` as an approximate stripe-size control.
 
 ### Important
 

@@ -2807,8 +2807,7 @@ def inspect_parquet(path: Path) -> None:
         for column_id in range(row_group.num_columns):
             column = row_group.column(column_id)
 
-            print(f"
---- COLUMN CHUNK {column_id} ---")
+            print(f"\n--- COLUMN CHUNK {column_id} ---")
             print("path:", column.path_in_schema)
             print("physical_type:", column.physical_type)
             print("num_values:", column.num_values)
@@ -3067,8 +3066,7 @@ for filename in [
 ]:
     pf = pq.ParquetFile(filename)
 
-    print(f"
-=== {filename} ===")
+    print(f"\n=== {filename} ===")
 
     for row_group_id in range(pf.num_row_groups):
         row_group = pf.metadata.row_group(row_group_id)

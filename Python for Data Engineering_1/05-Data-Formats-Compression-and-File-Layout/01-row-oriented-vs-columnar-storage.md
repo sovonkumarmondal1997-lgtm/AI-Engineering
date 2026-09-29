@@ -3021,18 +3021,16 @@ Loads pandas.
 
 ```python
 orders = pd.DataFrame(
+    {
+        "order_id": [1, 2, 3, 4, 5, 6],
+        "customer": ["Alice", "Bob", "Carol", "David", "Eve", "Frank"],
+        "country": ["IN", "US", "IN", "UK", "IN", "US"],
+        "amount": [100, 250, 180, 120, 300, 220],
+    }
+)
 ```
 
 Creates a table.
-
-```python
-{
-    "order_id": [...],
-    "customer": [...],
-    "country": [...],
-    "amount": [...],
-}
-```
 
 Defines four columns.
 

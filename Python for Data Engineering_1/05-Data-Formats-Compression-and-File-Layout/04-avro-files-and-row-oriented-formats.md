@@ -111,7 +111,7 @@ That leads to three core ideas:
 2. serialize records using Avro's binary encoding;
 3. when storing many records in a file, package them into an object container that carries the writer schema and organizes data into blocks.
 
-The Apache Avro specification describes Avro as a data serialization system with rich data structures, a compact binary format, a container file format, and support for dynamic languages. Its object container files embed the schema used to write the records. citeturn949905search0turn949905search2
+The Apache Avro specification describes Avro as a data serialization system with rich data structures, a compact binary format, a container file format, and support for dynamic languages. Its object container files embed the schema used to write the records.
 
 ## 1.2 Avro is not "JSON in a smaller file"
 
@@ -131,7 +131,7 @@ Human-readable schema declaration
       Encoded records
 ```
 
-The schema tells the reader how to decode the bytes. The binary data itself does not need to repeat field names and type names for every field value. The Avro specification explicitly notes that binary-encoded data does not carry type information or field names per value; the schema is therefore required for correct decoding. citeturn949905search0turn949905search1
+The schema tells the reader how to decode the bytes. The binary data itself does not need to repeat field names and type names for every field value. The Avro specification explicitly notes that binary-encoded data does not carry type information or field names per value; the schema is therefore required for correct decoding.
 
 ## 1.3 Why that matters in Data Engineering
 
@@ -204,7 +204,7 @@ A columnar format instead groups values from the same column across many rows.
 
 Avro's binary serialization follows the row-oriented model: the schema is traversed and the record's field values are encoded according to that schema.
 
-The Avro specification describes serialization and deserialization as a depth-first, left-to-right traversal of the schema, which is why the schema is so central to reading the binary payload correctly. citeturn949905search0
+The Avro specification describes serialization and deserialization as a depth-first, left-to-right traversal of the schema, which is why the schema is so central to reading the binary payload correctly.
 
 ## 3.2 Why row orientation fits events
 
@@ -295,7 +295,7 @@ The simplest record schema contains:
 - each field contains a `name` and a `type`;
 - optional attributes such as `doc`, `namespace`, and aliases can provide additional metadata or naming behavior.
 
-The Avro specification defines records, enums, arrays, maps, unions, and fixed as its six complex schema kinds. citeturn949905search0
+The Avro specification defines records, enums, arrays, maps, unions, and fixed as its six complex schema kinds.
 
 ## 4.3 Schema as a contract
 
@@ -321,7 +321,7 @@ A useful production rule is:
 
 # 5. Avro Primitive Types
 
-Avro's primitive types include `null`, `boolean`, `int`, `long`, `float`, `double`, `bytes`, and `string`. citeturn949905search0
+Avro's primitive types include `null`, `boolean`, `int`, `long`, `float`, `double`, `bytes`, and `string`.
 
 | Avro type | Simple meaning | Typical Python value | Common Data Engineering use |
 | --- | --- | --- | --- |
@@ -424,7 +424,7 @@ That is stronger than simply sending an arbitrary string.
 
 Enums create a contract. A new symbol is therefore a schema change that should be evaluated against all consumers.
 
-The Avro specification defines enum resolution rules; notably, if a writer emits a symbol not present in the reader's enum, a reader default can be used when one is defined, otherwise resolution fails. citeturn949905search0
+The Avro specification defines enum resolution rules; notably, if a writer emits a symbol not present in the reader's enum, a reader default can be used when one is defined, otherwise resolution fails.
 
 ---
 
@@ -623,7 +623,7 @@ This is a common Avro schema design pattern and a common source of errors when t
 
 ### Warning: do not memorize the rule without understanding it
 
-Avro defaults are associated with the first branch of a union when the field is a union. The default value therefore has to conform to that branch. This is why the common nullable pattern places `null` first. citeturn949905search0
+Avro defaults are associated with the first branch of a union when the field is a union. The default value therefore has to conform to that branch. This is why the common nullable pattern places `null` first.
 
 ---
 
@@ -730,7 +730,7 @@ A Python dictionary can contain almost anything. A production Avro schema should
 | `created_at` | timestamp logical type | preserve time semantics rather than a generic number |
 | `order_total` | decimal | preserve financial precision and scale |
 
-The Avro specification defines logical types as annotations over underlying Avro primitive or complex types. The logical type adds semantic meaning while the underlying type determines the binary representation. citeturn949905search0
+The Avro specification defines logical types as annotations over underlying Avro primitive or complex types. The logical type adds semantic meaning while the underlying type determines the binary representation.
 
 ## 8.3 A production schema checklist
 
@@ -756,7 +756,7 @@ Schema design is a form of API design. A schema can become a long-lived contract
 
 # 9. `fastavro` Basics
 
-`fastavro` is a Python implementation of Avro with support for object container file reading/writing, schema resolution, logical types, and several codecs. Its documentation exposes `writer()`, `reader()`, `parse_schema()`, and block-oriented reading utilities. citeturn852237search1turn852237search2turn852237search8
+`fastavro` is a Python implementation of Avro with support for object container file reading/writing, schema resolution, logical types, and several codecs. Its documentation exposes `writer()`, `reader()`, `parse_schema()`, and block-oriented reading utilities.
 
 The exact API surface can evolve with library versions, so production code should pin and document the version being used.
 
@@ -866,7 +866,7 @@ writer(out, parsed_schema, records)
 
 Writes the schema-driven records to the Avro object container.
 
-The official `fastavro` writer API accepts an iterable of records, so the iterable does not have to be a pre-built list. citeturn176586search5turn852237search0
+The official `fastavro` writer API accepts an iterable of records, so the iterable does not have to be a pre-built list.
 
 ## 10.3 When to use this pattern
 
@@ -895,7 +895,7 @@ with open("orders.avro", "rb") as fo:
         print(record)
 ```
 
-`reader()` is an iterator over records in an Avro file. `fastavro` also supports an optional `reader_schema` parameter for schema migration. citeturn726645search4
+`reader()` is an iterator over records in an Avro file. `fastavro` also supports an optional `reader_schema` parameter for schema migration.
 
 ## 11.2 Why iteration matters
 
@@ -918,7 +918,7 @@ For a large file, prefer streaming-style consumption when your processing logic 
 
 ## 11.3 Inspecting the writer schema while reading
 
-The reader object exposes useful file-level information, including metadata, codec information, the writer schema, and the optional reader schema used for resolution. citeturn852237search2
+The reader object exposes useful file-level information, including metadata, codec information, the writer schema, and the optional reader schema used for resolution.
 
 Example:
 
@@ -948,7 +948,7 @@ from fastavro import parse_schema
 parsed = parse_schema(schema)
 ```
 
-The important practical point is that you **do not have to call it for every simple operation**, but reusing a parsed schema can avoid repeatedly parsing the same schema. The current `fastavro` documentation explicitly says parsing is optional and can make future operations faster when the parsed schema is reused. citeturn852237search8
+The important practical point is that you **do not have to call it for every simple operation**, but reusing a parsed schema can avoid repeatedly parsing the same schema. The current `fastavro` documentation explicitly says parsing is optional and can make future operations faster when the parsed schema is reused.
 
 ## 12.2 What it does not do
 
@@ -975,7 +975,7 @@ Reuse parsed schema
 Write/read many records
 ```
 
-Do not call `expand=True` casually. The fastavro documentation warns that expanded named schemas are an output form and should not normally be fed back into ordinary reader/writer functions because they do not conform to the normal Avro schema representation. citeturn852237search8
+Do not call `expand=True` casually. The fastavro documentation warns that expanded named schemas are an output form and should not normally be fed back into ordinary reader/writer functions because they do not conform to the normal Avro schema representation.
 
 ---
 
@@ -998,7 +998,7 @@ metadata
 
 The **Avro object container file** packages these pieces into a reusable file format.
 
-The official specification describes an object container file as a header followed by one or more data blocks. The header contains metadata, including the writer schema, plus a 16-byte sync marker; data blocks contain a record count, encoded data, and the sync marker. citeturn949905search0
+The official specification describes an object container file as a header followed by one or more data blocks. The header contains metadata, including the writer schema, plus a 16-byte sync marker; data blocks contain a record count, encoded data, and the sync marker.
 
 ## 13.2 Conceptual structure
 
@@ -1041,7 +1041,7 @@ The Avro object container header contains:
 - codec information in `avro.codec` when applicable;
 - a 16-byte file-specific sync marker.
 
-The Avro specification defines the magic bytes for the object container as ASCII `O`, `b`, `j`, followed by version byte `1`; in hexadecimal form the well-known beginning is therefore `4F 62 6A 01`. citeturn949905search0
+The Avro specification defines the magic bytes for the object container as ASCII `O`, `b`, `j`, followed by version byte `1`; in hexadecimal form the well-known beginning is therefore `4F 62 6A 01`.
 
 ### Why this matters
 
@@ -1053,7 +1053,7 @@ That is powerful for long-lived data.
 
 ## 14.2 Embedded schema
 
-The `avro.schema` metadata contains the schema of the objects stored in the file. The specification requires the objects in an object container file to be written according to that schema. citeturn949905search0
+The `avro.schema` metadata contains the schema of the objects stored in the file. The specification requires the objects in an object container file to be written according to that schema.
 
 Conceptually:
 
@@ -1076,7 +1076,7 @@ Embedded schemas improve replayability because a file retained for months can ca
 
 The `avro.codec` metadata tells readers how the file's blocks are compressed.
 
-The Avro specification requires `null` and `deflate` implementations and defines additional optional codecs such as `snappy`, while implementations may provide further codecs. Current `fastavro` documentation lists support for a wider set including Zstandard, Bzip2, LZ4, and XZ, with the exact availability depending on the installed implementation/build. citeturn949905search0turn726645search1
+The Avro specification requires `null` and `deflate` implementations and defines additional optional codecs such as `snappy`, while implementations may provide further codecs. Current `fastavro` documentation lists support for a wider set including Zstandard, Bzip2, LZ4, and XZ, with the exact availability depending on the installed implementation/build.
 
 This illustrates an important engineering rule:
 
@@ -1094,7 +1094,7 @@ compressed/serialized data bytes
 sync marker
 ```
 
-The specification states that the block's encoded data can be efficiently extracted or skipped without deserializing its contents. citeturn949905search0
+The specification states that the block's encoded data can be efficiently extracted or skipped without deserializing its contents.
 
 This is important because it creates a physical unit larger than a single record but smaller than the entire file.
 
@@ -1122,7 +1122,7 @@ A sync marker is **not** a record delimiter.
 
 Its purpose is to help readers identify boundaries between blocks, particularly when processing a large file from different offsets.
 
-The Avro specification states that synchronization markers are used between blocks to permit efficient file splitting for MapReduce-style processing. citeturn949905search0
+The Avro specification states that synchronization markers are used between blocks to permit efficient file splitting for MapReduce-style processing.
 
 ---
 
@@ -1176,7 +1176,7 @@ The more accurate rule is:
 
 > **Splittability depends on the file/container organization and where compression is applied.**
 
-Avro compresses blocks rather than creating one giant opaque compressed stream for the whole file. The container structure therefore preserves block-level boundaries while allowing blocks to be compressed. citeturn949905search0
+Avro compresses blocks rather than creating one giant opaque compressed stream for the whole file. The container structure therefore preserves block-level boundaries while allowing blocks to be compressed.
 
 ---
 
@@ -1184,7 +1184,7 @@ Avro compresses blocks rather than creating one giant opaque compressed stream f
 
 A **logical type** gives semantic meaning to an underlying Avro type.
 
-The Avro specification describes a logical type as an Avro primitive or complex type with extra attributes representing a derived semantic type. The logical type is serialized using its underlying Avro representation. citeturn949905search0
+The Avro specification describes a logical type as an Avro primitive or complex type with extra attributes representing a derived semantic type. The logical type is serialized using its underlying Avro representation.
 
 A useful mental model is:
 
@@ -1211,7 +1211,7 @@ Example schema:
 }
 ```
 
-Avro's `date` logical type represents a calendar date with no time-of-day or timezone semantics. Its underlying value is an `int` representing the number of days since 1970-01-01. citeturn949905search0
+Avro's `date` logical type represents a calendar date with no time-of-day or timezone semantics. Its underlying value is an `int` representing the number of days since 1970-01-01.
 
 ### Why not use a generic string?
 
@@ -1279,7 +1279,7 @@ precision = 6
 scale     = 2
 ```
 
-The Avro specification defines decimal in terms of an unscaled integer and a fixed scale. It also requires the precision to be positive and the scale to be no greater than the precision. citeturn949905search0
+The Avro specification defines decimal in terms of an unscaled integer and a fixed scale. It also requires the precision to be positive and the scale to be no greater than the precision.
 
 ### Why this matters
 
@@ -1298,7 +1298,7 @@ During conversion to another format, preserve:
 
 A UUID is an identifier with a defined UUID semantic shape.
 
-The Avro specification defines `uuid` as a logical type that can annotate a `string` or a 16-byte `fixed` representation conforming to RFC 4122. citeturn949905search0
+The Avro specification defines `uuid` as a logical type that can annotate a `string` or a 16-byte `fixed` representation conforming to RFC 4122.
 
 Example string-based schema:
 
@@ -1345,7 +1345,7 @@ This differs from Parquet's page/column-chunk physical model.
 | `zstandard` | modern tunable codec | useful where implementation support exists and a size/CPU balance is desired |
 | bzip2 / LZ4 / XZ | additional implementation-dependent choices | evaluate compatibility and workload before standardizing |
 
-The current `fastavro` documentation advertises codec support broader than the minimum codecs required by the Avro specification, including Zstandard and others. citeturn726645search1
+The current `fastavro` documentation advertises codec support broader than the minimum codecs required by the Avro specification, including Zstandard and others.
 
 ### Important boundary
 
@@ -1436,7 +1436,7 @@ Avro can provide:
 
 In actual messaging systems, Avro may also be used through formats other than object containers, such as single-object encodings. That is an awareness point; the focus here remains object container files.
 
-The Avro specification notes a single-object encoding designed for cases such as long-lived records in systems like Kafka, using a schema fingerprint rather than embedding the full schema in every message. citeturn949905search0
+The Avro specification notes a single-object encoding designed for cases such as long-lived records in systems like Kafka, using a schema fingerprint rather than embedding the full schema in every message.
 
 ---
 
@@ -1500,7 +1500,7 @@ The answer is **schema resolution**.
         Application Record
 ```
 
-The Avro specification explicitly defines the writer schema as the schema used to write the data and the reader schema as the schema the application expects to use when reading. citeturn949905search0
+The Avro specification explicitly defines the writer schema as the schema used to write the data and the reader schema as the schema the application expects to use when reading.
 
 ---
 
@@ -1552,7 +1552,7 @@ At a practical level, you should know these ideas:
 - enums have their own compatibility rules;
 - arrays, maps, records, and unions are resolved recursively.
 
-The full specification provides the detailed algorithm; this module focuses on the engineering mental model rather than reproducing the entire specification table. citeturn949905search0
+The full specification provides the detailed algorithm; this module focuses on the engineering mental model rather than reproducing the entire specification table.
 
 ## 20.3 Why the writer schema still matters
 
@@ -1707,7 +1707,7 @@ with open("orders-v1.avro", "rb") as fo:
         print(record)
 ```
 
-The experiment is meant to demonstrate the schema-resolution mechanism, not to provide fabricated output. The `fastavro` reader API explicitly accepts a `reader_schema` for migration when the schema has changed. citeturn726645search4
+The experiment is meant to demonstrate the schema-resolution mechanism, not to provide fabricated output. The `fastavro` reader API explicitly accepts a `reader_schema` for migration when the schema has changed.
 
 ### What should you observe?
 
@@ -2101,7 +2101,7 @@ with open("large-orders.avro", "rb") as fo:
         process(record)
 ```
 
-The reader exposes records iteratively rather than requiring you to create a full Python list first. citeturn726645search4
+The reader exposes records iteratively rather than requiring you to create a full Python list first.
 
 ## 28.2 Important distinction: bounded does not mean zero memory
 
@@ -2223,7 +2223,7 @@ with open("orders-snappy.avro", "wb") as out:
 
 ## 29.5 Part 5 — Zstandard as an optional experiment
 
-Current `fastavro` documentation lists Zstandard among supported codecs, but the exact available codecs can depend on the installed environment. Verify your local installation before using it in the lab. citeturn726645search1
+Current `fastavro` documentation lists Zstandard among supported codecs, but the exact available codecs can depend on the installed environment. Verify your local installation before using it in the lab.
 
 ```python
 with open("orders-zstandard.avro", "wb") as out:
@@ -2656,7 +2656,7 @@ Reader schema
 Resolution rule
 ```
 
-The `fastavro` reader supports a `reader_schema` specifically for schema migration, so inspect the two schemas rather than assuming the file is corrupt. citeturn726645search4
+The `fastavro` reader supports a `reader_schema` specifically for schema migration, so inspect the two schemas rather than assuming the file is corrupt.
 
 ---
 
@@ -3010,7 +3010,7 @@ An Avro file is 10 GB. Can multiple workers potentially process it in parallel?
 
 ### Answer
 
-Yes. Avro object container files organize records into blocks and place sync markers between blocks. Those boundaries support splitting the file into independently processable sections. citeturn949905search0
+Yes. Avro object container files organize records into blocks and place sync markers between blocks. Those boundaries support splitting the file into independently processable sections.
 
 ---
 
@@ -3034,7 +3034,7 @@ What should happen?
 
 ### Answer
 
-The record does not conform to the writer's enum schema unless the schema includes that symbol. If the question is about an existing file being read with a different enum schema, then the Avro schema-resolution rules determine whether the reader's enum can handle the writer's symbol. citeturn949905search0
+The record does not conform to the writer's enum schema unless the schema includes that symbol. If the question is about an existing file being read with a different enum schema, then the Avro schema-resolution rules determine whether the reader's enum can handle the writer's symbol.
 
 ---
 
@@ -3232,7 +3232,7 @@ Open the file in a hex viewer.
 
 Find the first four bytes.
 
-The object container begins with the Avro object-container magic value represented by bytes corresponding to `Obj` plus version `1`. citeturn949905search0
+The object container begins with the Avro object-container magic value represented by bytes corresponding to `Obj` plus version `1`.
 
 ### Task 4
 
@@ -3250,7 +3250,7 @@ Explain why sync markers occur repeatedly in a multi-block file.
 
 # 42. Other Useful `fastavro` Inspection Capabilities
 
-The `fastavro` documentation also exposes a command-line utility for dumping Avro records or the schema, and an `is_avro()` utility for recognizing normal object-container Avro files. citeturn726645search2turn852237search13
+The `fastavro` documentation also exposes a command-line utility for dumping Avro records or the schema, and an `is_avro()` utility for recognizing normal object-container Avro files.
 
 For example, when installed:
 
@@ -3395,7 +3395,7 @@ columnar analytics
 
 #### 3. Why embed the schema?
 
-Because the writer schema is required to interpret the binary data correctly, and keeping it with the object container improves replayability and portability. citeturn949905search0
+Because the writer schema is required to interpret the binary data correctly, and keeping it with the object container improves replayability and portability.
 
 #### 4. What would you test before a rollout?
 

@@ -30,6 +30,8 @@ Measure Again
 Explain
 ```
 
+Before implementing performance or storage questions, write down your estimate first. Estimate the relevant quantities such as file count, file size, bytes read, or expected query behavior. After running the implementation, compare your estimate with the measured result and explain the gap between them. The goal is not to guess perfectly; it is to make your reasoning explicit and then learn from the measurement.
+
 For every question below, the **solution immediately follows the problem**. Try to answer the problem before reading the solution.
 
 ---
