@@ -71,13 +71,13 @@ combined = revenue_2025.add(revenue_2024, fill_value=0)
 assert change.index.tolist() == ["DE", "IN", "UK", "US"]
 assert pd.isna(change.loc["DE"])
 assert pd.isna(change.loc["IN"])
-assert change.loc["US"] == 60
-assert change.loc["UK"] == -220
+assert change.loc["US"] == -80
+assert change.loc["UK"] == -40
 
 assert combined.loc["DE"] == 80
 assert combined.loc["IN"] == 100
-assert combined.loc["US"] == 460
-assert combined.loc["UK"] == 380
+assert combined.loc["US"] == 320
+assert combined.loc["UK"] == 560
 ```
 
 #### Step-by-Step Explanation
@@ -86,8 +86,8 @@ pandas aligns Series by labels before arithmetic. `US` and `UK` have matching la
 
 #### Expected Result
 
-`change`: `DE=NaN`, `IN=NaN`, `UK=-220`, `US=60`.  
-`combined`: `DE=80`, `IN=100`, `UK=380`, `US=460`.
+`change`: `DE=NaN`, `IN=NaN`, `UK=-40`, `US=-80`.  
+`combined`: `DE=80`, `IN=100`, `UK=560`, `US=320`.
 
 #### Why This Works
 
@@ -547,7 +547,8 @@ forward_filled = series.ffill()
 backward_filled = series.bfill()
 interpolated = series.interpolate()
 assert forward_filled.tolist() == [1.0, 1.0, 3.0, 3.0]
-assert backward_filled.tolist() == [1.0, 3.0, 3.0, 3.0]
+assert backward_filled.tolist()[:3] == [1.0, 3.0, 3.0]
+assert pd.isna(backward_filled.iloc[3])
 assert interpolated.tolist() == [1.0, 2.0, 3.0, 3.0]
 ```
 
@@ -1175,7 +1176,11 @@ source = pd.DataFrame(
 )
 
 json_text = source.to_json(orient="records", lines=True)
-json_back = pd.read_json(StringIO(json_text), lines=True)
+json_back = pd.read_json(
+    StringIO(json_text),
+    lines=True,
+    dtype={"customer_id": "string"},
+)
 assert len(json_back) == 3
 assert json_back["customer_id"].astype("string").tolist() == ["001", "002", "003"]
 assert json_back["amount"].tolist() == [100, 250, 300]
@@ -1190,7 +1195,12 @@ with tempfile.TemporaryDirectory() as tmp:
 
     excel_path = tmp / "customers.xlsx"
     source.to_excel(excel_path, sheet_name="Customers", index=False, engine="openpyxl")
-    excel_back = pd.read_excel(excel_path, sheet_name="Customers", engine="openpyxl")
+    excel_back = pd.read_excel(
+        excel_path,
+        sheet_name="Customers",
+        engine="openpyxl",
+        dtype={"customer_id": "string"},
+    )
     assert len(excel_back) == 3
     assert excel_back["customer_id"].astype("string").tolist() == ["001", "002", "003"]
     assert excel_back["amount"].tolist() == [100, 250, 300]
@@ -1203,9 +1213,17 @@ with tempfile.TemporaryDirectory() as tmp:
     assert sql_back["amount"].tolist() == [100, 250, 300]
 
 
-    malformed = StringIO("customer_id,amount\n001,100,EXTRA\n002,250\n")
+    malformed = StringIO(
+        "customer_id,amount\n"
+        "001,100,EXTRA,MORE\n"
+        "002,250\n"
+    )
     try:
-        pd.read_csv(malformed, on_bad_lines="error")
+        pd.read_csv(
+            malformed,
+            header=None,
+            on_bad_lines="error",
+        )
     except pd.errors.ParserError:
         bad_input_detected = True
     else:
@@ -1221,15 +1239,6 @@ with tempfile.TemporaryDirectory() as tmp:
     headerless = StringIO("001|100\n002|250\n")
     headerless_back = pd.read_csv(headerless, sep="|", header=None, names=["customer_id", "amount"], dtype={"customer_id": "string", "amount": "Int64"})
     assert headerless_back["customer_id"].tolist() == ["001", "002"]
-
-    malformed = StringIO("customer_id,amount\n001,100,EXTRA\n002,250\n")
-    try:
-        pd.read_csv(malformed, on_bad_lines="error")
-    except pd.errors.ParserError:
-        bad_input_detected = True
-    else:
-        bad_input_detected = False
-    assert bad_input_detected
 ```
 
 #### Explanation
@@ -1869,7 +1878,12 @@ Round-trip through long format and recover the exact original table.
 
 ```python
 long = wide.melt(id_vars="country", value_vars=["Jan", "Feb"], var_name="month", value_name="revenue")
-roundtrip = long.pivot(index="country", columns="month", values="revenue").reset_index().loc[:, ["country", "Jan", "Feb"]]
+roundtrip = (
+    long.pivot(index="country", columns="month", values="revenue")
+    .rename_axis(columns=None)
+    .reset_index()
+    .loc[:, ["country", "Jan", "Feb"]]
+)
 
 pd.testing.assert_frame_equal(wide, roundtrip)
 assert len(long) == 4
@@ -3941,7 +3955,10 @@ clean["rolling_3"] = (
 
 assert clean["customer"].tolist() == ["C1", "C1", "C1", "C2"]
 assert clean.loc[clean["customer"].eq("C1"), "rolling_3"].tolist() == [10.0, 30.0, 60.0]
-assert clean["reporting_date"].nunique() == 1
+assert sorted(clean["reporting_date"].astype(str).unique()) == [
+    "2026-03-01",
+    "2026-03-02",
+]
 ```
 
 #### Step-by-Step Explanation
@@ -4281,17 +4298,17 @@ unmatched = enriched.loc[enriched["_merge"].eq("left_only"), orders.columns]
 
 after = enriched["amount"].sum()
 assert before == 350
-assert after == 550
+assert after == 650
 assert unmatched.empty
 ```
 
 #### Step-by-Step Explanation
 
-P1 appears twice in the reference table, so each P1 order matches two dimension rows. That changes 3 input rows into 5 output rows and inflates the repeated order amounts from 350 to 550. There are no unmatched product IDs in this example, so the indicator confirms that the problem is duplication rather than key loss.
+P1 appears twice in the reference table, so each P1 order matches two dimension rows. That changes 3 input rows into 5 output rows and inflates the repeated order amounts from 350 to 650. There are no unmatched product IDs in this example, so the indicator confirms that the problem is duplication rather than key loss.
 
 #### Expected Result
 
-The validated many-to-one contract fails. The unconstrained left merge has five rows and amount total 550.
+The validated many-to-one contract fails. The unconstrained left merge has five rows and amount total 650.
 
 #### Why This Works
 
