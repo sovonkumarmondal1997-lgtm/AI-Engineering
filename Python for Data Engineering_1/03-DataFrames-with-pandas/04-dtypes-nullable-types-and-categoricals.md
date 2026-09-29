@@ -227,7 +227,7 @@ The roadmap's default-type set includes:
 - `int64`
 - `float64`
 - `bool`
-- `datetime64[ns]`
+- `datetime64[us]`
 - `object`
 - pandas 3's dedicated default string dtype, displayed as `str`
 
@@ -238,11 +238,13 @@ These are useful starting points, but **inference is not a production schema**.
 | `int64` | whole numbers | cannot directly carry a missing integer value | dense integer measurements |
 | `float64` | real-valued numbers | `NaN` is natural | measurements, calculations |
 | `bool` | `True` / `False` | not a three-state nullable boolean | flags when missing is impossible |
-| `datetime64[ns]` | timestamps | `NaT` can represent missing time | time values in common range |
+| `datetime64[us]` | timestamps | `NaT` can represent missing time | time values in common range |
 | `object` | arbitrary Python objects | representation varies | legacy/mixed values, `Decimal`, arbitrary objects |
 | `str` | text in pandas 3 default string dtype | pandas 3 default string uses its modern string representation | text columns |
 
 The exact dtype a newly created or read DataFrame gets depends on the values, construction method, and options.
+
+In pandas 3.x, parsing ordinary timestamp strings produces microsecond resolution (`datetime64[us]`), not nanosecond. Older pandas versions defaulted to `datetime64[ns]`, so you will still see that dtype in older code and output.
 
 ## Important production rule
 
@@ -332,7 +334,7 @@ validate final dtype
 
 # 5. pandas 3's Default String dtype
 
-Pandas 3 introduced a dedicated string dtype as the default representation for string data. The official pandas 3 migration documentation describes this as a move away from using generic NumPy `object` for ordinary strings. citeturn980602search3turn980602search8
+Pandas 3 introduced a dedicated string dtype as the default representation for string data. The official pandas 3 migration documentation describes this as a move away from using generic NumPy `object` for ordinary strings. 
 
 This matters because `object` is not specific to strings.
 
@@ -370,9 +372,9 @@ For production code, distinguish:
 → pandas' nullable StringDtype
 ```
 
-The roadmap specifically asks you to compare `object`, `str`, and `string`. Do not assume they have identical missing-value behavior.
+Compare `object`, `str`, and `string`. Do not assume they have identical missing-value behavior.
 
-Pandas 3's default string dtype uses `NaN` as its missing indicator for consistency with other default dtypes, while the older nullable `StringDtype` continues to use `pd.NA`. citeturn980602search3
+Pandas 3's default string dtype uses `NaN` as its missing indicator for consistency with other default dtypes, while the older nullable `StringDtype` continues to use `pd.NA`. 
 
 Example:
 
@@ -638,7 +640,7 @@ utc=True
 → normalize timezone handling to UTC
 ```
 
-Pandas documents that `utc=True` localizes timezone-naive inputs as UTC and converts timezone-aware inputs to UTC; it is also useful when inputs contain mixed timezone-awareness. citeturn980602search7
+Pandas documents that `utc=True` localizes timezone-naive inputs as UTC and converts timezone-aware inputs to UTC; it is also useful when inputs contain mixed timezone-awareness. 
 
 ### Count parsing failures
 
@@ -739,7 +741,7 @@ float64  vs  Float64
 bool     vs  boolean
 ```
 
-These extension dtypes are designed to support missing values while preserving a clearer semantic dtype. Pandas documents nullable integer, floating, boolean, and string representations as extension types. citeturn980602search5
+These extension dtypes are designed to support missing values while preserving a clearer semantic dtype. Pandas documents nullable integer, floating, boolean, and string representations as extension types. 
 
 ---
 
@@ -992,7 +994,7 @@ print(values.isna())
 
 All three can be recognized as missing by pandas' missing-data machinery in appropriate contexts, but they are not the same scalar and should not be treated as interchangeable in every operation.
 
-Pandas' missing-data documentation describes `NA` as the missing indicator used by several extension dtypes, while `NaN` remains the floating-point "not a number" representation. citeturn980602search5turn980602search10
+Pandas' missing-data documentation describes `NA` as the missing indicator used by several extension dtypes, while `NaN` remains the floating-point "not a number" representation. 
 
 ### Important production lesson
 
@@ -1027,12 +1029,12 @@ The important truth-table intuition is:
 
 | Expression | Meaning |
 |---|---|
-| `NA | True` | True is already enough to make OR true |
+| `NA \| True` | True is already enough to make OR true |
 | `NA & True` | still unknown |
-| `NA | False` | still unknown |
+| `NA \| False` | still unknown |
 | `NA & False` | False is already enough to make AND false |
 
-Pandas documents this as part of `pd.NA` semantics. citeturn980602search10
+Pandas documents this as part of `pd.NA` semantics. 
 
 ### Think in three states
 
@@ -1228,7 +1230,7 @@ and:
 dtype_backend="pyarrow"
 ```
 
-Pandas documents these backend choices for DataFrame-returning APIs: `"numpy_nullable"` produces nullable-dtype-backed data and `"pyarrow"` produces PyArrow-backed nullable data. citeturn980602search0turn980602search2turn980602search4
+Pandas documents these backend choices for DataFrame-returning APIs: `"numpy_nullable"` produces nullable-dtype-backed data and `"pyarrow"` produces PyArrow-backed nullable data. 
 
 ### Semantic dtype versus storage/backend representation
 
@@ -1626,6 +1628,8 @@ print(grouped)
 
 `observed=True` tells pandas to work with combinations actually observed in the data rather than materializing unused categorical levels.
 
+In pandas 3.x, the default of `groupby(observed=...)` changed to `True`. For categorical groupers, only category values that actually occur in the data are returned by default, so `df.groupby("country")["revenue"].sum()` returns `IN` and `US` but not `GB`. The explicit `observed=True` above is still useful to make the intent visible and to contrast with older pandas code, or with code that passes `observed=False` explicitly to keep every category, including empty ones.
+
 ### Why this matters
 
 It is a dtype-specific data-shape consideration.
@@ -1650,7 +1654,7 @@ string[pyarrow]
 timestamp[us, tz=UTC][pyarrow]
 ```
 
-Pandas documents Arrow-backed extension arrays as being backed by PyArrow arrays rather than NumPy arrays. citeturn980602search6
+Pandas documents Arrow-backed extension arrays as being backed by PyArrow arrays rather than NumPy arrays. 
 
 ### Conceptual model
 
@@ -1710,7 +1714,7 @@ These are related but different representation choices.
 | API coverage | mature pandas support | coverage depends on pandas/PyArrow operation |
 | Best choice | depends on pipeline | depends on pipeline |
 
-Pandas describes PyArrow-backed types as providing data type support similar to NumPy plus first-class nullability and other properties, while marking the feature as experimental in current documentation. citeturn980602search6
+Pandas describes PyArrow-backed types as providing data type support similar to NumPy plus first-class nullability and other properties, while marking the feature as experimental in current documentation. 
 
 ### Important principle
 
@@ -1809,13 +1813,13 @@ A timezone-aware timestamp contains timezone information.
 A common pandas representation is:
 
 ```text
-datetime64[ns, UTC]
+datetime64[us, UTC]
 ```
 
 A timezone-naive timestamp does not carry timezone information:
 
 ```text
-datetime64[ns]
+datetime64[us]
 ```
 
 ### Why the distinction matters
@@ -1922,7 +1926,7 @@ What date range must be supported?
 What representation does the backend use?
 ```
 
-Pandas' datetime APIs can display different timestamp resolutions in modern versions, so production code should test the actual target environment. citeturn980602search7
+Pandas' datetime APIs can display different timestamp resolutions in modern versions, so production code should test the actual target environment. 
 
 ---
 
@@ -1941,26 +1945,40 @@ may not fit safely into the selected nanosecond representation.
 
 ### Debugging pattern
 
+A year-3000 timestamp is representable at microsecond resolution, but not at nanosecond resolution:
+
 ```python
 import pandas as pd
 
-raw = pd.Series(
-    [
-        "2025-01-01",
-        "not-a-date",
-    ],
-    dtype="str",
+future = pd.Series(
+    [pd.Timestamp("3000-01-01")],
+    dtype="datetime64[us]",
 )
 
-parsed = pd.to_datetime(
-    raw,
-    format="%Y-%m-%d",
-    errors="coerce",
-    utc=True,
-)
+print(future)
+print(future.dtype)
 
-print(parsed)
+try:
+    future.astype("datetime64[ns]")
+except pd.errors.OutOfBoundsDatetime as exc:
+    print(type(exc).__name__, exc)
 ```
+
+Expected behavior:
+
+```text
+0   3000-01-01
+dtype: datetime64[us]
+datetime64[us]
+OutOfBoundsDatetime Out of bounds nanosecond timestamp: 3000-01-01 00:00:00
+```
+
+What this shows:
+
+- `3000-01-01` is representable at microsecond resolution;
+- nanosecond resolution stores a 64-bit count of nanoseconds, so its range is much narrower (roughly the years 1677 to 2262);
+- converting the year-3000 value to `datetime64[ns]` raises `pd.errors.OutOfBoundsDatetime`;
+- this is a representation-range limitation, not proof that the timestamp itself is invalid.
 
 For a real out-of-range dataset, first identify the failing values, then choose an appropriate strategy.
 
@@ -1980,7 +1998,7 @@ unless the source contract explicitly specifies that behavior.
 
 Money deserves explicit representation choices.
 
-The roadmap requires comparison of:
+Compare these representations:
 
 1. Python `Decimal` in an `object` column
 2. integer cents
@@ -2150,7 +2168,7 @@ SCHEMA = {
     "amount_cents": "Int64",
     "country": "category",
     "status": "category",
-    "created_at": "datetime64[ns, UTC]",
+    "created_at": "datetime64[us, UTC]",
     "is_gift": "boolean",
 }
 ```
@@ -2560,7 +2578,7 @@ status
 → ordered category
 
 created_at
-→ datetime64[ns, UTC] or an appropriate UTC timestamp dtype
+→ datetime64[us, UTC] or an appropriate UTC timestamp dtype
 
 is_gift
 → boolean
@@ -2871,7 +2889,7 @@ parsed = pd.to_datetime(
 )
 ```
 
-Pandas documents that `utc=True` can normalize timezone-aware inputs to UTC and localize naive inputs to UTC. citeturn980602search7
+Pandas documents that `utc=True` can normalize timezone-aware inputs to UTC and localize naive inputs to UTC. 
 
 ### Prevention
 
@@ -3000,6 +3018,8 @@ print(df["country"].dtype)
 print(df["country"].cat.categories)
 ```
 
+In pandas 3.x, `groupby(observed=...)` defaults to `True`, so only observed categories are returned unless you pass `observed=False`. Older pandas versions defaulted to `False` and returned unused categories as empty groups.
+
 When grouping a categorical column and you only want observed categories:
 
 ```python
@@ -3071,7 +3091,7 @@ What memory?
 What runtime?
 ```
 
-Arrow-backed types can improve interoperability and provide first-class nullable representations, but performance and compatibility are workload-dependent. citeturn980602search6
+Arrow-backed types can improve interoperability and provide first-class nullable representations, but performance and compatibility are workload-dependent. 
 
 ### Prevention rule
 
@@ -3379,8 +3399,6 @@ The target dtype is a contract proposal, not an automatic answer for every datas
 
 # 67. Hands-on Exercise — `typed_orders.py`
 
-> **Do not create `typed_orders.py` as part of this chapter task.**
->
 > This Markdown section specifies the exercise. The implementation and test file are created later in the learning workflow.
 
 ## Scenario
@@ -3396,7 +3414,7 @@ quantity: Int16
 amount_cents: Int64
 country: category
 status: ordered category
-created_at: datetime64[ns, UTC]
+created_at: datetime64[us, UTC]
 is_gift: boolean
 ```
 
@@ -4040,7 +4058,7 @@ Because interoperability, supported operations, runtime, and memory behavior dep
 | String | generic/object legacy representation | `string` | dedicated pandas nullable string dtype |
 | Missing scalar | often `NaN` / `None` depending on data | `pd.NA` in extension types | dtype-aware missing semantics |
 
-Pandas 3 also introduces a dedicated default string dtype (`str`), which should be distinguished from the explicit nullable `string` dtype. citeturn980602search3
+Pandas 3 also introduces a dedicated default string dtype (`str`), which should be distinguished from the explicit nullable `string` dtype. 
 
 ---
 
@@ -4100,7 +4118,7 @@ rather than relying on equality comparisons to detect missingness.
 | API support | pandas-native | depends on pandas/PyArrow operation |
 | Production choice | contract + workload | contract + workload |
 
-Pandas currently documents Arrow-backed arrays as an experimental area whose API may change, so pin and test the versions used by your production environment. citeturn980602search6
+Pandas currently documents Arrow-backed arrays as an experimental area whose API may change, so pin and test the versions used by your production environment. 
 
 ---
 

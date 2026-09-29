@@ -271,7 +271,7 @@ A CSV file does **not** inherently carry pandas dtype semantics such as:
 Int64
 boolean
 category
-datetime64[ns, UTC]
+datetime64[us, UTC]
 ```
 
 The parser has to construct pandas columns from text.
@@ -1326,11 +1326,33 @@ bad:
 1001,2500,IN,EXTRA_FIELD
 ```
 
-or:
+`1001,2500,IN,EXTRA_FIELD` is a bad line: it has four fields where the header declares three.
+
+A short row is different:
 
 ```text
 1002,2500
 ```
+
+This is **not** a bad line for pandas' C and Python CSV parsers. The row is kept and the missing trailing field becomes `NaN`:
+
+```python
+from io import StringIO
+
+import pandas as pd
+
+csv_text = "order_id,amount,country\n1002,2500\n"
+
+df = pd.read_csv(StringIO(csv_text))
+print(df)
+```
+
+```text
+   order_id  amount  country
+0      1002    2500      NaN
+```
+
+Nothing is skipped and no warning is raised, so validate required fields after reading instead of relying on `on_bad_lines`.
 
 ## `on_bad_lines`
 
@@ -1353,6 +1375,40 @@ df = pd.read_csv(
     on_bad_lines="skip",
 )
 ```
+
+To actually count what was skipped, pass a callable with the Python engine. Returning `None` skips the line:
+
+```python
+import logging
+import pandas as pd
+
+logger = logging.getLogger(__name__)
+
+bad = []
+
+df = pd.read_csv(
+    p,
+    engine="python",
+    on_bad_lines=lambda row: bad.append(row),
+)
+
+logger.warning(
+    "skipped %d bad lines",
+    len(bad),
+)
+```
+
+- The callable receives each bad line, as a list of its fields, when the Python engine finds one.
+- Returning `None` makes the engine skip that line.
+- `list.append()` returns `None`, so the lambda both records the line and skips it.
+- The count of `bad` makes skipped rows observable instead of silent.
+
+Note the difference between engines, because it changes which rows survive:
+
+- **C and Python engines:** rows with too few fields are padded with trailing `NaN` and kept, not treated as bad lines.
+- **PyArrow engine:** a mismatched field count is an invalid row, so with `on_bad_lines="skip"` a short row can be dropped. The pandas callable above does not work with this engine, because PyArrow expects the handler to return `"skip"` or `"error"`.
+
+Changing the parser engine can therefore change row retention and correctness, not only performance.
 
 ## The production danger
 
@@ -3039,6 +3095,30 @@ How many were rejected?
 Why were they rejected?
 ```
 
+One way to make the loss observable:
+
+```python
+import logging
+import pandas as pd
+
+logger = logging.getLogger(__name__)
+
+bad = []
+
+df = pd.read_csv(
+    "customers.csv",
+    engine="python",
+    on_bad_lines=lambda row: bad.append(row),
+)
+
+logger.warning(
+    "skipped %d bad lines",
+    len(bad),
+)
+```
+
+The count is the number of bad rows handled by the callable. Short rows are not counted, because the C and Python parsers keep them and pad the missing fields with `NaN`.
+
 Key lesson:
 
 ```text
@@ -3967,247 +4047,3 @@ select from it precisely
 ```
 
 Do not treat these as disconnected pandas APIs. They are stages of the same engineering model.
-
-# Code Quality Requirements
-
-All examples are written for the pandas 3.x learning path in the roadmap.
-
-They should:
-
-- use clear variable names;
-- prefer explicit configuration over hidden assumptions;
-- use deterministic data whenever exact results are discussed;
-- include assertions for important invariants;
-- avoid unnecessary libraries;
-- make source semantics visible in code.
-
-Typical imports:
-
-```python
-import pandas as pd
-```
-
-When needed:
-
-```python
-import numpy as np
-```
-
-For SQLAlchemy examples:
-
-```python
-from sqlalchemy import create_engine
-```
-
-## Version-aware behavior
-
-This chapter uses pandas 3.x as the primary reference.
-
-Pandas 3.x also includes major behavior changes outside this topic, including Copy-on-Write and the default dedicated string dtype. Those are covered in their dedicated module topics rather than re-taught here.
-
-# Technical Accuracy Notes
-
-## CSV
-
-CSV is text-based and does not inherently preserve pandas dtype semantics. Important type decisions therefore belong in the reader contract.
-
-## Parquet
-
-Parquet carries stronger schema/type information than CSV and is designed for analytical workloads, but round-trip requirements should still be tested.
-
-## `dtype=`
-
-Explicit dtypes reduce dangerous inference and make ingestion reproducible.
-
-## `keep_default_na=False`
-
-Use it when default textual NA-token interpretation conflicts with source semantics. Pair it with source-specific `na_values` where appropriate.
-
-## Identifiers
-
-Do not classify an identifier as numeric solely because it contains digits.
-
-## `parse_dates`
-
-Use explicit date parsing when the source format is known. Avoid making ambiguous date meaning implicit.
-
-## Excel
-
-Merged cells and presentation-oriented layouts can complicate ingestion.
-
-## `on_bad_lines`
-
-Skipping malformed rows is a policy choice, not a neutral technical detail.
-
-## PyArrow CSV engine
-
-It can be advantageous for supported workloads, but benchmark it under actual data and hardware.
-
-## `dtype_backend`
-
-Backend selection changes underlying column representation and can influence nullability, interoperability, and downstream behavior.
-
-## Parquet filters
-
-Filters can help the backend avoid unnecessary materialization depending on layout and engine behavior. They are not a universal promise of zero irrelevant I/O.
-
-## Partitioning
-
-Partition for meaningful access patterns. Avoid designs that create excessive small files or extreme partition counts.
-
-## Reliable writes
-
-Temporary-path plus finalization is a useful local-file pattern. Object storage has different publication semantics.
-
-## Round-trip testing
-
-Test actual contract requirements: values, columns, index, dtypes, null semantics, and ordering when those properties matter.
-
-# Required Visual Explanations
-
-## Reader contract
-
-```text
-Source
-  ↓
-Reader configuration
-  ↓
-Schema
-  ↓
-Null policy
-  ↓
-Date policy
-  ↓
-Malformed-row policy
-  ↓
-Validated DataFrame
-```
-
-## CSV type-loss example
-
-```text
-CSV text
-"00123"
-    ↓ type inference
-123
-    ↓
-identifier meaning changed
-```
-
-With an explicit string contract:
-
-```text
-CSV text
-"00123"
-    ↓ dtype="string"
-"00123"
-    ↓
-identifier preserved
-```
-
-## Format comparison
-
-```text
-CSV
-→ text
-→ flexible
-→ weak schema preservation
-
-JSONL
-→ record-oriented
-→ API/log friendly
-
-Parquet
-→ columnar
-→ typed
-→ analytical
-```
-
-## Reliable write
-
-```text
-DataFrame
-   ↓
-temporary output
-   ↓
-validation
-   ↓
-final rename / publish
-```
-
-## Round trip
-
-```text
-DataFrame
-   ↓
-write
-   ↓
-file
-   ↓
-read
-   ↓
-DataFrame
-   ↓
-assert_frame_equal
-```
-
-# Depth Requirement
-
-For every major concept in this chapter, build the learner through:
-
-```text
-What is it?
-↓
-Why does it exist?
-↓
-How does it work?
-↓
-Simple example
-↓
-Code
-↓
-Expected result
-↓
-Explanation
-↓
-Data Engineering use case
-↓
-Common mistake
-↓
-Production consideration
-```
-
-The learner should be able to study this topic directly from this Markdown file without relying on another beginner pandas I/O tutorial.
-
-# Final Module Integration
-
-This chapter sits between the object model of Topic 01 and the selection mechanics of Topic 03.
-
-```text
-Topic 01
-→ understand Series / DataFrame / Index
-
-Topic 02
-→ bring external data into those objects correctly
-
-Topic 03
-→ select and assign precisely
-```
-
-A useful production principle is:
-
-> **Bad input cannot be repaired reliably by clever downstream transformations if its meaning was already lost at ingestion.**
-
-# Production I/O Rule: Reliable Writing
-
-Reliable writing means **reliable writing and reliable output publication**, not merely successfully calling `to_csv()` or `to_parquet()`.
-
-```text
-validate schema
-→ write temporary path
-→ validate the produced artifact where appropriate
-→ finalize / publish
-→ verify the output
-```
-
-The exact finalization mechanism depends on the storage system, but the engineering objective remains the same: downstream consumers should not mistake an incomplete artifact for a valid production output.

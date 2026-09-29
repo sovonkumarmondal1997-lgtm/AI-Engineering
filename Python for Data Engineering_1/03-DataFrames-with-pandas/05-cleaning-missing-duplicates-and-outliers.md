@@ -398,7 +398,7 @@ These are different business operations. Never define duplicates solely by choos
 
 ## 12. Latest Record per Business Key
 
-The roadmap requires:
+Define the key, ordering/version field, sort order, and latest-record rule, then validate uniqueness.
 
 ```text
 define key
@@ -579,7 +579,7 @@ Prediction exercise: before running the code, calculate which values you expect 
 
 ## 18. IQR Outliers Per Group
 
-A global threshold can be misleading when groups have different normal ranges. The roadmap requires an IQR rule per country for `amount_cents`.
+A global threshold can be misleading when groups have different normal ranges. Calculate an IQR rule per country for `amount_cents`.
 
 
 ```python
@@ -852,7 +852,7 @@ print(report)
 
 ## 28. Reconciliation
 
-The roadmap requires the core row-accounting invariant:
+Use the core row-accounting invariant:
 
 ```text
 rows_in == rows_out + rows_quarantined
@@ -938,7 +938,7 @@ A production rule should explain both the selected action and the rejected alter
 
 ## 32. Hands-On Exercise — `clean_orders.py`
 
-The roadmap requires a complete production-oriented exercise. The exercise belongs here as a specification. Do not create `clean_orders.py` or a separate test file as part of this chapter.
+Complete this production-oriented exercise using the specification below.
 
 ### Scenario
 
@@ -954,12 +954,23 @@ The target outputs are:
 
 Define `order_id` as the business key if the source contract says one logical order has one identifier. Sort by `order_id` and `updated_at`, then keep the latest.
 
+A superseded version can hold a customer's only known country. If it is removed first, that country is lost and the latest record can stay missing. So the group-wise fill from Task 2 runs on all versions first, and deduplication comes after it:
+
 
 ```python
-sorted_orders = orders.sort_values(["order_id", "updated_at"])
-latest_orders = sorted_orders.drop_duplicates(
-    subset=["order_id"],
-    keep="last",
+sorted_orders = orders.sort_values(["customer_id", "updated_at"]).copy()
+
+sorted_orders["country"] = (
+    sorted_orders.groupby("customer_id")["country"]
+    .ffill()
+)
+
+latest_orders = (
+    sorted_orders.sort_values(["order_id", "updated_at"])
+    .drop_duplicates(
+        subset=["order_id"],
+        keep="last",
+    )
 )
 
 assert latest_orders["order_id"].is_unique
@@ -970,20 +981,17 @@ If timestamps tie, define a deterministic tie-breaker. Never pretend a tie is un
 
 ### Task 2 — Missing country
 
-Fill the missing `country` value from the customer's last known country using group-wise forward fill. Sort by customer and time first.
+The missing `country` value is filled from the customer's last known country using the group-wise forward fill in the Task 1 sequence, sorted by customer and time, before deduplication. Do not fill a second time on `latest_orders`.
+
+Verify that the pre-deduplication fill preserved a customer's last known country when that value existed only on a superseded version. Build a fixture where customer 1 has an older version with `IN` and a latest version with `None`, and customer 2 has an older version with `US` and a latest version with `None`. The fill must never cross the customer boundary:
 
 
 ```python
-orders = orders.sort_values(["customer_id", "updated_at"])
+latest_country = latest_orders.set_index("customer_id")["country"]
 
-orders["country"] = (
-    orders.groupby("customer_id")["country"]
-    .ffill()
-)
+assert latest_country.loc[1] == "IN"
+assert latest_country.loc[2] == "US"
 ```
-
-
-Test a boundary case where customer 1 has `IN` and customer 2 has `US`. The fill must never cross the boundary.
 
 ### Task 3 — Standardise status
 
@@ -999,11 +1007,12 @@ Create the clean and quarantine outputs. Store `dq_reason` for excluded rows. Ke
 
 ### Task 6 — Cleaning report
 
-Report `rows_in`, `rows_out`, `rows_quarantined`, and counts by reason. Prove:
+Report `rows_in`, `rows_out`, `rows_quarantined`, `rows_deduped`, and counts by reason. Because Task 1 removes superseded versions before the later quality rules, track those rows separately. Prove:
 
 
 ```python
-assert rows_in == rows_out + rows_quarantined
+rows_deduped = len(orders) - len(latest_orders)
+assert rows_in == rows_out + rows_quarantined + rows_deduped
 ```
 
 
@@ -1503,9 +1512,7 @@ A cleaning run should be able to answer:
 This information supports debugging, reproducibility, operations, data-quality investigation, stakeholder communication, and environments where data changes need to be explained.
 
 
-## 40. Cleaning Anti-Patterns
-
-## 48. Common Mistakes Summary
+## 40. Common Mistakes Summary
 
 | Mistake | Why it happens | Better approach |
 |---|---|---|
@@ -1794,99 +1801,3 @@ The durable engineering habit is:
 > **Make every cleaning decision explicit, measurable, testable, and explainable.**
 
 A correct cleaning stage is not the one that removes the most suspicious rows. It is the one that preserves valid information, enforces justified rules, explains every intentional change, and provides a reliable audit trail.
-
-
-## 47. Roadmap Coverage Checklist
-
-### Missing values
-
-- [ ] `isna().sum()`
-- [ ] `isna().mean()`
-- [ ] rows with any missing values
-- [ ] rows with all missing values
-- [ ] `dropna(subset=...)`
-- [ ] `dropna(how=...)`
-- [ ] `dropna(thresh=...)`
-- [ ] `fillna(value)`
-- [ ] `fillna(dict_per_column)`
-- [ ] `ffill`
-- [ ] `bfill`
-- [ ] `interpolate`
-- [ ] group-wise forward fill
-
-### Duplicates
-
-- [ ] business key
-- [ ] `duplicated()`
-- [ ] `duplicated(subset=...)`
-- [ ] `duplicated(keep=...)`
-- [ ] `drop_duplicates()`
-- [ ] latest record per business key
-- [ ] `sort_values`
-- [ ] `drop_duplicates(keep="last")`
-- [ ] uniqueness validation
-
-### Standardization
-
-- [ ] `replace`
-- [ ] `map`
-- [ ] trimming
-- [ ] case-folding
-- [ ] country standardization
-- [ ] status standardization
-
-### Outliers
-
-- [ ] IQR
-- [ ] per-group IQR
-- [ ] z-score
-- [ ] domain rules
-- [ ] negative quantity example
-- [ ] future timestamp example
-- [ ] `clip`
-- [ ] statistical outlier vs domain-invalid value
-- [ ] small-group and zero-IQR reasoning
-
-### Advanced cleaning
-
-- [ ] fuzzy duplicates
-- [ ] normalized keys
-- [ ] lowercase/case-folding
-- [ ] whitespace stripping
-- [ ] punctuation handling
-- [ ] false-positive discussion
-- [ ] `is_outlier`
-- [ ] `is_duplicate`
-- [ ] `dq_reason`
-- [ ] clean/quarantine split
-- [ ] cleaning report
-- [ ] rows removed
-- [ ] values filled
-- [ ] values changed per rule
-- [ ] rows quarantined
-- [ ] Bronze preservation
-- [ ] “do not fix what you do not understand”
-
-### Exercise and engineering
-
-- [ ] `clean_orders.py`
-- [ ] latest order by `order_id` + `updated_at`
-- [ ] customer-level country forward fill
-- [ ] status normalization
-- [ ] per-country IQR
-- [ ] `silver_orders`
-- [ ] `quarantine_orders`
-- [ ] `dq_reason`
-- [ ] cleaning report
-- [ ] row reconciliation
-- [ ] prediction-first learning
-- [ ] debugging
-- [ ] testing
-- [ ] edge cases
-- [ ] performance considerations
-- [ ] auditability
-- [ ] common anti-patterns
-- [ ] production checklist
-- [ ] checkpoint
-- [ ] cheat sheet
-

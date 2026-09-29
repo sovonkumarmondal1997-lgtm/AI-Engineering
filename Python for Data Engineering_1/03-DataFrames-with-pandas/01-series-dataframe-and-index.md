@@ -1052,12 +1052,12 @@ result = a + b
 print(result)
 ```
 
-The result is conceptually:
+The actual output is:
 
 ```text
-US     NaN
 IN     250.0
-UK     NaN
+UK       NaN
+US       NaN
 ```
 
 The important mapping is:
@@ -1251,12 +1251,12 @@ combined = a.add(b, fill_value=0)
 print(combined)
 ```
 
-The conceptual result is:
+The actual output is:
 
 ```text
-US → 100 + 0 = 100
 IN → 200 + 50 = 250
 UK → 0 + 70 = 70
+US → 100 + 0 = 100
 ```
 
 But this creates an important Data Engineering question:
@@ -2831,8 +2831,6 @@ assert list(result.index) == expected_index
 assert len(result) == expected_rows
 ```
 
-Do not create the test file as part of this Markdown artifact. The chapter only specifies the work.
-
 ---
 
 ## Exercise extension — make the bug visible
@@ -3263,259 +3261,6 @@ Predict the index of:
 ```python
 df.xs("2025-01", level="month")
 ```
-
----
-
-# 47. Final mental model
-
-Keep this model in your head:
-
-```text
-SERIES
-→ one labelled dimension
-
-DATAFRAME
-→ multiple labelled columns sharing a row Index
-
-INDEX
-→ row labels / alignment mechanism
-
-ALIGNMENT
-→ labels determine how labelled values combine
-
-RANGEINDEX
-→ default positional-style labels, not a business key
-
-MULTIINDEX
-→ multiple levels of row labels
-
-COLUMNS
-→ explicit fields that are often clearer for ETL
-
-INTERNAL STORAGE
-→ NumPy / pandas extension / Arrow-backed arrays
-```
-
-Then add the Data Engineering layer:
-
-```text
-row identity
-+
-grain
-+
-labels
-+
-keys
-+
-alignment
-+
-schema
-```
-
-A professional pandas engineer does not merely ask:
-
-```text
-“What values did I get?”
-```
-
-They also ask:
-
-```text
-Which rows do these values belong to?
-What labels identified them?
-Did pandas align anything?
-Is the Index unique?
-What is the row grain?
-Should this key remain a column?
-```
-
----
-
-# 48. Production checklist
-
-Before using a pandas DataFrame in a pipeline, ask:
-
-```text
-1. What does one row represent?
-2. What is the row grain?
-3. What is the Index?
-4. Does the Index have business meaning?
-5. Is the Index unique?
-6. Is the Index sorted or monotonic when that matters?
-7. Will this operation align by labels?
-8. Could alignment introduce NaN?
-9. Am I treating alignment-generated NaN correctly?
-10. Should a key remain a normal column?
-11. Would a MultiIndex improve clarity?
-12. Will this Index need to become a column before output?
-```
-
-These questions are simple, but they prevent many subtle pandas bugs.
-
----
-
-# 49. Topic integration: what you learned
-
-You began with:
-
-```text
-Series
-→ labelled one-dimensional data
-```
-
-then built:
-
-```text
-DataFrame
-→ multiple aligned labelled columns
-```
-
-then learned:
-
-```text
-Index
-→ row labels
-```
-
-which led to:
-
-```text
-Index alignment
-→ values combine by labels
-```
-
-then:
-
-```text
-Index properties
-→ uniqueness + ordering
-```
-
-then:
-
-```text
-column management
-→ explicit schema
-```
-
-then:
-
-```text
-MultiIndex
-→ hierarchical row labels
-```
-
-and finally:
-
-```text
-internal representation
-→ columns can use different underlying array systems
-```
-
-The complete picture is:
-
-```text
-Python data
-    ↓
-Series / DataFrame
-    ↓
-Rows + columns
-    ↓
-Index labels
-    ↓
-Alignment semantics
-    ↓
-Correctness
-```
-
----
-
-# 50. Connection to Topic 02 — Reading and writing data sources
-
-Topic 01 establishes the object model that Topic 02 depends on.
-
-The dependency is:
-
-```text
-01 Series / DataFrame / Index
-            ↓
-02 Reading and writing data sources
-            ↓
-03 Selection with loc / iloc / query
-```
-
-Before reading production data correctly, you need to understand:
-
-- what a row is;
-- what a column is;
-- what labels are;
-- how the Index differs from positions;
-- what happens when labelled data aligns.
-
-Topic 02 will then build on this model to address CSV, JSON Lines, Parquet, Excel, SQL, explicit dtypes, dates, missing values, and reliable output.
-
----
-
-# 51. Final practical exercise: explain your DataFrame aloud
-
-Take any DataFrame you create during this module and explain it without looking at the code.
-
-Say:
-
-```text
-This DataFrame has N rows and M columns.
-One row represents ______.
-The row Index is ______.
-The Index is/is not unique because ______.
-The Index is/is not monotonic because ______.
-The business key is ______.
-The columns are ______.
-The dtypes are ______.
-A Series operation would align by ______.
-The output should use an Index / ordinary columns because ______.
-```
-
-If you cannot explain those points, you do not yet fully understand the DataFrame.
-
----
-
-# 52. Final summary
-
-The most important lesson of Topic 01 is simple:
-
-> **pandas data is labelled data.**
-
-A `Series` is a labelled one-dimensional array.
-
-A `DataFrame` is a collection of labelled columns aligned to a shared row Index.
-
-An `Index` is not merely decoration. It determines row labels and participates in alignment.
-
-Index alignment means that pandas operations can match values by labels rather than by position.
-
-That behavior is powerful because it can protect against some positional mistakes, but it also creates surprises when an engineer does not know the index semantics.
-
-MultiIndex extends the same model to hierarchical row labels, while ordinary columns remain valuable for explicit business data and ETL interoperability.
-
-Your production mental model should therefore be:
-
-```text
-What is the data?
-        ↓
-What is one row?
-        ↓
-What is the Index?
-        ↓
-What are the business keys?
-        ↓
-Will labels align?
-        ↓
-What rows/columns/dtypes/index will result?
-        ↓
-How will the next system consume it?
-```
-
-Master that sequence and the rest of pandas becomes much easier to reason about.
 
 ---
 
