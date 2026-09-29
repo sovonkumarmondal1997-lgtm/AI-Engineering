@@ -1139,9 +1139,69 @@ MinIO is useful for learning:
 - credentials;
 - small-file effects.
 
-This chapter does not create the Docker Compose file.
+This chapter does not create the Docker Compose file in the repository. Copy the file below into your own lab directory as `docker-compose.yml`. Set the lab-only credentials in your shell first (fake values, never real keys):
 
-Use current MinIO documentation for exact container commands.
+```bash
+export MINIO_ACCESS_KEY=labuser
+export MINIO_SECRET_KEY=labpassword123
+export MINIO_ENDPOINT=localhost:9000
+```
+
+```yaml
+services:
+  minio:
+    image: minio/minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:?set MINIO_ACCESS_KEY}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:?set MINIO_SECRET_KEY}
+    ports:
+      - "9000:9000"   # S3 API  -> MINIO_ENDPOINT=localhost:9000
+      - "9001:9001"   # web console
+    volumes:
+      - minio-data:/data
+
+  minio-init:
+    image: minio/mc
+    depends_on:
+      - minio
+    environment:
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:?set MINIO_ACCESS_KEY}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:?set MINIO_SECRET_KEY}
+    volumes:
+      - ./data/trips:/seed/trips:ro   # your local Hive-layout Parquet files
+    entrypoint: >
+      /bin/sh -c "
+      until mc alias set lab http://minio:9000 $$MINIO_ACCESS_KEY $$MINIO_SECRET_KEY; do sleep 1; done &&
+      mc mb --ignore-existing lab/lake &&
+      mc mirror --overwrite /seed/trips lab/lake/trips &&
+      mc ls --recursive lab/lake/trips
+      "
+    restart: "no"
+
+volumes:
+  minio-data:
+```
+
+Start it with `docker compose up`; the `minio-init` service waits for MinIO, creates the `lake` bucket, uploads your local files, lists what it uploaded, and exits. Pin the MinIO and `mc` image tags you validate in your own lab, and check the current MinIO documentation for image and command changes. This Compose file was checked for YAML syntax only; it was not run against Docker in the environment used to write this chapter.
+
+Where the files come from: Compose cannot create Parquet data. The local source is `./data/trips/`, which you create yourself (for example with the fixture writer in the `lake_queries.py` reference implementation, or by copying NYC Taxi Parquet files into the layout below):
+
+```text
+data/trips/
+├── year=2025/
+│   ├── month=01/
+│   │   └── part-001.parquet
+│   └── month=02/
+│       └── part-001.parquet
+└── year=2026/
+    ├── month=01/
+    │   └── part-001.parquet
+    └── month=02/
+        └── part-001.parquet
+```
+
+Where they go: the init service mirrors `./data/trips/` to `s3://lake/trips/`, so the objects appear as `lake/trips/year=YYYY/month=MM/part-001.parquet`. The bucket is called `lake` because it stands in for a data lake bucket, and the layout is Hive-style (`key=value` directories) so DuckDB can read the partition values from the path and prune whole partitions.
 
 ---
 
@@ -1209,6 +1269,57 @@ CREATE OR REPLACE SECRET minio_secret (
 ```
 
 Verify exact endpoint, SSL, and URL-style settings for the installed version and deployment.
+
+The placeholders above show the shape only. In a real script, read the values from environment variables and pass them as parameters, so credentials never appear in SQL text. Verified on DuckDB 1.5.6, `CREATE SECRET` accepts positional `?` parameters:
+
+```python
+import os
+
+import duckdb
+
+minio_access_key = os.environ["MINIO_ACCESS_KEY"]
+minio_secret_key = os.environ["MINIO_SECRET_KEY"]
+minio_endpoint = os.environ.get("MINIO_ENDPOINT", "localhost:9000")
+
+con = duckdb.connect()
+try:
+    con.execute("INSTALL httpfs")
+    con.execute("LOAD httpfs")
+    con.execute(
+        """
+        CREATE OR REPLACE SECRET minio_secret (
+            TYPE s3,
+            PROVIDER config,
+            KEY_ID ?,
+            SECRET ?,
+            ENDPOINT ?,
+            URL_STYLE 'path',
+            USE_SSL false
+        )
+        """,
+        [minio_access_key, minio_secret_key, minio_endpoint],
+    )
+    print(con.execute(
+        """
+        SELECT COUNT(*) AS trips
+        FROM read_parquet('s3://lake/trips/**/*.parquet', hive_partitioning = true)
+        """
+    ).fetchone())
+finally:
+    con.close()
+```
+
+```text
+environment variables
+        ↓
+Python os.environ
+        ↓
+parameterized CREATE SECRET
+        ↓
+DuckDB
+```
+
+Do not build the statement with an f-string or string concatenation. `INSTALL httpfs` needs network access the first time; the query needs MinIO running with data uploaded (this block was not run against a live MinIO in the environment used to write this chapter; the parameterized `CREATE SECRET` itself was run).
 
 ---
 
@@ -1453,6 +1564,62 @@ A selective query can read much less physical data than the logical dataset beca
 - caching.
 
 Conversely, a broad query can approach a full scan.
+
+## Comparing File Size With Measured I/O
+
+Keep these separate:
+
+```text
+file size
+    ≠
+bytes physically read by every query
+    ≠
+bytes transferred over the network
+```
+
+Start with the local size of the dataset:
+
+```python
+from pathlib import Path
+
+total_bytes = sum(
+    p.stat().st_size
+    for p in Path("data/trips").rglob("*.parquet")
+)
+
+print(f"Total Parquet file bytes: {total_bytes:,}")
+```
+
+Then run the query under `EXPLAIN ANALYZE`:
+
+```sql
+EXPLAIN ANALYZE
+SELECT
+    COUNT(*) AS trips,
+    SUM(fare_amount) AS revenue
+FROM read_parquet(
+    's3://lake/trips/**/*.parquet',
+    hive_partitioning = true
+)
+WHERE year = 2026
+  AND month = 2;
+```
+
+The layout in this chapter has months 01 and 02, so `month = 2` selects a partition that exists. `EXPLAIN ANALYZE` is the query and operator evidence: inspect the table scan node (which columns it projects, the file filters, and how many files it scanned out of the total), the row counts at each operator, and the per-operator and total time. It does not, by itself, report exact network bytes. On the local fixture the scan node reported `Scanning Files: 1/4` for this kind of query; check what yours reports.
+
+For physical I/O, pair it with a separate source: MinIO request logs or metrics, network or object-store telemetry, local file statistics, or another I/O metric your DuckDB version exposes. Record which one you used.
+
+Exercise:
+
+1. Measure total Parquet bytes (above).
+2. Run `EXPLAIN ANALYZE` on the broad query (no partition predicate).
+3. Apply the selective partition predicate (`year = 2026 AND month = 2`).
+4. Compare the broad query with the selective query: files scanned, rows at the scan, runtime.
+5. Inspect MinIO request and byte telemetry where available.
+6. Record runtime and confirm both queries are correct (row counts, sums).
+7. Explain why the selective query should touch less data, and where your measurements agree or disagree.
+
+Do not copy numbers from anywhere else; the values depend on your data, cache state and setup.
 
 ---
 
@@ -1811,7 +1978,7 @@ GROUP BY filename;
 
 # 60. Required Hands-On Project — `lake_queries.py`
 
-> **Do not create the actual script in this chapter.** This section specifies the exercise only.
+> **Do not create the actual script in this chapter.** This section specifies the exercise only. A complete reference implementation follows Step 13; write your own version first.
 
 Goal:
 
@@ -1831,7 +1998,7 @@ gold Parquet
 
 ### Step 1 — Create MinIO environment
 
-Use Docker Compose conceptually.
+Use the Docker Compose file in "MinIO as a Local S3-Compatible Environment".
 
 Record:
 
@@ -1962,6 +2129,173 @@ Use MinIO logs/metrics or another valid telemetry method.
 | MinIO       |       |            |                |         |          |
 ```
 
+### Reference implementation — `lake_queries.py`
+
+```text
+functional validation dataset   → the 400-row fixture below: proves the SQL and workflow
+performance benchmark dataset   → large realistic data (for example NYC Taxi): the only basis for performance conclusions
+```
+
+The script reads MinIO credentials from environment variables and creates the secret with a parameterized call. Without those variables it runs the same queries against the local `data/trips` directory, so you can validate the logic before starting MinIO. Only remote mode exercises `httpfs` and S3 access, and remote mode was not run in the environment used to write this chapter; local mode was run on DuckDB 1.5.6. The gold output goes to `s3://lake/gold/trips_by_zone` in remote mode and to `gold/trips` locally.
+
+```python
+"""Reference implementation for the Topic 06 project.
+
+Functional validation dataset: 4 small partitions (400 rows), so it runs in seconds.
+It proves the SQL and the workflow, NOT performance. Use a large realistic dataset
+(for example NYC Taxi) for any performance conclusion.
+
+Remote mode: MINIO_ACCESS_KEY and MINIO_SECRET_KEY are set, MinIO is running via the
+Compose file, and data/trips has been uploaded to s3://lake/trips/.
+Local mode (otherwise): the same queries run against ./data/trips.
+"""
+
+import os
+from pathlib import Path
+
+import duckdb
+
+LOCAL_TRIPS = Path("data/trips")
+CSV_DIR = Path("data/csv_drift")
+
+
+def write_fixture_trips() -> None:
+    """Deterministic Hive-layout Parquet: data/trips/year=YYYY/month=MM/part-001.parquet."""
+    if list(LOCAL_TRIPS.rglob("*.parquet")):
+        return
+    con = duckdb.connect()
+    try:
+        for year in (2025, 2026):
+            for month in (1, 2):
+                part = LOCAL_TRIPS / f"year={year}" / f"month={month:02d}"
+                part.mkdir(parents=True, exist_ok=True)
+                con.execute(f"""
+                    COPY (
+                        SELECT
+                            i AS trip_id,
+                            'zone-' || (i % 5) AS pickup_zone,
+                            CAST(10 + (i % 20) AS DECIMAL(10, 2)) AS fare_amount
+                        FROM range(100) AS t(i)
+                    ) TO '{part / "part-001.parquet"}' (FORMAT parquet)
+                """)  # paths are generated here, not user input
+    finally:
+        con.close()
+
+
+def connect() -> tuple[duckdb.DuckDBPyConnection, str, str]:
+    """Returns (connection, trips_base_url, gold_base_url)."""
+    con = duckdb.connect()
+    if "MINIO_ACCESS_KEY" not in os.environ:
+        print("mode: LOCAL (MINIO_ACCESS_KEY is not set)")
+        Path("gold").mkdir(exist_ok=True)
+        return con, str(LOCAL_TRIPS), "gold/trips"
+
+    print("mode: REMOTE (MinIO)")
+    access_key = os.environ["MINIO_ACCESS_KEY"]
+    secret_key = os.environ["MINIO_SECRET_KEY"]
+    endpoint = os.environ.get("MINIO_ENDPOINT", "localhost:9000")
+    con.execute("INSTALL httpfs")
+    con.execute("LOAD httpfs")
+    con.execute(
+        """
+        CREATE OR REPLACE SECRET minio_secret (
+            TYPE s3,
+            PROVIDER config,
+            KEY_ID ?,
+            SECRET ?,
+            ENDPOINT ?,
+            URL_STYLE 'path',
+            USE_SSL false
+        )
+        """,
+        [access_key, secret_key, endpoint],
+    )
+    return con, "s3://lake/trips", "s3://lake/gold/trips_by_zone"
+
+
+def csv_drift_lab(con: duckdb.DuckDBPyConnection) -> None:
+    CSV_DIR.mkdir(parents=True, exist_ok=True)
+    (CSV_DIR / "2026-01.csv").write_text("id,name,amount\n1,alice,10.5\n2,bob,20.0\n")
+    (CSV_DIR / "2026-02.csv").write_text("id,name,amount,currency\n3,cara,30.0,EUR\n")
+    pattern = str(CSV_DIR / "*.csv")
+
+    unsafe = con.execute("SELECT * FROM read_csv(?)", [pattern])
+    unsafe_columns = [c[0] for c in unsafe.description]
+    print("default read columns:", unsafe_columns)  # is 'currency' missing?
+
+    safe = con.execute(
+        "SELECT * FROM read_csv(?, union_by_name = true, filename = true) ORDER BY id",
+        [pattern],
+    )
+    safe_columns = [c[0] for c in safe.description]
+    rows = safe.fetchall()
+    print("union_by_name columns:", safe_columns)
+    assert "currency" in safe_columns and "filename" in safe_columns
+    assert len(rows) == 3
+    currency = safe_columns.index("currency")
+    assert [r[currency] for r in rows] == [None, None, "EUR"]  # earlier file -> NULL
+
+
+def main() -> None:
+    write_fixture_trips()
+    con, trips, gold = connect()
+    try:
+        glob = f"{trips}/**/*.parquet"
+        # Zero-padded directories such as month=02 are read as VARCHAR by default,
+        # so pin the partition column types explicitly.
+        hive = "hive_partitioning = true, hive_types = {'year': 'INTEGER', 'month': 'INTEGER'}"
+        source = f"read_parquet('{glob}', {hive})"
+
+        # Hive partition filtering + projection (only the needed columns)
+        selective = f"""
+            SELECT COUNT(*) AS trips, SUM(fare_amount) AS revenue
+            FROM {source}
+            WHERE year = 2026 AND month = 2
+        """
+        trips_count, revenue = con.execute(selective).fetchone()
+        assert trips_count == 100
+        total = con.execute(f"SELECT COUNT(*) FROM {source}").fetchone()[0]
+        assert total == 400 and trips_count < total
+        print("month 2026-02:", trips_count, "trips; all partitions:", total)
+
+        # filename=true: which file produced which rows
+        by_file = con.execute(
+            f"SELECT filename, COUNT(*) FROM read_parquet('{glob}', {hive}, filename = true) GROUP BY filename ORDER BY filename"
+        ).fetchall()
+        assert len(by_file) == 4
+        print("files read:", len(by_file))
+
+        # EXPLAIN ANALYZE: operator evidence for the selective query
+        plan = con.execute("EXPLAIN ANALYZE " + selective).fetchall()[0][1]
+        print(plan)
+
+        # CSV schema drift, unsafe vs intentional
+        csv_drift_lab(con)
+
+        # Gold: write a partitioned aggregate, then read it back and reconcile
+        con.execute(
+            f"""
+            COPY (
+                SELECT year, month, pickup_zone, COUNT(*) AS trips, SUM(fare_amount) AS revenue
+                FROM {source}
+                GROUP BY ALL
+            ) TO '{gold}' (FORMAT parquet, PARTITION_BY (year, month), OVERWRITE_OR_IGNORE)
+            """
+        )
+        gold_trips = con.execute(
+            f"SELECT SUM(trips) FROM read_parquet('{gold}/**/*.parquet', hive_partitioning = true)"
+        ).fetchone()[0]
+        assert gold_trips == total
+        print("gold reconciles:", gold_trips, "trips")
+    finally:
+        con.close()
+    print("all checks passed")
+
+
+if __name__ == "__main__":
+    main()
+```
+
 ---
 
 # 61. Required Parquet Metadata Lab
@@ -1980,6 +2314,8 @@ Required work:
 
 # 62. Required Schema-Drift Lab
 
+**Warning:** in the verified environment used for this chapter (DuckDB 1.5.6), the default multi-file CSV read did not fail when the later file contained an additional column, and the extra column was not preserved in the resulting relation. That is not a guarantee about every DuckDB version, reader option or CSV configuration. Never interpret "the query succeeded" as "the schema was preserved."
+
 Create logically equivalent files:
 
 ```text
@@ -1990,18 +2326,70 @@ id,name,amount
 id,name,amount,currency
 ```
 
-Read with:
+First, the risky read, without `union_by_name`:
 
-```text
-union_by_name=true
-filename=true
+```sql
+SELECT *
+FROM read_csv('data/csv_drift/*.csv');
 ```
 
-Then answer:
+Then the intentional read:
 
+```sql
+SELECT *
+FROM read_csv(
+    'data/csv_drift/*.csv',
+    union_by_name = true,
+    filename = true
+);
+```
+
+The intentional read should return these columns, with `NULL` in `currency` for rows from the earlier file (when the schemas are compatible):
+
+```text
+id
+name
+amount
+currency
+filename
+```
+
+A runnable version that writes the two files and runs both reads:
+
+```python
+from pathlib import Path
+
+import duckdb
+
+csv_dir = Path("data/csv_drift")
+csv_dir.mkdir(parents=True, exist_ok=True)
+(csv_dir / "2026-01.csv").write_text("id,name,amount\n1,alice,10.5\n2,bob,20.0\n")
+(csv_dir / "2026-02.csv").write_text("id,name,amount,currency\n3,cara,30.0,EUR\n")
+pattern = str(csv_dir / "*.csv")
+
+con = duckdb.connect()
+try:
+    unsafe = con.execute("SELECT * FROM read_csv(?)", [pattern])
+    print("default columns:      ", [c[0] for c in unsafe.description])
+
+    safe = con.execute(
+        "SELECT * FROM read_csv(?, union_by_name = true, filename = true) ORDER BY id",
+        [pattern],
+    )
+    print("union_by_name columns:", [c[0] for c in safe.description])
+    for row in safe.fetchall():
+        print(row)
+finally:
+    con.close()
+```
+
+Inspect the row count, the column names, the `currency` nulls and the `filename` values. Then answer:
+
+- What changed between the two files?
+- What was silently lost without `union_by_name`?
+- Which rows receive `NULL` for the new field?
+- Which file produced each row?
 - Which fields are new?
-- Which rows get `NULL`?
-- Which source file produced each row?
 - Are the resulting types correct?
 - Is the change expected?
 

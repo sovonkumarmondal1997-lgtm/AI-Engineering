@@ -42,7 +42,7 @@ Production orders pipeline
 Testing + benchmarking + debugging
 ```
 
-The current Polars documentation describes expressions as abstract computations that need a context such as `select`, `with_columns`, `filter`, or `group_by` before they produce concrete results. citeturn700248search0turn700248search1
+The current Polars documentation describes expressions as abstract computations that need a context such as `select`, `with_columns`, `filter`, or `group_by` before they produce concrete results.
 
 ---
 
@@ -787,7 +787,7 @@ For monetary data, consider whether Decimal is more appropriate than Float64.
 | `filter()` | keep rows | fewer rows |
 | `group_by().agg()` | aggregate groups | usually fewer rows, one/more rows per group |
 
-Official Polars documentation presents these as the core expression contexts and demonstrates that the same expression can yield different shapes depending on context. citeturn700248search0
+Official Polars documentation presents these as the core expression contexts and demonstrates that the same expression can yield different shapes depending on context.
 
 ---
 
@@ -937,7 +937,7 @@ Mental model:
 
 A filter predicate is a Boolean expression.
 
-Rows whose predicate is not true are not retained. Polars' expression documentation explicitly notes this behaviour, including null predicate values. citeturn700248search7
+Rows whose predicate is not true are not retained. Polars' expression documentation explicitly notes this behaviour, including null predicate values.
 
 ---
 
@@ -1657,7 +1657,7 @@ Best mental model:
 categorical representation where the category set can be managed more flexibly
 ```
 
-Current Polars documentation treats both as dedicated categorical types and explains their different use cases; it also notes performance reasons to prefer `Enum` when its fixed-domain semantics fit the workload. citeturn700248search3
+Current Polars documentation treats both as dedicated categorical types and explains their different use cases; it also notes performance reasons to prefer `Enum` when its fixed-domain semantics fit the workload.
 
 Do not make them interchangeable by habit.
 
@@ -1843,6 +1843,20 @@ A B C D
 
 Useful in reconciliation.
 
+```python
+import polars as pl
+
+left = pl.DataFrame({"order_id": [1, 2, 3], "amount": [100.0, 50.0, 80.0]})
+right = pl.DataFrame({"order_id": [2, 3, 4], "shipped": [True, True, False]})
+
+full = left.join(right, on="order_id", how="full", coalesce=True).sort("order_id")
+print(full)
+
+assert full.height == 4  # keys 1, 2, 3, 4
+```
+
+Order `1` exists only on the left, so `shipped` is null. Order `4` exists only on the right, so `amount` is null. The grain stays one row per distinct `order_id` across both inputs. With `coalesce=True` the key column is merged; without it Polars keeps a second, suffixed key column.
+
 ---
 
 # 52. Semi Join
@@ -1907,6 +1921,20 @@ then:
 Use deliberately.
 
 An accidental cross join can be catastrophic.
+
+```python
+import polars as pl
+
+customers = pl.DataFrame({"customer_id": [10, 20, 30]})
+statuses = pl.DataFrame({"status": ["PENDING", "PAID", "CANCELLED", "REFUNDED"]})
+
+grid = customers.join(statuses, how="cross")
+
+print(grid.height, customers.height * statuses.height)
+assert grid.height == customers.height * statuses.height == 12  # 3 x 4
+```
+
+This produces every customer/status combination, which is a legitimate use (a reporting grid). The output size is `left_rows × right_rows`, so 10 million rows crossed with 1,000 rows would create 10 billion. Cross joins should be written on purpose and never be the result of a missing join key.
 
 ---
 
@@ -2453,7 +2481,34 @@ result = df.pivot(
 )
 ```
 
-Verify the signature against your installed version because pivot APIs have evolved.
+Pivot signatures have changed across Polars releases; the examples in this chapter were run on Polars 1.44.
+
+An orders-based example, with customer × status → total amount:
+
+```python
+import polars as pl
+
+orders = pl.DataFrame({
+    "order_id": [1, 2, 3, 4, 5],
+    "customer_id": [10, 10, 20, 20, 30],
+    "status": ["PAID", "PENDING", "PAID", "PAID", "CANCELLED"],
+    "amount": [100.0, 50.0, 80.0, 20.0, 40.0],
+})
+
+report = orders.pivot(
+    on="status",
+    index="customer_id",
+    values="amount",
+    aggregate_function="sum",
+).sort("customer_id")
+
+print(report)
+
+assert report.columns == ["customer_id", "PAID", "PENDING", "CANCELLED"]
+assert report.filter(pl.col("customer_id") == 20)["PAID"][0] == 100.0
+```
+
+Long input (one row per order) becomes wide output (one row per customer, one column per status). The output columns come from the data, so a new status value adds a column and changes the schema. A customer/status pair with no orders (customer 30 has no `PAID` orders) shows the aggregate's empty result, not necessarily a null, so decide how missing combinations should be reported.
 
 ---
 
@@ -2487,7 +2542,37 @@ result = df.unpivot(
 )
 ```
 
-Verify current parameter names in your installed version.
+An orders-based example. Start from a wide per-customer frame:
+
+```python
+import polars as pl
+
+wide = pl.DataFrame({
+    "customer_id": [10, 20],
+    "paid_amount": [100.0, 100.0],
+    "pending_amount": [50.0, None],
+})
+
+long = wide.unpivot(
+    index="customer_id",
+    on=["paid_amount", "pending_amount"],
+    variable_name="status",
+    value_name="amount",
+)
+
+print(long)
+
+assert long.columns == ["customer_id", "status", "amount"]
+assert long.height == wide.height * 2
+```
+
+```text
+wide (customer_id, paid_amount, pending_amount)
+        ↓ unpivot
+long (customer_id, status, amount)
+```
+
+Each customer becomes one row per unpivoted column. The `status` values are the old column names (`paid_amount`, `pending_amount`), and nulls are kept as null rows. Use `unpivot`, not the older `melt` name.
 
 ---
 
@@ -2524,6 +2609,26 @@ O2       | sql
 
 Always estimate the potential output size.
 
+An orders example with a list column:
+
+```python
+import polars as pl
+
+orders = pl.DataFrame({
+    "order_id": [1, 2, 3],
+    "tags": [["python", "data"], ["arrow"], ["sql", "python"]],
+})
+
+exploded = orders.explode("tags")
+print(exploded)
+
+assert orders.height == 3
+assert exploded.height == 5  # 2 + 1 + 2 tag values
+assert exploded.filter(pl.col("order_id") == 1).height == 2
+```
+
+The grain changes from one row per order to one row per order-tag pair. Any order-level measure such as `amount` is repeated on every exploded row, so summing it after an explode overcounts.
+
 ---
 
 # 72. `implode`
@@ -2554,7 +2659,35 @@ df.group_by("order_id").agg(
 )
 ```
 
-The exact shape should be checked in your installed Polars version.
+An orders example that follows the data flow:
+
+```text
+orders → explode tags → filter → implode tags → orders-level list column
+```
+
+```python
+import polars as pl
+
+orders = pl.DataFrame({
+    "order_id": [1, 2, 3],
+    "tags": [["python", "data"], ["arrow"], ["sql", "python"]],
+})
+
+rebuilt = (
+    orders.explode("tags")
+    .filter(pl.col("tags") != "data")
+    .group_by("order_id", maintain_order=True)
+    .agg(pl.col("tags").implode())
+)
+
+print(rebuilt)
+
+assert rebuilt.schema["tags"] == pl.List(pl.String)
+assert rebuilt.height == 3
+assert rebuilt.filter(pl.col("order_id") == 1)["tags"][0].to_list() == ["python"]
+```
+
+This is not a universal inverse of `explode`. An order whose only tag is filtered out disappears from the result, and an order with an empty or null list can behave differently depending on the explode step. Check the grain after every reshape. On Polars 1.44, `pl.col("tags")` without `.implode()` inside this `agg` also produced the same list result, but the explicit `implode()` states the intent.
 
 ---
 
@@ -2591,7 +2724,7 @@ This is useful for:
 - hourly events,
 - periodic operational metrics.
 
-Current Polars documentation defines dynamic windows through parameters such as `every`, `period`, `offset`, boundaries, labeling, and grouping. citeturn700248search8
+Current Polars documentation defines dynamic windows through parameters such as `every`, `period`, `offset`, boundaries, labeling, and grouping.
 
 ---
 
@@ -2750,7 +2883,7 @@ df.with_columns(
 
 This is an escape hatch, not the default transformation style.
 
-Polars' official documentation warns that `map_elements()` is much slower than native expressions and recommends using it only when the logic cannot be implemented otherwise. citeturn700248search4
+Polars' official documentation warns that `map_elements()` is much slower than native expressions and recommends using it only when the logic cannot be implemented otherwise.
 
 ---
 
@@ -4264,7 +4397,7 @@ Enum for status
 UTC-aware Datetime
 ```
 
-Verify the exact current constructor and reader syntax in your installed version.
+The verified constructor and reader syntax is in the reference implementation at the end of Project Step 9.
 
 ---
 
@@ -4447,6 +4580,325 @@ versions
 
 Do not fabricate results.
 
+### Reference implementation — `polars_orders.py`
+
+This is a complete, self-contained, eager-mode reference implementation. It was run on Polars 1.44. It builds its own small deterministic dataset, so it needs no external files. Build your own version first, then compare. The benchmark prints locally measured timings only; they will differ on your machine.
+
+Assumptions: all timestamps are UTC; the day boundary is 00:00 UTC; a daily window is `[00:00, 24:00)` labelled by its start; an FX rate is valid from its `rate_time` until the next rate (`strategy="backward"`, no tolerance); an order before the first rate has a null rate and is excluded from USD revenue; USD is defined as rate 1.0. pandas is optional and its comparison is skipped when it is not installed.
+
+```python
+"""Reference implementation for the Topic 02 project (eager Polars only)."""
+
+import io
+from datetime import datetime, timezone
+from time import perf_counter
+
+import polars as pl
+
+try:
+    import pandas as pd
+except ImportError:  # the pandas comparison is skipped when pandas is absent
+    pd = None
+
+print("Polars version:", pl.__version__)
+
+STATUS = pl.Enum(["PENDING", "PAID", "CANCELLED"])
+UTC_TS = pl.Datetime("us", "UTC")
+
+RAW_ORDERS_CSV = """order_id,version,customer_id,product_id,status,amount,currency,created_at,updated_at
+1,1,10,100,PENDING,100.0,USD,2026-03-01T10:00:00Z,2026-03-01T10:00:00Z
+1,2,10,100,PAID,100.0,USD,2026-03-01T10:00:00Z,2026-03-01T12:00:00Z
+2,1,10,101,PAID,50.0,EUR,2026-03-01T23:30:00Z,2026-03-01T23:30:00Z
+3,1,20,100,PAID,80.0,EUR,2026-03-02T09:00:00Z,2026-03-02T09:00:00Z
+4,1,20,102,CANCELLED,20.0,USD,2026-03-02T15:00:00Z,2026-03-02T15:00:00Z
+5,1,40,101,PAID,0.0,USD,2026-03-03T08:00:00Z,2026-03-03T08:00:00Z
+6,1,10,102,PAID,25.0,EUR,2026-02-28T09:00:00Z,2026-02-28T09:00:00Z
+7,1,30,100,PAID,40.0,EUR,2026-03-04T10:00:00Z,2026-03-04T10:00:00Z
+"""
+
+
+def build_orders() -> pl.DataFrame:
+    """Typed read: schema_overrides + Enum status + UTC-aware timestamps."""
+    return pl.read_csv(
+        io.StringIO(RAW_ORDERS_CSV),
+        schema_overrides={
+            "order_id": pl.Int64,
+            "version": pl.Int64,
+            "customer_id": pl.Int64,
+            "product_id": pl.Int64,
+            "status": STATUS,
+            "amount": pl.Float64,
+            "created_at": UTC_TS,
+            "updated_at": UTC_TS,
+        },
+    )
+
+
+def build_customers() -> pl.DataFrame:
+    return pl.DataFrame(
+        {
+            "customer_id": [10, 20, 30, 40],
+            "customer_name": ["Asha", "Ben", "Chitra", "Dev"],
+        },
+        schema={"customer_id": pl.Int64, "customer_name": pl.String},
+    )
+
+
+def build_products() -> pl.DataFrame:
+    return pl.DataFrame(
+        {
+            "product_id": [100, 101, 102],
+            "category": ["books", "games", "music"],
+        },
+        schema={"product_id": pl.Int64, "category": pl.String},
+    )
+
+
+def build_fx_rates() -> pl.DataFrame:
+    """EUR->USD rates. A rate is valid from rate_time until the next rate."""
+    return pl.DataFrame(
+        {
+            "currency": ["EUR", "EUR"],
+            "rate_time": [
+                datetime(2026, 3, 1, 0, 0, tzinfo=timezone.utc),
+                datetime(2026, 3, 2, 9, 0, tzinfo=timezone.utc),
+            ],
+            "usd_rate": [1.10, 1.20],
+        },
+        schema={
+            "currency": pl.String,
+            "rate_time": UTC_TS,
+            "usd_rate": pl.Float64,
+        },
+    )
+
+
+def latest_version(orders: pl.DataFrame) -> pl.DataFrame:
+    """Keep the row with the newest updated_at for each order_id."""
+    return (
+        orders.sort(["order_id", "updated_at"])
+        .unique(subset="order_id", keep="last", maintain_order=True)
+    )
+
+
+def attach_fx(orders: pl.DataFrame, fx: pl.DataFrame) -> pl.DataFrame:
+    """As-of join semantics: strategy="backward" picks the latest rate whose
+    rate_time <= created_at, per currency, with no tolerance. Orders before
+    the first rate get a null rate; orders after the last rate reuse it.
+    USD orders have no FX rows, so USD is defined explicitly as rate 1.0.
+    Both sides must be sorted by the "on" column."""
+    left = orders.sort("created_at")
+    right = fx.sort("rate_time")
+    joined = left.join_asof(
+        right,
+        left_on="created_at",
+        right_on="rate_time",
+        by="currency",
+        strategy="backward",
+        check_sortedness=False,  # sorted explicitly above; Polars cannot check with `by`
+    )
+    return joined.with_columns(
+        pl.when(pl.col("currency") == "USD")
+        .then(pl.lit(1.0))
+        .otherwise(pl.col("usd_rate"))
+        .alias("usd_rate")
+    ).with_columns(
+        (pl.col("amount") * pl.col("usd_rate")).alias("amount_usd"),
+        pl.col("usd_rate").is_null().alias("fx_missing"),
+    )
+
+
+def build_pipeline(
+    orders: pl.DataFrame,
+    customers: pl.DataFrame,
+    products: pl.DataFrame,
+    fx: pl.DataFrame,
+) -> dict[str, pl.DataFrame]:
+    silver = latest_version(orders)
+
+    # validate="m:1": many orders per customer/product, one dimension row each.
+    silver = silver.join(customers, on="customer_id", how="left", validate="m:1")
+    silver = silver.join(products, on="product_id", how="left", validate="m:1")
+    silver = attach_fx(silver, fx)
+
+    # Revenue counts PAID orders only; a zero total gives a null share, not a
+    # division-by-zero result.
+    silver = silver.with_columns(
+        pl.col("amount")
+        .filter(pl.col("status") == "PAID")
+        .sum()
+        .over("customer_id")
+        .alias("customer_paid_total")
+    ).with_columns(
+        pl.when(pl.col("customer_paid_total") == 0)
+        .then(None)
+        .otherwise(pl.col("amount") / pl.col("customer_paid_total"))
+        .alias("order_share")
+    )
+
+    customer_metrics = (
+        silver.group_by("customer_id")
+        .agg(
+            pl.len().alias("order_count"),
+            pl.col("amount").sum().alias("customer_total"),
+            pl.col("amount").mean().alias("customer_avg"),
+        )
+        .sort("customer_id")
+    )
+
+    # Timestamps are UTC; the day boundary is 00:00 UTC. Daily windows are
+    # [00:00, 24:00) labelled by their start. Only PAID orders with a rate.
+    daily = (
+        silver.filter((pl.col("status") == "PAID") & ~pl.col("fx_missing"))
+        .sort("created_at")
+        .group_by_dynamic("created_at", every="1d")
+        .agg(pl.col("amount_usd").sum().alias("daily_revenue_usd"))
+    )
+    return {"silver": silver, "customer_metrics": customer_metrics, "daily": daily}
+
+
+def check_fx_cases() -> None:
+    """Small deterministic tests for the as-of join semantics."""
+    fx = build_fx_rates()
+
+    def rate_at(ts: datetime, currency: str = "EUR"):
+        probe = pl.DataFrame(
+            {"currency": [currency], "created_at": [ts], "amount": [1.0]},
+            schema={"currency": pl.String, "created_at": UTC_TS, "amount": pl.Float64},
+        )
+        return attach_fx(probe, fx)["usd_rate"][0]
+
+    utc = timezone.utc
+    assert rate_at(datetime(2026, 3, 2, 9, 0, tzinfo=utc)) == 1.20  # exact match
+    assert rate_at(datetime(2026, 3, 1, 12, 0, tzinfo=utc)) == 1.10  # between rates
+    assert rate_at(datetime(2026, 2, 1, 0, 0, tzinfo=utc)) is None  # before first
+    assert rate_at(datetime(2026, 4, 1, 0, 0, tzinfo=utc)) == 1.20  # after last
+    assert rate_at(datetime(2026, 3, 1, 12, 0, tzinfo=utc), "GBP") is None  # no rates
+    assert rate_at(datetime(2026, 3, 1, 12, 0, tzinfo=utc), "USD") == 1.0
+
+
+def check_invariants(result: dict[str, pl.DataFrame]) -> None:
+    silver = result["silver"]
+    assert silver.height == 7  # 8 raw rows, order 1 has two versions
+    assert silver["order_id"].n_unique() == 7
+    latest_1 = silver.filter(pl.col("order_id") == 1)
+    assert latest_1["status"].cast(pl.String)[0] == "PAID"
+    assert latest_1["version"][0] == 2
+
+    metrics = result["customer_metrics"]
+    assert metrics.filter(pl.col("customer_id") == 10)["order_count"][0] == 3
+    assert metrics.filter(pl.col("customer_id") == 10)["customer_total"][0] == 175.0
+
+    # zero-total customer -> null share, everyone else in [0, 1]
+    zero = silver.filter(pl.col("customer_id") == 40)
+    assert zero["order_share"][0] is None
+    shares = silver.filter(pl.col("customer_id") != 40)["order_share"].drop_nulls()
+    assert shares.min() >= 0 and shares.max() <= 1
+
+    # order 6 predates the first EUR rate
+    assert silver.filter(pl.col("order_id") == 6)["fx_missing"][0] is True
+
+    daily = {
+        row["created_at"].date().isoformat(): row["daily_revenue_usd"]
+        for row in result["daily"].iter_rows(named=True)
+    }
+    expected = {
+        "2026-03-01": 100.0 + 50.0 * 1.10,
+        "2026-03-02": 80.0 * 1.20,
+        "2026-03-03": 0.0,
+        "2026-03-04": 40.0 * 1.20,
+    }
+    assert daily.keys() == expected.keys()
+    for day, value in expected.items():
+        assert abs(daily[day] - value) < 1e-9, (day, daily[day], value)
+
+
+def polars_workload(df: pl.DataFrame) -> pl.DataFrame:
+    latest = latest_version(df)
+    return (
+        latest.with_columns(
+            pl.col("amount").sum().over("customer_id").alias("customer_total")
+        )
+        .with_columns((pl.col("amount") / pl.col("customer_total")).alias("share"))
+        .sort("order_id")
+    )
+
+
+def pandas_workload(df: "pd.DataFrame") -> "pd.DataFrame":
+    latest = (
+        df.sort_values(["order_id", "updated_at"])
+        .drop_duplicates("order_id", keep="last")
+    )
+    latest = latest.assign(
+        customer_total=latest.groupby("customer_id")["amount"].transform("sum")
+    )
+    latest = latest.assign(share=latest["amount"] / latest["customer_total"])
+    return latest.sort_values("order_id").reset_index(drop=True)
+
+
+def build_benchmark_data(n: int = 200_000) -> pl.DataFrame:
+    half = n // 2
+    return pl.select(
+        (pl.int_range(n) % half).alias("order_id"),
+        (pl.int_range(n) % 1000).alias("customer_id"),
+        ((pl.int_range(n) % half) % 100 + 1).cast(pl.Float64).alias("amount"),
+        (
+            pl.lit(datetime(2026, 1, 1, tzinfo=timezone.utc)).cast(UTC_TS)
+            + pl.duration(seconds=pl.int_range(n))
+        ).alias("updated_at"),
+    )
+
+
+def benchmark(repetitions: int = 3) -> None:
+    """Prints locally measured timings only. Compares results before timing."""
+    data = build_benchmark_data()
+    pdf = data.to_pandas() if pd is not None else None
+
+    def best_of(fn) -> float:
+        times = []
+        for _ in range(repetitions):
+            start = perf_counter()
+            fn()
+            times.append(perf_counter() - start)
+        return min(times)
+
+    polars_result = polars_workload(data)
+    print(f"rows={data.height:,}  polars eager best of {repetitions}: "
+          f"{best_of(lambda: polars_workload(data)):.4f}s")
+
+    if pdf is None:
+        print("pandas not installed: skipping pandas benchmark and comparison")
+        return
+    pandas_result = pandas_workload(pdf)
+    print(f"pandas best of {repetitions}: "
+          f"{best_of(lambda: pandas_workload(pdf)):.4f}s")
+
+    # Correctness comparison: same order, same columns, same dtypes family.
+    compare_cols = ["order_id", "customer_id", "amount", "customer_total", "share"]
+    left = polars_result.select(compare_cols).to_pandas()
+    right = pandas_result[compare_cols]
+    pd.testing.assert_frame_equal(left, right, check_dtype=False)
+    print("pandas and Polars results match")
+
+
+def main() -> None:
+    orders = build_orders()
+    print(orders.schema)
+    result = build_pipeline(
+        orders, build_customers(), build_products(), build_fx_rates()
+    )
+    check_fx_cases()
+    check_invariants(result)
+    print(result["customer_metrics"])
+    print(result["daily"])
+    benchmark()
+    print("all checks passed")
+
+
+if __name__ == "__main__":
+    main()
+```
+
 ---
 
 # 128. Conceptual Project Architecture
@@ -4557,7 +5009,7 @@ Native expressions stay inside the engine's optimized execution path and avoid p
 
 ## Q16. Why is `map_elements()` a poor default?
 
-Because it introduces Python-level element processing and is generally much slower than equivalent native expressions. citeturn700248search4
+Because it introduces Python-level element processing and is generally much slower than equivalent native expressions.
 
 ## Q17. `.over()` vs `group_by().agg()`?
 

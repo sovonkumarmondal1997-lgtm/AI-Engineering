@@ -8,6 +8,54 @@ Each problem is immediately followed by its solution. Do not read the solution f
 
 For benchmark questions, all measurements must come from the learner's own environment. Hardware, library versions, file format, cache state, data distribution, and configuration materially affect results.
 
+## Practice Data Setup
+
+Some implementation questions use small local files so the solutions can be executed without relying on external datasets. Run this setup once before those questions. It is deterministic (no random data), safe to run repeatedly, and creates `practice_data/orders/part-001.parquet`, `practice_data/orders/part-002.parquet`, `practice_data/orders.parquet` and `practice_data/data.csv` in the current directory. It needs `pandas` and `pyarrow`.
+
+```python
+from pathlib import Path
+
+import pandas as pd
+
+DATA_DIR = Path("practice_data")
+ORDERS_DIR = DATA_DIR / "orders"
+ORDERS_DIR.mkdir(parents=True, exist_ok=True)  # safe to run repeatedly
+
+orders = pd.DataFrame(
+    {
+        "order_id": [1, 2, 3, 4, 5, 6, 7, 8],
+        "customer_id": [10, 10, 20, 20, 30, 30, 10, 20],
+        "order_date": pd.to_datetime(
+            [
+                "2025-12-30",
+                "2026-01-02",
+                "2026-01-03",
+                "2026-01-04",
+                "2026-01-05",
+                "2026-01-06",
+                "2026-01-07",
+                "2026-01-08",
+            ]
+        ),
+        "amount": [100.0, 50.0, 80.0, 120.0, 60.0, 40.0, 25.0, 75.0],
+        "status": ["PAID", "CANCELLED", "PAID", "PAID", "PENDING", "PAID", "PAID", "CANCELLED"],
+        "notes": ["", "late", "", "gift", "", "", "repeat", "refund"],
+    }
+)
+
+# orders/*.parquet: two part files; orders.parquet: the same rows in one file
+orders.iloc[:4].to_parquet(ORDERS_DIR / "part-001.parquet", index=False)
+orders.iloc[4:].to_parquet(ORDERS_DIR / "part-002.parquet", index=False)
+orders.to_parquet(DATA_DIR / "orders.parquet", index=False)
+
+# data.csv, including a string column for the pandas object-dtype question
+orders.to_csv(DATA_DIR / "data.csv", index=False)
+
+print(sorted(str(p) for p in DATA_DIR.rglob("*") if p.is_file()))
+```
+
+The fixture has 8 rows. It is far too small to reproduce a real out-of-memory condition or meaningful performance differences; it only makes the plan and API semantics executable. Questions about remote storage (`s3://...`) stay conceptual, and their setup belongs to Topic 06.
+
 ## Coverage Map
 
 | Range | Primary focus | Typical evidence |
@@ -576,6 +624,22 @@ If the output is large, a sink may be more appropriate:
 lf.sink_parquet("gold/result.parquet")
 ```
 
+A runnable variant against the practice fixture (run the Practice Data Setup first). This 8-row fixture demonstrates the plan semantics and the API calls; it is not large enough to reproduce a real out-of-memory condition.
+
+```python
+from pathlib import Path
+
+import polars as pl
+
+lf = pl.scan_parquet("practice_data/orders/*.parquet").filter(pl.col("amount") > 0)
+
+result = lf.collect(engine="streaming")
+print(result.height)
+
+Path("practice_data/out").mkdir(exist_ok=True)
+lf.sink_parquet("practice_data/out/result.parquet")
+```
+
 ### Sink API coverage
 
 For the same concept, know the lazy sink family explicitly:
@@ -623,7 +687,7 @@ Resource behaviour is an execution-property question, not a syntax-property ques
 Basic
 
 ### Topics Covered
-- Topic 05 — DuckDB in-process architecture, `duckdb.sql()`, result retrieval, `.fetchall()`, `.df()`, `.pl()`, `.arrow()`
+- Topic 05 — DuckDB in-process architecture, `duckdb.sql()`, result retrieval, `.fetchall()`, `.df()`, `.pl()`, `.to_arrow_table()` for an Arrow Table
 
 ### Problem
 
@@ -649,7 +713,7 @@ result = duckdb.sql(
 rows = result.fetchall()
 pandas_df = result.df()
 polars_df = result.pl()
-arrow_table = result.arrow()
+arrow_table = result.to_arrow_table()
 
 print(rows)
 print(pandas_df)
@@ -666,6 +730,8 @@ Python process
 ```
 
 There is no separate DuckDB server required for this in-process execution.
+
+`.to_arrow_table()` returns a `pyarrow.Table`. (`.arrow()` is only a legacy/compatibility alias for the Arrow reader path, so it is not used for table retrieval.)
 
 ### Additional consolidation
 
@@ -729,7 +795,7 @@ Write the DuckDB SQL query using direct Parquet access, and explain why selectin
 SELECT
     customer_id,
     SUM(amount) AS total_amount
-FROM 'orders.parquet'
+FROM 'practice_data/orders.parquet'
 WHERE status = 'PAID'
   AND order_date >= DATE '2026-01-01'
 GROUP BY customer_id;
@@ -741,7 +807,7 @@ An equivalent reader-function form is:
 SELECT
     customer_id,
     SUM(amount) AS total_amount
-FROM read_parquet('orders.parquet')
+FROM read_parquet('practice_data/orders.parquet')
 WHERE status = 'PAID'
   AND order_date >= DATE '2026-01-01'
 GROUP BY customer_id;
@@ -846,8 +912,8 @@ from local filesystem semantics. DuckDB's `httpfs` supports remote access patter
 For a deeper storage-level investigation, use:
 
 ```sql
-SELECT * FROM parquet_schema('orders.parquet');
-SELECT * FROM parquet_metadata('orders.parquet');
+SELECT * FROM parquet_schema('practice_data/orders.parquet');
+SELECT * FROM parquet_metadata('practice_data/orders.parquet');
 ```
 
 Use the schema function to inspect fields/types and the metadata function to investigate row-group/file statistics and related metadata. Exact output columns are version-sensitive; focus on the information the engine can use for pruning and diagnostics.
@@ -1156,7 +1222,7 @@ Suppose a lazy pipeline is:
 
 ```python
 lf = (
-    pl.scan_parquet("orders/*.parquet")
+    pl.scan_parquet("practice_data/orders/*.parquet")
     .with_columns((pl.col("amount") * 1.2).alias("gross"))
     .filter(pl.col("status") == "PAID")
     .select(["customer_id", "gross"])
@@ -1460,7 +1526,7 @@ For experimentation, pandas supports Arrow-backed dtypes through interfaces such
 import pandas as pd
 
 arrow_df = pd.read_csv(
-    "data.csv",
+    "practice_data/data.csv",
     dtype_backend="pyarrow",
 )
 ```
@@ -1601,7 +1667,7 @@ pl.from_pandas()
 df.to_pandas()
 pa.Table.from_pandas()
 table.to_pandas()
-DuckDB .arrow() / current Arrow-table/reader interfaces
+DuckDB .to_arrow_table() / .to_arrow_reader()
 DuckDB .pl()
 DuckDB .df()
 ```
@@ -1813,7 +1879,7 @@ Replace the UDF with:
 import polars as pl
 
 lf = (
-    pl.scan_parquet("orders/*.parquet")
+    pl.scan_parquet("practice_data/orders/*.parquet")
     .with_columns(
         (pl.col("amount") * 1.18).alias("gross")
     )
@@ -2292,7 +2358,7 @@ relation = duckdb.sql(
     """
 )
 
-reader = relation.to_arrow_reader(rows_per_batch=100_000)
+reader = relation.to_arrow_reader(batch_size=100_000)
 
 for batch in reader:
     # Batch-aware downstream processing.
@@ -3389,6 +3455,95 @@ The outcome should be a measured, documented decision—not a permanent ranking 
 
 ---
 
+# Module 2.4 Mini-Project — One Workload, Four Engines
+
+This is the final synthesis exercise for Module 2.4. It is a project, not a 41st practice question.
+
+## Goal
+
+Build a single-node pipeline that replaces a slow nightly pandas job and a small Spark cluster where the evidence justifies it, and document the decision.
+
+## Scenario
+
+Your team runs a slow nightly pandas job plus a small Spark cluster. You must build the replacement pipeline and justify the architecture from workload evidence and your own measurements, not from a generic engine ranking.
+
+## Data
+
+- several years of NYC Taxi trips, or generated equivalent data at least 2× your RAM, stored as Hive-partitioned Parquet in MinIO (Topic 06 has the MinIO Compose file; Topics 03 and 04 have data generators);
+- a zone lookup CSV;
+- a daily fare-rules JSON file.
+
+## Required Deliverables
+
+Build `lake_analytics/`, a `uv` project:
+
+```text
+Ingestion
+   ↓
+Bronze
+   ↓
+Polars lazy + streaming
+   ↓
+Silver
+   ↓
+DuckDB
+   ↓
+Gold
+   ↓
+pandas-only consumer edge where needed
+```
+
+1. **Ingestion:** land raw CSV/JSON files in MinIO and convert them to partitioned Parquet with explicit Arrow schemas.
+2. **Silver in Polars (lazy, streaming where appropriate):** typed, deduplicated, validated trips. Invalid rows go to a quarantine dataset.
+3. **Gold in DuckDB:** daily and monthly zone metrics; top-N routes per borough with `QUALIFY`; an `ASOF JOIN` to the fare rules; written back to MinIO with `COPY ... PARTITION_BY`.
+4. **Consumer edge:** one step hands a small result to a pandas-only library (for example a plotting or reporting library) with minimal copying.
+5. **Tests:** pytest tests for every transformation on tiny inputs, schema assertions after every engine boundary, and a reconciliation check.
+
+## Benchmark Requirements
+
+Run the same silver + gold logic in pandas (chunked), Polars and DuckDB at three data sizes. Record, for every run:
+
+- runtime and peak memory;
+- bytes read where relevant;
+- cold and warm conditions where meaningful;
+- repeated runs (record each run, not only a summary);
+- the dataset, file format, machine, and library versions.
+
+Do not compare different datasets, file formats or workloads and attribute the difference to the engine. All numbers must come from your own measurements.
+
+## Correctness Requirements
+
+- All engines produce identical gold outputs (sort before comparing).
+- Trip counts and revenue reconcile across engines.
+- Schema assertions pass after every engine boundary, and every boundary is documented.
+- The pipeline processes a dataset larger than your RAM without crashing.
+
+## ADR Requirements
+
+Write an evidence-based ADR recommending the default engine(s), with:
+
+- the workload and benchmark evidence (the results table);
+- operational constraints and risks;
+- team and ecosystem considerations;
+- single-node capacity and the point at which you would move to Spark or another distributed engine;
+- consequences of the decision.
+
+Do not choose an engine in advance; the recommendation must follow from your own measurements.
+
+## Revisit Conditions
+
+State the observable conditions that would make you revisit the decision, for example data growth beyond the measured single-node capacity, a missed runtime target, a new library requirement, or a change in team skills.
+
+## Completion Checklist
+
+- [ ] The pipeline runs from ingestion to gold and processes data larger than RAM.
+- [ ] All engines produce identical gold outputs.
+- [ ] Every engine boundary is documented and schema-checked.
+- [ ] Benchmarks cover three sizes with repeated runs, peak memory and correctness.
+- [ ] The ADR's recommendation follows from my own measurements and includes revisit conditions.
+
+---
+
 # Module 2.4 Practice Completion Checklist
 
 - [ ] Completed all 10 Basic questions.
@@ -3404,6 +3559,7 @@ The outcome should be a measured, documented decision—not a permanent ranking 
 - [ ] Practiced interoperability and zero-copy reasoning.
 - [ ] Practiced benchmarking.
 - [ ] Practiced engine-selection reasoning.
+- [ ] Completed the Module 2.4 mini-project.
 - [ ] Practiced production architecture.
 - [ ] Validated benchmark questions without using fabricated numbers.
 - [ ] Can explain the solutions aloud rather than merely copying them.

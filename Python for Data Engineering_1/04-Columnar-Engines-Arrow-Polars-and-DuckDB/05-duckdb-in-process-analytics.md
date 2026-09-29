@@ -339,7 +339,7 @@ For broader interoperability:
 ```python
 df = duckdb.sql("SELECT 1 AS value").df()
 pl_df = duckdb.sql("SELECT 1 AS value").pl()
-arrow_table = duckdb.sql("SELECT 1 AS value").arrow()
+arrow_table = duckdb.sql("SELECT 1 AS value").to_arrow_table()
 numpy_data = duckdb.sql("SELECT 1 AS value").fetchnumpy()
 ```
 
@@ -799,8 +799,11 @@ The required result forms are:
 | `.fetchall()` | Python rows/tuples | Small result sets |
 | `.df()` | pandas DataFrame | pandas-based downstream code |
 | `.pl()` | Polars DataFrame | Polars-based downstream code |
-| `.arrow()` | Arrow table | Arrow interchange |
+| `.to_arrow_table()` | Arrow Table (`pyarrow.Table`) | Arrow interchange when a materialized table is needed |
+| `.to_arrow_reader()` | Arrow RecordBatchReader | Incremental, batch-oriented Arrow consumption |
 | `.fetchnumpy()` | NumPy arrays/dict | Numeric NumPy workflows |
+
+`.arrow()` is a legacy/compatibility alias for the Arrow reader path; prefer `.to_arrow_table()` when a table is required and `.to_arrow_reader()` when a RecordBatchReader is required.
 
 Current DuckDB Python documentation documents these conversions:  
 <https://duckdb.org/docs/current/clients/python/overview>  
@@ -918,15 +921,44 @@ Use the boundary intentionally.
 
 ---
 
-# 19. `.arrow()`
+# 19. Arrow Results: `.to_arrow_table()`, `.to_arrow_reader()` and `.arrow()`
+
+A materialized Arrow Table:
 
 ```python
-result_arrow = duckdb.sql("""
+result_table = duckdb.sql("""
     SELECT *
     FROM orders
     WHERE amount > 100
-""").arrow()
+""").to_arrow_table()
 ```
+
+An Arrow RecordBatchReader for incremental consumption:
+
+```python
+reader = duckdb.sql("""
+    SELECT *
+    FROM orders
+    WHERE amount > 100
+""").to_arrow_reader()
+```
+
+```text
+to_arrow_table()
+    -> pyarrow.Table
+    -> materialized table result
+
+to_arrow_reader()
+    -> pyarrow.RecordBatchReader
+    -> incremental/batch-oriented result
+
+arrow()
+    -> legacy/compatibility alias for the reader path
+```
+
+`.arrow()` is a legacy/compatibility alias for the Arrow reader path; prefer `.to_arrow_table()` when a table is required and `.to_arrow_reader()` when a RecordBatchReader is required.
+
+An Arrow Table is not a RecordBatchReader: a table holds all of its data, while a reader hands out record batches as you iterate.
 
 Arrow is valuable as an interoperability boundary because it represents columnar data and is used by many modern analytical systems.
 
@@ -1424,46 +1456,48 @@ The result depends on a deterministic ordering rule. If ties are possible, inclu
 
 ## Business problem
 
-You have events and time-varying reference data.
+You have events and time-varying reference data. The primary example is FX conversion.
 
 Example:
 
 ```text
-Trades
-ticker  trade_time        quantity
-AAPL    10:05             100
-AAPL    10:08              50
+Orders
+currency  order_ts          amount
+EUR       2025-01-01 10:05  100
+EUR       2025-01-01 10:08   50
 
-Prices
-ticker  price_time        price
-AAPL    10:00             200
-AAPL    10:07             202
+FX rates
+currency  rate_ts           rate_to_usd
+EUR       2025-01-01 10:00  1.10
+EUR       2025-01-01 10:07  1.11
 ```
 
-For the 10:05 trade, the relevant price is the latest price at or before that time.
+For the 10:05 order, the relevant rate is the latest rate at or before that time (the 10:00 rate).
 
 DuckDB:
 
 ```sql
 SELECT
-    t.ticker,
-    t.trade_time,
-    t.quantity,
-    p.price
-FROM trades t
-ASOF JOIN prices p
-    ON t.ticker = p.ticker
-   AND t.trade_time >= p.price_time;
+    o.order_ts,
+    o.currency,
+    o.amount,
+    r.rate_to_usd
+FROM orders o
+ASOF LEFT JOIN fx_rates r
+    ON o.currency = r.currency
+   AND o.order_ts >= r.rate_ts;
 ```
+
+For this data the 10:05 order gets `1.10` and the 10:08 order gets `1.11`. `LEFT` keeps an order that has no earlier rate, with a NULL `rate_to_usd`.
 
 The key semantics are:
 
 ```text
-match keys equal
+same currency
 +
-time/order condition satisfied
+reference timestamp <= event timestamp
 +
-choose nearest prior reference row
+choose the nearest prior reference record
 ```
 
 DuckDB's current documentation specifies that an `ASOF` join requires an inequality on the ordering field and that the left/right order matters.  
@@ -1496,11 +1530,13 @@ B        | Jan   |  80
 Conceptual result:
 
 ```text
-customer | Jan | Feb
----------+-----+----
-A        | 100 | 120
-B        |  80 | NULL
+customer | Feb  | Jan
+---------+------+----
+A        | 120  | 100
+B        | NULL |  80
 ```
+
+DuckDB may order generated pivot columns according to the distinct pivot values rather than the visual order in the source example. In the verified environment (DuckDB 1.5.6), the output is `customer | Feb | Jan`. Do not rely on a particular column order; select the columns by name if order matters.
 
 DuckDB's simplified syntax includes:
 
@@ -2588,7 +2624,7 @@ DuckDB can reduce feedback time, but it should not eliminate target-engine valid
 
 # 59. Required Hands-On Project — `duckdb_warehouse.py`
 
-**Do not create the actual file in this chapter.** This section specifies the exercise the learner will implement later.
+**Do not create the actual file in this chapter.** This section specifies the exercise the learner will implement later. A complete reference implementation follows Project Step 7; write your own version first.
 
 Goal:
 
@@ -2723,9 +2759,9 @@ FROM silver_orders
 GROUP BY ALL;
 ```
 
-## ASOF example
+## ASOF example (FX)
 
-Suppose rates are time-varying:
+FX rates are time-varying reference data:
 
 ```sql
 SELECT
@@ -2813,7 +2849,7 @@ Return Arrow when appropriate:
 arrow_result = duckdb.sql("""
     SELECT *
     FROM customers_pl
-""").arrow()
+""").to_arrow_table()
 ```
 
 Document:
@@ -2905,6 +2941,203 @@ verify only records for X are returned.
 Compare DuckDB's result to a trusted small-data implementation.
 
 The actual pytest file is **not** created in this chapter.
+
+### Reference implementation — `duckdb_warehouse.py`
+
+This reference implementation was run on DuckDB 1.5.6. It reads the Module 2.3 bronze Parquet files from `bronze/orders/`, `bronze/customers/` and `bronze/products/`; if `bronze/orders/` has no Parquet files, it writes small deterministic fixtures there so the script can run. FX rates are small fixture data defined in the script. Whether `memory_limit` causes spilling depends on your data size and hardware, so treat that part as an experiment; this small dataset will not spill.
+
+```python
+"""Reference implementation for the Topic 05 project (persistent DuckDB warehouse)."""
+
+from pathlib import Path
+
+import duckdb
+import pandas as pd
+import polars as pl
+
+print("DuckDB version:", duckdb.__version__)
+
+BRONZE = Path("bronze")
+DB_PATH = "lab.duckdb"
+TEMP_DIR = Path("duckdb_tmp")
+
+
+def ensure_bronze() -> None:
+    """Small deterministic fixtures, written only if the Module 2.3 bronze files are absent."""
+    if list((BRONZE / "orders").glob("*.parquet")):
+        return
+    for name in ("orders", "customers", "products"):
+        (BRONZE / name).mkdir(parents=True, exist_ok=True)
+    fixture = duckdb.connect()
+    fixture.execute("""
+        COPY (
+            SELECT * FROM (VALUES
+                (1, 10, 100, 'PENDING', 100.00, 'USD', TIMESTAMP '2025-01-01 09:00:00', TIMESTAMP '2025-01-01 09:00:00', 1),
+                (1, 10, 100, 'PAID',    100.00, 'USD', TIMESTAMP '2025-01-01 09:00:00', TIMESTAMP '2025-01-01 11:00:00', 2),
+                (2, 10, 101, 'PAID',    100.00, 'EUR', TIMESTAMP '2025-01-01 10:05:00', TIMESTAMP '2025-01-01 10:05:00', 3),
+                (3, 20, 100, 'PAID',     50.00, 'EUR', TIMESTAMP '2025-01-01 10:08:00', TIMESTAMP '2025-01-01 10:08:00', 4),
+                (3, 20, 100, 'PAID',     55.00, 'EUR', TIMESTAMP '2025-01-01 10:08:00', TIMESTAMP '2025-01-01 10:08:00', 5),
+                (4, 20, 101, 'PAID',     75.00, 'EUR', TIMESTAMP '2025-01-01 09:30:00', TIMESTAMP '2025-01-01 09:30:00', 6),
+                (5, 30, 102, 'PAID',     20.00, 'EUR', TIMESTAMP '2025-02-03 12:00:00', TIMESTAMP '2025-02-03 12:00:00', 7)
+            ) AS t(order_id, customer_id, product_id, status, amount, currency, order_ts, updated_at, ingestion_id)
+        ) TO 'bronze/orders/orders-000.parquet' (FORMAT parquet)
+    """)
+    fixture.execute("""
+        COPY (SELECT * FROM (VALUES (10, 'gold'), (20, 'silver'), (30, 'gold'))
+              AS t(customer_id, segment))
+        TO 'bronze/customers/customers-000.parquet' (FORMAT parquet)
+    """)
+    fixture.execute("""
+        COPY (SELECT * FROM (VALUES (100, 'books'), (101, 'games'), (102, 'music'))
+              AS t(product_id, category))
+        TO 'bronze/products/products-000.parquet' (FORMAT parquet)
+    """)
+    fixture.close()
+
+
+def load_raw(con: duckdb.DuckDBPyConnection) -> None:
+    """Raw layer from the bronze Parquet files, plus small FX fixture data."""
+    con.execute("CREATE OR REPLACE TABLE raw_orders AS SELECT * FROM read_parquet('bronze/orders/*.parquet')")
+    con.execute("CREATE OR REPLACE TABLE customers AS SELECT * FROM read_parquet('bronze/customers/*.parquet')")
+    con.execute("CREATE OR REPLACE TABLE products AS SELECT * FROM read_parquet('bronze/products/*.parquet')")
+    # Fixture reference data, defined here only so the ASOF example is executable.
+    con.execute("""
+        CREATE OR REPLACE TABLE fx_rates AS
+        SELECT * FROM (VALUES
+            ('EUR', TIMESTAMP '2025-01-01 10:00:00', 1.10),
+            ('EUR', TIMESTAMP '2025-01-01 10:07:00', 1.11)
+        ) AS t(currency, rate_ts, rate_to_usd)
+    """)
+
+
+def build_silver_gold(con: duckdb.DuckDBPyConnection) -> None:
+    # Silver: latest version per order; ingestion_id is the deterministic tie-breaker.
+    con.execute("""
+        CREATE OR REPLACE TABLE silver_orders AS
+        SELECT *
+        FROM raw_orders
+        QUALIFY ROW_NUMBER() OVER (
+            PARTITION BY order_id
+            ORDER BY updated_at DESC, ingestion_id DESC
+        ) = 1
+    """)
+    # Gold: customer revenue and order counts.
+    con.execute("""
+        CREATE OR REPLACE TABLE gold_customer_revenue AS
+        SELECT customer_id, SUM(amount) AS revenue, COUNT(*) AS order_count
+        FROM silver_orders
+        GROUP BY ALL
+    """)
+    # FX ASOF JOIN: same currency, rate_ts <= order_ts, nearest prior rate.
+    # Orders with no earlier rate (or no rates at all, such as USD) keep a NULL rate.
+    con.execute("""
+        CREATE OR REPLACE TABLE gold_orders_usd AS
+        SELECT
+            o.order_id,
+            o.customer_id,
+            o.order_ts,
+            o.currency,
+            o.amount,
+            COALESCE(r.rate_to_usd, CASE WHEN o.currency = 'USD' THEN 1.0 END) AS rate_to_usd,
+            o.amount * COALESCE(r.rate_to_usd, CASE WHEN o.currency = 'USD' THEN 1.0 END) AS amount_usd
+        FROM silver_orders o
+        ASOF LEFT JOIN fx_rates r
+            ON o.currency = r.currency
+           AND o.order_ts >= r.rate_ts
+    """)
+    con.execute("""
+        CREATE OR REPLACE VIEW customer_monthly_revenue AS
+        SELECT customer_id, strftime(order_ts, '%b') AS month_name, amount AS revenue
+        FROM silver_orders
+    """)
+    # PIVOT: one column per distinct month_name; generated columns come out in
+    # the order DuckDB chooses for the distinct values (alphabetical here).
+    con.execute("""
+        CREATE OR REPLACE TABLE gold_revenue_pivot AS
+        PIVOT customer_monthly_revenue
+        ON month_name
+        USING SUM(revenue)
+        GROUP BY customer_id
+    """)
+
+
+def orders_for_customer(con: duckdb.DuckDBPyConnection, customer_id: int) -> list[tuple]:
+    """Parameterised query: the value is passed separately, never formatted into SQL."""
+    return con.execute(
+        "SELECT order_id, customer_id, amount FROM raw_orders WHERE customer_id = ? ORDER BY order_id, ingestion_id",
+        [customer_id],
+    ).fetchall()
+
+
+def validate(con: duckdb.DuckDBPyConnection) -> None:
+    """Checks that run against any connection, including an in-memory one."""
+    assert con.execute("SELECT COUNT(*) FROM silver_orders").fetchone()[0] == 5
+    assert con.execute("SELECT COUNT(DISTINCT order_id) FROM silver_orders").fetchone()[0] == 5
+    # order 1: PAID version wins; order 3: higher ingestion_id (amount 55) wins the tie
+    assert con.execute("SELECT status FROM silver_orders WHERE order_id = 1").fetchone()[0] == "PAID"
+    assert float(con.execute("SELECT amount FROM silver_orders WHERE order_id = 3").fetchone()[0]) == 55.0
+    revenue = dict(con.execute("SELECT customer_id, revenue FROM gold_customer_revenue").fetchall())
+    assert float(revenue[10]) == 200.0 and float(revenue[20]) == 130.0
+    rates = dict(con.execute("SELECT order_id, rate_to_usd FROM gold_orders_usd").fetchall())
+    assert float(rates[2]) == 1.10   # 10:05 -> latest rate at or before it is 10:00
+    assert float(rates[3]) == 1.11   # 10:08 -> 10:07 rate
+    assert rates[4] is None          # 09:30 is before the first EUR rate
+    assert float(rates[1]) == 1.0    # USD defined as 1.0
+    columns = [c[0] for c in con.execute("SELECT * FROM gold_revenue_pivot").description]
+    assert set(columns) == {"customer_id", "Feb", "Jan"}  # do not assert the column order
+    assert orders_for_customer(con, 20)[0][1] == 20
+    assert all(row[1] == 20 for row in orders_for_customer(con, 20))
+
+
+def main() -> None:
+    ensure_bronze()
+    TEMP_DIR.mkdir(exist_ok=True)
+
+    con = duckdb.connect(DB_PATH)
+    try:
+        # Resource settings; whether a query spills depends on data size and hardware.
+        con.execute("SET memory_limit = '1GB'")
+        con.execute(f"SET temp_directory = '{TEMP_DIR.resolve()}'")
+        con.execute("SET threads = 4")
+
+        load_raw(con)
+        build_silver_gold(con)
+        validate(con)
+        print(con.execute("SELECT * FROM gold_customer_revenue ORDER BY customer_id").fetchall())
+        print(con.execute("SELECT * FROM gold_orders_usd ORDER BY order_id").fetchall())
+        print(con.execute("SELECT * FROM gold_revenue_pivot ORDER BY customer_id").fetchall())
+        print(orders_for_customer(con, 20))
+
+        # DataFrames are queried directly by variable name (replacement scan).
+        customers_pd = pd.DataFrame({"customer_id": [1, 2, 3], "segment": ["gold", "silver", "gold"]})
+        customers_pl = pl.DataFrame({"customer_id": [1, 2, 3], "segment": ["gold", "silver", "gold"]})
+        print(con.sql("SELECT segment, COUNT(*) AS customers FROM customers_pd GROUP BY segment ORDER BY segment").fetchall())
+        print(con.sql("SELECT segment, COUNT(*) AS customers FROM customers_pl GROUP BY segment ORDER BY segment").fetchall())
+
+        # Arrow: a materialised table, then an incremental reader.
+        table = con.sql("SELECT * FROM customers_pl").to_arrow_table()
+        print(type(table))
+        reader = con.sql("SELECT * FROM gold_orders_usd").to_arrow_reader(batch_size=2)
+        print(type(reader), sum(batch.num_rows for batch in reader))
+
+        print(con.execute("EXPLAIN ANALYZE SELECT customer_id, SUM(amount) FROM silver_orders GROUP BY ALL").fetchall()[0][1][:200])
+    finally:
+        con.close()
+
+    # Same logic against an in-memory database, as a test double.
+    test_con = duckdb.connect()
+    try:
+        load_raw(test_con)
+        build_silver_gold(test_con)
+        validate(test_con)
+    finally:
+        test_con.close()
+    print("all checks passed")
+
+
+if __name__ == "__main__":
+    main()
+```
 
 ---
 
@@ -4030,7 +4263,7 @@ Return a query as Polars.
 ### B10
 Return a query as Arrow.
 
-**Answer:** call `.arrow()`.
+**Answer:** call `.to_arrow_table()` for a materialized Arrow Table, or `.to_arrow_reader()` for a RecordBatchReader. `.arrow()` is a legacy/compatibility alias for the reader path.
 
 ---
 
@@ -4098,7 +4331,7 @@ Convert a monthly wide table back to long format.
 ### M10
 Build an Arrow result.
 
-**Answer:** execute the query and call `.arrow()`.
+**Answer:** execute the query and call `.to_arrow_table()` when a table is needed (or `.to_arrow_reader()` for incremental batches).
 
 ---
 
@@ -4728,7 +4961,7 @@ validate correctness
 - [ ] I can use `.fetchall()`.
 - [ ] I can use `.df()`.
 - [ ] I can use `.pl()`.
-- [ ] I can use `.arrow()`.
+- [ ] I can use `.to_arrow_table()` and `.to_arrow_reader()`, and I know `.arrow()` is a legacy alias for the reader path.
 - [ ] I understand `.fetchnumpy()`.
 - [ ] I understand columnar execution.
 - [ ] I understand vectorized execution.
@@ -5572,7 +5805,7 @@ Close your notes and explain the following in your own words.
 17. When would you use `.fetchall()`?
 18. When would you use `.df()`?
 19. When would you use `.pl()`?
-20. When would you use `.arrow()`?
+20. When would you use `.to_arrow_table()` versus `.to_arrow_reader()`?
 
 ## Part 4 — Resource management
 

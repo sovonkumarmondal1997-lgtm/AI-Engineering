@@ -455,9 +455,9 @@ relation.to_arrow_table()
 relation.to_arrow_reader()
 ```
 
-for Arrow table and RecordBatch-reader export. The `arrow()` path exists as an alias but is documented as a compatibility path in current documentation. citeturn566072search2turn566072search5turn566072search6
+for Arrow table and RecordBatch-reader export. The `arrow()` path exists as an alias but is documented as a compatibility path in current documentation.
 
-Polars' current documentation states that `pl.from_arrow()` is generally zero-copy for supported types, with unsupported types potentially cast to the nearest supported type. citeturn496798search3
+Polars' current documentation states that `pl.from_arrow()` is generally zero-copy for supported types, with unsupported types potentially cast to the nearest supported type.
 
 ---
 
@@ -492,7 +492,7 @@ Polars interprets Arrow-compatible data
 Polars DataFrame
 ```
 
-For supported layouts and types, Polars documents this path as zero-copy for the most part. citeturn496798search0turn496798search3
+For supported layouts and types, Polars documents this path as zero-copy for the most part.
 
 But “zero-copy for the most part” is not the same as “guaranteed zero-copy for every dtype.”
 
@@ -505,7 +505,7 @@ Potential reasons for conversion work include:
 
 ### `rechunk=False` matters
 
-Current `pl.from_arrow()` exposes a `rechunk` option. Rechunking can change how chunks are laid out and can therefore affect memory behaviour. citeturn496798search3
+Current `pl.from_arrow()` exposes a `rechunk` option. Rechunking can change how chunks are laid out and can therefore affect memory behaviour.
 
 Production lesson:
 
@@ -532,7 +532,7 @@ table = df.to_arrow()
 print(table.schema)
 ```
 
-Polars documents Arrow interoperability as a core integration path. Its current Arrow guide demonstrates `DataFrame.to_arrow()` and explains that `compat_level` can influence representation choices; in particular, the guide shows `compat_level=pl.CompatLevel.newest()` for an explicitly zero-copy-oriented output path. citeturn496798search0
+Polars documents Arrow interoperability as a core integration path. Its current Arrow guide demonstrates `DataFrame.to_arrow()` and explains that `compat_level` can influence representation choices; in particular, the guide shows `compat_level=pl.CompatLevel.newest()` for an explicitly zero-copy-oriented output path.
 
 ### Why might this still involve work?
 
@@ -589,7 +589,7 @@ Ask:
 
 > Does pandas already expose the values in a layout that Polars can efficiently consume, or does Polars need to build a different representation?
 
-Current Polars documentation says Arrow-based interchange is central to its Python interoperability. citeturn496798search0turn496798search3
+Current Polars documentation says Arrow-based interchange is central to its Python interoperability.
 
 Do not generalize one successful numeric example into a guarantee for every pandas dtype.
 
@@ -716,9 +716,9 @@ pdf_arrow = table.to_pandas(
 )
 ```
 
-which preserves Arrow-backed dtypes where applicable. citeturn399054search0turn399054search1
+which preserves Arrow-backed dtypes where applicable.
 
-This matters because a pandas DataFrame can be backed by `pyarrow.ChunkedArray` through `ArrowExtensionArray`, rather than NumPy arrays for every column. citeturn399054search0turn399054search2
+This matters because a pandas DataFrame can be backed by `pyarrow.ChunkedArray` through `ArrowExtensionArray`, rather than NumPy arrays for every column.
 
 ---
 
@@ -743,13 +743,13 @@ print(table)
 For an incremental Arrow result:
 
 ```python
-reader = relation.to_arrow_reader(rows_per_batch=3)
+reader = relation.to_arrow_reader(batch_size=3)
 
 for batch in reader:
     print(batch)
 ```
 
-Current DuckDB documentation recommends `to_arrow_table()` and `to_arrow_reader()`. The older/alias forms `fetch_arrow_table()`, `fetch_record_batch()`, and `arrow()` are documented with deprecation/alias guidance. citeturn566072search5turn566072search6
+Current DuckDB documentation recommends `to_arrow_table()` and `to_arrow_reader()`. The older/alias forms `fetch_arrow_table()`, `fetch_record_batch()`, and `arrow()` are documented with deprecation/alias guidance.
 
 ### Why Arrow can be a valuable boundary
 
@@ -786,9 +786,9 @@ df = relation.pl()
 print(df)
 ```
 
-DuckDB's current Python client documents `.pl()` for fetching results as a Polars DataFrame. citeturn566072search0turn566072search2
+DuckDB's current Python client documents `.pl()` for fetching results as a Polars DataFrame.
 
-The internal path can use efficient Arrow interoperability. DuckDB explicitly documents its Polars integration in those terms. citeturn566072search4
+The internal path can use efficient Arrow interoperability. DuckDB explicitly documents its Polars integration in those terms.
 
 Still verify:
 
@@ -818,7 +818,7 @@ pdf = relation.df()
 print(pdf)
 ```
 
-Current DuckDB documentation exposes `.df()`/`.fetch_df()` for DataFrame retrieval. citeturn566072search0turn566072search5
+Current DuckDB documentation exposes `.df()`/`.fetch_df()` for DataFrame retrieval.
 
 The main operational concern is often not correctness but **materialization scale**.
 
@@ -851,7 +851,7 @@ is a completely different memory problem.
 | `.to_arrow_reader()` | RecordBatchReader | incremental processing | downstream must handle batches |
 | `.fetchnumpy()` | dict of NumPy arrays | NumPy numerical work | representation conversion + materialization |
 
-Current DuckDB documentation describes these result interfaces and emphasizes `to_arrow_reader()` for batch-oriented Arrow consumption. citeturn566072search0turn566072search5turn566072search6
+Current DuckDB documentation describes these result interfaces and emphasizes `to_arrow_reader()` for batch-oriented Arrow consumption.
 
 ---
 
@@ -947,7 +947,7 @@ DuckDB → Arrow
 
 But every claim must be understood at the **specific type and version** level.
 
-Polars currently documents Arrow import as zero-copy for the most part, and its Arrow guide explicitly discusses zero-copy interoperability and the PyCapsule interface. citeturn496798search0turn496798search3
+Polars currently documents Arrow import as zero-copy for the most part, and its Arrow guide explicitly discusses zero-copy interoperability and the PyCapsule interface.
 
 ---
 
@@ -1004,7 +1004,7 @@ can represent nullability cleanly.
 
 When a pandas/NumPy representation cannot express the same semantics directly, conversion may require a new representation.
 
-Do not generalize this to all pandas extension dtypes. Modern pandas includes multiple nullable and Arrow-backed options. citeturn399054search0turn399054search2
+Do not generalize this to all pandas extension dtypes. Modern pandas includes multiple nullable and Arrow-backed options.
 
 ---
 
@@ -1046,7 +1046,7 @@ copy/encode data
 
 This can be much more expensive than sharing already-Arrow-backed buffers.
 
-Current pandas documentation describes Arrow-backed string and other Arrow extension types, making this distinction important in modern pipelines. citeturn399054search0turn399054search2
+Current pandas documentation describes Arrow-backed string and other Arrow extension types, making this distinction important in modern pipelines.
 
 ---
 
@@ -1251,7 +1251,7 @@ scale
 values
 ```
 
-Current pandas documentation shows Arrow-backed Decimal support through `pd.ArrowDtype` with PyArrow decimal types. citeturn399054search0turn399054search1
+Current pandas documentation shows Arrow-backed Decimal support through `pd.ArrowDtype` with PyArrow decimal types.
 
 ---
 
@@ -1455,7 +1455,7 @@ pdf = pd.read_csv(
 print(pdf.dtypes)
 ```
 
-Current pandas documentation states that `dtype_backend="pyarrow"` can produce PyArrow-backed nullable dtypes for supported readers and APIs. citeturn399054search0
+Current pandas documentation states that `dtype_backend="pyarrow"` can produce PyArrow-backed nullable dtypes for supported readers and APIs.
 
 This can improve interoperability because the pandas column is already represented using Arrow-compatible structures.
 
@@ -1500,7 +1500,7 @@ print(pdf.dtypes)
 
 This tells pandas to use ArrowDtype for supported columns.
 
-Current pandas documentation demonstrates this conversion path. `ArrowDtype` is still documented as experimental, which is another reason to treat exact behaviour as version-sensitive. citeturn399054search0turn399054search1
+Current pandas documentation demonstrates this conversion path. `ArrowDtype` is still documented as experimental, which is another reason to treat exact behaviour as version-sensitive.
 
 ---
 
@@ -1815,7 +1815,7 @@ With a common interface, an implementation can expose a standard description of:
 - validity;
 - offsets.
 
-The Arrow project describes the C Data Interface as a generic cross-language interface between Arrow implementations. citeturn566072search3
+The Arrow project describes the C Data Interface as a generic cross-language interface between Arrow implementations.
 
 ### Mental model
 
@@ -1880,7 +1880,7 @@ __arrow_c_array__
 __arrow_c_stream__
 ```
 
-as the Python-facing protocol for exporting Arrow-compatible structures. citeturn566072search3
+as the Python-facing protocol for exporting Arrow-compatible structures.
 
 The important idea is:
 
@@ -1906,7 +1906,7 @@ A producer can expose a stream through:
 obj.__arrow_c_stream__()
 ```
 
-Current Narwhals documentation also exposes `__arrow_c_stream__` for DataFrames; when the native backend does not implement it, Narwhals can fall back through Arrow conversion. citeturn496798search1
+Current Narwhals documentation also exposes `__arrow_c_stream__` for DataFrames; when the native backend does not implement it, Narwhals can fall back through Arrow conversion.
 
 Important:
 
@@ -2001,11 +2001,11 @@ Current DuckDB Python documentation supports:
 
 ```python
 reader = relation.to_arrow_reader(
-    rows_per_batch=100_000
+    batch_size=100_000
 )
 ```
 
-The returned object is an Arrow `RecordBatchReader` that can produce batches incrementally. citeturn566072search2turn566072search6
+The returned object is an Arrow `RecordBatchReader` that can produce batches incrementally.
 
 Example:
 
@@ -2021,7 +2021,7 @@ relation = duckdb.sql(
     """
 )
 
-reader = relation.to_arrow_reader(rows_per_batch=100_000)
+reader = relation.to_arrow_reader(batch_size=100_000)
 
 for batch in reader:
     # Process one Arrow RecordBatch.
@@ -2036,7 +2036,7 @@ This pattern is appropriate when:
 
 ### Version note
 
-DuckDB's current documentation marks older batch-fetching methods such as `fetch_record_batch()` as deprecated in favour of `to_arrow_reader()`. citeturn566072search2turn566072search5
+DuckDB's current documentation marks older batch-fetching methods such as `fetch_record_batch()` as deprecated in favour of `to_arrow_reader()`.
 
 ---
 
@@ -2079,7 +2079,7 @@ can create duplicated logic.
 
 Narwhals aims to let one implementation operate across supported DataFrame backends.
 
-Current Narwhals documentation describes `nw.from_native()` for wrapping native DataFrame-like objects and `to_native()` for returning the native object. citeturn496798search1turn496798search2
+Current Narwhals documentation describes `nw.from_native()` for wrapping native DataFrame-like objects and `to_native()` for returning the native object.
 
 ---
 
@@ -2136,7 +2136,7 @@ instead of directly depending on pandas or Polars method names.
 
 Not every library supports every operation identically.
 
-Narwhals documentation explicitly emphasizes a common API over supported backends, and backend capabilities still matter. citeturn496798search1turn496798search2
+Narwhals documentation explicitly emphasizes a common API over supported backends, and backend capabilities still matter.
 
 ---
 
@@ -2379,7 +2379,7 @@ and later:
 ROWS = 10_000_000
 ```
 
-Do not silently replace the roadmap target. The smaller size is only a controlled fallback for a memory-limited machine.
+Do not silently replace the roadmap target. The smaller size is only a controlled fallback for a memory-limited machine. The runnable reference implementation at the end of "Required Narwhals Exercise" reads the row count from `INTEROP_ROWS` (default 100,000 for development) so you can run it at 10,000,000 for the real benchmark.
 
 ### Benchmark principle
 
@@ -3005,7 +3005,7 @@ The first represents the full result as an Arrow Table.
 
 The second exposes the result incrementally through a RecordBatchReader.
 
-Current DuckDB documentation recommends the latter for batch-oriented export and documents `to_arrow_table()` for full Arrow materialization. citeturn566072search6
+Current DuckDB documentation recommends the latter for batch-oriented export and documents `to_arrow_table()` for full Arrow materialization.
 
 ### Design question
 
@@ -3066,6 +3066,8 @@ Reason: ______________________
 The primary goal is:
 
 > **Minimize unnecessary data movement without sacrificing clarity or correctness.**
+
+A runnable version of this pipeline is `mixed_pipeline()` in the reference implementation at the end of "Required Narwhals Exercise".
 
 ---
 
@@ -3158,7 +3160,335 @@ What remains backend-specific:
 ________________________
 ```
 
-Current Narwhals documentation uses `from_native()` to wrap supported native objects and `to_native()` to return the native backend object. citeturn496798search1turn496798search2
+### Reference implementation — `interop_matrix.py`
+
+This is a complete reference implementation of the conversion matrix, the Narwhals exercise and the mixed pipeline. Save it as `interop_matrix.py` in your own lab; this chapter does not create the file. It was run on DuckDB 1.5.6, Polars 1.44, pandas 3.0, PyArrow 25 and Narwhals 2.26.
+
+- The roadmap target is 10,000,000 rows. The default is 100,000 rows so the code is quick to develop with; run `INTEROP_ROWS=10000000 python interop_matrix.py` for the real experiment.
+- Data generation is outside every timing. Each timed call is one conversion, with one warm-up run, then `INTEROP_REPEATS` timed runs (the median is recorded).
+- Peak memory is measured with `tracemalloc`, which tracks Python-level allocations only, so the column is called `peak_python_memory_mb`. It is not total process memory. `tracemalloc` also slows object-heavy conversions considerably, so for large runs set `INTEROP_TRACE_MEMORY=0` and measure process-level peak RSS with `/usr/bin/time -v python interop_matrix.py`.
+- Validation compares row counts, column names, Arrow-view schemas, null counts and the first rows value by value (row 0 contains nulls). Equal values do not prove shared memory. `id_buffer_same_as_original` compares the address of the `id` column's first data buffer with the original table, which is evidence for one column only; `likely_copy` says "unknown: verify" unless the types changed.
+- Results are written to `interop_matrix_results.csv` when you run the script. The file is not part of this chapter and no results are included here.
+- DuckDB rows time the fetch from a DuckDB table loaded from the Arrow table, not query planning of a complex query.
+
+```python
+"""Reference implementation for the Topic 07 exercise: interop_matrix.py.
+
+Roadmap target: 10,000,000 rows. Development default: 100,000 rows. Scale up with
+    INTEROP_ROWS=10000000 python interop_matrix.py
+Results are written to interop_matrix_results.csv when you run the script.
+"""
+
+from __future__ import annotations
+
+import csv
+import math
+import os
+import statistics
+import tempfile
+import time
+import tracemalloc
+from datetime import datetime, timezone
+from decimal import Decimal
+from pathlib import Path
+
+import duckdb
+import narwhals as nw
+import numpy as np
+import pandas as pd
+import polars as pl
+import pyarrow as pa
+import pyarrow.compute as pc
+
+ROWS = int(os.getenv("INTEROP_ROWS", "100000"))
+REPEATS = int(os.getenv("INTEROP_REPEATS", "3"))
+RESULTS_CSV = Path("interop_matrix_results.csv")
+# tracemalloc slows object-heavy conversions a lot; set INTEROP_TRACE_MEMORY=0 for large
+# runs and measure process peak RSS with `/usr/bin/time -v` instead.
+TRACE_MEMORY = os.getenv("INTEROP_TRACE_MEMORY", "1") == "1"
+COMPARE_ROWS = 5  # rows compared value-by-value (row 0 contains nulls)
+
+
+# --- 1. data generation (never included in conversion timings) -----------------
+def build_arrow_table(rows: int) -> pa.Table:
+    """Deterministic mixed-type table, built with vectorised Arrow/NumPy calls."""
+    ids = np.arange(rows, dtype=np.int64)
+    base_us = int(datetime(2026, 1, 1, tzinfo=timezone.utc).timestamp()) * 1_000_000
+    micros = pa.array(base_us + ids * 1_000_000, type=pa.int64())
+    return pa.table(
+        {
+            "id": pa.array(ids),
+            "int_col": pa.array((ids % 1000).astype(np.int32)),
+            "float_col": pa.array(ids * 0.5),
+            "str_col": pc.binary_join_element_wise(
+                pa.scalar("item-"), pc.cast(pa.array(ids % 1000), pa.string()), ""
+            ),
+            "nullable_int": pa.array(ids % 100, mask=(ids % 7 == 0)),
+            "ts_naive": micros.cast(pa.timestamp("us")),
+            "ts_utc": micros.cast(pa.timestamp("us", tz="UTC")),
+            "amount": pa.array((ids % 100_000).astype(np.int32)).cast(pa.decimal128(12, 2)),
+            "tags": pa.ListArray.from_arrays(
+                pa.array(np.arange(0, 2 * rows + 1, 2, dtype=np.int32)),
+                pa.array(np.repeat(ids, 2) + np.tile([0, 1], rows)),
+            ),
+            "address": pa.StructArray.from_arrays(
+                [pa.array(ids % 50), pc.cast(pa.array(ids % 10), pa.string())],
+                names=["zone", "code"],
+            ),
+        }
+    )
+
+
+# --- 2. snapshots and validation -------------------------------------------------
+def to_arrow_view(obj) -> pa.Table:
+    """Neutral Arrow view used only to compare schemas (not part of any timing)."""
+    if isinstance(obj, pa.Table):
+        return obj
+    if isinstance(obj, pl.DataFrame):
+        return obj.to_arrow()
+    return pa.Table.from_pandas(obj, preserve_index=False)
+
+
+def null_counts(obj) -> dict[str, int]:
+    if isinstance(obj, pa.Table):
+        return {n: obj[n].null_count for n in obj.column_names}
+    if isinstance(obj, pl.DataFrame):
+        return {k: int(v[0]) for k, v in obj.null_count().to_dict(as_series=False).items()}
+    return {c: int(v) for c, v in obj.isna().sum().items()}
+
+
+def normalise(value):
+    """Map backend-specific scalars to plain Python so values can be compared."""
+    if value is None or value is pd.NaT or value is pd.NA:
+        return None
+    if isinstance(value, float) and math.isnan(value):
+        return None
+    if isinstance(value, np.ndarray):
+        return [normalise(v) for v in value.tolist()]
+    if isinstance(value, np.generic):
+        return normalise(value.item())
+    if isinstance(value, pd.Timestamp):
+        return value.to_pydatetime()
+    if isinstance(value, (list, tuple)):
+        return [normalise(v) for v in value]
+    if isinstance(value, dict):
+        return {k: normalise(v) for k, v in value.items()}
+    return value
+
+
+def head_records(obj, n: int = COMPARE_ROWS) -> list[dict]:
+    if isinstance(obj, pa.Table):
+        records = obj.slice(0, n).to_pylist()
+    elif isinstance(obj, pl.DataFrame):
+        records = obj.head(n).to_dicts()
+    else:
+        records = obj.head(n).to_dict("records")
+    return [{k: normalise(v) for k, v in row.items()} for row in records]
+
+
+def snapshot_table(obj) -> dict:
+    view = to_arrow_view(obj)
+    return {
+        "rows": view.num_rows,
+        "columns": view.column_names,
+        "schema": view.schema,
+        "null_counts": null_counts(obj),
+        "head": head_records(obj),
+    }
+
+
+def validate_equivalent(reference: dict, candidate: dict) -> dict:
+    """Logical comparison. Equal values do NOT prove shared memory."""
+    changed = [
+        f"{f.name}: {f.type} -> {candidate['schema'].field(f.name).type}"
+        for f in reference["schema"]
+        if candidate["schema"].field(f.name).type != f.type
+    ]
+    return {
+        "rows_equal": reference["rows"] == candidate["rows"],
+        "columns_equal": reference["columns"] == candidate["columns"],
+        "schema_changed": bool(changed),
+        "type_changes": changed,
+        "null_semantics_changed": reference["null_counts"] != candidate["null_counts"],
+        "logical_values_equal": reference["head"] == candidate["head"],
+    }
+
+
+def id_buffer_address(obj) -> int | None:
+    """Address of the first data buffer of the `id` column, when it can be read."""
+    if isinstance(obj, pd.DataFrame):
+        return None
+    view = to_arrow_view(obj)
+    return view["id"].chunk(0).buffers()[1].address
+
+
+# --- 3. measurement ----------------------------------------------------------------
+def measure(fn):
+    """Time only fn(). One warm-up, REPEATS timed runs, then one tracemalloc run.
+
+    tracemalloc tracks Python-level allocations only. Native (Arrow/Polars/DuckDB)
+    allocations are not fully accounted for, so this is NOT total process memory.
+    Use `/usr/bin/time -v python interop_matrix.py` for process-level peak RSS.
+    """
+    fn()  # warm-up, not recorded
+    times = []
+    result = None
+    for _ in range(REPEATS):
+        start = time.perf_counter()
+        result = fn()
+        times.append(time.perf_counter() - start)
+    if not TRACE_MEMORY:
+        return statistics.median(times), float("nan"), result
+    tracemalloc.start()
+    fn()
+    _, peak = tracemalloc.get_traced_memory()
+    tracemalloc.stop()
+    return statistics.median(times), peak / 1_000_000, result
+
+
+# --- 4. conversion paths -----------------------------------------------------------
+def build_paths(table: pa.Table, con: duckdb.DuckDBPyConnection) -> list[tuple]:
+    """(from, to, source object, callable). Sources are prepared here, outside the timed callables."""
+    polars_df = pl.from_arrow(table)
+    pandas_df = table.to_pandas()
+    con.register("source_arrow", table)
+    con.execute("CREATE OR REPLACE TABLE interop_src AS SELECT * FROM source_arrow")
+    relation = con.table("interop_src")  # DuckDB conversions time the fetch of this table
+    return [
+        ("arrow", "polars", table, lambda: pl.from_arrow(table)),
+        ("polars", "arrow", polars_df, lambda: polars_df.to_arrow()),
+        ("pandas", "arrow", pandas_df, lambda: pa.Table.from_pandas(pandas_df, preserve_index=False)),
+        ("arrow", "pandas", table, lambda: table.to_pandas()),
+        ("pandas", "polars", pandas_df, lambda: pl.from_pandas(pandas_df)),
+        ("polars", "pandas", polars_df, lambda: polars_df.to_pandas()),
+        ("duckdb", "arrow", None, lambda: relation.to_arrow_table()),
+        ("duckdb", "polars", None, lambda: relation.pl()),
+        ("duckdb", "pandas", None, lambda: relation.df()),
+    ]
+
+
+def schema_text(obj) -> str:
+    return "; ".join(f"{f.name}:{f.type}" for f in to_arrow_view(obj).schema)
+
+
+def run_matrix(table: pa.Table, con: duckdb.DuckDBPyConnection) -> list[dict]:
+    reference = snapshot_table(table)
+    reference_id = id_buffer_address(table)
+    rows = []
+    for source, destination, source_obj, fn in build_paths(table, con):
+        seconds, peak_mb, result = measure(fn)
+        report = validate_equivalent(reference, snapshot_table(result))
+        address = id_buffer_address(result)
+        assert report["rows_equal"] and report["columns_equal"], (source, destination)
+        rows.append(
+            {
+                "from_engine": source,
+                "to_engine": destination,
+                "rows": reference["rows"],
+                "time_seconds": f"{seconds:.6f}",
+                "peak_python_memory_mb": f"{peak_mb:.3f}",
+                "measurement_method": "tracemalloc (Python allocations only)" if TRACE_MEMORY else "not measured (use /usr/bin/time -v)",
+                "source_schema": schema_text(source_obj) if source_obj is not None else "DuckDB table loaded from the Arrow table",
+                "destination_schema": schema_text(result),
+                "schema_changed": report["schema_changed"],
+                "dtype_changed": " | ".join(report["type_changes"]),
+                "null_semantics_changed": report["null_semantics_changed"],
+                "logical_values_equal": report["logical_values_equal"],
+                "id_buffer_same_as_original": "n/a" if address is None else address == reference_id,
+                "likely_copy": "yes (types changed)" if report["schema_changed"] else "unknown: verify",
+                "notes": "DuckDB rows include the fetch from its own table" if source == "duckdb" else "",
+            }
+        )
+    return rows
+
+
+def write_csv(rows: list[dict]) -> None:
+    with RESULTS_CSV.open("w", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=list(rows[0]))
+        writer.writeheader()
+        writer.writerows(rows)
+
+
+# --- 5. Narwhals: one function, pandas or Polars in, same backend out --------------
+def add_total(frame):
+    df = nw.from_native(frame)
+    result = df.with_columns(total=nw.col("quantity") * nw.col("price"))
+    return result.to_native()
+
+
+def check_narwhals() -> None:
+    data = {"quantity": [2, 3, 4], "price": [10.0, 20.0, 5.0]}
+    pandas_result = add_total(pd.DataFrame(data))
+    polars_result = add_total(pl.DataFrame(data))
+    assert isinstance(pandas_result, pd.DataFrame)
+    assert isinstance(polars_result, pl.DataFrame)
+    assert list(pandas_result.columns) == list(polars_result.columns) == ["quantity", "price", "total"]
+    assert pandas_result["total"].tolist() == polars_result["total"].to_list() == [20.0, 60.0, 20.0]
+
+
+# --- 6. mixed pipeline: DuckDB -> Arrow -> Polars -> pandas ------------------------
+def mixed_pipeline() -> pd.DataFrame:
+    with tempfile.TemporaryDirectory() as tmp:
+        path = Path(tmp) / "trips.parquet"
+        con = duckdb.connect()
+        try:
+            con.execute(
+                "COPY (SELECT i AS trip_id, i % 5 AS zone, CAST(i % 40 AS DOUBLE) AS fare "
+                f"FROM range(10000) AS t(i)) TO '{path}' (FORMAT parquet)"
+            )
+            # 1. DuckDB does the selective SQL: only the small aggregate leaves the engine.
+            relation = con.sql(
+                f"SELECT zone, SUM(fare) AS revenue, COUNT(*) AS trips "
+                f"FROM read_parquet('{path}') WHERE fare > 10 GROUP BY zone"
+            )
+            arrow_result = relation.to_arrow_table()  # 2. cross into Arrow once
+            # Streaming alternative for larger results (RecordBatchReader):
+            batches = relation.to_arrow_reader(batch_size=2)
+            assert sum(batch.num_rows for batch in batches) == arrow_result.num_rows
+        finally:
+            con.close()
+
+    polars_df = pl.from_arrow(arrow_result)  # 3. Arrow -> Polars for DataFrame logic
+    polars_df = polars_df.with_columns(
+        (pl.col("revenue") / pl.col("trips")).alias("avg_fare")
+    ).sort("zone")
+    # 4. Only the small final result becomes pandas.
+    # In production, replace this final pandas step with the actual pandas-only
+    # library that your workflow requires.
+    final = polars_df.to_pandas()
+    assert list(final.columns) == ["zone", "revenue", "trips", "avg_fare"]
+    assert final["trips"].sum() == 7250  # fares 11..39 of every 40 values, 250 cycles
+    assert (final["avg_fare"] > 10).all()
+    return final
+
+
+def main() -> None:
+    print(f"rows={ROWS:,} repeats={REPEATS} "
+          f"duckdb={duckdb.__version__} polars={pl.__version__} "
+          f"pandas={pd.__version__} pyarrow={pa.__version__} narwhals={nw.__version__}")
+    table = build_arrow_table(ROWS)  # generation is outside every timing
+    con = duckdb.connect()
+    try:
+        results = run_matrix(table, con)
+    finally:
+        con.close()
+    write_csv(results)
+    for row in results:
+        print(f"{row['from_engine']:>7} -> {row['to_engine']:<7} "
+              f"{row['time_seconds']}s {row['peak_python_memory_mb']}MB "
+              f"schema_changed={row['schema_changed']} values_equal={row['logical_values_equal']}")
+        if row["dtype_changed"]:
+            print("          type changes:", row["dtype_changed"])
+    check_narwhals()
+    print(mixed_pipeline())
+    print(f"wrote {RESULTS_CSV}")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+Current Narwhals documentation uses `from_native()` to wrap supported native objects and `to_native()` to return the native backend object.
 
 ---
 
@@ -3561,11 +3891,11 @@ Object dtype, null handling, datetime representations, categoricals, and other m
 
 ## Is Polars-to-Arrow always zero-copy?
 
-No universal guarantee should be inferred. Polars documents highly efficient Arrow interoperability, but exact behaviour is type- and version-dependent. citeturn496798search0turn496798search3
+No universal guarantee should be inferred. Polars documents highly efficient Arrow interoperability, but exact behaviour is type- and version-dependent.
 
 ## Is DuckDB-to-Arrow always zero-copy?
 
-Do not make a blanket claim. DuckDB can expose results as Arrow tables/readers and uses Arrow interoperability, but the cost depends on the query result, representation, and API used. citeturn566072search5turn566072search6
+Do not make a blanket claim. DuckDB can expose results as Arrow tables/readers and uses Arrow interoperability, but the cost depends on the query result, representation, and API used.
 
 ## Why can strings cause copies?
 
@@ -4393,7 +4723,7 @@ Why can nulls cause copying?
 
 What is `dtype_backend="pyarrow"`?
 
-**Answer:** A pandas option that can construct supported DataFrame columns with PyArrow-backed nullable dtypes. Current pandas documentation supports this in relevant APIs. citeturn399054search0
+**Answer:** A pandas option that can construct supported DataFrame columns with PyArrow-backed nullable dtypes. Current pandas documentation supports this in relevant APIs.
 
 ### M4
 
@@ -4423,7 +4753,7 @@ Why can `.fetchall()` be expensive?
 
 Why use `to_arrow_reader()` for large results?
 
-**Answer:** It returns a RecordBatchReader so the consumer can process results incrementally rather than requiring one giant materialized Arrow Table. citeturn566072search6
+**Answer:** It returns a RecordBatchReader so the consumer can process results incrementally rather than requiring one giant materialized Arrow Table.
 
 ### M9
 
@@ -4445,7 +4775,7 @@ Why validate schema after a conversion?
 
 Design an experiment to test whether Arrow → Polars is zero-copy.
 
-**Answer:** Start from a known Arrow array, convert with `pl.from_arrow()`, export the relevant Polars column back to Arrow, inspect relevant buffer identity where safe, inspect chunks/schema, and measure peak memory. Treat results as evidence for the specific column/path/version, not a universal claim. Current Polars documentation states that supported Arrow imports are generally zero-copy. citeturn496798search3
+**Answer:** Start from a known Arrow array, convert with `pl.from_arrow()`, export the relevant Polars column back to Arrow, inspect relevant buffer identity where safe, inspect chunks/schema, and measure peak memory. Treat results as evidence for the specific column/path/version, not a universal claim. Current Polars documentation states that supported Arrow imports are generally zero-copy.
 
 ### H2
 
@@ -4487,7 +4817,7 @@ Why is one memory-address comparison insufficient?
 
 Why is Arrow-backed pandas potentially useful?
 
-**Answer:** It gives pandas columns Arrow-backed physical representations for supported types, aligning pandas more closely with Arrow-native consumers and nullable semantics. citeturn399054search0turn399054search2
+**Answer:** It gives pandas columns Arrow-backed physical representations for supported types, aligning pandas more closely with Arrow-native consumers and nullable semantics.
 
 ### H9
 
@@ -4838,11 +5168,11 @@ except ImportError:
 
 ### Current API verification notes
 
-- DuckDB's current Python docs recommend `to_arrow_table()` and `to_arrow_reader()` for Arrow results; older `fetch_arrow_table()`/`fetch_record_batch()` functions are deprecated, and `arrow()` remains documented as an alias. citeturn566072search2turn566072search5turn566072search6
-- Polars' current docs expose `pl.from_arrow()` with `rechunk` and document Arrow interop as zero-copy for the most part for supported types. citeturn496798search0turn496798search3
-- Current pandas documentation supports Arrow-backed dtypes and `types_mapper=pd.ArrowDtype`; `ArrowDtype` is still marked experimental. citeturn399054search0turn399054search1
-- Current Arrow documentation defines the PyCapsule interface using methods including `__arrow_c_schema__`, `__arrow_c_array__`, and `__arrow_c_stream__`. citeturn566072search3
-- Current Narwhals documentation provides `from_native()`/`to_native()` for native DataFrame interop and exposes `__arrow_c_stream__` in its DataFrame API. citeturn496798search1turn496798search2
+- DuckDB's current Python docs recommend `to_arrow_table()` and `to_arrow_reader()` for Arrow results; older `fetch_arrow_table()`/`fetch_record_batch()` functions are deprecated, and `arrow()` remains documented as an alias.
+- Polars' current docs expose `pl.from_arrow()` with `rechunk` and document Arrow interop as zero-copy for the most part for supported types.
+- Current pandas documentation supports Arrow-backed dtypes and `types_mapper=pd.ArrowDtype`; `ArrowDtype` is still marked experimental.
+- Current Arrow documentation defines the PyCapsule interface using methods including `__arrow_c_schema__`, `__arrow_c_array__`, and `__arrow_c_stream__`.
+- Current Narwhals documentation provides `from_native()`/`to_native()` for native DataFrame interop and exposes `__arrow_c_stream__` in its DataFrame API.
 
 Because APIs evolve, the installed version should be the final authority for execution.
 
@@ -5291,7 +5621,7 @@ Use DuckDB's current Arrow reader API:
 
 ```python
 reader = relation.to_arrow_reader(
-    rows_per_batch=100_000
+    batch_size=100_000
 )
 ```
 
@@ -5624,10 +5954,10 @@ table = relation.to_arrow_table()
 ### B8
 
 ```python
-reader = relation.to_arrow_reader(rows_per_batch=100_000)
+reader = relation.to_arrow_reader(batch_size=100_000)
 ```
 
-Current DuckDB documentation recommends `to_arrow_reader()` for this pattern. citeturn566072search6
+Current DuckDB documentation recommends `to_arrow_reader()` for this pattern.
 
 ### B9
 
@@ -5656,7 +5986,7 @@ pdf = pd.read_csv(
 )
 ```
 
-Current pandas documentation supports the `dtype_backend` option for Arrow-backed output in relevant readers. citeturn399054search0
+Current pandas documentation supports the `dtype_backend` option for Arrow-backed output in relevant readers.
 
 ### B13
 
@@ -6096,13 +6426,13 @@ The chapter should be maintained against current official documentation because 
 
 Primary documentation used for current API verification:
 
-- DuckDB Python client API and result conversion: DuckDB documentation. citeturn566072search0turn566072search5
-- DuckDB Relational API and Arrow reader guidance. citeturn566072search2turn566072search6
-- DuckDB Polars integration. citeturn566072search4
-- Polars Arrow interoperability and `pl.from_arrow()`. citeturn496798search0turn496798search3
-- pandas PyArrow-backed functionality and `ArrowDtype`. citeturn399054search0turn399054search1turn399054search2
-- Apache Arrow PyCapsule interface documentation. citeturn566072search3
-- Narwhals DataFrame/native interoperability. citeturn496798search1turn496798search2
+- DuckDB Python client API and result conversion: DuckDB documentation.
+- DuckDB Relational API and Arrow reader guidance.
+- DuckDB Polars integration.
+- Polars Arrow interoperability and `pl.from_arrow()`.
+- pandas PyArrow-backed functionality and `ArrowDtype`.
+- Apache Arrow PyCapsule interface documentation.
+- Narwhals DataFrame/native interoperability.
 
 These references are used for **API/version awareness**, not as evidence that every conversion path is universally zero-copy.
 

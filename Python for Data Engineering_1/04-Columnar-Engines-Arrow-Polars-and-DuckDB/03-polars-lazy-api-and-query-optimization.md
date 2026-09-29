@@ -6,6 +6,92 @@
 
 ---
 
+## Reproducible Demo Data
+
+Many examples below read `orders/*.parquet`, `data/taxi/**/*.parquet` and the single-file `data/orders.*` inputs. Run this generator once from an empty working directory to create all of them. It is deterministic and safe to run repeatedly (it overwrites the same files).
+
+```python
+from datetime import datetime
+from pathlib import Path
+
+import polars as pl
+
+STATUSES = ["PAID", "PENDING", "CANCELLED"]
+# Timestamps are stored as ISO-8601 strings so the chapter's examples that compare
+# them with string literals (for example >= "2026-01-01") run exactly as written.
+# In real data, store proper Datetime columns and compare with datetime values.
+ISO = "%Y-%m-%dT%H:%M:%S"
+
+
+def make_orders(month: int, rows: int = 200) -> pl.DataFrame:
+    """Deterministic orders for one month of 2026 (no randomness)."""
+    return pl.select(
+        (pl.int_range(rows) + month * 1_000).alias("order_id"),
+        (pl.int_range(rows) % 25 + 1).alias("customer_id"),
+        pl.Series("status", [STATUSES[i % 3] for i in range(rows)]),
+        ((pl.int_range(rows) * 7) % 300 + 10).cast(pl.Float64).alias("amount"),
+        (pl.lit(datetime(2026, month, 1)) + pl.duration(hours=pl.int_range(rows) * 3))
+        .dt.strftime(ISO)
+        .alias("created_at"),
+    )
+
+
+def make_trips(month: int, rows: int = 300) -> pl.DataFrame:
+    """Deterministic taxi-like trips. year/month come from the directory names."""
+    return pl.select(
+        (pl.lit(datetime(2026, month, 1)) + pl.duration(minutes=pl.int_range(rows) * 90))
+        .dt.strftime(ISO)
+        .alias("pickup_datetime"),
+        (pl.int_range(rows) % 12 + 1).alias("PULocationID"),
+        ((pl.int_range(rows) * 13) % 70 - 3).cast(pl.Float64).alias("fare_amount"),
+        ((pl.int_range(rows) * 5) % 200 / 10).alias("trip_distance"),
+    )
+
+
+def main() -> None:
+    Path("data").mkdir(exist_ok=True)
+    Path("orders").mkdir(exist_ok=True)
+
+    # single-file inputs used by the scan_* examples
+    orders = pl.concat([make_orders(1), make_orders(2)])
+    orders.write_parquet("data/orders.parquet")
+    orders.write_parquet("orders.parquet")
+    orders.write_csv("data/orders.csv")
+    orders.write_ndjson("data/orders.ndjson")
+    orders.write_ipc("data/orders.arrow")
+
+    # multi-file input matching orders/*.parquet
+    for month in (1, 2):
+        make_orders(month).write_parquet(f"orders/2026-{month:02d}.parquet")
+
+    # Hive-partitioned inputs: data/taxi/** and lake/orders/**
+    for month in (1, 2):
+        for root, frame in (("data/taxi", make_trips(month)), ("lake/orders", make_orders(month))):
+            part = Path(root) / "year=2026" / f"month={month:02d}"
+            part.mkdir(parents=True, exist_ok=True)
+            frame.write_parquet(part / "part-000.parquet")
+
+    print("demo data written")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+It creates:
+
+```text
+orders.parquet
+data/orders.parquet | .csv | .ndjson | .arrow
+orders/2026-01.parquet, orders/2026-02.parquet
+data/taxi/year=2026/month=01|02/part-000.parquet
+lake/orders/year=2026/month=01|02/part-000.parquet
+```
+
+This is demonstration data. It is intentionally small (hundreds of rows per file), deterministic, and there only to make the examples runnable and the query plans inspectable. Do not draw production performance conclusions from timings on this data. For real scale experiments, use a large realistic dataset such as several years of NYC Taxi Parquet files.
+
+---
+
 # 1. Learning Objectives
 
 By the end of this chapter, you should be able to:
@@ -1457,6 +1543,91 @@ Always ask:
 
 Do not compare unrelated metrics as if they were identical.
 
+## A Reproducible Bytes Procedure
+
+Keep three quantities separate:
+
+```text
+matched-file bytes on disk   = total size of the files a glob matches
+logical rows processed       = rows the engine actually handled
+actual physical I/O          = bytes requested from, or fetched from, storage
+```
+
+```text
+file size
+≠
+logical rows processed
+≠
+compressed bytes
+≠
+actual physical I/O
+```
+
+Summing `stat().st_size` over the matched files gives **matched-file bytes on disk**. It is a ceiling on what a query could read, not what it read: Parquet column pruning and row-group skipping can read much less, and cached pages can mean no storage read at all.
+
+A concrete local procedure (Linux; run it against the demo data):
+
+1. List the files the glob matches.
+2. Sum their on-disk size.
+3. Run the query.
+4. Read the process I/O counters before and after.
+5. Report which metric you used.
+
+```python
+import glob
+import resource
+from pathlib import Path
+
+import polars as pl
+
+PATTERN = "data/taxi/**/*.parquet"
+
+# 1. Dataset / candidate-file bytes: what is stored on disk. NOT bytes read.
+files = sorted(Path(p) for p in glob.glob(PATTERN, recursive=True))
+matched_bytes = sum(f.stat().st_size for f in files)
+print(f"matched files: {len(files)}")
+print(f"matched-file bytes on disk: {matched_bytes:,}")
+
+
+def io_counters() -> dict[str, int]:
+    """Linux only. Both counters are process-wide, so run nothing else meanwhile.
+
+    rchar      - bytes requested through read()-style syscalls (page-cache hits count)
+    read_bytes - bytes the process caused to be fetched from the storage layer
+    """
+    fields = {}
+    for line in Path("/proc/self/io").read_text().splitlines():
+        name, value = line.split(":")
+        fields[name] = int(value)
+    return fields
+
+
+query = (
+    pl.scan_parquet(PATTERN, hive_partitioning=True)
+    .filter(pl.col("fare_amount") > 20)
+    .select("PULocationID", "fare_amount")
+)
+
+before = io_counters()
+usage_before = resource.getrusage(resource.RUSAGE_SELF)
+result = query.collect()
+after = io_counters()
+usage_after = resource.getrusage(resource.RUSAGE_SELF)
+
+print(f"rows returned: {result.height}")
+print(f"rchar delta:      {after['rchar'] - before['rchar']:,}")
+print(f"read_bytes delta: {after['read_bytes'] - before['read_bytes']:,}")
+print(f"ru_inblock delta: {usage_after.ru_inblock - usage_before.ru_inblock}")
+```
+
+What the counters mean:
+
+- `rchar` counts bytes requested through `read()`-style system calls, including page-cache hits. Reads done through memory mapping may not appear in it.
+- `read_bytes` counts bytes the process caused to be fetched from the storage layer. It is often near zero when the files are already in the OS page cache.
+- `ru_inblock` counts block-input operations from `getrusage`.
+
+Generate real values locally and record which metric you reported. The demo files are tiny and will normally be fully cached, so the counters mostly show how the metrics differ. To compare a full scan with a pruned scan, repeat the measurement with a different query and note the cache condition (warm or cold) for both. An OS-level tracer such as `strace -f -e trace=openat,read,pread64,mmap python script.py` shows individual file operations, but syscall bytes are still not the same as logical Parquet bytes processed. Remote object-store traffic (range requests, network bytes) is a different measurement and needs the store's or the client's own metrics.
+
 ---
 
 # 43. `profile()`
@@ -2114,7 +2285,7 @@ Better:
 
 # 63. Mandatory Project — `lazy_pipeline.py`
 
-Use a realistic multi-file Parquet dataset such as NYC Taxi data.
+Use a realistic multi-file Parquet dataset such as NYC Taxi data. To run the exercise without downloading anything, use the demo data from "Reproducible Demo Data" at the top of this chapter (correctness and API learning), and a large realistic dataset for real performance experiments. A runnable reference implementation follows Project Step 12.
 
 Goal:
 
@@ -2532,6 +2703,142 @@ Test:
 - duplicates,
 - boundary timestamps.
 
+### Reference implementation — `lazy_pipeline.py`
+
+This is a complete reference implementation for the demo data. It was run on Polars 1.44. Try to build your own version first. It stays lazy until the profiling, sink and `collect_all` boundaries, and it does not use streaming (that is Topic 04). Plan text is version-sensitive, so read the plans rather than matching them as strings. Timings from the demo data are for inspecting the plan, not for performance conclusions.
+
+```python
+"""Reference implementation for the Topic 03 project (lazy Polars, no streaming).
+
+Run the demo-data generator first so data/taxi/**/*.parquet exists.
+"""
+
+from pathlib import Path
+
+import polars as pl
+
+print("Polars version:", pl.__version__)
+
+PATH = "data/taxi/**/*.parquet"
+OUTPUT = Path("data/gold/taxi_metrics.parquet")
+
+
+def scan_trips(path: str = PATH) -> pl.LazyFrame:
+    """Lazy source. year/month come from the Hive-style directory names."""
+    return pl.scan_parquet(path, hive_partitioning=True)
+
+
+def clean_trips(lf: pl.LazyFrame) -> pl.LazyFrame:
+    """Silver: typed columns, valid rows only, required columns only."""
+    return (
+        lf.select("pickup_datetime", "PULocationID", "fare_amount", "trip_distance")
+        .with_columns(
+            pl.col("pickup_datetime").str.to_datetime("%Y-%m-%dT%H:%M:%S"),
+            pl.col("PULocationID").alias("zone_id"),
+        )
+        .filter((pl.col("fare_amount") > 0) & (pl.col("trip_distance") >= 0))
+        .drop("PULocationID")
+    )
+
+
+def zone_metrics(lf: pl.LazyFrame) -> pl.LazyFrame:
+    """Gold: trips and revenue per zone."""
+    return (
+        lf.group_by("zone_id")
+        .agg(
+            pl.len().alias("trip_count"),
+            pl.col("fare_amount").sum().alias("revenue"),
+        )
+        .sort("zone_id")
+    )
+
+
+def native_query(lf: pl.LazyFrame) -> pl.LazyFrame:
+    """Native expressions: the optimizer can see and push down everything."""
+    return lf.filter(pl.col("fare_amount") > 20).select("PULocationID", "fare_amount")
+
+
+def udf_query(lf: pl.LazyFrame) -> pl.LazyFrame:
+    """Anti-pattern for comparison: a Python UDF runs before the filter."""
+    return (
+        lf.with_columns(
+            pl.col("fare_amount")
+            .map_elements(lambda x: x, return_dtype=pl.Float64)
+            .alias("fare_amount")
+        )
+        .filter(pl.col("fare_amount") > 20)
+        .select("PULocationID", "fare_amount")
+    )
+
+
+def test_clean_trips() -> None:
+    """Unit test on a tiny in-memory frame; no files involved."""
+    source = pl.DataFrame(
+        {
+            "pickup_datetime": ["2026-01-01T00:00:00", "2026-01-01T01:00:00", "2026-01-01T02:00:00"],
+            "PULocationID": [1, 2, 3],
+            "fare_amount": [10.0, -5.0, 7.5],
+            "trip_distance": [1.0, 2.0, 3.0],
+            "ignored": ["a", "b", "c"],
+        }
+    )
+    result = clean_trips(source.lazy()).collect()
+    assert result["zone_id"].to_list() == [1, 3]  # negative fare removed
+    assert "ignored" not in result.columns
+    assert result.schema["pickup_datetime"] == pl.Datetime("us")
+
+
+def main() -> None:
+    test_clean_trips()
+
+    trips = scan_trips()
+    assert isinstance(trips, pl.LazyFrame)
+    print("source schema:", trips.collect_schema())  # no data is read here
+
+    silver = clean_trips(trips)
+    gold = zone_metrics(silver)
+    assert isinstance(gold, pl.LazyFrame)  # still lazy
+    print("gold schema:", gold.collect_schema())
+
+    print("--- unoptimized plan ---")
+    print(gold.explain(optimized=False))
+    print("--- optimized plan (look for PROJECT and SELECTION at the scan) ---")
+    optimized = gold.explain()
+    print(optimized)
+    # Projection pushdown: the scan should list fewer columns than the source has.
+    print("--- projection pushdown demo ---")
+    print(scan_trips().select("PULocationID").explain())
+
+    # Predicate pushdown and the UDF comparison. Exact plan text is version-sensitive;
+    # look for where the filter appears: at the scan (SELECTION) or above it.
+    print("--- native query: predicate can reach the scan ---")
+    print(native_query(scan_trips()).explain())
+    print("--- UDF query: the optimizer cannot see inside the Python function ---")
+    print(udf_query(scan_trips()).explain())
+    assert native_query(scan_trips()).collect().equals(udf_query(scan_trips()).collect())
+
+    # Profiling: returns (result, timing) and executes the query.
+    profiled, timings = gold.profile()
+    print(timings)
+    assert profiled.height > 0
+
+    # Lazy sink: writes the result without collecting it into a Python DataFrame.
+    OUTPUT.parent.mkdir(parents=True, exist_ok=True)
+    gold.sink_parquet(OUTPUT)
+    written = pl.read_parquet(OUTPUT)
+    assert written.equals(profiled)  # same rows as the profiled run
+    assert written["trip_count"].sum() == profiled["trip_count"].sum()
+
+    # Several queries sharing one scan
+    a, b = pl.collect_all([gold, silver.select(pl.len().alias("rows"))])
+    assert b["rows"][0] == a["trip_count"].sum()
+    print("all checks passed")
+
+
+if __name__ == "__main__":
+    main()
+```
+
 ---
 
 # 77. Required Pushdown Experiment
@@ -2699,6 +3006,9 @@ Polars version
 cache state where relevant
 repetitions
 warm-up
+runtime
+peak memory
+I/O metric definition
 ```
 
 Avoid comparing:
@@ -3746,6 +4056,8 @@ NYC Taxi trip records
 ```
 
 or another realistic dataset with several files.
+
+For a clean-directory run, use the demo data from "Reproducible Demo Data" at the top of the chapter together with the reference implementation after Project Step 12. The demo data verifies correctness and lets you read plans; it is too small for meaningful timing differences.
 
 The project should be large enough that you can observe meaningful differences between:
 

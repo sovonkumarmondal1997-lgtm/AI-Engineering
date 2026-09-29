@@ -2229,6 +2229,8 @@ For example, if your effective process memory limit is 16 GB, target roughly 32�
 
 The exact byte size matters less than creating a meaningful larger-than-memory condition.
 
+To create that dataset, use the generator in "Reproducible Larger-than-Memory Dataset Generator" after Step 1: run it, verify the generated files, check their actual size, then point `streaming_aggregations.py` at `data/large_trips/**/*.parquet`.
+
 ## Step 1 — Establish the machine baseline
 
 Record:
@@ -2251,6 +2253,147 @@ python -c "import polars as pl; print(pl.__version__)"
 ```
 
 Do not assume the host's RAM is the same as the process's effective memory limit inside a container.
+
+The baseline feeds the dataset:
+
+```text
+machine baseline
+      ↓
+effective memory
+      ↓
+2–3× target
+      ↓
+incremental dataset generation
+      ↓
+streaming exercise
+```
+
+## Reproducible Larger-than-Memory Dataset Generator
+
+Copy this block into a temporary local script for the exercise, or run it from your own REPL or notebook; do not commit it to the course repository. It writes the dataset one batch at a time as Parquet part files, so the generator's own memory use is bounded by `BATCH_ROWS` and never approaches the size of the dataset. It is deterministic (no randomness), so every run produces the same data.
+
+**Warning:** a 2–3× RAM dataset can need a lot of disk (it can be tens of gigabytes on a 16 GB machine). The script checks free space first and stops with a clear message if it is too low. It also deletes and recreates `OUT_DIR` on each run, so do not point `OUT_DIR` at a directory that holds anything else.
+
+```python
+import os
+import shutil
+from datetime import date
+from pathlib import Path
+
+import polars as pl
+
+# --- configuration -----------------------------------------------------------
+TARGET_MULTIPLIER = 2.5         # keep within the exercise's 2-3x range
+RAM_OVERRIDE_GB = None          # set e.g. 8.0 if detection is wrong for your container
+BATCH_ROWS = 5_000_000          # ~150 MB per in-memory batch; lower it on small machines
+OUT_DIR = Path("data/large_trips")  # DELETED and recreated on every run
+ESTIMATED_ROW_BYTES = 29        # trip_id 8 + trip_version 4 + zone_id 4 + trip_date 4 + fare 8 + month 1
+
+
+def effective_ram_bytes() -> int:
+    """Smaller of host RAM and the cgroup (container) memory limit, if present."""
+    if RAM_OVERRIDE_GB is not None:
+        return int(RAM_OVERRIDE_GB * 1024**3)
+    host = os.sysconf("SC_PAGE_SIZE") * os.sysconf("SC_PHYS_PAGES")
+    limits = [host]
+    for path in ("/sys/fs/cgroup/memory.max", "/sys/fs/cgroup/memory/memory.limit_in_bytes"):
+        try:
+            raw = Path(path).read_text().strip()
+        except OSError:
+            continue
+        if raw.isdigit():
+            limits.append(int(raw))
+    return min(limits)
+
+
+def make_batch(start: int, stop: int) -> pl.DataFrame:
+    """Deterministic rows [start, stop). No randomness, so every run is identical.
+
+    - every 10th row is a version-2 copy of an earlier trip (deduplication exercise)
+    - about 8% of fares are <= 0 (invalid-row filtering)
+    - trip_date cycles through 180 days (Jan-Jun 2026), so months 1-6 all appear
+    """
+    i = pl.int_range(start, stop, dtype=pl.Int64, eager=True).alias("i")
+    is_dup = pl.col("i") % 10 == 9
+    return (
+        pl.DataFrame(i)
+        .select(
+            pl.when(is_dup)
+            .then((pl.col("i") // 20) * 10)
+            .otherwise(pl.col("i"))
+            .alias("trip_id"),
+            pl.when(is_dup).then(2).otherwise(1).cast(pl.Int32).alias("trip_version"),
+            ((pl.col("i") * 7) % 265 + 1).cast(pl.Int32).alias("zone_id"),
+            (pl.lit(date(2026, 1, 1)) + pl.duration(days=pl.col("i") % 180))
+            .cast(pl.Date)
+            .alias("trip_date"),
+            (((pl.col("i") * 37) % 6000) / 100 - 5).alias("fare"),
+        )
+        .with_columns(pl.col("trip_date").dt.month().cast(pl.Int8).alias("month"))
+    )
+
+
+def main() -> None:
+    ram = effective_ram_bytes()
+    target_bytes = int(ram * TARGET_MULTIPLIER)
+    total_rows = target_bytes // ESTIMATED_ROW_BYTES
+    n_batches = -(-total_rows // BATCH_ROWS)
+
+    print(f"detected memory target : {ram / 1024**3:.2f} GiB")
+    print(f"multiplier             : {TARGET_MULTIPLIER}")
+    print(f"target generated volume: {target_bytes / 1024**3:.2f} GiB (estimated in-memory row footprint)")
+    print(f"rows / batch size      : {total_rows:,} / {BATCH_ROWS:,}")
+    print(f"output directory       : {OUT_DIR.resolve()}")
+
+    # Parquet is usually smaller than the in-memory footprint, but the exact ratio
+    # depends on the data, so this conservative check uses the target volume.
+    OUT_DIR.parent.mkdir(parents=True, exist_ok=True)
+    free = shutil.disk_usage(OUT_DIR.parent).free
+    if free < target_bytes:
+        raise SystemExit(
+            f"Not enough free disk: {free / 1024**3:.1f} GiB free, "
+            f"{target_bytes / 1024**3:.1f} GiB needed (conservative). "
+            "Lower TARGET_MULTIPLIER (minimum 2 for the exercise) or free space."
+        )
+
+    if OUT_DIR.exists():
+        shutil.rmtree(OUT_DIR)
+    OUT_DIR.mkdir(parents=True)
+
+    for n in range(n_batches):
+        start = n * BATCH_ROWS
+        stop = min(start + BATCH_ROWS, total_rows)
+        make_batch(start, stop).write_parquet(OUT_DIR / f"part-{n:05d}.parquet")
+        # the batch DataFrame is released here, so memory stays bounded by BATCH_ROWS
+
+    files = sorted(OUT_DIR.glob("*.parquet"))
+    parquet_bytes = sum(f.stat().st_size for f in files)
+    print(f"generated batches/files: {n_batches} / {len(files)}")
+    print(f"total rows             : {total_rows:,}")
+    print(f"actual Parquet size    : {parquet_bytes / 1024**3:.2f} GiB "
+          f"({parquet_bytes / target_bytes:.2f}x of the target volume)")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+What the target means: `TARGET_MULTIPLIER` is applied to an estimated in-memory row footprint (`ESTIMATED_ROW_BYTES` per row), not to the size of the Parquet files. Compressed Parquet is usually much smaller than that footprint, and the script prints the actual Parquet size after generation; it will differ by machine and settings. A dataset that is 2.5× RAM as generated data is not the same as 2.5× RAM of Parquet files, and neither guarantees streaming will succeed: the goal is a real larger-than-memory experiment that exposes memory behaviour. If the printed Parquet size is well below your RAM, raise `TARGET_MULTIPLIER` (up to about 3), or add more months, before drawing conclusions about larger-than-memory behaviour.
+
+The data has `trip_id`, `trip_version`, `zone_id`, `trip_date`, `fare` and `month`:
+
+- `zone_id` (265 zones) and `trip_date` (180 consecutive days) give many repeated `(zone_id, trip_date)` groups for percentile aggregation;
+- every tenth row is a version-2 copy of an earlier trip, so `(trip_id, trip_version)` deduplication has real work to do across files;
+- about 8% of fares are zero or negative, for invalid-row filtering;
+- `month` (1–6) is derived from `trip_date` and is the partition key for Step 9.
+
+Use it in the exercise as:
+
+```python
+import polars as pl
+
+lf = pl.scan_parquet("data/large_trips/**/*.parquet")
+```
 
 ## Step 2 — Baseline non-streaming execution
 
@@ -2287,20 +2430,28 @@ Compute:
 - daily revenue
 - p95 fare per zone
 
-Example conceptual aggregation:
+Example aggregation:
 
 ```python
 daily = (
     lf
-    .group_by(["trip_date"])
+    .group_by(["zone_id", "trip_date"])
     .agg(
+        pl.col("fare").quantile(0.95).alias("p95_fare"),
         pl.len().alias("trip_count"),
         pl.col("fare").sum().alias("daily_revenue"),
     )
 )
 ```
 
-For p95 by zone/date, use the current supported Polars aggregation API for your installed version and verify the resulting semantics.
+```text
+p95 fare
+=
+95th percentile of fare values
+within each (zone_id, trip_date) group
+```
+
+The numeric result must come from running the query on your dataset; do not copy values from anywhere else. Run it with `daily.collect(engine="streaming")` and compare with the in-memory result on a small sample before trusting it at scale.
 
 ## Step 5 — Peak-memory measurement
 
@@ -2356,9 +2507,30 @@ can have very different memory behavior.
 
 ## Step 9 — Partitioned Parquet output
 
-Write partitioned Parquet by month where the installed Polars version supports the required `PartitionBy` sink behavior.
+Write partitioned Parquet by month. The partitioned sink example below is validated with Polars 1.44. Pin or use Polars 1.44+ for this exercise, and verify behaviour when upgrading.
 
-Use the current documented API rather than relying on an old signature.
+```python
+import polars as pl
+
+zones = pl.LazyFrame(
+    {
+        "zone_id": pl.Series(range(1, 266), dtype=pl.Int32),
+        "zone_name": [f"zone-{i}" for i in range(1, 266)],
+    }
+)
+
+joined = (
+    pl.scan_parquet("data/large_trips/**/*.parquet")
+    .join(zones, on="zone_id", how="left")
+)
+
+joined.sink_parquet(
+    pl.PartitionBy("data/gold/trips_by_month/", key="month"),
+    mkdir=True,
+)
+```
+
+This writes one directory per key value: `data/gold/trips_by_month/month=1/`, `month=2/`, and so on. Inspect the output directories and confirm one exists for each month in your data. Peak memory of the join and the sink still has to be measured, not assumed.
 
 ## Step 10 — Intentionally add a non-streaming-friendly operation
 

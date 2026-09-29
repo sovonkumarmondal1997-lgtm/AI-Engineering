@@ -303,7 +303,7 @@ A useful architecture is:
 
 Arrow is not the query engine in this picture. It is a common representation/interchange foundation.
 
-Apache Arrow describes itself as a columnar format and multi-language toolbox for fast data interchange and in-memory analytics. citeturn528226search2
+Apache Arrow describes itself as a columnar format and multi-language toolbox for fast data interchange and in-memory analytics.
 
 ---
 
@@ -342,7 +342,7 @@ The correct engineering question is:
 
 ### Strengths
 
-Polars provides an expression-oriented DataFrame model and supports lazy execution, parallel execution, and streaming execution. Current Polars documentation describes `LazyFrame.collect(..., engine="streaming")` as selecting the streaming engine; current APIs also expose batch-oriented execution such as `collect_batches()`. citeturn920934search0turn920934search1
+Polars provides an expression-oriented DataFrame model and supports lazy execution, parallel execution, and streaming execution. Current Polars documentation describes `LazyFrame.collect(..., engine="streaming")` as selecting the streaming engine; current APIs also expose batch-oriented execution such as `collect_batches()`.
 
 Polars can be a natural fit when a workload benefits from:
 
@@ -370,7 +370,7 @@ The correct question is not "Is Polars better than pandas?" It is:
 
 ## 10. DuckDB — Strengths and Limits
 
-DuckDB is an embedded analytical database/query engine. Its Python client exposes SQL execution and relational operations inside the Python process, and its relational API is lazily evaluated until an output operation executes. citeturn528226search0turn528226search1
+DuckDB is an embedded analytical database/query engine. Its Python client exposes SQL execution and relational operations inside the Python process, and its relational API is lazily evaluated until an output operation executes.
 
 ### Strengths
 
@@ -1710,7 +1710,7 @@ Then run a small **evaluation spike** using one representative query before comm
 
 ## 60. DataFusion — Awareness
 
-Apache DataFusion is an extensible query engine written in Rust and using Apache Arrow as its in-memory format. Its documentation describes SQL and DataFrame APIs, columnar/vectorized/multithreaded/streaming execution, and extensibility for data-centric systems. citeturn717574search0turn717574search3
+Apache DataFusion is an extensible query engine written in Rust and using Apache Arrow as its in-memory format. Its documentation describes SQL and DataFrame APIs, columnar/vectorized/multithreaded/streaming execution, and extensibility for data-centric systems.
 
 For this module, remember only:
 
@@ -1726,7 +1726,7 @@ Do not learn DataFusion APIs here. Use the evaluation framework instead.
 
 ## 61. chDB — Awareness
 
-chDB is an in-process analytical SQL engine based on ClickHouse for Python. It is relevant as another embedded analytical approach. Current ClickHouse documentation describes it as an in-process SQL OLAP engine for Python that can query local files and other sources without a separate server process. citeturn717574search7
+chDB is an in-process analytical SQL engine based on ClickHouse for Python. It is relevant as another embedded analytical approach. Current ClickHouse documentation describes it as an in-process SQL OLAP engine for Python that can query local files and other sources without a separate server process.
 
 Evaluate it using the same questions:
 
@@ -1744,7 +1744,7 @@ Do not treat the existence of another engine as evidence that your current archi
 
 ## 62. cuDF — Awareness
 
-cuDF is a GPU DataFrame library in the RAPIDS ecosystem. Current documentation describes it as a Python GPU DataFrame library for loading, joining, aggregating, filtering, and transforming data, with pandas-like workflows. citeturn717574search6
+cuDF is a GPU DataFrame library in the RAPIDS ecosystem. Current documentation describes it as a Python GPU DataFrame library for loading, joining, aggregating, filtering, and transforming data, with pandas-like workflows.
 
 For this chapter:
 
@@ -1859,6 +1859,70 @@ A useful ADR structure is:
 
 The ADR is valuable because future engineers will otherwise see the current tool without seeing the reasoning behind it.
 
+### Fill-in ADR template
+
+A reusable template that follows the nine headings above. The bracketed text is a placeholder; do not pre-fill a winning engine or copy numbers from anywhere else.
+
+````markdown
+# ADR — [Decision Title]
+
+## 1. Context
+
+[Describe the workload, users, deployment environment, data scale, and constraints.]
+
+## 2. Problem
+
+[State the engineering problem this decision must solve.]
+
+## 3. Requirements
+
+- [Functional requirement]
+- [Performance/SLA requirement]
+- [Memory/deployment requirement]
+- [Correctness requirement]
+- [Operational requirement]
+- [Team/ecosystem requirement]
+
+## 4. Options
+
+| Option | Description | Relevant strengths | Relevant limitations |
+|---|---|---|---|
+| Option A | | | |
+| Option B | | | |
+| Option C | | | |
+| Hybrid | | | |
+
+## 5. Measurements / Evidence
+
+[Document dataset, queries, versions, hardware, cache condition, repetitions, runtime, peak memory, I/O where relevant, and correctness.]
+
+| Engine | Query | Size | Cache | Run | Runtime | Peak Memory | Correct? |
+|---|---|---|---|---:|---:|---:|---|
+| | | | | | | | |
+
+## 6. Decision
+
+[State the conditional decision based on the requirements and measured evidence.]
+
+## 7. Consequences
+
+### Benefits
+- [Benefit]
+
+### Costs / Trade-offs
+- [Cost]
+
+## 8. Risks
+
+- [Risk]
+- [Mitigation]
+
+## 9. Revisit Conditions
+
+- [Observable trigger]
+- [Observable trigger]
+````
+
 ---
 
 ## 67. ADR Context
@@ -1930,7 +1994,7 @@ we select __________________ for the default single-node pipeline
 because __________________.
 ```
 
-Then cite the specific evidence.
+Then point to the specific evidence.
 
 Avoid:
 
@@ -2051,6 +2115,231 @@ The ADR must select a default single-node approach for the hypothetical team bas
 ### Step 10 — Define the distributed boundary
 
 Describe the observed conditions that would cause you to revisit the single-node architecture.
+
+### Embedded Reference Benchmark Harness
+
+This is a reference implementation embedded in the chapter. Save it as your own benchmark script when you do the exercise; the chapter does not create the file, the results CSV, or an `engine_benchmark/` directory. It implements one of the six queries (Query 1, filter + aggregate) in pandas, Polars (lazy) and DuckDB, plus the harness around it. It was run on pandas 3.0, Polars 1.44 and DuckDB 1.5.6; the other five queries are still yours to implement from the specifications below.
+
+How it works:
+
+```text
+generate deterministic data → build trusted expected result → run pandas / Polars / DuckDB
+→ validate logical equality → measure runtime + peak RSS → repeat → write CSV
+```
+
+- **Correctness first.** Each engine's result is normalised (same column names, sorted by `customer_id`) and compared with a pandas reference. A run that disagrees is recorded with `correct = False` and the script prints a warning: do not use its timing.
+- **Timing.** `measure()` times only the query call. Data generation, the reference computation, setup and CSV writing are outside the timing. `BENCH_RUNS` sets the number of repetitions, and every run is a CSV row.
+- **Peak memory.** `resource.getrusage(...).ru_maxrss` is process-level. On Linux it is in KiB, so it is converted to MB (it is bytes on macOS). It is a monotonic peak for the whole process: it includes data generation and setup, imports, and native allocations that Python tools do not see, so `rss_increase_mb` is only the observed rise of that peak during one run and can be 0 when an earlier step had a higher peak. To keep each measurement separate, every engine, size and cache combination runs in its own fresh worker process. Validate with `/usr/bin/time -v` as well.
+- **Three data-size slots.** `small`, `ram-scale` and `larger-than-RAM` are benchmark slots, not promises. Set `BENCH_SMALL_ROWS`, `BENCH_RAM_ROWS` and `BENCH_LARGE_ROWS` from your machine's memory and the physical size of the generated data; the defaults do not necessarily match your RAM. This harness holds the data in memory, so for a truly larger-than-RAM slot use the file-based, streaming approaches from Topics 04 and 06 instead.
+- **Cold and warm.** The `cache` column records the condition. `cold` is a fresh worker process with no warm-up run; `warm` runs one unrecorded warm-up first. The script does not, and cannot portably, flush the OS page cache or storage caches. A controlled cold-cache measurement is environment-specific, so document what cold means on your machine.
+
+```python
+"""Reference benchmark harness: query 1 (filter + aggregate) in pandas, Polars and DuckDB.
+
+Each (engine, size, cache) combination runs in a fresh worker process so that the
+process peak RSS belongs to that combination. Results are written to
+engine_benchmark_results.csv when you run this script.
+"""
+
+from __future__ import annotations
+
+import csv
+import gc
+import json
+import os
+import platform
+import resource
+import statistics
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+import duckdb
+import numpy as np
+import pandas as pd
+import polars as pl
+
+# Benchmark slots, not machine-specific promises: set the row counts from your
+# machine's RAM and the physical size of the generated data.
+SIZES = {
+    "small": int(os.getenv("BENCH_SMALL_ROWS", "100_000")),
+    "ram-scale": int(os.getenv("BENCH_RAM_ROWS", "1_000_000")),
+    "larger-than-RAM": int(os.getenv("BENCH_LARGE_ROWS", "5_000_000")),
+}
+RUNS = int(os.getenv("BENCH_RUNS", "3"))
+CACHES = ("cold", "warm")
+ENGINES = ("pandas", "polars", "duckdb")
+QUERY = "filter_aggregate"
+OUTPUT = Path("engine_benchmark_results.csv")
+FIELDS = [
+    "engine", "query", "data_size", "rows", "cache", "run", "runtime_seconds",
+    "peak_rss_mb", "rss_increase_mb", "correct", "notes",
+    "python_version", "pandas_version", "polars_version", "duckdb_version",
+]
+
+
+# --- data (never part of a timing) ---------------------------------------------------
+def generate_orders(rows: int) -> pd.DataFrame:
+    """Deterministic orders: same rows on every run and every machine."""
+    ids = np.arange(rows, dtype=np.int64)
+    return pd.DataFrame(
+        {
+            "order_id": ids,
+            "customer_id": ids % 10_000,
+            "status": np.where((ids * 7) % 10 < 6, "PAID", "PENDING"),
+            "amount": ((ids % 500) + 1) * 0.25,
+        }
+    )
+
+
+# --- the same query in three engines ------------------------------------------------
+# SELECT customer_id, SUM(amount) AS revenue FROM orders
+# WHERE status = 'PAID' GROUP BY customer_id
+def query_pandas(pdf: pd.DataFrame) -> pd.DataFrame:
+    paid = pdf.loc[pdf["status"] == "PAID"]
+    return paid.groupby("customer_id", as_index=False)["amount"].sum().rename(columns={"amount": "revenue"})
+
+
+def query_polars(pldf: pl.DataFrame) -> pl.DataFrame:
+    return (
+        pldf.lazy()
+        .filter(pl.col("status") == "PAID")
+        .group_by("customer_id")
+        .agg(pl.col("amount").sum().alias("revenue"))
+        .collect()
+    )
+
+
+def query_duckdb(con: duckdb.DuckDBPyConnection) -> pd.DataFrame:
+    return con.execute(
+        """
+        SELECT customer_id, SUM(amount) AS revenue
+        FROM orders
+        WHERE status = 'PAID'
+        GROUP BY customer_id
+        """
+    ).df()
+
+
+def normalise(result) -> pd.DataFrame:
+    """Same column names, sorted rows, plain pandas, so results can be compared."""
+    frame = result.to_pandas() if isinstance(result, pl.DataFrame) else result
+    return frame[["customer_id", "revenue"]].sort_values("customer_id").reset_index(drop=True)
+
+
+def is_correct(expected: pd.DataFrame, actual) -> bool:
+    got = normalise(actual)
+    return (
+        len(got) == len(expected)
+        and (got["customer_id"].to_numpy() == expected["customer_id"].to_numpy()).all()
+        and np.allclose(got["revenue"].to_numpy(dtype=float), expected["revenue"].to_numpy(dtype=float), rtol=1e-9)
+    )
+
+
+# --- measurement helpers ---------------------------------------------------------------
+def measure(fn):
+    start = time.perf_counter()
+    result = fn()
+    return result, time.perf_counter() - start
+
+
+def peak_rss_mb() -> float:
+    """Process peak resident set size so far, in MB.
+
+    On Linux ru_maxrss is reported in KiB (on macOS it is bytes), so it is divided
+    by 1024 here. It is a process-wide, monotonic peak: it includes memory from data
+    generation and other engines' setup, and it does not separate Python, native and
+    allocator memory. Use /usr/bin/time -v for an independent process-level check.
+    """
+    peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+    return peak / 1024.0 if platform.system() == "Linux" else peak / (1024.0 * 1024.0)
+
+
+# --- worker: one engine, one size, one cache condition -------------------------------
+def worker(engine: str, size: str, cache: str) -> list[dict]:
+    rows = SIZES[size]
+    pdf = generate_orders(rows)
+    expected = normalise(query_pandas(pdf))  # trusted reference, not timed or recorded
+
+    if engine == "pandas":
+        fn = lambda: query_pandas(pdf)  # noqa: E731
+    elif engine == "polars":
+        pldf = pl.from_pandas(pdf)  # setup, not timed
+        fn = lambda: query_polars(pldf)  # noqa: E731
+    else:
+        con = duckdb.connect()  # in-memory
+        con.register("orders", pdf)
+        fn = lambda: query_duckdb(con)  # noqa: E731
+
+    try:
+        if cache == "warm":
+            fn()  # unrecorded warm-up so caches are populated
+        gc.collect()
+        results = []
+        for run in range(1, RUNS + 1):
+            before = peak_rss_mb()
+            result, seconds = measure(fn)
+            after = peak_rss_mb()
+            results.append(
+                {
+                    "engine": engine, "query": QUERY, "data_size": size, "rows": rows,
+                    "cache": cache, "run": run, "runtime_seconds": f"{seconds:.6f}",
+                    "peak_rss_mb": f"{after:.1f}",
+                    "rss_increase_mb": f"{after - before:.1f}",  # observed rise of the process peak
+                    "correct": is_correct(expected, result),
+                    "notes": "cold = fresh process, no warm-up (OS page cache not reset)"
+                    if cache == "cold" else "warm = one unrecorded warm-up run first",
+                    "python_version": platform.python_version(),
+                    "pandas_version": pd.__version__,
+                    "polars_version": pl.__version__,
+                    "duckdb_version": duckdb.__version__,
+                }
+            )
+        return results
+    finally:
+        if engine == "duckdb":
+            con.close()
+
+
+# --- orchestrator ---------------------------------------------------------------------
+def write_results(rows: list[dict]) -> None:
+    with OUTPUT.open("w", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=FIELDS)
+        writer.writeheader()  # header written once
+        writer.writerows(rows)
+
+
+def main() -> None:
+    if len(sys.argv) == 5 and sys.argv[1] == "--worker":
+        print(json.dumps(worker(sys.argv[2], sys.argv[3], sys.argv[4])))
+        return
+
+    all_rows: list[dict] = []
+    for size in SIZES:
+        for cache in CACHES:
+            for engine in ENGINES:
+                done = subprocess.run(
+                    [sys.executable, __file__, "--worker", engine, size, cache],
+                    capture_output=True, text=True, check=True,
+                )
+                all_rows.extend(json.loads(done.stdout.strip().splitlines()[-1]))
+    write_results(all_rows)
+
+    wrong = [r for r in all_rows if not r["correct"]]
+    if wrong:
+        print(f"INVALID: {len(wrong)} runs disagree with the reference; do not use their timings.")
+    for r in all_rows:
+        print(r["data_size"], r["cache"], r["engine"], r["run"], r["runtime_seconds"], "s",
+              r["peak_rss_mb"], "MB", "correct" if r["correct"] else "WRONG")
+    print(f"wrote {OUTPUT}")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+Run it with `python engine_benchmark.py`. It writes `engine_benchmark_results.csv` with the columns `engine, query, data_size, rows, cache, run, runtime_seconds, peak_rss_mb, rss_increase_mb, correct, notes` and the library versions. All values are measured when you run it; none are included here.
 
 ---
 
@@ -3641,7 +3930,7 @@ For current APIs:
 5. rerun benchmarks after important upgrades;
 6. distinguish measured behaviour from documentation and inference.
 
-Current documentation illustrates why this matters. Polars' current LazyFrame API uses an `engine` parameter for execution selection and documents the streaming engine separately from in-memory execution. citeturn920934search0turn920934search1 DuckDB's current Python API documents result retrieval, relations, and batch-oriented Arrow result readers. citeturn528226search0turn528226search1
+Current documentation illustrates why this matters. Polars' current LazyFrame API uses an `engine` parameter for execution selection and documents the streaming engine separately from in-memory execution. DuckDB's current Python API documents result retrieval, relations, and batch-oriented Arrow result readers.
 
 Do not assume an API shown in an older tutorial remains current.
 
@@ -3884,12 +4173,12 @@ This chapter deliberately avoids embedding fixed benchmark numbers and avoids de
 
 Current references used while authoring the chapter include:
 
-- DuckDB Python client and relational API documentation for current relation/result interfaces and Arrow batch readers. citeturn528226search0turn528226search1
-- Polars current `LazyFrame`, `collect`, `collect_batches`, and execution-engine documentation. citeturn920934search0turn920934search1turn920934search3
-- pandas current PyArrow-backed dtype documentation and `DataFrame.from_arrow` support. citeturn994688search2turn994688search7
-- Apache Arrow Python documentation for its columnar interchange role. citeturn528226search2
-- Apache DataFusion documentation for awareness-level positioning. citeturn717574search0turn717574search3
-- Narwhals documentation for dataframe-agnostic interfaces. citeturn717574search8turn717574search10
+- DuckDB Python client and relational API documentation for current relation/result interfaces and Arrow batch readers.
+- Polars current `LazyFrame`, `collect`, `collect_batches`, and execution-engine documentation.
+- pandas current PyArrow-backed dtype documentation and `DataFrame.from_arrow` support.
+- Apache Arrow Python documentation for its columnar interchange role.
+- Apache DataFusion documentation for awareness-level positioning.
+- Narwhals documentation for dataframe-agnostic interfaces.
 
 These references support current API/role descriptions; benchmark conclusions must still come from the learner's own measurements.
 

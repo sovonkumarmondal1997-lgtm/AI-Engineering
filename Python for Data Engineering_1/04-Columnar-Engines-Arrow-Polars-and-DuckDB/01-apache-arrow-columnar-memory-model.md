@@ -689,10 +689,12 @@ print(names.type)
 For timestamps:
 
 ```python
+from datetime import datetime
+
 timestamps = pa.array(
     [
-        "2026-01-01 00:00:00",
-        "2026-01-02 00:00:00",
+        datetime(2026, 1, 1, 0, 0, 0),
+        datetime(2026, 1, 2, 0, 0, 0),
     ],
     type=pa.timestamp("us"),
 )
@@ -1412,8 +1414,10 @@ Interpretation:
 Example:
 
 ```python
+from decimal import Decimal
+
 amounts = pa.array(
-    ["10.50", "99.99", None],
+    [Decimal("10.50"), Decimal("99.99"), None],
     type=pa.decimal128(12, 2),
 )
 
@@ -1490,14 +1494,16 @@ Time semantics are a frequent source of production bugs.
 ## 23.1 UTC example
 
 ```python
+from datetime import datetime, timezone
+
 import pyarrow as pa
 
 ts_type = pa.timestamp("us", tz="UTC")
 
 values = pa.array(
     [
-        "2026-09-26 12:00:00",
-        "2026-09-26 13:00:00",
+        datetime(2026, 9, 26, 12, 0, 0, tzinfo=timezone.utc),
+        datetime(2026, 9, 26, 13, 0, 0, tzinfo=timezone.utc),
     ],
     type=ts_type,
 )
@@ -2160,6 +2166,7 @@ This example combines:
 
 ```python
 from datetime import datetime, timezone
+from decimal import Decimal
 
 import pyarrow as pa
 
@@ -2189,7 +2196,7 @@ orders = pa.Table.from_pydict(
     {
         "order_id": ["O-1001", "O-1002", "O-1003"],
         "customer_id": [101, None, 103],
-        "amount": ["125.50", "200.00", "80.25"],
+        "amount": [Decimal("125.50"), Decimal("200.00"), Decimal("80.25")],
         "created_at": [
             datetime(2026, 9, 26, 10, 0, tzinfo=timezone.utc),
             datetime(2026, 9, 26, 11, 30, tzinfo=timezone.utc),
@@ -3004,6 +3011,21 @@ fast access to file-backed buffers
 
 This can make local data access very fast and avoid eagerly copying the entire file into ordinary heap allocations.
 
+## Concrete example
+
+```python
+import pyarrow as pa
+import pyarrow.ipc as ipc
+
+with pa.memory_map("benchmark.arrow", "r") as source:
+    reader = ipc.open_file(source)
+    mapped_table = reader.read_all()
+
+print(mapped_table.num_rows)
+```
+
+This assumes `benchmark.arrow` exists; §60 creates it. The mapped file is the `source` for the IPC file reader. For an uncompressed IPC file, the resulting table can reference the mapped pages instead of copying every buffer into ordinary heap memory. Keep the table's use inside the lifetime you intend for the mapping, and verify the behaviour with your installed PyArrow version.
+
 ## Important caveats
 
 Memory mapping does not mean:
@@ -3074,12 +3096,22 @@ with ipc_path.open("rb") as source:
 ipc_seconds = perf_counter() - start
 
 
+start = perf_counter()
+with pa.memory_map(str(ipc_path), "r") as source:
+    mapped_table = ipc.open_file(source).read_all()
+    mapped_rows = mapped_table.num_rows
+mapped_seconds = perf_counter() - start
+
+
+assert csv_table.num_rows == ipc_table.num_rows == mapped_rows == table.num_rows
+
 print("CSV seconds:", csv_seconds)
 print("IPC seconds:", ipc_seconds)
-print("rows:", csv_table.num_rows, ipc_table.num_rows)
+print("memory-mapped IPC seconds:", mapped_seconds)
+print("rows:", csv_table.num_rows, ipc_table.num_rows, mapped_rows)
 ```
 
-For memory-mapped access, use the Arrow IPC file reader's memory-mapping support available in your installed version.
+The third path uses `pa.memory_map(...)` as the source of the IPC file reader. Memory-mapped loading is version- and file-dependent (for example, compressed IPC buffers must be decompressed), so measure it rather than assuming it wins.
 
 ### Do not hard-code expected performance numbers.
 
@@ -3858,7 +3890,7 @@ benchmark(
 
 benchmark(
     "NumPy object",
-    lambda: np.char.str_len(numpy_object),
+    lambda: np.array([len(v) for v in numpy_object]),
 )
 
 benchmark(
@@ -4627,6 +4659,157 @@ benchmarks
 ```
 
 This sequence makes debugging much easier.
+
+### Reference implementation — `arrow_basics.py` (Tasks 1–14)
+
+This is a complete, self-contained reference implementation. Write your own version first, then compare. Timings and `nbytes` values are printed at run time and will differ between machines; on a five-row column the dictionary-encoded array can be larger than the plain one, because the dictionary and indices have fixed overhead. Task 15 (pytest) follows in §94.
+
+```python
+"""Reference implementation for the Topic 01 exercise (Tasks 1-14)."""
+
+import tempfile
+from datetime import datetime, timezone
+from decimal import Decimal
+from pathlib import Path
+from time import perf_counter
+
+import pyarrow as pa
+import pyarrow.compute as pc
+import pyarrow.csv as pacsv
+import pyarrow.ipc as ipc
+
+
+# Task 1 - explicit schema
+orders_schema = pa.schema([
+    pa.field("order_id", pa.string()),
+    pa.field("customer_id", pa.int64()),  # nullable by default
+    pa.field("amount", pa.decimal128(12, 2)),
+    pa.field("created_at", pa.timestamp("us", tz="UTC")),
+    pa.field("tags", pa.list_(pa.string())),
+    pa.field("address", pa.struct([
+        pa.field("city", pa.string()),
+        pa.field("zip", pa.string()),
+    ])),
+])
+
+# Task 2 - construct the table (one null customer_id, several tags/cities)
+orders = pa.Table.from_pydict(
+    {
+        "order_id": ["O-1001", "O-1002", "O-1003", "O-1004"],
+        "customer_id": [101, None, 103, 101],
+        "amount": [
+            Decimal("125.50"),
+            Decimal("200.00"),
+            Decimal("80.25"),
+            Decimal("310.75"),
+        ],
+        "created_at": [
+            datetime(2026, 9, 26, 10, 0, tzinfo=timezone.utc),
+            datetime(2026, 9, 26, 11, 30, tzinfo=timezone.utc),
+            datetime(2026, 9, 26, 12, 15, tzinfo=timezone.utc),
+            datetime(2026, 9, 27, 9, 45, tzinfo=timezone.utc),
+        ],
+        "tags": [
+            ["python", "data"],
+            ["arrow"],
+            ["sql", "analytics"],
+            ["python"],
+        ],
+        "address": [
+            {"city": "Kolkata", "zip": "700001"},
+            {"city": "Delhi", "zip": "110001"},
+            {"city": "Mumbai", "zip": "400001"},
+            {"city": "Kolkata", "zip": "700002"},
+        ],
+    },
+    schema=orders_schema,
+)
+
+# Task 3 - inspect
+print(orders.schema)
+print("rows:", orders.num_rows)
+print("nbytes:", orders.nbytes)
+
+# Task 4 - filter for one customer
+customer_101 = orders.filter(pc.equal(orders["customer_id"], 101))
+print("customer 101 orders:", customer_101.num_rows)
+
+# Task 5 - Arrow-native compute (comparison, arithmetic, aggregation)
+large_mask = pc.greater(orders["amount"], Decimal("100.00"))
+large_orders = orders.filter(large_mask)
+amount_with_tax = pc.multiply(
+    pc.cast(orders["amount"], pa.float64()), 1.18
+)
+total_amount = pc.sum(orders["amount"])
+print("orders > 100:", large_orders.num_rows)
+print("amount with tax:", amount_with_tax.to_pylist())
+print("total amount:", total_amount.as_py())
+
+# Task 6 - extract nested data
+cities = pc.struct_field(orders["address"], "city")
+print("cities:", cities.to_pylist())
+
+# Task 7 - add country
+country_array = pa.array(["IN", "IN", "US", "IN"], type=pa.string())
+orders_with_country = orders.append_column("country", country_array)
+
+# Task 8 - dictionary encode and compare nbytes
+encoded = country_array.dictionary_encode()
+print("country plain nbytes:", country_array.nbytes)
+print("country encoded nbytes:", encoded.nbytes)
+
+with tempfile.TemporaryDirectory() as tmp:
+    ipc_path = Path(tmp) / "orders.arrow"
+    csv_path = Path(tmp) / "orders.csv"
+
+    # Task 9 - write Arrow IPC file
+    with pa.OSFile(str(ipc_path), "wb") as sink:
+        with ipc.new_file(sink, orders_with_country.schema) as writer:
+            writer.write_table(orders_with_country)
+    pacsv.write_csv(orders_with_country.select(["order_id", "customer_id"]), csv_path)
+
+    # Task 10 - read the IPC file back
+    with pa.OSFile(str(ipc_path), "rb") as source:
+        ipc_table = ipc.open_file(source).read_all()
+    assert ipc_table.equals(orders_with_country)
+
+    # Task 11 - memory-map the IPC file
+    with pa.memory_map(str(ipc_path), "r") as source:
+        mapped_table = ipc.open_file(source).read_all()
+        assert mapped_table.equals(orders_with_country)
+
+    # Task 12 - compare CSV vs IPC vs memory-mapped IPC (record real numbers)
+    def timed(fn):
+        start = perf_counter()
+        result = fn()
+        return perf_counter() - start, result
+
+    def load_csv():
+        return pacsv.read_csv(csv_path)
+
+    def load_ipc():
+        with pa.OSFile(str(ipc_path), "rb") as src:
+            return ipc.open_file(src).read_all()
+
+    def load_mapped():
+        with pa.memory_map(str(ipc_path), "r") as src:
+            return ipc.open_file(src).read_all()
+
+    for name, fn in [("CSV", load_csv), ("IPC", load_ipc), ("mmap IPC", load_mapped)]:
+        seconds, table = timed(fn)
+        print(f"{name:10s} {seconds:.6f}s rows={table.num_rows}")
+
+# Task 13 - unsafe cast: the value does not fit in int32
+big = pa.array([3_000_000_000], type=pa.int64())
+unsafe = pc.cast(big, pa.int32(), safe=False)
+print("unsafe cast result (do not trust):", unsafe.to_pylist())
+
+# Task 14 - safe cast rejects the dangerous conversion
+try:
+    pc.cast(big, pa.int32(), safe=True)
+except pa.ArrowInvalid as exc:
+    print("safe cast rejected:", exc)
+```
 
 ---
 
@@ -5466,6 +5649,9 @@ or another appropriate Arrow kernel.
 ## C8 Example
 
 ```python
+import pyarrow as pa
+
+country_array = pa.array(["IN", "IN", "US", "IN", "US"], type=pa.string())
 encoded = country_array.dictionary_encode()
 ```
 
