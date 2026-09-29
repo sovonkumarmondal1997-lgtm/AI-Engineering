@@ -764,7 +764,7 @@ contains_a = df["display_name"].str.contains(
 )
 
 assert df["country_key"].tolist() == ["IN", "US", "SG", pd.NA]
-assert contains_a.tolist() == [True, False, False, True]
+assert contains_a.tolist() == [True, True, False, False]
 ```
 
 #### Step-by-Step Reasoning
@@ -2170,7 +2170,7 @@ events = (
 
 events["rolling_24h"] = (
     events["amount"]
-    .rolling("24H")
+    .rolling("24h")
     .sum()
 )
 ```
@@ -2317,49 +2317,109 @@ Chunking changes the problem from “transform each block” to “transform eac
 
 ---
 
-### Q41 — Which rolling/session operations need state across chunk boundaries?
+### Q41 — How would you assign session IDs to user events with a 30-minute inactivity timeout?
 
 **Difficulty:** Hard  
-**Topics:** Topic 13 — Chunking; Topic 09 — Time series
+**Topics:** Topic 06 — groupby; Topic 09 — Time series; Topic 13 — Chunking
 
 #### Interview Question
 
-Classify these operations as naturally independent per chunk or requiring cross-chunk state:
+Each row is one user event. A new session starts for a user when the gap since that user's previous event is greater than 30 minutes. The first event of each user starts that user's first session.
 
-```text
-row-level amount conversion
-filter amount > 0
-sum/count partial aggregation
-deduplication by business key
-sessionization
-24-hour rolling sum
-global sort
+```python
+import pandas as pd
+
+events = pd.DataFrame(
+    {
+        "user_id": ["A", "A", "A", "A", "B", "B"],
+        "event_time": pd.to_datetime(
+            [
+                "2026-01-01 09:00",
+                "2026-01-01 09:10",
+                "2026-01-01 09:50",
+                "2026-01-01 10:05",
+                "2026-01-01 12:00",
+                "2026-01-01 12:45",
+            ]
+        ),
+    }
+)
 ```
+
+Add a per-user `session_id`. What must be true about the data before you compute it, and what changes when the data is processed in chunks?
+
+#### What the Interviewer Is Testing
+
+Whether you can build sessions from a per-entity time gap, a boolean new-session flag, and a grouped cumulative sum, and whether you notice the ordering, boundary, and late-data risks.
+
+#### Expected Candidate Approach
+
+1. Clarify the grain: one row per user event, and whether the timeout comparison is strict.
+2. Sort by `user_id` and `event_time`.
+3. Compute each user's gap with `groupby("user_id")["event_time"].diff()`.
+4. Flag a new session when the gap is missing (first event) or greater than the timeout.
+5. Number the sessions with a grouped `cumsum()` of that flag.
+6. Assert the result on a hand-computed example.
 
 #### Model Answer
 
-Naturally local:
+```python
+timeout = pd.Timedelta("30min")
 
-- row-level conversion;
-- row filtering;
-- sum/count partial aggregation.
+events = events.sort_values(["user_id", "event_time"]).reset_index(drop=True)
 
-Stateful across chunks:
+gap = events.groupby("user_id")["event_time"].diff()
 
-- deduplication by global business key;
-- sessionization;
-- time-based rolling windows;
-- global sorting.
+new_session = gap.isna() | gap.gt(timeout)
 
-The rolling operation may need boundary rows from the previous chunk. Sessionization needs the final state of the previous session.
+events["session_id"] = (
+    new_session
+    .groupby(events["user_id"], sort=False)
+    .cumsum()
+)
 
-#### Why This Works
+assert events["session_id"].tolist() == [1, 1, 2, 2, 1, 2]
+```
 
-Chunking is safe only when the algorithm's required state is either local to a chunk or explicitly carried across chunks.
+The session IDs after sorting are:
+
+```text
+A: 1, 1, 2, 2
+B: 1, 2
+```
+
+`session_id` is per user: `A`'s session 1 and `B`'s session 1 are different sessions. If you need a globally unique key, combine `user_id` and `session_id`.
+
+#### Step-by-Step Reasoning
+
+For `A`, the gaps are `NaT`, 10 minutes, 40 minutes, and 15 minutes. Only the first event and the 40-minute gap start a session, so the cumulative sum is `1, 1, 2, 2`. For `B`, the gaps are `NaT` and 45 minutes, giving `1, 2`.
+
+The comparison `gap.gt(timeout)` means a gap of exactly 30 minutes stays in the same session. With `gap.ge(timeout)` an exact 30-minute gap starts a new session. The two definitions produce different results on the boundary, so state which one the business rule means before coding it:
+
+```python
+edge = pd.DataFrame(
+    {
+        "user_id": ["A", "A"],
+        "event_time": pd.to_datetime(["2026-01-01 09:00", "2026-01-01 09:30"]),
+    }
+)
+edge_gap = edge.groupby("user_id")["event_time"].diff()
+
+assert (edge_gap.isna() | edge_gap.gt(timeout)).cumsum().tolist() == [1, 1]
+assert (edge_gap.isna() | edge_gap.ge(timeout)).cumsum().tolist() == [1, 2]
+```
+
+#### Chunk-Boundary Implication
+
+The first event of a user in the next chunk has no previous event inside that chunk, so its `diff()` is `NaT` and it would wrongly start a new session. Carry state between chunks: at least the last event timestamp for every active user, and the last `session_id` so numbering continues instead of restarting at 1.
+
+#### Production Perspective
+
+The method assumes events arrive in order. Out-of-order and late-arriving events break it: a late event can fall inside an already-closed session, or bridge two sessions into one. Decide a lateness limit, sort within that limit, and recompute the sessions of the affected users when late data arrives.
 
 #### Common Candidate Mistake
 
-Assuming `chunksize` makes every pandas operation independently correct.
+Computing `diff()` without sorting or without grouping by user, so one user's timestamps become another user's gap.
 
 ---
 
@@ -3288,64 +3348,113 @@ Validate the number of unmatched rates and inspect them as a data-quality signal
 
 Point-in-time enrichment is correct only when timestamp semantics, sorting, grouping key, and tolerance are all part of the contract.
 
-### Q58 — Which operations are independent per chunk, and which require state?
+### Q58 — How would you compute month-over-month revenue growth correctly?
 
 **Difficulty:** Advanced  
-**Topics:** Topic 13 — chunk boundaries; Topic 09 — time series
+**Topics:** Topic 09 — Time series, resampling, `pct_change`; Topic 05 — zero versus missing
 
 #### Interview Question
 
-Classify these operations:
+Given individual transactions, produce monthly revenue and its month-over-month (MoM) growth.
 
-```text
-type conversion
-row-level arithmetic
-simple filtering
-sum/count partial aggregation
-deduplication by global key
-sessionization
-24-hour rolling sum
-global sort
+```python
+import pandas as pd
+
+transactions = pd.DataFrame(
+    {
+        "event_time": pd.to_datetime(
+            [
+                "2026-01-05 10:00",
+                "2026-01-20 12:00",
+                "2026-02-10 09:00",
+                "2026-02-25 15:00",
+                "2026-03-03 08:00",
+                "2026-03-15 08:00",
+                "2026-03-28 18:00",
+            ]
+        ),
+        "revenue": [100, 200, 100, 200, 200, 150, 250],
+    }
+)
 ```
 
-Then explain what state is required and what happens if that state itself becomes too large.
+What is the result, how do you handle the first month, and what can go wrong when a previous month is zero or missing?
+
+#### What the Interviewer Is Testing
+
+Whether you aggregate to a complete monthly calendar before computing growth, know what `pct_change()` returns, and treat the zero-denominator and missing-data cases as explicit business rules.
+
+#### Expected Candidate Approach
+
+1. Clarify the reporting calendar and timezone that define a month.
+2. Sort by time and aggregate to month start with `resample("MS")`.
+3. Compute growth with `pct_change()`, passing `fill_method=None` explicitly.
+4. Explain the first month, the fractional scale, and the zero-denominator case.
+5. Assert the totals and the growth values.
 
 #### Model Answer
 
-Naturally local:
+```python
+monthly_revenue = (
+    transactions
+    .sort_values("event_time")
+    .set_index("event_time")["revenue"]
+    .resample("MS")
+    .sum()
+)
 
-```text
-type conversion
-row-level arithmetic
-simple filtering
-sum/count partial aggregation
+mom_growth = monthly_revenue.pct_change(
+    fill_method=None
+)
+
+assert monthly_revenue.tolist() == [300, 300, 600]
+assert pd.isna(mom_growth.iloc[0])
+assert mom_growth.iloc[1] == 0.0
+assert mom_growth.iloc[2] == 1.0
 ```
 
-Stateful:
+The result is:
 
 ```text
-global-key deduplication
-sessionization
-24-hour rolling sum
-global sorting
+2026-01-01     NaN
+2026-02-01     0.0
+2026-03-01     1.0
 ```
 
-For deduplication, state tracks keys already accepted. For sessions, state includes the current session boundary/state per entity. For rolling windows, state includes the historical observations needed to compute the next window.
+Growth is:
 
-A chunked writer can emit output incrementally. For Parquet, a `ParquetWriter` can write batches/row groups incrementally when the schema is stable, avoiding a design that retains every output chunk in memory.
+```text
+MoM = (current_month - previous_month) / previous_month
+```
 
-#### Critical Scaling Point
+- January has no previous month, so its growth is missing, not zero.
+- `pct_change()` returns a fraction: `0.20` means 20%, so `1.0` for March means +100%.
+- `fill_method=None` states that missing values must not be filled before the calculation. In pandas 3.x it is the only accepted value, and passing it keeps the intent visible in code that also runs on older versions.
 
-If deduplication or grouping state itself becomes too large, reducing `chunksize` does not remove the global-state requirement. The architecture must reconsider the state representation or execution engine.
+#### Zero Activity Versus Missing Data
+
+Division by a zero previous-month value is not a normal numeric growth rate:
+
+```python
+with_zero = pd.Series(
+    [300, 0, 600],
+    index=pd.date_range("2026-01-01", periods=3, freq="MS"),
+)
+
+assert with_zero.pct_change(fill_method=None).tolist()[1:] == [-1.0, float("inf")]
+```
+
+March shows `inf`, and it needs an explicit reporting rule: report it as "not defined", cap it, or show absolute change instead.
+
+Also separate "no revenue" from "no data". `resample("MS").sum()` turns a month with no rows into `0`, which is indistinguishable from real zero revenue. If an empty month means the data is missing, use `.sum(min_count=1)` so the month stays `NaN`, and then growth around it is `NaN` too.
 
 #### Production Perspective
 
-Chunking is not a magic memory switch. Ask both:
+A month is defined by a calendar and a timezone. Convert to the reporting timezone before resampling, otherwise transactions near midnight on a month boundary land in the wrong month. Late-arriving transactions change closed months, so recompute the affected months and their following growth values.
 
-```text
-What information must cross the chunk boundary?
-How large can that state become?
-```
+#### Common Candidate Mistake
+
+Resampling unsorted or partial data, then reading `0.0` or `inf` as a business result without deciding what a zero or missing previous month means.
 
 ### Q59 — Daily revenue increased 80% even though source row count did not change. How would you investigate?
 
@@ -3676,14 +3785,14 @@ Senior-level pandas engineering is less about knowing every method and more abou
 | Topic 03 — Selection | Q03, Q04, Q16, Q15, Q38 |
 | Topic 04 — dtypes/Nullable/Categoricals | Q06, Q07, Q18, Q33, Q48, Q52, Q55, Q60 |
 | Topic 05 — Cleaning/Data Quality | Q08, Q19, Q32, Q38, Q56, Q60 |
-| Topic 06 — groupby | Q09, Q20, Q21, Q22, Q34, Q39, Q53, Q60 |
+| Topic 06 — groupby | Q09, Q20, Q21, Q22, Q34, Q39, Q41, Q53, Q60 |
 | Topic 07 — merge/join/cardinality | Q10, Q23, Q24, Q31, Q44, Q49, Q56, Q57, Q60 |
 | Topic 08 — reshaping | Q11, Q14, Q26, Q35, Q50 |
-| Topic 09 — time series | Q12, Q24, Q27, Q28, Q36, Q37, Q50, Q57, Q58, Q59, Q60 |
+| Topic 09 — time series | Q12, Q24, Q27, Q28, Q36, Q37, Q41, Q50, Q57, Q58, Q59, Q60 |
 | Topic 10 — strings/datetime | Q12, Q13, Q28, Q29, Q45, Q50, Q57, Q60 |
 | Topic 11 — chaining/pipe | Q05, Q30, Q42, Q60 |
 | Topic 12 — Copy-on-Write | Q15, Q30, Q38, Q43, Q52, Q60 |
-| Topic 13 — chunking/memory | Q39, Q40, Q41, Q44, Q46, Q51, Q52, Q53, Q54, Q58, Q60 |
+| Topic 13 — chunking/memory | Q39, Q40, Q41, Q44, Q46, Q51, Q52, Q53, Q54, Q60 |
 
 ## Interview Skill Matrix
 
@@ -3693,14 +3802,14 @@ Senior-level pandas engineering is less about knowing every method and more abou
 | Code reading | Q03, Q15, Q21, Q38, Q43 |
 | Output prediction | Q01, Q03, Q09, Q10, Q14, Q27 |
 | Debugging | Q31, Q33, Q37, Q38, Q43, Q57, Q59 |
-| Coding | Q04, Q12, Q19, Q23, Q29, Q34, Q39, Q46 |
+| Coding | Q04, Q12, Q19, Q23, Q29, Q34, Q39, Q41, Q46, Q58 |
 | Data quality | Q08, Q19, Q32, Q33, Q38, Q55, Q56 |
 | Join reasoning | Q10, Q23, Q24, Q31, Q49, Q56, Q57 |
 | Performance | Q21, Q44, Q45, Q46, Q52, Q54 |
-| Memory optimization | Q39, Q40, Q44, Q46, Q52, Q53, Q58 |
+| Memory optimization | Q39, Q40, Q44, Q46, Q52, Q53 |
 | Testing/validation | Q10, Q23, Q31, Q32, Q39, Q42, Q56, Q60 |
 | Production design | Q32, Q37, Q46, Q47, Q51, Q52, Q60 |
-| Architecture reasoning | Q46, Q47, Q51, Q54, Q55, Q58, Q60 |
+| Architecture reasoning | Q46, Q47, Q51, Q54, Q55, Q60 |
 
 ## Final Completion Checklist
 
@@ -3716,6 +3825,8 @@ Senior-level pandas engineering is less about knowing every method and more abou
 - [x] `agg`, `transform`, `filter`, `apply`, ranking, sequencing, cumulative, lag, and difference operations are represented.
 - [x] Reshaping, pivot failure modes, long/wide semantics, and missing-vs-zero reasoning are represented.
 - [x] Timezone, rolling-window, missing-period, and late-arriving-event reasoning are represented.
+- [x] Sessionisation (per-user gap, new-session flag, grouped `cumsum`) is directly represented in Q41.
+- [x] Month-over-month growth (`resample("MS")`, `pct_change`) is directly represented in Q58.
 - [x] String normalization, regex named groups, and datetime accessor reasoning are represented.
 - [x] Method chaining, `pipe`, debugging boundaries, and Copy-on-Write are represented.
 - [x] Chunked aggregation, cross-chunk deduplication, rolling/session state, peak memory, and idempotency are represented.
