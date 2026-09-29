@@ -79,11 +79,7 @@ change engine when pandas is no longer the right tool
 
 ## 2. Learning Standard
 
-For every major technique, use this sequence:
-
-> **Concept → Why → Mental model → Practical internal mechanics → Simple example → Intermediate example → Advanced example → Production use → Trade-offs → Debugging → Testing → Common mistakes → Interview/architecture thinking**
-
-Do not study chunking as an isolated pandas trick. Keep asking:
+For every major technique, keep asking:
 
 1. What memory problem does this solve?
 2. Does it reduce input size, working-set size, or both?
@@ -184,7 +180,7 @@ print(memory)
 print("total bytes:", memory.sum())
 ```
 
-`DataFrame.memory_usage()` returns per-column memory usage in bytes. With `deep=True`, pandas inspects object-dtype elements more deeply. citeturn461299search3
+`DataFrame.memory_usage()` returns per-column memory usage in bytes. With `deep=True`, pandas inspects object-dtype elements more deeply. 
 
 ---
 
@@ -489,7 +485,7 @@ df = pd.read_parquet(
 )
 ```
 
-Pandas exposes `columns=` for Parquet reads, and because Parquet is columnar, irrelevant columns can often be avoided. citeturn461299search5turn461299search1
+Pandas exposes `columns=` for Parquet reads, and because Parquet is columnar, irrelevant columns can often be avoided. 
 
 ---
 
@@ -511,7 +507,7 @@ df = pd.read_parquet(
 )
 ```
 
-Supported filter operators include comparisons and membership-style predicates. Exact I/O savings depend on storage layout, partitioning, row-group statistics, and the engine. citeturn461299search5
+Supported filter operators include comparisons and membership-style predicates. Exact I/O savings depend on storage layout, partitioning, row-group statistics, and the engine. 
 
 ### Important distinction
 
@@ -572,7 +568,7 @@ print(compact.dtype)
 - `unsigned`;
 - `float`.
 
-Pandas documents `downcast` as a way to convert to the smallest compatible numeric dtype where possible. citeturn461299search11
+Pandas documents `downcast` as a way to convert to the smallest compatible numeric dtype where possible. 
 
 ---
 
@@ -674,7 +670,7 @@ row codes
 
 Repeated strings are represented by a dictionary plus codes instead of repeated full values.
 
-Pandas' scaling guidance shows low-cardinality string columns as strong category candidates. citeturn461299search8
+Pandas' scaling guidance shows low-cardinality string columns as strong category candidates. 
 
 ---
 
@@ -730,7 +726,7 @@ print(s)
 print(s.dtype)
 ```
 
-Pandas documents Arrow-backed nullable dtypes through `dtype_backend="pyarrow"` and Arrow string dtypes such as `string[pyarrow]`. citeturn461299search7
+Pandas documents Arrow-backed nullable dtypes through `dtype_backend="pyarrow"` and Arrow string dtypes such as `string[pyarrow]`. 
 
 Potential benefits depend on workload, backend, interoperability requirements, and supported operations.
 
@@ -755,7 +751,7 @@ df = pd.read_csv(
 )
 ```
 
-Pandas documents that readers can return PyArrow-backed nullable data with this option. citeturn461299search7
+Pandas documents that readers can return PyArrow-backed nullable data with this option. 
 
 This can produce columns such as:
 
@@ -839,7 +835,7 @@ for chunk in reader:
     print(chunk.shape)
 ```
 
-Pandas documents `chunksize` as causing `read_csv()` to return an iterator over DataFrame chunks. citeturn461299search2
+Pandas documents `chunksize` as causing `read_csv()` to return an iterator over DataFrame chunks. 
 
 ---
 
@@ -926,7 +922,7 @@ The important concept is not the flag. It is **incremental materialization of th
 
 This distinction is important.
 
-Pandas' `read_csv(low_memory=True)` can process a file internally in smaller pieces during parsing, but it still returns one full DataFrame unless `chunksize` or `iterator` is used. The documentation explicitly distinguishes parser behavior from returning the file in chunks. citeturn461299search2
+Pandas' `read_csv(low_memory=True)` can process a file internally in smaller pieces during parsing, but it still returns one full DataFrame unless `chunksize` or `iterator` is used. The documentation explicitly distinguishes parser behavior from returning the file in chunks. 
 
 Therefore:
 
@@ -1000,7 +996,7 @@ for chunk in reader:
     process(chunk)
 ```
 
-Pandas documents `read_sql(..., chunksize=N)` as returning an iterator with N rows per chunk. citeturn461299search0
+Pandas documents `read_sql(..., chunksize=N)` as returning an iterator with N rows per chunk. 
 
 ---
 
@@ -1503,6 +1499,14 @@ This is a critical testing pattern for chunked systems.
 ## 53. CSV Writing — Header Once
 
 ```python
+from pathlib import Path
+
+final_path = Path("clean_orders.csv")
+temp_path = Path("clean_orders.csv.tmp")
+
+if temp_path.exists():
+    temp_path.unlink()
+
 header = True
 
 for chunk in pd.read_csv(
@@ -1512,16 +1516,24 @@ for chunk in pd.read_csv(
     clean = clean_orders(chunk)
 
     clean.to_csv(
-        "clean_orders.csv",
+        temp_path,
         mode="a",
         header=header,
         index=False,
     )
 
     header = False
+
+temp_path.replace(final_path)
 ```
 
 The header is written exactly once.
+
+- chunks are appended to the temporary file, not the final file;
+- a stale temporary file is removed before starting;
+- the final output is replaced only after the complete run succeeds;
+- therefore a failed run does not partially append to the committed output;
+- a rerun does not double the final dataset.
 
 ---
 
@@ -1660,7 +1672,7 @@ finally:
         writer.close()
 ```
 
-PyArrow documents `ParquetWriter` as a way to write multiple tables/row groups into one Parquet file. citeturn461299search1
+PyArrow documents `ParquetWriter` as a way to write multiple tables/row groups into one Parquet file. 
 
 ---
 
@@ -1687,7 +1699,7 @@ Production considerations:
 - failure handling must be deliberate;
 - temporary output should be distinguishable from committed output.
 
-The Arrow documentation demonstrates using a context manager around `ParquetWriter`, which is a clean pattern for resource lifetime. citeturn461299search1
+The Arrow documentation demonstrates using a context manager around `ParquetWriter`, which is a clean pattern for resource lifetime. 
 
 ---
 
@@ -1757,7 +1769,7 @@ for chunk in pd.read_csv(
     chunksize=100_000,
 ):
     is_new = ~chunk["order_id"].isin(seen_ids)
-    new_rows = chunk.loc[is_new]
+    new_rows = chunk.loc[is_new].drop_duplicates("order_id")
 
     seen_ids.update(
         new_rows["order_id"].tolist()
@@ -2267,6 +2279,32 @@ for chunk in pd.read_csv(
 ```
 
 A real benchmark should use representative data and should not rely on a single noisy observation.
+
+To measure the peak of a whole chunked run, `tracemalloc` can record the maximum traced allocation:
+
+```python
+import tracemalloc
+
+tracemalloc.start()
+
+for chunk in pd.read_csv(
+    "large.csv",
+    chunksize=100_000,
+):
+    process(chunk)
+
+current, peak = tracemalloc.get_traced_memory()
+tracemalloc.stop()
+
+print(
+    {
+        "current_traced_bytes": current,
+        "peak_traced_bytes": peak,
+    }
+)
+```
+
+`peak` is the maximum memory traced by `tracemalloc` during the measured interval. That is different from whole-process RSS, which also includes memory the tracer does not see. Run the measurement on representative data, and record the numbers you actually observe; never fabricate benchmark results.
 
 ---
 
@@ -4383,10 +4421,10 @@ It is being able to answer:
 
 # 125. Primary References
 
-- Pandas 3.0.6 `DataFrame.memory_usage()` documentation. citeturn461299search3
-- Pandas 3.0.6 `read_csv()` documentation. citeturn461299search2
-- Pandas 3.0.6 `read_sql()` documentation. citeturn461299search0
-- Pandas 3.0.6 `read_parquet()` documentation. citeturn461299search5
-- Pandas 3.0.6 scaling guidance. citeturn461299search8
-- Pandas 3.0.6 PyArrow functionality. citeturn461299search7
-- Apache Arrow Parquet writing and `ParquetWriter` documentation. citeturn461299search1
+- Pandas 3.0.6 `DataFrame.memory_usage()` documentation. 
+- Pandas 3.0.6 `read_csv()` documentation. 
+- Pandas 3.0.6 `read_sql()` documentation. 
+- Pandas 3.0.6 `read_parquet()` documentation. 
+- Pandas 3.0.6 scaling guidance. 
+- Pandas 3.0.6 PyArrow functionality. 
+- Apache Arrow Parquet writing and `ParquetWriter` documentation. 
