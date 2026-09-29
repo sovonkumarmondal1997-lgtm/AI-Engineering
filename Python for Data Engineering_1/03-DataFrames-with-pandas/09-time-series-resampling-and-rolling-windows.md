@@ -944,7 +944,7 @@ Treat such cases explicitly.
 
 Also remember:
 
-> In current pandas usage, `pct_change` should not rely on the older fill-method behavior; fill missing values explicitly before the calculation when that is actually part of the business logic. citeturn586412search3
+> In current pandas usage, `pct_change` should not rely on the older fill-method behavior; fill missing values explicitly before the calculation when that is actually part of the business logic. 
 
 ---
 
@@ -1055,7 +1055,7 @@ minute = df.resample("min").sum()
 
 `resample()` returns a resampling object and then the aggregation determines the resulting value.
 
-Current pandas documents `resample()` as a time-based grouping operation; the input needs a datetime-like index or a datetime-like column supplied through `on=`/`level=`. citeturn683881search0turn683881search1
+Current pandas documents `resample()` as a time-based grouping operation; the input needs a datetime-like index or a datetime-like column supplied through `on=`/`level=`. 
 
 ---
 
@@ -1113,7 +1113,7 @@ for month-end frequency, and:
 MS
 ```
 
-for month-start frequency. citeturn586412search0
+for month-start frequency. 
 
 Example:
 
@@ -1166,7 +1166,7 @@ Useful current aliases include:
 
 The exact set of aliases is larger; the important point for this chapter is to use explicit, current frequency strings.
 
-Current pandas documentation lists `h` for hourly, `ME` for month end, `MS` for month start, and business/custom-business offsets. citeturn586412search0
+Current pandas documentation lists `h` for hourly, `ME` for month end, `MS` for month start, and business/custom-business offsets. 
 
 ### Version awareness
 
@@ -1332,7 +1332,20 @@ closed
 | `label` | Which boundary timestamp labels this result? |
 | `closed` | Which boundary is included in the interval? |
 
-Current pandas documents separate defaults for these parameters depending on the frequency; for example, weekly/month-end-style frequencies use different defaults than fixed tick frequencies. Therefore, specify them explicitly when bin semantics are important. citeturn683881search0
+The defaults depend on the frequency. For the frequencies used in this chapter:
+
+```text
+h, min, D
+→ label="left", closed="left"
+
+ME, W, QE
+→ label="right", closed="right"
+```
+
+- fixed tick frequencies such as `h`, `min`, and `D` default to `left`/`left`;
+- `ME`, `W`, and `QE` default to `right`/`right`.
+
+These are the defaults for those frequencies, not a rule for every pandas frequency. Therefore, specify `label` and `closed` explicitly when bin semantics are important.
 
 ---
 
@@ -1530,7 +1543,7 @@ This means:
 
 > Carry the last observed value forward into newly created positions.
 
-Current pandas documents `resample(...).ffill()` as a supported upsampling pattern. citeturn683881search1
+Current pandas documents `resample(...).ffill()` as a supported upsampling pattern. 
 
 ### Appropriate example
 
@@ -1715,9 +1728,25 @@ At:
 2025-01-10
 ```
 
-the count-based window may include all available recent rows because there are fewer than seven rows total.
+the count-based window returns `NaN`. `rolling(7)` is an integer (count-based) window, and for an integer window `min_periods` defaults to the window size. The example has only five rows, so no row ever has seven observations: `df["revenue"].rolling(7).mean()` is `NaN` for every row.
 
-The time-based window considers only observations within the defined elapsed-time interval.
+The time-based window considers only observations within the defined elapsed-time interval. `rolling("7D")` is an offset (time-based) window, and for an offset window `min_periods` defaults to `1`. A value is therefore produced whenever at least one valid observation is inside the window.
+
+```text
+integer window
+→ min_periods defaults to window size
+
+offset/time-based window
+→ min_periods defaults to 1
+```
+
+By default, the interval for each row at time `t` is:
+
+```text
+(t - 7D, t]
+```
+
+The left boundary is excluded and the current (right) boundary is included. At `2025-01-10`, the window therefore contains `2025-01-08`, `2025-01-09`, and `2025-01-10`, and `2025-01-02` is outside it.
 
 ### Mental model
 
@@ -1806,7 +1835,7 @@ at least 3 observations
 
 before exposing a metric.
 
-Current pandas rolling documentation describes `min_periods` as the minimum number of observations required for a value. citeturn370811search3
+Current pandas rolling documentation describes `min_periods` as the minimum number of observations required for a value. 
 
 ---
 
@@ -2418,6 +2447,16 @@ are gap signals.
 
 # 51. DST — Why It Matters
 
+### Environment prerequisite
+
+The DST examples use IANA timezone data. In a `uv` project, install the timezone database package before running them:
+
+```bash
+uv add tzdata
+```
+
+This is especially important on Windows, where the system may not provide the IANA timezone database used by Python's timezone support.
+
 Daylight-saving time changes local clock representations in some timezones.
 
 Two major cases:
@@ -2484,7 +2523,7 @@ NaT
 timedelta
 ```
 
-for nonexistent local times. citeturn370811search0turn370811search2
+for nonexistent local times. 
 
 ### Production rule
 
@@ -2543,7 +2582,7 @@ NaT
 boolean values/arrays
 ```
 
-for ambiguous local times. citeturn370811search0
+for ambiguous local times. 
 
 ---
 
@@ -2744,7 +2783,7 @@ quarter = pd.Period(
 )
 ```
 
-`Q-MAR` means a fiscal year ending in March. Other year-end months can be represented using other anchored quarterly frequencies. citeturn586412search0
+`Q-MAR` means a fiscal year ending in March. Other year-end months can be represented using other anchored quarterly frequencies. 
 
 ### Important
 
@@ -2787,7 +2826,7 @@ business_days = pd.date_range(
 )
 ```
 
-`B` represents business days under the standard weekday convention. citeturn586412search0
+`B` represents business days under the standard weekday convention. 
 
 ### Production question
 
@@ -2828,7 +2867,7 @@ A custom calendar might be required for:
 - manufacturing;
 - regional operations.
 
-Pandas documents `CustomBusinessDay` for custom weekmasks and holiday calendars. citeturn586412search0turn586412search2
+Pandas documents `CustomBusinessDay` for custom weekmasks and holiday calendars. 
 
 Do not assume a custom calendar is needed merely because a dataset is financial.
 
@@ -3127,10 +3166,6 @@ This is the production decision framework.
 ---
 
 # 70. HANDS-ON EXERCISE — `timeseries_metrics.py`
-
-> **Do not create `timeseries_metrics.py` for this Markdown task.**
->
-> This section is the complete implementation specification.
 
 ## Exercise objective
 
@@ -3620,12 +3655,12 @@ Example:
 ```python
 expected_counts = pd.Series(
     [2, 2],
-    index=pd.to_datetime(
-        [
-            "2025-01-01 10:00",
-            "2025-01-01 11:00",
-        ],
-        utc=True,
+    index=pd.date_range(
+        start="2025-01-01 10:00",
+        periods=2,
+        freq="h",
+        tz="UTC",
+        name="timestamp",
     ),
 )
 
@@ -4046,7 +4081,7 @@ MS
 
 and test against the pinned pandas version.
 
-Current pandas 3.0 documentation lists these current frequency representations. citeturn586412search0
+Current pandas 3.0 documentation lists these current frequency representations. 
 
 ---
 
@@ -6631,11 +6666,47 @@ What timestamp is the business event?
 What timestamp is the reference value valid for?
 ```
 
-Do not jump ahead into detailed as-of joins here.
-
 The important lesson is:
 
 > Timestamp semantics must be correct before a later point-in-time join can be correct.
+
+## `merge_asof()` — Point-in-Time Enrichment
+
+`merge_asof()` performs a time-aware lookup rather than an exact equality join. For each event it finds the reference row that was valid at that moment. A typical case is converting each order with the FX rate that was current when the order was placed:
+
+```python
+orders = orders.sort_values("order_time")
+fx_rates = fx_rates.sort_values("rate_time")
+
+enriched = pd.merge_asof(
+    orders,
+    fx_rates,
+    left_on="order_time",
+    right_on="rate_time",
+    by="currency",
+    direction="backward",
+    tolerance=pd.Timedelta("1D"),
+)
+```
+
+```text
+left_on / right_on
+→ time columns
+
+by
+→ entity partition, such as currency
+
+direction="backward"
+→ latest reference timestamp <= event timestamp
+
+tolerance
+→ maximum acceptable time distance
+```
+
+- both merge keys must be sorted ascending;
+- timestamp semantics must be correct before the join: the same timezone meaning and the same resolution on both sides;
+- the timezone and freshness policy (how old a reference value may be) must be explicit, which is what `tolerance` expresses;
+- detailed join cardinality and the broader `merge_asof()` mechanics remain in Topic 07.
 
 ---
 
@@ -6808,7 +6879,7 @@ For this chapter's current pandas 3.x target:
 - rolling supports fixed-count and offset/time-based windows;
 - DST localization policies are explicit through `nonexistent` and `ambiguous`.
 
-These details should be checked against the pandas version pinned by the project. citeturn683881search0turn683881search1turn370811search0turn370811search3
+These details should be checked against the pandas version pinned by the project. 
 
 ---
 
@@ -6883,6 +6954,7 @@ These details should be checked against the pandas version pinned by the project
 - [ ] out-of-order events
 - [ ] rolling recomputation
 - [ ] affected-period recalculation
+- [ ] point-in-time enrichment with `merge_asof`
 - [ ] performance considerations
 
 ## Required learning activities
@@ -7541,7 +7613,7 @@ The examples target current pandas 3.x APIs. Verify the exact pinned project ver
 - General DataFrame time-series methods:  
   https://pandas.pydata.org/docs/reference/frame.html
 
-Current pandas documentation covers resampling, timezone handling, rolling windows, business-day offsets, and fiscal/anchored periods. citeturn683881search0turn683881search1turn370811search0turn586412search0
+Current pandas documentation covers resampling, timezone handling, rolling windows, business-day offsets, and fiscal/anchored periods. 
 
 ---
 
@@ -7676,7 +7748,7 @@ Current pandas documentation covers resampling, timezone handling, rolling windo
 | Building huge complete calendars blindly | Calendar completeness is useful | Estimate `groups × periods` before materializing |
 | Repeated timezone conversions | Each report does its own conversion | Keep canonical UTC and convert intentionally at reporting boundaries |
 
-The four primary roadmap mistakes are explicitly included here. fileciteturn20file0
+The four primary roadmap mistakes are explicitly included here. 
 
 ---
 

@@ -1287,6 +1287,22 @@ customers["customer_id"] = (
 )
 ```
 
+### What `merge()` actually does with mismatched key dtypes
+
+Knowing that the dtypes differ is not enough; you also need to know what pandas does. These are practical cases in pandas 3.x:
+
+| Left key | Right key | Typical `merge()` behavior |
+| --- | --- | --- |
+| `int64` | `str` / pandas `string` | Raises `ValueError` because the key dtypes are incompatible |
+| integer | float | Matching numeric values can match, so `1` can match `1.0` |
+| `object` containing Python integers | `object` / string values | The merge can succeed but return 0 matching rows because `1` is not equal to `"1"` |
+
+This table is a practical behavior guide, not a complete dtype-compatibility matrix.
+
+The third row is the dangerous one: nothing fails, and the join simply finds no matches. Dtype inspection alone is not always enough. When `object` dtype is involved, `print(df["customer_id"].dtype)` shows only `object`; inspect the actual value representation as well (for example `df["customer_id"].map(type).value_counts()`).
+
+Define the canonical representation of the identifier, then normalize both sides deliberately to it, so the two frames cannot drift apart again.
+
 ### Do not stringify blindly
 
 Ask first:
@@ -1465,7 +1481,7 @@ NULL = NULL
 
 does not evaluate as true.
 
-Pandas documents this difference explicitly. citeturn243046search1turn243046search5
+Pandas documents this difference explicitly. 
 
 ## Why it is dangerous
 
@@ -1533,7 +1549,7 @@ event → configuration
 sensor reading → calibration state
 ```
 
-Current pandas documentation describes `merge_asof` as a merge by key distance and requires the merge key to be sorted ascending before the operation. citeturn243046search0
+Current pandas documentation describes `merge_asof` as a merge by key distance and requires the merge key to be sorted ascending before the operation. 
 
 ---
 
@@ -1586,6 +1602,26 @@ enriched = pd.merge_asof(
 
 The result is left-oriented: every left row remains, with an eligible right match when one exists.
 
+> **Pandas 3.x datetime-resolution requirement**
+>
+> `merge_asof()` requires the corresponding merge keys to have the same dtype, including datetime resolution. For example, `datetime64[ns]` and `datetime64[us]` are different dtypes and can raise `pandas.errors.MergeError`. `merge_asof()` does not reconcile the two resolutions for you.
+>
+> When the keys are naive datetimes and microsecond resolution is the intended contract, normalize both sides before sorting and joining:
+>
+> ```python
+> orders["order_time"] = (
+>     orders["order_time"]
+>     .astype("datetime64[us]")
+> )
+>
+> rates["rate_time"] = (
+>     rates["rate_time"]
+>     .astype("datetime64[us]")
+> )
+> ```
+>
+> Normalize both sides symmetrically. Converting only one side leaves the mismatch in place. Casting nanoseconds to microseconds drops any sub-microsecond digits, so check that this loss is acceptable for the source.
+
 ---
 
 # 38. `merge_asof()` Sorting Requirement
@@ -1614,7 +1650,7 @@ right = right.sort_values(
 
 Then call `merge_asof()`.
 
-The current pandas documentation specifies ascending ordering of the merge key. Sorting the additional `by` columns is not required. citeturn243046search0
+The current pandas documentation specifies ascending ordering of the merge key. Sorting the additional `by` columns is not required. 
 
 ---
 
@@ -1746,7 +1782,7 @@ enriched = pd.merge_asof(
 
 If the most recent prior rate is older than one day, it is not eligible.
 
-Current pandas requires `tolerance` to be compatible with the merge-key type. citeturn243046search0
+Current pandas requires `tolerance` to be compatible with the merge-key type. 
 
 ### Business question
 
@@ -3777,8 +3813,6 @@ Then implement.
 
 # 98. Hands-On Exercise — `enrich_orders.py`
 
-> **Do not create `enrich_orders.py` as part of this task.** This section is the complete implementation specification for the learner.
-
 ## Exercise goal
 
 Build a production-oriented order enrichment flow demonstrating:
@@ -4015,6 +4049,29 @@ Direction: backward
 Tolerance: explicitly defined
 Meaning: latest known acceptable rate
 Unmatched rate: explicitly handled
+```
+
+### Required datetime normalization
+
+pandas 3.x requires both as-of merge keys to use the same datetime resolution. Normalize them before sorting:
+
+```python
+orders["order_time"] = (
+    orders["order_time"]
+    .astype("datetime64[us]")
+)
+
+fx_rates["rate_time"] = (
+    fx_rates["rate_time"]
+    .astype("datetime64[us]")
+)
+```
+
+This prevents a `MergeError` when logically equivalent timestamps arrive with different resolutions, such as:
+
+```text
+datetime64[ns]
+datetime64[us]
 ```
 
 ### Required sorting
