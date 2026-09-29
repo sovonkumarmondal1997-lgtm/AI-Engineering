@@ -331,7 +331,7 @@ result = df.assign(
 
 The returned DataFrame contains the original columns plus `revenue`.
 
-Current pandas documentation describes `assign()` as returning a new object. Callable values are evaluated against the DataFrame, and multiple assignment expressions are evaluated in order; later expressions may refer to columns created earlier in the same `assign()`. citeturn495065search1
+Current pandas documentation describes `assign()` as returning a new object. Callable values are evaluated against the DataFrame, and multiple assignment expressions are evaluated in order; later expressions may refer to columns created earlier in the same `assign()`. 
 
 ### Why `assign()` is valuable in a chain
 
@@ -432,7 +432,7 @@ Suppose:
 
 Then `revenue = 200` and `revenue_usd = 2.5`.
 
-The second expression can see `revenue` because the first expression created it before the second expression was evaluated. This ordering behavior is explicitly documented by pandas. citeturn495065search1
+The second expression can see `revenue` because the first expression created it before the second expression was evaluated. This ordering behavior is explicitly documented by pandas. 
 
 ### Prediction exercise
 
@@ -537,7 +537,7 @@ A lambda containing ten business rules is a sign that the step should have a nam
 
 ## Mistake 5 — Hidden mutation
 
-`assign()` callables are intended to compute values, not mutate the input DataFrame. Pandas documents that the callable should not change the input object. citeturn495065search1
+`assign()` callables are intended to compute values, not mutate the input DataFrame. Pandas documents that the callable should not change the input object. 
 
 Use a named function when the transformation needs more explanation or multiple operations.
 
@@ -559,7 +559,7 @@ returned DataFrame
 next chain step
 ```
 
-The pandas documentation describes `DataFrame.pipe()` as applying chainable functions that expect a Series or DataFrame. The main advantage is readability and composability, not automatic speed. citeturn495065search5turn495065search3
+The pandas documentation describes `DataFrame.pipe()` as applying chainable functions that expect a Series or DataFrame. The main advantage is readability and composability, not automatic speed. 
 
 ```python
 def add_revenue(df):
@@ -1061,13 +1061,7 @@ result = (
 )
 ```
 
-The critical line is:
-
-```python
-return df
-```
-
-Without it, the next chained method receives `None`.
+The critical line is `return df`. Without it, the next chained method receives `None`.
 
 For production pipelines, replace ad hoc `print()` statements with the logging system used by your application, but keep the helper's return contract.
 
@@ -1261,7 +1255,7 @@ For example:
 df.drop(columns=["debug_flag"], inplace=True)
 ```
 
-This operation mutates the DataFrame and returns `None`. Current pandas documentation makes the return contract explicit: when `inplace=True`, `drop()` returns `None`; with the default `False`, it returns a DataFrame. citeturn495065search0
+This operation mutates the DataFrame and returns `None`. Current pandas documentation makes the return contract explicit: when `inplace=True`, `drop()` returns `None`; with the default `False`, it returns a DataFrame. 
 
 That makes the in-place form unsuitable for a chain:
 
@@ -1351,7 +1345,7 @@ result = df["amount"].apply(lambda value: value * 1.18)
 
 Here the function receives individual Series values.
 
-Pandas documentation explicitly describes `pipe()` as receiving the whole Series or DataFrame, and contrasts it with operations that work element-by-element. citeturn495065search5
+Pandas documentation explicitly describes `pipe()` as receiving the whole Series or DataFrame, and contrasts it with operations that work element-by-element. 
 
 Do not replace every `apply()` with `pipe()`. Choose based on the level of the transformation.
 
@@ -1408,7 +1402,7 @@ df.dq.duplicate_report("order_id")
 
 The goal is not to make pandas "magically know" your business rules. The goal is to package a small, reusable internal API for behavior that a team repeatedly uses.
 
-Current pandas exposes custom extension APIs under `pandas.api.extensions`. citeturn495065search8
+Current pandas exposes custom extension APIs under `pandas.api.extensions`. 
 
 # 38. When Custom Accessors May Help
 
@@ -2979,7 +2973,7 @@ A chain can still:
 - add logging/check overhead;
 - increase peak memory.
 
-`pipe()` improves composition and readability; it does not automatically reduce runtime. Pandas documents this directly: `DataFrame.pipe()` promotes clean, modular design but does not improve performance on its own. citeturn495065search5
+`pipe()` improves composition and readability; it does not automatically reduce runtime. Pandas documents this directly: `DataFrame.pipe()` promotes clean, modular design but does not improve performance on its own. 
 
 ### What to measure
 
@@ -3571,13 +3565,13 @@ The discipline is more important than the syntax.
 
 This chapter is aligned with the pandas 3.0 documentation current at the time of authoring.
 
-- `DataFrame.assign`: https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.assign.html
-- `DataFrame.pipe`: https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.pipe.html
-- User-defined functions and `DataFrame.pipe`: https://pandas.pydata.org/docs/user_guide/user_defined_functions.html
-- `DataFrame.drop`: https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.drop.html
-- pandas API reference, including extension APIs: https://pandas.pydata.org/docs/reference/
+- `DataFrame.assign`
+- `DataFrame.pipe`
+- User-defined functions and `DataFrame.pipe`
+- `DataFrame.drop`
+- pandas API reference, including extension APIs
 
-The official pandas documentation is versioned. The current documentation checked for this chapter is pandas **3.0.6**. citeturn495065search6
+The official pandas documentation is versioned. The current documentation checked for this chapter is pandas **3.0.6**. 
 
 # Appendix A — Roadmap Fidelity
 
