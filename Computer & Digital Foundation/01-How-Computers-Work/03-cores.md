@@ -25,7 +25,8 @@ for "one of the independent execution units inside a CPU."
 
 **Technical meaning:** A CPU core is an independent execution unit within a CPU capable of
 fetching, decoding, and executing instructions on its own, without needing another core to do
-that work for it.
+that work for it. (Modern processors may contain different types of cores with different
+performance and power characteristics; for this lesson, "core" means the general idea above.)
 
 **Relationship between CPU and core:**
 
@@ -43,8 +44,7 @@ one independent execution unit.** How those units are actually arranged, connect
 manufactured on real silicon is well beyond this lesson's scope.
 
 **Single-core CPU:** A CPU that contains exactly one execution unit. Everything you learned in
-Concept 2 (fetch → decode → execute) happens on that one core, and only that one core, one
-instruction stream at a time.
+Concept 2 (fetch → decode → execute) happens on that one core, and only that one core.
 
 **Multi-core CPU:** A CPU that contains more than one execution unit — more than one core — each
 independently capable of fetching, decoding, and executing instructions.
@@ -53,9 +53,9 @@ independently capable of fetching, decoding, and executing instructions.
 
 **Physical core vs. logical processor, at a high level (introduced only briefly here):** A
 *physical core* is an actual, distinct execution unit manufactured into the CPU chip. A *logical
-processor* is what the operating system sees as an available execution "slot" it can assign work
-to — and on some CPUs, a single physical core can expose more than one logical processor to the
-operating system. This distinction matters enough that Section 5 and Section 9 come back to it —
+processor* is an execution context that the operating system can schedule software work onto —
+and, depending on CPU design, one physical core may expose one or multiple logical processors to
+the operating system. This distinction matters enough that Section 5 and Section 9 come back to it —
 but the underlying technique that makes it possible is not taught in this lesson (see Section 10,
 Misconception 5, for the explicit boundary).
 
@@ -84,12 +84,12 @@ One core
     ↓
 one independent execution unit
     ↓
-limited execution capacity — only one instruction stream can make progress on it at a time
+limited execution capacity — only one core's worth of execution resources
 ```
 
 **Why simply making one core faster has practical limits.** Before multi-core designs became
 standard, CPU designers primarily tried to make a single core faster — mainly by increasing clock
-frequency (how many fetch-decode-execute cycles happen per second). This approach eventually ran
+frequency (how many clock cycles happen per second). This approach eventually ran
 into practical physical limits: pushing a single core to ever-higher frequencies requires more
 power and generates more heat, and at a certain point, the engineering cost and heat generated for
 each additional bit of speed became disproportionately large. This lesson does not go into the
@@ -124,7 +124,8 @@ overall capacity to get work done.
   keyboard/mouse), because different cores can handle different things concurrently. (The precise
   mechanism the operating system uses to do this is a later topic — see Section 8.)
 - **Parallel work** — some tasks are naturally made of independent pieces that can be worked on
-  simultaneously; multiple cores make that possible in a way a single core cannot.
+  simultaneously; multiple cores provide separate physical execution resources to make that
+  possible.
 - **Energy/performance considerations** — using several moderately-clocked cores can, for many
   real workloads, do more useful work per unit of energy than pushing a single core to extreme
   frequencies. This is a conceptual point, not a detailed power-engineering lesson.
@@ -253,22 +254,23 @@ reached.
 
 Building precisely on Concept 2's terms:
 
-- **Single-core CPU** — a CPU containing exactly one execution unit; only one fetch-decode-execute
-  cycle can be actively progressing at any instant.
+- **Single-core CPU** — a CPU containing exactly one execution unit (one physical core's worth of
+  execution resources).
 - **Multi-core CPU** — a CPU containing more than one execution unit, each capable of running its
   own fetch-decode-execute cycle independently of the others.
 - **Physical core** — an actual, distinct execution unit manufactured into the CPU chip.
-- **Logical processor** — an execution "slot" the operating system can see and assign work to.
-  Under normal, straightforward designs, one physical core corresponds to exactly one logical
-  processor. On some CPUs, a technique exists that allows a single physical core to expose *more
-  than one* logical processor to the operating system (this is sometimes called
-  Simultaneous Multi-Threading or Hyper-Threading, depending on the manufacturer). **This lesson
+- **Logical processor** — an execution context that the operating system can schedule software
+  work onto. Depending on CPU design, one physical core may expose one or multiple logical
+  processors. Under normal, straightforward designs, one physical core corresponds to exactly one
+  logical processor. On some CPUs, a technique exists that allows a single physical core to expose
+  *more than one* logical processor to the operating system (this is sometimes called
+  Simultaneous Multi-Threading or SMT — Intel's version is called Hyper-Threading). **This lesson
   does not teach how that technique works internally** — the only thing to understand at this
   stage is the distinction itself:
 
   ```text
   physical core         → an actual execution unit that exists on the chip
-  logical processor      → an execution slot the operating system sees and can assign work to
+  logical processor      → an execution context the operating system can schedule work onto
 
   Usually:      1 physical core  →  1 logical processor
   Sometimes:    1 physical core  →  2 (or more) logical processors
@@ -281,10 +283,11 @@ Building precisely on Concept 2's terms:
 - **Execution resource** — a general term for "something capable of executing instructions" —
   used here to refer to a core (or logical processor) without needing to specify which, when the
   distinction doesn't matter for the point being made.
-- **Clock frequency** — (from Concept 2) how many fetch-decode-execute cycles a core can
-  potentially perform per second. Each core has its own clock frequency characteristic, but as
-  Concept 2 already established, clock frequency alone is not a complete measure of performance —
-  that remains true here, now multiplied across however many cores a CPU has.
+- **Clock frequency** — (from Concept 2) the number of clock cycles per second. It is one factor
+  affecting CPU performance, but it does not directly tell us how many instructions a CPU executes
+  per second. Each core has its own clock frequency characteristic, but as Concept 2 already
+  established, clock frequency alone is not a complete measure of performance — that remains true
+  here, now multiplied across however many cores a CPU has.
 - **Workload** — the actual work (instructions, and the data they operate on) that needs to be
   executed. Workloads differ in how "divisible" they are, which is central to this entire lesson.
 
@@ -295,19 +298,24 @@ Concurrency:
 multiple tasks are being managed/progressed — not necessarily at the exact same instant.
 
 Parallelism:
-multiple tasks actually execute simultaneously, at the same instant.
+multiple streams of work actually execute simultaneously, at the same instant.
+
+Multiple physical cores  → provide separate physical execution resources
+SMT                      → can allow multiple hardware threads/logical processors
+                           to share one physical core
 ```
 
-A single core can create the *appearance* of concurrency by rapidly switching between different
-tasks (doing a little of one, then a little of another, and so on) — this is a real and useful
-technique, but it is not the same as true parallelism, where multiple tasks are genuinely running
-at the same literal instant on separate execution units. **How a single core actually achieves
-that rapid switching is an operating-system topic (scheduling) that is deliberately not taught in
-this lesson** — see Section 8. Multiple cores make genuine parallelism possible, but parallelism
-specifically requires more than one execution unit actually working at the same instant — simply
-having multiple cores available doesn't guarantee that every workload will actually use them that
-way (that depends on whether the work is divisible, and whether the software is written to divide
-it — again, Section 6).
+A single core that is running one stream of work at a time can create the *appearance* of
+concurrency by rapidly switching between different tasks (doing a little of one, then a little of
+another, and so on) — this is a real and useful technique, but it is not the same as true
+parallelism, where multiple streams of work are genuinely running at the same literal instant.
+**How a single core actually achieves that rapid switching is an operating-system topic
+(scheduling) that is deliberately not taught in this lesson** — see Section 8. Multiple physical
+cores are the clearest way to get genuine parallelism, but parallelism is not *only* a matter of
+physical-core count: on CPUs with SMT, multiple logical processors can make progress using one
+physical core. Either way, simply having more execution resources available doesn't guarantee that
+every workload will actually use them (that depends on whether the work is divisible, and whether
+the software is written to divide it — again, Section 6).
 
 **Why "4 physical cores" does not mean "every program runs 4× faster":**
 
@@ -341,8 +349,9 @@ Core
 execution
 ```
 
-One core can only actively progress one instruction stream at a time — this is exactly the
-fetch-decode-execute picture from Concept 2, unchanged.
+In this simplified picture, one core provides one core's worth of execution resources — this is
+exactly the fetch-decode-execute picture from Concept 2, unchanged. (On CPUs with SMT, one
+physical core can expose more than one logical processor; see Section 5.)
 
 **Multiple cores, conceptually:**
 
@@ -546,14 +555,15 @@ what Windows itself reports about the same machine.
 | Command | What it's intended to show |
 |---|---|
 | `lscpu` | A structured summary including logical CPU count, cores per socket, socket count, and threads per core |
-| `nproc` | The number of logical processors currently available to this environment |
+| `nproc` | The number of processing units available to the current process (this can be less than the total number of logical processors visible/online in the system, because availability can be affected by process/environment constraints) |
 | `grep -c "^processor" /proc/cpuinfo` | Counts how many logical-processor entries the Linux environment sees |
 | `lscpu \| grep -E '^(CPU\(s\)\|On-line CPU\(s\) list\|Core\(s\) per socket\|Socket\(s\)\|Thread\(s\) per core)'` | A filtered view showing just the topology fields relevant to this lesson |
 
 **Interpreting the key `lscpu` fields, at a beginner level:**
 
-- **`CPU(s)`** — the total number of *logical* processors visible to this environment (this is
-  the same idea `nproc` reports, just as one field among several).
+- **`CPU(s)`** — the total number of *logical* processors visible to this environment (closely
+  related to what `nproc` reports, though `nproc` counts the processing units available to the
+  current process).
 - **`Socket(s)`** — how many separate physical CPU chips are installed. On virtually all
   laptops/desktops, this is `1`. (What a "socket" is, physically, was introduced briefly back in
   Concept 1.)
@@ -571,9 +581,12 @@ A simple way to relate these fields conceptually:
 CPU(s)  ≈  Socket(s)  ×  Core(s) per socket  ×  Thread(s) per core
 ```
 
-You are not expected to memorize this as a formula to recite — it's here so that if you see these
-four numbers together, you can sanity-check that they relate to each other sensibly, rather than
-treating each one as an unrelated, disconnected fact.
+This relationship is useful for a simple, symmetric CPU topology, and it is only an approximate
+sanity check — it is **not** a universal hardware formula. Heterogeneous CPUs (with different
+types of cores) or virtualized environments may not fit this simple model exactly. You are not
+expected to memorize it as a formula to recite — it's here so that if you see these four numbers
+together, you can sanity-check that they relate to each other sensibly, rather than treating each
+one as an unrelated, disconnected fact.
 
 **Checking whether a command is available, without guessing:**
 
@@ -623,11 +636,12 @@ Why it happens   → "More resources = always better" is an intuitive but incomp
 
 ```text
 Misconception 4  → "One core can only run one thing at all, period."
-Correct idea     → A single core can only truly execute one instruction stream at any given
-                    instant (true parallelism requires multiple cores) — but a single core can
-                    still create the appearance of "doing several things" by rapidly switching
-                    between them (concurrency without parallelism, as defined in Section 5). How
-                    that switching actually works is an operating-system topic not taught here.
+Correct idea     → Without SMT, a single core runs one stream of work at a time (CPUs with SMT
+                    can expose more than one logical processor per physical core, Section 5) —
+                    but a single core can still create the appearance of "doing several
+                    things" by rapidly switching between them (concurrency without
+                    parallelism, as defined in Section 5). How that switching actually works
+                    is an operating-system topic not taught here.
 Why it happens   → Because a single-core computer can clearly run multiple programs that all
                     seem to make progress at once, it's easy to assume this means true
                     simultaneous execution is happening, when it may actually be rapid
@@ -639,8 +653,9 @@ Misconception 5  → "Logical processors are always physical cores."
 Correct idea     → Usually one physical core corresponds to one logical processor, but on some
                     CPUs, a single physical core can expose more than one logical processor to
                     the operating system (Section 5). The operating system, and tools like
-                    `nproc`, report logical processors — which is not always identical to the
-                    physical core count.
+                    `lscpu`, report logical processors, and `nproc` reports the processing
+                    units available to the current process — neither is always identical to
+                    the physical core count.
 Why it happens   → Most everyday explanations of "cores" don't mention this distinction, so
                     it's easy to assume every number a tool reports as a "CPU" is necessarily a
                     separate, distinct physical execution unit.
@@ -690,13 +705,14 @@ How to reason about this, step by step, using Section 9's relationship:
 - `Thread(s) per core: 2` — each physical core exposes 2 logical processors to the operating
   system.
 - `CPU(s): 8` — this is the total logical processor count, and it matches
-  `1 × 4 × 2 = 8`, confirming the relationship from Section 9.
+  `1 × 4 × 2 = 8`, consistent with the simple sanity check from Section 9.
 
 So this system has **4 physical cores**, but the operating system (and tools like `nproc`) will
 report **8** available logical processors. This is not a contradiction — it's exactly the
 physical-core-vs-logical-processor distinction from Section 5, made concrete with real numbers.
 There is no formula to memorize here beyond understanding that these four fields describe the same
-underlying hardware from different angles, and they should multiply out consistently.
+underlying hardware from different angles, and on a simple, symmetric topology they should
+multiply out consistently.
 
 **Scenario 2 — `nproc` reports a different number than the learner expected.**
 
@@ -745,12 +761,12 @@ explanations.
 
 **Scenario 4 — Windows reports one CPU topology, and WSL2 appears different.**
 
-This is expected, for the same underlying reason established throughout this lesson and in
+This can happen, for the same underlying reason established throughout this lesson and in
 Concept 1's WSL2 discussion: WSL2 runs inside a virtualization layer that Windows manages, and
 that layer can be configured to expose a particular slice of the physical host's resources —
-including CPU topology — rather than necessarily mirroring it exactly. Seeing Windows and WSL2
-report different core/thread numbers for the *same physical machine* is a sign the virtualization
-boundary is working as intended, not a fault in either environment.
+including CPU topology — rather than necessarily mirroring it exactly. Windows and WSL2 can report
+different CPU topology or processor counts because WSL2 runs in a VM whose processor allocation
+can differ from the host. This is not, on its own, a fault in either environment.
 
 ---
 
@@ -777,14 +793,14 @@ Work through these in order, reasoning in your own words before checking the sep
 
 9. Run `lscpu`, `nproc`, and `grep -c "^processor" /proc/cpuinfo` in your WSL2 terminal. Record
    the values for `CPU(s)`, `Core(s) per socket`, `Socket(s)`, and `Thread(s) per core`.
-10. Using the values you recorded, check whether `Socket(s) × Core(s) per socket × Thread(s) per
-    core` matches the `CPU(s)` value (and the `nproc`/`grep` counts). State whether your system
+10. Using the values you recorded, as a simple sanity check, see whether `Socket(s) × Core(s) per
+    socket × Thread(s) per core` matches the `CPU(s)` value (and the `nproc`/`grep` counts). State whether your system
     exposes more logical processors than physical cores, and if so, by what factor.
 
 ### Level 4 — Debugging
 
 11. A learner's `nproc` output inside WSL2 is lower than the logical processor count shown by
-    Windows Task Manager for the same physical machine. Explain why this is expected.
+    Windows Task Manager for the same physical machine. Explain why this can happen.
 12. A learner runs a benchmark on 1 core and then on 2 cores, expecting exactly double the speed,
     but only sees a modest improvement. List at least three plausible explanations from Section
     11, and explain how you would start reasoning about which one applies (without needing to

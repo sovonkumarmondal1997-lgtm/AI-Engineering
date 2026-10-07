@@ -52,24 +52,31 @@ of them get plugged into so they can actually work together as one machine.
 The name comes from the same idea as a public transit bus: something that carries things (in
 this case, electrical signals representing data) from one stop to another along a defined route.
 
-*Technical meaning:* A bus is a set of physical wires (etched into the motherboard, or run
-through a connector/cable) plus an agreed-upon set of electrical rules, over which components
-exchange data and coordination signals.
+*Technical meaning:* A bus is a communication mechanism: a physical pathway (for example, wires
+etched into the motherboard, or run through a connector/cable) plus an agreed-upon set of
+signaling, electrical and protocol rules, over which components exchange data and coordination
+signals. Traditional buses were commonly **shared** collections of signal lines that several
+components took turns using. Modern computers also use **point-to-point** links and
+**switched/fabric-style interconnects**, so not every modern communication pathway should be
+pictured as one shared physical bus (Section 6 explains this properly).
 
 *Why it matters:* Just having components physically bolted to the same board doesn't mean they
-can talk to each other — they need an actual electrical pathway, and a shared agreement on how to
-use it, to exchange information. Buses are that pathway and that agreement, together.
+can talk to each other — they need an actual communication pathway, and a shared agreement on how
+to use it, to exchange information. Buses and interconnects provide that pathway and that
+agreement, together.
 
 **Step 5 — how do the motherboard and buses relate?**
 
-The motherboard is the **physical object** — the board itself. Buses are **the communication
-pathways built into (or connected through) that board.** The motherboard is the "place," and
-buses are the "roads" laid across that place, connecting one component's location to another's.
+The motherboard is the **physical object** — the board itself. Buses and other interconnects are
+**the communication pathways that connect components**, and many of them are built into (or
+connected through) that board. The motherboard is the "place," and these pathways are the "roads"
+laid across that place, connecting one component's location to another's.
 
-You cannot really have one without the other in a useful sense: a motherboard with no buses would
-just be a board with disconnected islands of components on it, and a bus can't exist floating in
-space — it has to be built into or routed across some physical structure, which is the
-motherboard (and the cables/connectors attached to it).
+You cannot really have one without the other in a useful sense: a motherboard with no
+communication pathways would just be a board with disconnected islands of components on it. Not
+every pathway is only traces on the motherboard, though — modern communication links can also
+involve connectors, cables, chip packages, controllers and switches, and some pathways run inside
+a single chip package.
 
 ---
 
@@ -143,8 +150,9 @@ matters):
   file — for now, just note that it is *another component that needs to communicate*.)
 - **Data movement in general** — AI work, more than most other software work, tends to involve
   moving very large amounts of data (datasets, model weights, batches of inputs) between
-  components. When people talk about an AI system being "slow," the cause is often not the
-  processor being too weak, but data movement between components being a bottleneck.
+  components. Data movement can be a significant performance bottleneck in many AI workloads,
+  but the dominant bottleneck depends on the workload and the system — it is not always the
+  communication pathways.
 
 You do not need to master any of this yet. The point of this lesson is only to plant the idea
 that **hardware communication pathways are a real, physical limit on what any software —
@@ -221,19 +229,21 @@ via a cable (storage drives, in most modern desktop/laptop designs).
 - A **connector** is a more general term for any point where a cable or component attaches to the
   board (for example, a storage-drive data cable connector, or a power connector).
 
-**Chipset / platform controllers:** On many motherboard designs, one or more supporting chips —
-often called the **chipset**, or described as platform controller hardware — manage lower-speed
-communication and coordinate access between components and the processor. Not every motherboard
-design uses the term "chipset" the same way, and on some modern systems a growing amount of this
-controller functionality has moved directly into the main processor chip itself. The exact
-division of labor differs by manufacturer and generation — the important concept, not the exact
-name, is that **some dedicated hardware exists whose job is to manage and coordinate
-communication**, separate from the components that are actually producing or consuming the data.
+**Chipset / platform controllers:** Modern platforms divide communication and I/O
+responsibilities among several pieces of hardware. Some of this functionality may be integrated
+into the CPU/processor package, some may be provided by **chipset** or platform-controller
+hardware on the motherboard, and other dedicated controllers may handle specific devices or
+interfaces (for example, a storage or network controller). The exact topology differs by
+processor generation, platform and vendor, and not every design uses the term "chipset" the same
+way. The important concept, not the exact name, is that **communication and I/O are coordinated by
+dedicated hardware, spread across the CPU package, the chipset and device controllers**, separate
+from the components that are actually producing or consuming the data.
 
-**Communication pathways / buses:** A bus is the combination of (a) physical wiring and (b) an
-agreed electrical/timing standard, used so that two or more components can reliably exchange
-signals. Historically (and still useful as a mental model), a bus was often described as carrying
-three distinct kinds of signals:
+**Communication pathways / buses:** A bus is a communication mechanism combining (a) a physical
+pathway and (b) an agreed signaling/electrical/protocol standard, used so that two or more
+components can reliably exchange signals. As a **traditional conceptual model** (still useful for
+understanding what information must travel), a bus was often described as carrying three distinct
+kinds of signals:
 
 - **Data bus** — carries the actual data being moved (the "payload" — the values being read or
   written).
@@ -245,15 +255,21 @@ three distinct kinds of signals:
 
 This three-part model (data / address / control) comes from classic, simpler computer
 architectures where these often really were three physically distinct groups of wires. It's still
-an excellent way to understand *what kinds of information* need to travel between components,
-even though, as the next section explains, modern hardware frequently doesn't implement this as
-one single shared set of wires anymore.
+an excellent way to understand *what kinds of information* need to travel between components.
+However, modern interfaces do not necessarily expose these as three separate physical buses —
+they can encode the same kinds of information (data, where it is meant to go, and how to handle
+it) inside protocol-defined transactions. In particular, a modern interconnect such as PCIe should
+not be pictured as literally "a data bus + an address bus + a control bus." As the next section
+explains, modern hardware frequently doesn't implement this as one single shared set of wires
+anymore.
 
 ---
 
 ## 6. How It Works Internally
 
-**A general step-by-step communication model:**
+**A simplified conceptual communication model** (not the exact internal architecture of every
+communication path — real systems may also include memory controllers, root complexes, switches,
+DMA engines and other interfaces/controllers, which are not explained here):
 
 ```text
 Component A (the source)
@@ -285,19 +301,47 @@ Modern computers commonly use a mix of:
   directly (like a private driveway built just between two specific buildings, rather than a
   shared public road).
 - **Interconnects** — a broader, modern term covering various high-speed communication schemes
-  (which may combine multiple point-to-point links, switching, and other techniques) used to move
-  data between major components such as the processor, memory, and expansion devices like GPUs.
+  (which may combine multiple point-to-point links, switching, and other platform-specific
+  techniques) used to move data between major components such as the processor, memory, and
+  expansion devices like GPUs.
 
-You do not need PCIe implementation details at this stage — for now, the concept to hold onto is:
+```text
+Traditional shared bus  →  historical / simple model
+
+Modern system  →  multiple communication mechanisms
+                    ├── point-to-point links
+                    ├── switched / interconnected structures
+                    └── other platform-specific interconnects
+```
+
+**A minimal modern example — PCIe.** PCIe (PCI Express) is a modern high-speed I/O interconnect
+that connects devices such as GPUs, NVMe SSDs and network adapters to the rest of the system:
+
+```text
+CPU / platform
+      |
+     PCIe
+      |
+GPU / NVMe SSD / NIC
+```
+
+A PCIe link is made of **lanes**, and more lanes can provide greater aggregate bandwidth. It is a
+good concrete example of a modern interconnect rather than a traditional shared bus. (Bandwidth is
+only one property — as explained below, it is not the same as latency.)
+
+You do not need further PCIe implementation details at this stage — for now, the concept to hold onto is:
 **"one shared bus for everything" is the historical simple model; real modern systems mostly use
 multiple dedicated high-speed pathways instead, chosen based on which two components need to talk
 and how much data they need to move.** Specific interconnect standards will be introduced later,
 only when they're actually needed to understand a specific component.
 
-**How components know where information should go:** This is what the *address* portion of a
-communication (Section 5) is for — a signal traveling across a pathway is typically accompanied by
-information identifying its destination or target location, so the receiving hardware can tell
-whether a given signal is meant for it.
+**How components know where information should go:** This is where the *address* idea from
+Section 5 comes in. An address identifies a location or resource within the relevant addressing
+model (for example, a memory location). That is not necessarily the same thing as naming the
+physical component a signal must travel to. Modern interconnects use protocol mechanisms —
+such as device/endpoint identifiers, routing structures and switches — to get a transaction to
+the right place, so that the receiving hardware can tell whether a given signal is meant for it.
+These mechanisms are beyond Stage 0.
 
 **How control signals coordinate operations:** Separately from the data itself, coordination
 signals establish things like: is this a request to read or to write; is the data on the pathway
@@ -326,25 +370,28 @@ performance for AI workloads.
 
 ## 7. Real-World Example
 
-A simplified trace of what happens, at the level this lesson covers, when a user starts an
-application:
+A simplified illustration of data movement and hardware communication when a user starts an
+application (this is **not** the exact or universal program-start sequence):
 
 ```text
-User double-clicks an application icon
+Application launch
         ↓
-storage           (the application's data is currently sitting on a storage device)
+Operating system / loader
         ↓
-system communication pathways   (motherboard buses/interconnects carry that data onward)
+Process + memory/address-space setup
         ↓
-memory            (the data is placed somewhere the processor can access quickly)
+Executable code/data become available
         ↓
-CPU               (the processor begins working with that data)
+CPU executes instructions
+        ↓
+Additional code/data may be fetched as needed
 ```
 
-At this stage, only focus on the **middle arrow** — the fact that data has to physically travel
-from the storage device, across the system's communication pathways, before it can reach memory
-and then the processor. That movement is only possible because of the motherboard and its buses
-or interconnects, which is exactly what this lesson is about.
+The exact startup sequence depends on the operating system, executable format, memory-management
+mechanisms and hardware. The point here is only that execution requires communication between
+components: code and data have to physically travel between storage, memory and the CPU across the
+system's communication pathways, and that is only possible because of the motherboard and its
+buses or interconnects, which is exactly what this lesson is about.
 
 **Explicitly deferred to later lessons — not covered here:**
 
@@ -405,18 +452,20 @@ commands that let you look at information related to your own system's component
 communication pathways. None of these commands change anything on your system.
 
 **Important context before using them: you are using Ubuntu inside WSL2 (Windows Subsystem for
-Linux) on Windows.** WSL2 runs Linux inside a lightweight virtual machine managed by Windows. This
-matters a lot for hardware-inspection commands specifically:
+Linux) on Windows.** WSL2 provides a managed, virtualized Linux environment run by Windows.
+Hardware visibility inside it is not identical to native Linux on bare metal, and some hardware
+capabilities are exposed through WSL-specific integration. This matters for hardware-inspection
+commands specifically (exact behavior depends on your Windows/WSL/hardware configuration):
 
 ```text
-What WSL2 exposes accurately:
+What WSL2 usually exposes reasonably well:
   - Most CPU information (model, core count) is usually passed through fairly accurately.
   - Kernel/OS information describes the Linux environment WSL2 provides, not Windows itself.
 
-What may be hidden, virtualized, or incomplete under WSL2:
-  - Motherboard, chipset, and low-level bus/interconnect details are often NOT exposed at all,
-    because WSL2 is a virtual machine — it has a virtualized hardware layer, not direct access
-    to your physical motherboard's internals.
+What may be limited, virtualized, or different under WSL2:
+  - Motherboard, chipset, and PCI-level details can be limited or different from what native
+    Linux would show, because WSL2 presents a virtualized hardware view rather than direct
+    access to your physical motherboard's internals.
   - Storage devices may appear as virtual disks rather than your real physical drives.
   - Some commands may return "permission denied," empty output, or generic virtual hardware
     names instead of your real hardware.
@@ -428,14 +477,16 @@ What may be hidden, virtualized, or incomplete under WSL2:
 | `lscpu` | CPU model, core/thread count, cache sizes | Generally passed through reasonably accurately from the host |
 | `lsmem` | Memory (RAM) range/block information | May show a reduced or capped view, since WSL2 is allocated a portion of host memory |
 | `lsblk` | Block storage devices (disks/partitions) | Often shows virtual disks used by WSL2, not your physical drives directly |
-| `lspci` | Devices connected via the PCI/PCIe interconnect (motherboard-level device listing) | Frequently very limited or unavailable under WSL2, since it's a virtualized environment without direct PCI bus access |
+| `lspci` | Devices connected via the PCI/PCIe interconnect (motherboard-level device listing) | Often limited, different, or unavailable under WSL2, since it's a virtualized environment and PCI-level visibility differs from native Linux |
 
 Try running each of these in your WSL2 terminal and simply **observe and compare** the output —
 you are not expected to fully understand every field yet. This connects directly to Lab 1
 (`labs/01-system-information-lab.md`), which walks through this in more structured detail using
 `lscpu`, `free -h`, `lsblk`, and `lspci` together.
 
-None of these commands modify your system, require `sudo` for basic use, or carry any risk to run.
+These commands are generally read-only and normally do not require elevated privileges for basic
+inspection, although visibility and permissions can vary by environment. None of them modify your
+system.
 
 ---
 
@@ -515,38 +566,36 @@ Why it happens  → WSL2 feels like "just a Linux terminal," so it's easy to for
 
 You try a command (for example `lspci`) and get something like `command not found`.
 
-How to determine whether the command exists at all on your system, without guessing:
-
-```bash
-which lspci
-```
-
-or
+Check whether `lspci` is installed (these commands only *check* — they do not install anything):
 
 ```bash
 command -v lspci
 ```
 
-If either of these returns nothing, the tool genuinely isn't installed yet (this is common for
-`lspci`, which comes from the `pciutils` package and isn't always installed by default). This is
-not a sign that anything is broken — it simply means that particular inspection tool isn't present
-in this environment yet. (Installing it, if you choose to, would use your distribution's package
-manager — that's a Module 0.4 / Module 0.2 topic, not something this lesson needs to cover.)
+(`which lspci` does the same kind of check.) If it returns nothing, the tool genuinely isn't
+installed yet (this is common for `lspci`, which comes from the `pciutils` package and isn't
+always installed by default). If it is unavailable, install the `pciutils` package using the
+appropriate package manager for your Linux distribution. This is not a sign that anything is
+broken — it simply means that particular inspection tool isn't present in this environment yet.
+(Package managers are a Module 0.4 / Module 0.2 topic, not something this lesson needs to cover.)
 
 **Scenario 2 — `lspci` does not show the physical hardware you expected inside WSL2.**
 
 As covered in Section 9, WSL2 runs Linux inside a virtual machine layer. `lspci` is specifically
-meant to list devices visible on the PCI/PCIe interconnect — but WSL2's virtual machine typically
-does **not** give the Linux environment direct access to the real physical PCI bus of your
-Windows machine. So `lspci` inside WSL2 commonly shows very little, shows only virtualized
-devices, or is unavailable altogether. This is expected virtualization behavior, not a fault in
-your system or in the command.
+meant to list devices visible on the PCI/PCIe interconnect — but PCI-level visibility inside WSL2
+can be limited or different from native Linux, because the Linux environment does not necessarily
+see your Windows machine's physical PCI devices the way bare-metal Linux would. Some hardware (such
+as GPUs) may be exposed through WSL-specific integration instead. So `lspci` inside WSL2 can show
+very little, show only virtualized devices, or be unavailable altogether, depending on your
+Windows/WSL/hardware configuration. This is expected virtualization behavior, not a fault in your
+system or in the command.
 
 **Scenario 3 — a learner sees different hardware information in Windows and in WSL2.**
 
-This is expected and normal. Windows Task Manager / System Information queries the real physical
-hardware directly. WSL2 queries a virtualized Linux environment that Windows manages on top of
-that real hardware, and that virtual environment is deliberately given only a defined slice of
+This is expected and normal. Windows has access to the host system's hardware and presents
+hardware information through operating-system and firmware interfaces (as in Task Manager /
+System Information). WSL2 queries a virtualized Linux environment that Windows manages on top of
+that hardware, and that virtual environment is deliberately given only a defined slice of
 resources (for example, a capped amount of memory) and a simplified/virtualized view of certain
 hardware, especially anything at the motherboard/chipset/PCI level. Seeing a mismatch between the
 two is a sign the virtualization boundary is working as intended, not a sign that something is
@@ -582,8 +631,9 @@ phrase" — write answers in your own words.
 6. Run `lscpu`, `lsmem`, and `lsblk` in your WSL2 terminal. For each one, write one sentence
    describing what category of information it showed you (you do not need to understand every
    field).
-7. Run `lspci` (install it first with `which lspci` / `command -v lspci` to check, per Section
-   11, if needed). Record what you observed — including if it showed little or nothing.
+7. Run `lspci` (first check whether it is installed with `command -v lspci`, and install the
+   `pciutils` package if needed, per Section 11). Record what you observed — including if it
+   showed little or nothing.
 
 ### Level 4 — Debugging
 
@@ -623,7 +673,8 @@ relevant section before moving on.
 6  → Answers vary — check that you named a category (CPU info / memory info / storage info),
      not specific numbers.
 7  → A short/empty result is a valid, expected observation under WSL2 — not a failure.
-8  → WSL2 virtualizes the PCI-level view; it does not have direct access to the real PCI bus.
+8  → WSL2 presents a virtualized/different PCI-level view than native Linux would; GPU access may
+     come through WSL-specific integration instead.
 9  → WSL2 is allocated a capped share of host memory; a native install can see the true total.
 10 → Data movement/communication pathways (or memory, storage) could be the bottleneck, not
      just processor speed — performance depends on the whole system, not one component.
@@ -699,19 +750,20 @@ of them*: that every one of those components is a physically separate piece of h
 depends on the motherboard's communication pathways (buses/interconnects) to exchange data with
 the rest of the system at all.
 
-This matters for a future Applied AI Engineer because a large share of real-world AI system
-performance problems are not "the AI model is bad" — they are **hardware communication
-problems**, for example:
+This matters for a future Applied AI Engineer because many real-world AI system performance
+problems are not "the AI model is bad" — data movement can be a significant bottleneck in many AI
+workloads, though the dominant bottleneck depends on the workload and the system. Examples of
+**hardware communication problems** that can occur:
 
 - A GPU sitting idle, waiting for data to arrive from storage or memory, because the pathway
-  feeding it data is a bottleneck — the GPU itself may be extremely capable, but it can only work
+  feeding it data can be a bottleneck — the GPU itself may be extremely capable, but it can only work
   as fast as data can reach it.
-- Loading a very large dataset or a large trained model being slow not because the storage device
-  is slow to *read*, but because of the capacity and speed of the communication pathway carrying
-  that data onward to memory.
+- Loading a very large dataset or a large trained model being slow, in some cases, not because
+  the storage device is slow to *read*, but because of the capacity and speed of the communication
+  pathway carrying that data onward to memory.
 - Multiple components (e.g. several GPUs) needing to exchange large amounts of data with each
-  other, where the interconnect between them becomes the limiting factor, not the processing
-  power of any single component.
+  other, where the interconnect between them can become the limiting factor rather than the
+  processing power of any single component.
 
 The specific hardware relevant here — **CPU, RAM, storage, GPU, PCIe/interconnects, bandwidth,
 latency, hardware bottlenecks, and data movement** — will each be taught properly, one at a time,

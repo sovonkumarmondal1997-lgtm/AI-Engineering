@@ -18,21 +18,23 @@ that information, rather than just storing it or moving it around.
 **What CPU stands for:** CPU stands for **Central Processing Unit**.
 
 **Simple meaning:** The CPU is the component inside a computer that carries out the actual steps
-of a program — it's the part that "does the work" a program asks for, one step at a time.
+of a program — it's the part that "does the work" a program asks for, step by step.
 
 **Technical meaning:** The CPU is the hardware component responsible for **executing
-instructions** — reading a sequence of simple operations and carrying each one out, in order,
-extremely quickly.
+instructions** — reading a sequence of simple operations and carrying each one out, with the
+results behaving as if they happened in program order, extremely quickly. (How a real CPU achieves
+this internally is more sophisticated than "one at a time" — see Section 6.)
 
 **Why it's commonly called "the processor":** Because its job is to *process* information — take
-some input, do something to it according to an instruction, and produce a result. "Processor" and
-"CPU" are used interchangeably in everyday and technical language.
+some input, do something to it according to an instruction, and produce a result. In ordinary PC
+discussions, "processor" often refers to the CPU, but technically "processor" is a broader term
+and can refer to other types of processing hardware as well.
 
 **What "processing" means, at the simplest level:** Processing means taking a piece of
 information and transforming it into a different, more useful piece of information, according to
 some rule. `2 + 3` becoming `5` is processing. Deciding whether one number is bigger than another
-is processing. A CPU exists to do enormous numbers of tiny operations like these, one after
-another, at extremely high speed.
+is processing. A CPU exists to do enormous numbers of tiny operations like these, in sequence as
+far as the program is concerned, at extremely high speed.
 
 **A CPU is not the entire computer.** This is the single most important distinction in this
 lesson:
@@ -49,10 +51,11 @@ ONE of those components — specifically, the one responsible for executing inst
 ```
 
 The CPU is often the component people think of first when they picture "the computer," partly
-because it's often described (loosely) as the most important part. But by itself, a CPU sitting
-on a table does nothing — it needs to be connected (via the motherboard and buses you learned
-about in Concept 1) to memory, storage, and other components in order to actually receive
-instructions and data to work on, and to store or output its results.
+because it's often described (loosely) as the most important part. But in a conventional computer
+system, the CPU works together with memory and other system resources to execute useful programs —
+it is connected (via the motherboard and buses you learned about in Concept 1) to memory, storage,
+and other components in order to receive instructions and data to work on, and to store or output
+its results.
 
 This lesson stays at this conceptual level — *what a CPU is and what role it plays* — and does
 not yet open up what's happening physically inside it. That begins in Section 5 and Section 6,
@@ -74,7 +77,7 @@ software / program
         ↓
 a program is really a sequence of instructions
         ↓
-something must actually execute (carry out) each instruction, one at a time
+something must actually execute (carry out) each instruction, in program order
         ↓
 that "something" is the CPU
 ```
@@ -101,7 +104,7 @@ built by combining enormous numbers of those simple instructions together.
   "if this is true, do one thing; otherwise, do another"). This is what lets programs behave
   differently depending on input, rather than always doing the exact same fixed sequence.
 - **Control** — managing the order instructions happen in, including being able to jump to a
-  different point in a program's instructions rather than always proceeding strictly one-by-one.
+  different point in a program's instructions rather than always proceeding strictly in sequence.
 - **Instruction execution** — the umbrella term for all of the above: reading an instruction and
   actually carrying it out.
 
@@ -116,7 +119,7 @@ and carrying out whatever instructions it's given.*
 
 It's tempting to think that once GPUs enter the picture (which you'll learn about later in this
 module), the CPU stops mattering for AI work. In practice, the opposite is true — **CPUs remain
-essential in essentially every real AI system**, even ones that rely heavily on GPUs or other
+essential in most practical AI systems**, even ones that rely heavily on GPUs or other
 specialized accelerators. At this stage, you only need to understand *why*, conceptually — not
 how any of this is actually implemented.
 
@@ -132,7 +135,9 @@ Here are concrete categories of work in a real AI system that typically run on a
 - **Networking-related work** — receiving requests over a network, parsing them, and sending
   results back is typically CPU-executed work.
 - **System operations** — tasks like reading/writing files, managing memory, and coordinating
-  with the operating system (covered in Module 0.2) are CPU-driven.
+  with the operating system (covered in Module 0.2). The CPU and operating system coordinate many
+  of these operations, while some work may be handled by dedicated hardware or DMA-capable
+  devices.
 - **Model-serving infrastructure** — the software system that receives requests for an AI model,
   queues them, manages resources, and returns responses runs largely on the CPU, even when the
   model itself runs on a GPU.
@@ -170,7 +175,7 @@ if the GPU itself is fast and idle, waiting for the CPU to hand it work.
 **Analogy: the CPU as a worker following an instruction list.**
 
 ```text
-CPU       = a worker who follows instructions exactly, one at a time, extremely quickly
+CPU       = a worker who follows instructions exactly, step by step, extremely quickly
 program   = a written list of instructions for that worker to follow
 computer  = the whole organization/workplace the worker operates within
 ```
@@ -178,8 +183,8 @@ computer  = the whole organization/workplace the worker operates within
 Imagine a worker at a desk who has been handed a long list of very simple, precise instructions:
 "take the number in box A, add the number in box B, write the result in box C," followed by
 another instruction, and another. The worker doesn't need to understand the *purpose* of the
-overall task — they just need to read each instruction and carry it out exactly, one after
-another, extremely fast. That's a reasonably good beginner mental model for what a CPU does.
+overall task — they just need to read each instruction and carry it out exactly, in order,
+extremely fast. That's a reasonably good beginner mental model for what a CPU does.
 
 ```text
 Program
@@ -194,15 +199,17 @@ result                 (the outcome of carrying out the instructions)
 ```
 
 **Where this analogy is useful:** It captures the core idea that a CPU carries out simple,
-well-defined steps, one at a time, exactly as instructed, and that a program is really just a
-(very long) list of such steps.
+well-defined steps, exactly as instructed, and that a program is really just a (very long) list
+of such steps.
 
 **Where this analogy breaks down:** A human worker interprets instructions with judgment and can
 handle ambiguity; a CPU cannot — every instruction it executes must be in an exact, unambiguous
 format it already knows how to carry out (you'll learn what that format actually looks like in
 the Instructions and Machine Code lesson). Also, a real CPU executes billions of simple
 instructions per second — far beyond anything a "worker at a desk" analogy can convey in terms of
-speed and scale.
+speed and scale. And unlike a single worker literally doing one step at a time, a real modern CPU
+may overlap the processing of several instructions internally while still producing the same
+results as if they had been carried out in order (see Section 6).
 
 **A note on the common phrase "the CPU is the brain of the computer":** You will hear this often,
 and it's not entirely wrong — like a brain, the CPU is central to "making things happen." But it
@@ -220,8 +227,8 @@ to "the CPU is central and does the active work," not as a literal or complete d
 At a conceptual level (not transistor-level detail), the CPU's job can be broken into a few major
 responsibilities:
 
-- **Instruction execution** — reading and carrying out instructions, one at a time, as covered
-  above.
+- **Instruction execution** — reading and carrying out instructions, in program order as far as
+  the program can observe, as covered above.
 - **Arithmetic operations** — performing mathematical operations on values, such as addition,
   subtraction, multiplication, and division. Example: `2 + 3`.
 - **Logical operations** — performing operations that produce true/false-style outcomes or
@@ -244,7 +251,9 @@ electronics):
 
 ### Arithmetic Logic Unit (ALU)
 
-*Simple meaning:* The ALU is the part of the CPU that actually does math and comparisons.
+*Simple meaning:* The ALU is the part of the CPU that actually does math and comparisons. It is a
+useful conceptual component responsible for many arithmetic and logical operations; modern CPUs
+may contain multiple specialized execution units rather than one single simple ALU.
 
 *Technical meaning:* The Arithmetic Logic Unit is a functional part of the CPU responsible for
 carrying out arithmetic operations (like addition and subtraction) and logical/comparison
@@ -269,6 +278,9 @@ inside the CPU that actually performs that addition.
 
 *Simple meaning:* The control unit is the part of the CPU that manages what happens and in what
 order — it doesn't do the math itself, it coordinates the process of executing instructions.
+The control unit is a useful conceptual model for the CPU's instruction-control logic. Modern CPUs
+implement this control using many interacting structures rather than necessarily having one
+physically separate block called the "Control Unit."
 
 *Technical meaning:* The Control Unit is the functional part of the CPU responsible for directing
 the overall instruction-execution process: determining what the current instruction requires,
@@ -299,6 +311,18 @@ This section explains the CPU's basic instruction-execution cycle — the repeat
 constantly performs while a program runs. This is one of the most important mental models in this
 entire module, so take your time with it.
 
+**Important qualification:** Fetch → decode → execute is a simplified conceptual model used to
+understand instruction execution. It should not be read as a literal statement that every modern
+CPU physically completes one instruction before beginning the next. Modern processors may
+pipeline and overlap instruction processing, have several instructions in flight at once, and may
+execute internally out of order — while still preserving the behavior the program's instructions
+require.
+
+A useful distinction is between the architectural model and the physical implementation. The
+architecture defines the behavior software can rely on, while the processor's internal
+implementation may use pipelining, parallel execution, speculation, and other techniques to
+achieve that behavior efficiently.
+
 ```text
         ┌─────────────────────────────┐
         │                             │
@@ -318,8 +342,8 @@ entire module, so take your time with it.
 
 *What's happening conceptually:* A program's instructions are stored somewhere accessible to the
 CPU (you will learn exactly where — registers, cache, RAM — in the next few concept files). The
-"fetch" step is simply the CPU retrieving the next instruction it needs to work on, one at a time,
-in order.
+"fetch" step is simply the CPU retrieving the next instruction it needs to work on, following the
+program's order.
 
 *Deliberately not covered here:* Exactly *where* instructions are held before being fetched, and
 the detailed mechanics of retrieving them, is the subject of the Registers, Cache, and RAM
@@ -354,8 +378,9 @@ both.
 *Simple meaning:* A program isn't one instruction — it's a long sequence of them, and the CPU
 just keeps going.
 
-*What's happening conceptually:* Once execute finishes, the CPU returns to fetch and obtains the
-*next* instruction, and the whole cycle — fetch, decode, execute — happens again. A running
+*What's happening conceptually:* In the conceptual model, once execute finishes, the CPU returns
+to fetch and obtains the *next* instruction, and the whole cycle — fetch, decode, execute —
+happens again. (In a real CPU these stages for different instructions can overlap.) A running
 program is really this cycle repeating an enormous number of times per second, for as long as the
 program runs.
 
@@ -393,9 +418,10 @@ or to more advanced material well beyond Stage 0):
   their own dedicated lessons.
 - Pipelines, out-of-order execution, branch prediction, speculative execution, superscalar
   execution, or any other real-CPU optimization technique. Real CPUs do not execute this cycle in
-  quite this simple a way — they use many sophisticated techniques to go faster. Those techniques
-  are genuinely advanced topics that build on top of this basic fetch-decode-execute model, and
-  are intentionally out of scope for this beginner-level lesson.
+  quite this simple a way — they use many sophisticated techniques (such as overlapping the work
+  on several instructions) to go faster, while keeping the program's results correct. Those
+  techniques are genuinely advanced topics that build on top of this basic fetch-decode-execute
+  model, and are intentionally out of scope for this beginner-level lesson.
 
 Fetch → Decode → Execute → Repeat is the correct **conceptual foundation** every one of those more
 advanced topics is eventually built on top of — which is exactly why it's the right amount of
@@ -430,6 +456,12 @@ CPU executes those instructions (fetch → decode → execute)
       ↓
 result
 ```
+
+This diagram is a simplified conceptual model, not the exact execution pipeline of any particular
+Python implementation. The exact path depends on the implementation: for example, CPython
+compiles Python source to Python bytecode that its runtime/interpreter executes, and native
+machine code is also involved — the interpreter/runtime itself, and any native extensions, are
+machine code the CPU executes. These implementation details are intentionally deferred.
 
 At this stage, only pay attention to the last two steps: **once a program has been turned into
 instructions the CPU can understand, the CPU executes them using the fetch-decode-execute cycle
@@ -526,9 +558,9 @@ to expose to the Linux environment.
 
 | Command | What it's intended to show | Relevant to understanding CPUs because... | WSL2 note |
 |---|---|---|---|
-| `lscpu` | A structured summary of CPU information: model name, number of CPUs, cores, threads, cache sizes, architecture | Gives you a real, human-readable snapshot connecting this lesson's concepts (CPU, and — briefly — cores/cache) to your own machine | Generally passed through fairly accurately from the host, but see Scenario 2 in Section 11 |
-| `nproc` | The number of processing units currently available to the current environment | Directly shows how many independent "workers" (conceptually) are available to run instructions at once — the full explanation of what this really means is the Cores lesson | Reflects what WSL2 is configured/allowed to use, not necessarily the physical CPU's full core count |
-| `cat /proc/cpuinfo` | A detailed, raw listing of information for every logical processor the system sees, one block per processor | Useful for seeing that a system can report *multiple* processor entries, previewing the Cores concept, without needing to fully understand it yet | Reflects what the Linux environment inside WSL2 sees, which may not exactly match the physical Windows host |
+| `lscpu` | A structured summary of CPU information: model name, number of CPUs, cores, threads, cache sizes, architecture | Gives you a real, human-readable snapshot connecting this lesson's concepts (CPU, and — briefly — cores/cache) to your own machine | Reports the CPU architecture and topology visible to the Linux environment; in WSL2 or other virtualized environments these values describe what the guest environment sees and may not exactly reproduce the physical host's full CPU topology (see Scenario 2 in Section 11) |
+| `nproc` | The number of processing units available to the current process | Directly shows how many independent "workers" (conceptually) are available to run instructions at once — the full explanation of what this really means is the Cores lesson | In WSL2, the number visible to Linux can depend on the processors exposed/configured for the WSL2 environment and on Linux-level availability constraints, so it is not necessarily the physical CPU's full core count |
+| `cat /proc/cpuinfo` | CPU information exposed by the Linux kernel; the exact information and layout are architecture-dependent, and multiple processor entries commonly appear | Useful for seeing that a system can report *multiple* processor entries, previewing the Cores concept, without needing to fully understand it yet | Reflects what the Linux environment inside WSL2 sees, which may not exactly match the physical Windows host |
 | `uname -m` | The machine's hardware architecture name (for example `x86_64` or `aarch64`) | Confirms, at a very basic level, what general family of processor design your system uses | Reports the architecture of the WSL2 Linux environment; on most systems this matches the physical host's architecture |
 
 **How to check if a command is missing, without guessing:**
@@ -644,19 +676,21 @@ unfamiliar fields for now rather than trying to memorize the entire output.
 **Scenario 2 — `nproc` returns a number different from what the learner expected.**
 
 If you know (for example, from checking your machine's specifications in Windows) that your
-physical CPU has a certain number of cores, but `nproc` inside WSL2 reports a different (often
-smaller) number, this is expected virtualization behavior, not an error. WSL2 is configured with
-a certain amount of processing resources made available to it by Windows, and `nproc` reports what
-is available *to the WSL2 environment specifically* — not necessarily the full physical
-specification of your CPU. The exact number of logical processors, what a "core" versus a
+physical CPU has a certain number of cores, but `nproc` inside WSL2 reports a different number,
+this is not necessarily an error. `nproc` reports the number of processing units available to the
+current process. In WSL2, the number visible to Linux can depend on the processors
+exposed/configured for the WSL2 environment and on Linux-level availability constraints — it is
+not simply the physical CPU's advertised core count (which may also be quoted in cores rather than
+logical processors). The exact number of logical processors, what a "core" versus a
 "logical processor" really means, and why this distinction exists at all, is covered properly in
 the next concept file (Cores) — for now, simply note the observation.
 
 **Scenario 3 — `/proc/cpuinfo` contains many repeated-looking sections.**
 
-`/proc/cpuinfo` lists one block of information per logical processing unit the system sees — so
-seeing multiple, similar-looking blocks is expected on any system with more than one logical
-processor available. Conceptually, this is a preview of the fact that a single CPU can expose
+`/proc/cpuinfo` exposes CPU information reported by the Linux kernel; the exact information and
+layout are architecture-dependent. Commonly, multiple processor entries appear, so seeing
+multiple, similar-looking blocks is expected on a system with more than one logical processor
+available. Conceptually, this is a preview of the fact that a single CPU can expose
 more than one independent unit capable of executing instructions — but the full explanation of
 what those units are, and how they relate to "cores," belongs entirely to the next lesson. For
 now, it's enough to observe that your system reports more than one such block, without needing to
@@ -670,7 +704,9 @@ together, not clock frequency alone:
 ```text
 CPU performance depends on (non-exhaustive, conceptual list):
   - clock frequency        (how many cycles per second)
-  - architecture/design    (how efficiently each cycle accomplishes work)
+  - architecture/design    (how efficiently each cycle accomplishes work — often summarized as
+                            IPC, instructions per cycle, which is why two CPUs at the same
+                            clock frequency can still perform differently)
   - number of processing resources available (previewed via cores, taught next)
   - workload characteristics   (some tasks suit a given CPU design better than others)
   - memory/data access     (how quickly the CPU can get the data/instructions it needs)
@@ -710,13 +746,14 @@ your own reasoning, which you can check afterward using the separate answer key 
 
 9. Run `lscpu`, `nproc`, and `uname -m` in your WSL2 terminal. Write down: your CPU's model name,
    the number reported by `nproc`, and your system's architecture string.
-10. Run `cat /proc/cpuinfo` and count how many repeated blocks of information appear. Compare that
-    count to the number `nproc` reported.
+10. Inspect `/proc/cpuinfo` and observe the processor information reported by your Linux
+    environment. Compare what you observe with the CPU information reported by `lscpu` and
+    `nproc`.
 
 ### Level 4 — Debugging
 
 11. Suppose a learner's `nproc` output inside WSL2 is lower than the core count listed on their
-    physical CPU's specification sheet. Explain why this happens, referencing Section 11.
+    physical CPU's specification sheet. Explain why this can happen, referencing Section 11.
 12. Suppose a learner sees `/proc/cpuinfo` report several nearly-identical blocks and concludes
     "my computer must be broken, it's listing the same CPU multiple times." Explain what's
     actually going on, without giving the full Cores lesson.
@@ -821,7 +858,8 @@ the CPU:
 - **Orchestration** — coordinating multiple steps, requests, or components, including deciding
   when to hand work off to a GPU or other accelerator.
 - **Model-serving infrastructure** — the surrounding software that receives requests, manages
-  load, and returns results, largely CPU-driven even when a model runs elsewhere.
+  load, and returns results, largely CPU-executed in typical production AI systems even when a
+  model runs elsewhere.
 - **API and application logic** — handling requests, formatting responses, and enforcing business
   rules.
 - **System performance and hardware bottlenecks** — a CPU that is too slow, or a system where the
