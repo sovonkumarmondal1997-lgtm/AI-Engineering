@@ -15,7 +15,7 @@ That lesson repeatedly referenced "storage" as the other half of a necessary pai
 it. This lesson finally introduces it properly.
 
 **Storage — simple meaning:** Storage is the part of a computer that holds data and programs
-long-term — reliably keeping them even when the computer is turned off.
+long-term — designed to retain them even when the computer is turned off.
 
 **Storage — technical meaning:** Computer storage is non-volatile technology used to retain data
 and programs persistently, including when the computer is powered off.
@@ -23,15 +23,19 @@ and programs persistently, including when the computer is powered off.
 **Persistent storage:** "Persistent" describes exactly this quality — information that survives
 beyond the current moment, the current program's execution, or even a full power cycle. "Persistent
 storage" and "storage" (as this lesson uses the term) mean the same thing; the word "persistent" is
-often added explicitly to emphasize the contrast with RAM's temporary nature.
+often added explicitly to emphasize the contrast with RAM's temporary nature. Persistence should
+not be presented as an absolute guarantee that every individual write is immediately durable on
+the physical medium: actual durability depends on the operating system, filesystem, caching, the
+storage device, and synchronization/flush behavior.
 
 **Non-volatile storage:** "Non-volatile" is the precise technical opposite of RAM's "volatile"
 property (Concept 10, Section 4). Non-volatile means data is retained without requiring continuous
 power — exactly the defining characteristic that makes storage suitable for long-term retention in
 a way RAM fundamentally is not.
 
-**Storage device:** A storage device is the actual physical hardware component that provides
-storage — for example, an SSD or HDD (named here only as examples; Concept 12, the next lesson,
+**Storage device:** A storage device or storage resource is hardware or a virtualized storage
+resource that provides persistent storage capacity — for example, an SSD, an HDD, or a virtual
+disk (named here only as examples; Concept 12, the next lesson,
 is specifically dedicated to comparing them — not taught here).
 
 **Storage medium:** "Medium" refers to the actual physical material or technology a storage device
@@ -117,8 +121,8 @@ Storage
 → retains persistent data
 ```
 
-Data and programs held in storage remain intact whether or not the computer is currently
-powered on — this is precisely storage's defining purpose and the reason it exists at all.
+Data and programs held in storage are designed to be retained whether or not the computer is
+currently powered on — this is precisely storage's defining purpose and the reason it exists at all.
 
 **Why a computer cannot rely only on RAM:** Beyond the obvious data-loss problem above, there's
 also a practical continuity problem: **when the computer starts again, it needs somewhere to load
@@ -152,8 +156,9 @@ that must be reliably stored.
 - **Python environments** — the tools, libraries, and specific Python installation your projects
   depend on are themselves substantial collections of files, occupying real storage space.
 - **Datasets** — data used for training or evaluating AI systems is typically far too large to
-  keep only in RAM at all times; it needs to live in storage and be loaded into RAM only when
-  actively being processed (Section 5's conceptual flow).
+  keep only in RAM at all times; it needs to live in storage and be made available to the running system through the memory
+  system (often by being loaded or mapped into memory as needed) only when actively being
+  processed (Section 5's conceptual flow).
 - **Model files** — a trained AI model's learned parameters need to be saved somewhere persistent
   so the model can be reused later without retraining from scratch.
 - **Checkpoints** — intermediate saves of a model's progress (mentioned here only by name — not
@@ -231,15 +236,15 @@ and retrieves data.
 **The general conceptual chain, connecting storage to an actual running application:**
 
 ```text
-Persistent data
+Application
+      ↓
+Operating-system / filesystem interfaces
+      ↓
+Storage system
       ↓
 Storage device
       ↓
-Operating system
-      ↓
-Files / directories
-      ↓
-Application
+Persistent media
 ```
 
 Data physically resides on a storage device (Section 1). The operating system (a term you'll study
@@ -297,6 +302,9 @@ write).
 own internal-mechanism section:**
 
 > This is a simplified model. Real systems involve substantially more detail.
+
+For example, real systems may use operating-system, filesystem, and device caches or buffers
+between the application and persistent storage.
 
 This lesson does **not** teach: filesystem internals, kernel I/O internals, block devices, device
 drivers, DMA (Direct Memory Access), page cache internals, or storage-controller internals. Each of
@@ -382,9 +390,10 @@ how much data can be transferred over time
 ```
 
 Capacity and latency are directly recalled from Concept 9 and Concept 10 — the same concepts,
-applied here specifically to storage. **Throughput** is essentially the storage-specific term for
-what Concept 1 and Concept 10 called "bandwidth" — how much data moves per unit of time, as
-distinct from how long any single operation takes to begin (latency).
+applied here specifically to storage. **Bandwidth** (Concept 1 and Concept 10) is the available
+or potential data-transfer capacity/rate, while **throughput** is the actual data-transfer rate
+achieved by a workload — how much data really moves per unit of time, as distinct from how long
+any single operation takes to begin (latency).
 
 **A fourth property, introduced specifically for storage:**
 
@@ -433,9 +442,11 @@ respectively. Section 11 (Misconception 3 and Misconception 9) returns to this p
 
 ### Example 1 — Saving a document
 
-Clicking "save" on a document creates persistent stored data — the document's content is written
-to storage, meaning it will still exist the next time the computer is turned on, unlike anything
-that only ever existed in RAM during that editing session.
+Clicking "save" on a document requests that its data be written to persistent storage, so that
+it can still exist the next time the computer is turned on, unlike anything that only ever existed
+in RAM during that editing session. The operating system and storage stack may buffer writes, so
+"saved" should not be read as meaning that every byte has necessarily already reached the physical
+storage medium at that exact instant.
 
 ### Example 2 — Installing a Python package
 
@@ -475,7 +486,8 @@ example of persistently stored data like any other.
 
 ## 10. Practical Linux/WSL2 Work
 
-As with previous concepts, this section is safe, entirely read-only, requires no `sudo`, and does
+As with previous concepts, this section is safe, entirely read-only, normally requires no `sudo`
+(some environments may restrict access to certain block-device information), and does
 not modify system configuration, partitions, or files. Reminder of your environment:
 
 ```text
@@ -501,9 +513,9 @@ df -h
 *What this shows:* A human-readable summary of filesystem space — for each mounted filesystem, its
 total size, how much is used, how much is available, the use percentage, and where it's mounted.
 
-*Example output from one specific WSL2/Ubuntu environment used while preparing this lesson — your
-own output will differ, and should be treated as your own system's specific values, not a
-universal expectation:*
+*Illustrative example output from one specific WSL2/Ubuntu environment used while preparing this
+lesson — actual WSL2 output varies by installation and configuration, so your own output will
+differ and should be treated as your own system's specific values, not a universal expectation:*
 
 ```text
 Filesystem      Size  Used Avail Use% Mounted on
@@ -749,11 +761,12 @@ Why it happens   → Because the CPU is central to "making things happen" (a poi
 ```text
 Misconception 12 → "Deleting a file is the same thing as physically destroying the storage
                     device."
-Correct idea     → Deleting a file is a logical operation — removing or marking as unavailable
-                    a specific piece of stored data (Section 1's file/storage distinction) — it
-                    does not physically destroy, damage, or remove any part of the underlying
-                    storage device itself, which remains fully intact and reusable for other
-                    data.
+Correct idea     → Deleting a file is a logical operation — it normally changes filesystem
+                    metadata/references so that the file is no longer treated as present and
+                    its storage space can eventually be reused (Section 1's file/storage
+                    distinction) — it does not physically destroy, damage, or remove any part
+                    of the underlying storage device itself, which remains intact and reusable
+                    for other data.
 Why it happens   → "Delete" can sound drastic or destructive in everyday language, which can
                     create a false impression that something physical has been damaged or
                     removed, rather than a purely logical change to what data is currently
@@ -1039,6 +1052,11 @@ Cache
    ↓
 CPU
 ```
+
+These diagrams are a conceptual hierarchy and data-access model, not a universal literal
+execution path for every operation. Data or program code stored persistently is made available to
+the running system through the memory system, often by being loaded or mapped into memory as
+needed — not every file is always copied completely into RAM before use.
 
 This matters directly to a future Applied AI Engineer working with:
 

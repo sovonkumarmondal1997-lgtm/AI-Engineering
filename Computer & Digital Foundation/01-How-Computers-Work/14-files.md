@@ -48,7 +48,10 @@ technology, and introduced "file" only as a brief conceptual preview — "a logi
 stored data." This lesson develops that idea properly.
 
 **File — simple meaning:** A file is a named, persistent collection of data that a computer can
-store, retrieve, and work with as a single unit.
+store, retrieve, and work with as a single unit. (This lesson primarily discusses *regular files*
+when it talks about a file's contents as bytes. "File" is a broader filesystem concept —
+directories and other kinds of filesystem objects exist too — but this lesson does not go deeper
+into them.)
 
 **File — technical meaning:** A file is a logical object presented by an operating system and
 filesystem (Concept 11's conceptual preview) — a named, addressable unit of data that the
@@ -72,8 +75,9 @@ to physically on the platter or flash chips themselves.
 
 - **Text files** — files whose bytes are meant to be interpreted as readable text (Section 2).
 - **Binary files** — files whose bytes are not meant to be read as text directly (Section 2).
-- **Executable files** — files containing machine code (recall Concept 7) meant to be run directly
-  by the operating system.
+- **Executable files** — files the operating system can invoke as a program. They may contain
+  native executable code (recall Concept 7's machine code), or be executable scripts whose text
+  contents are run by another program (an interpreter).
 - **Configuration files** — files holding settings that control how a program behaves.
 - **Data files** — a general category for files holding information a program reads, produces, or
   works with (datasets, images, documents, and so on).
@@ -84,8 +88,8 @@ to physically on the platter or flash chips themselves.
 
 This is one of the most important ideas in this entire lesson, and Section 2 develops it fully.
 Whatever you already associate with "opening a file" (a document, perhaps) is only one narrow
-example of what a file can be — a file is, fundamentally, just a named collection of bytes
-(recalling Concept 4), and those bytes can represent text, an image, executable instructions
+example of what a file can be — a regular file is, fundamentally, just a named collection of
+bytes (recalling Concept 4), and those bytes can represent text, an image, executable instructions
 (Concept 7), or anything else a program is written to interpret.
 
 ---
@@ -150,8 +154,18 @@ made of the exact same kind of bit patterns Concept 4 already taught you.
 
 ## 3. Filenames, Extensions, and File Types
 
-**Filename.** The name used to identify a specific file within a directory (Section 4). A filename
-is metadata about the file (Section 6) — it is not the file's contents.
+**Filename.** The name used in a directory entry to refer to a filesystem object (Section 4):
+
+```text
+directory
+   ↓
+name / directory entry
+   ↓
+filesystem object
+```
+
+A filesystem object can potentially have more than one name. A filename is part of how the
+filesystem describes and locates the file (Section 6) — it is not the file's contents.
 
 **Basename.** The filename itself, as distinct from any directory path leading to it (Section 5
 develops paths fully) — for example, in `project/notes.txt`, the basename is `notes.txt`.
@@ -195,7 +209,7 @@ different behavior may apply to Windows-mounted paths, briefly noted in Section 
 | Source code | Text written in a programming language (Concept 7, Concept 8) | `.py` |
 | Image | Bytes representing visual/pixel data | `.jpg`, `.png` |
 | Document | Bytes representing formatted document content | `.pdf` |
-| Executable | Bytes containing machine code (Concept 7) meant to be run directly | `.exe` (Windows), ELF format (common on Linux) |
+| Executable | A file the OS can invoke as a program — native machine code (Concept 7) or an executable script run by an interpreter | `.exe` (Windows), ELF format (common on Linux), scripts starting with `#!` |
 
 **A required, explicit boundary:**
 
@@ -324,7 +338,7 @@ Current working directory: /home/user/project
 | Property | Absolute path | Relative path |
 |---|---|---|
 | Starting point | Root directory (`/`) | Current working directory |
-| Depends on current location? | No — always resolves to the same location | Yes — resolves differently depending on where it's evaluated from |
+| Depends on current location? | No — does not depend on the process's current working directory; within a given filesystem environment, it identifies a location starting from the root | Yes — resolves differently depending on where it's evaluated from |
 | Typical use | Referring to a file unambiguously, regardless of context | Convenient, shorter references within a known working context |
 | Example (Linux) | `/home/user/project/data.txt` | `./data.txt`, `data.txt`, `../data.txt` |
 
@@ -372,7 +386,7 @@ rather than the file's own data.
 | What it is | The actual bytes stored in the file (Section 2) | Information *about* the file |
 | Examples | Text, image data, executable machine code | Size, timestamps, permissions, ownership |
 | Changes when you edit the file's data? | Yes — directly | Indirectly (e.g., size and modification timestamp update) |
-| Changes when you rename the file? | No | Yes — the filename itself is part of the file's metadata |
+| Changes when you rename the file? | No | Yes — the name (the directory entry that refers to the file) changes, which this lesson counts as a metadata change |
 
 ---
 
@@ -481,7 +495,9 @@ File on storage (persistent again, once written)
 > Simplified conceptual model. This mirrors Concept 11, Section 5's original "Persistent data →
 > Storage device → Operating system → Files/directories → Application" chain, now shown
 > specifically alongside RAM's role as the active, temporary working copy of a file's data while a
-> program uses it.
+> program uses it. This is a conceptual beginner model: a program does not necessarily load the
+> entire file into RAM — it may read only portions of a file, the operating system can cache file
+> data in memory, and mechanisms such as memory mapping exist.
 
 ### Comparison Table — File vs. RAM vs. Storage Device
 
@@ -565,18 +581,22 @@ Ubuntu
 
 **Checking command availability first, as this lesson's Command Validation requirement demands.**
 Every command below (`pwd`, `ls`, `file`, `stat`, `cat`, `head`, `wc`, `xxd`, `realpath`, `du`) is
-part of a standard Ubuntu installation and was confirmed available in the environment used to
-prepare this lesson via `which`. **The output shown below is genuinely observed** — captured by
-actually running these commands in an isolated temporary directory (`/tmp/files-lesson-demo`),
-which was fully removed afterward. **Your own output will very likely differ in exact values
+was confirmed available in the environment used to prepare this lesson via `which` (availability
+can depend on the installed package set — for example, `xxd` may not be present in a minimal
+Ubuntu environment). **The output shown below is genuinely observed** — captured by
+actually running these commands in an isolated temporary directory (`/tmp/files-lesson-demo`, an
+earlier fixed demo path), which was fully removed afterward. The steps below use `mktemp -d`
+instead of a predictable path, so your own working directory will be a randomly named directory
+under `/tmp`. **Your own output will very likely differ in exact values
 (filenames, sizes, timestamps, your own username) — treat the specific values below as this
 lesson's own observed example, not a universal expectation.**
 
 **Step 1 — set up an isolated, temporary working directory (cleaned up at the end):**
 
 ```bash
-mkdir -p /tmp/files-lesson-demo/project/data
-cd /tmp/files-lesson-demo
+WORKDIR="$(mktemp -d)"
+mkdir -p "$WORKDIR/project/data"
+cd "$WORKDIR"
 ```
 
 **Step 2 — create a few small, harmless example files:**
@@ -653,11 +673,11 @@ project/nonewline.txt: ASCII text, with no line terminators
 project/notes.txt:     ASCII text
 ```
 
-*What this shows:* the `file` command inspects a file's actual **bytes** (not just its name) to
-determine its type — notice it correctly identified `fakeimage.png` as "PNG image data" *because
-its first bytes genuinely matched the real PNG file-format signature*, not merely because of its
-`.png` extension. This is a direct, concrete demonstration of Section 3's central point: content,
-not extension, is what truly determines a file's nature.
+*What this shows:* the `file` command classifies a file using its content and other detection
+mechanisms, not just its name — notice it identified `fakeimage.png` as "PNG image data" *because
+its first bytes matched the PNG file-format signature*, not merely because of its `.png`
+extension. This demonstrates Section 3's central point: an extension is not authoritative, and a
+filename can be misleading. The result is a classification based on what the utility detects.
 
 **A second, deliberately mismatched example, to demonstrate the same point from the opposite
 direction — genuinely observed:**
@@ -809,18 +829,20 @@ du -sh project
 ```
 
 *What this shows:* recalling Concept 11, Section 10's identical `du` discussion — this reports the
-total disk space used by everything inside the `project` directory, combining all the small example
-files created in Step 2.
+filesystem space usage associated with everything inside the `project` directory. That number can
+differ from the sum of the files' logical sizes (for example, the `wc` byte counts above), because
+allocation units and filesystem behavior affect it, and the exact output is
+environment-dependent.
 
 **Step 12 — clean up, exactly as promised:**
 
 ```bash
 cd /tmp
-rm -rf /tmp/files-lesson-demo
+rm -rf "$WORKDIR"
 ```
 
-This removes the entire isolated temporary directory and everything created inside it — nothing
-outside `/tmp/files-lesson-demo` was touched at any point in this practical section, and this
+This removes the entire isolated temporary directory (the one `mktemp -d` created) and everything
+created inside it — nothing outside it was touched at any point in this practical section, and this
 cleanup step was genuinely performed while preparing this lesson.
 
 **Required WSL2-specific caveats, stated explicitly, matching the pattern from every prior concept
@@ -837,7 +859,7 @@ file's practical section:**
   reflection of the specific environment used to prepare it; your own output will show your own
   username.
 - Never modify Windows files outside an explicitly isolated temporary workspace, exactly as this
-  section's own practical work stayed confined to `/tmp/files-lesson-demo` throughout, and cleaned
+  section's own practical work stayed confined to its temporary directory throughout, and cleaned
   it up afterward.
 
 ---
@@ -934,9 +956,9 @@ Example          → Deleting a directory entry doesn't mean physically removing
 
 ```text
 Misconception 5  → "A filename and a file are the same thing."
-Correct idea     → A filename is metadata about a file (Section 6) — a label used to identify
-                    it. The file itself is the underlying data (contents) plus its associated
-                    metadata as a whole. Renaming a file (Section 7) changes its filename
+Correct idea     → A filename is a name in a directory entry that refers to a filesystem
+                    object (Section 3) — a label used to identify it. The file itself is the
+                    underlying data (contents) plus its associated metadata as a whole. Renaming a file (Section 7) changes its filename
                     without changing its contents at all.
 Example          → Renaming notes.txt to my-notes.txt (Section 7's "rename" operation) does not
                     alter the text "Hello, this is plain text." stored inside it.
@@ -991,8 +1013,8 @@ Example          → Running cat on project/fakeimage.png (rather than a proper 
 ```text
 Misconception 10 → "A relative path is the same as an absolute path."
 Correct idea     → A relative path's meaning depends on the current working directory it's
-                    evaluated from (Section 5); an absolute path always resolves to the exact
-                    same location regardless of context. The same relative path text can point
+                    evaluated from (Section 5); an absolute path does not depend on the current
+                    working directory. The same relative path text can point
                     to entirely different files depending on where it's used from.
 Example          → Section 11, Step 10's genuinely observed realpath project/notes.txt shows
                     the relative path project/notes.txt resolving to the absolute path
@@ -1042,10 +1064,13 @@ Correct idea     → RAM is volatile (Concept 10) — once a program that had lo
                     into RAM exits, that RAM is freed and its contents are gone. The file
                     itself continues to exist on persistent storage, entirely independent of
                     whatever temporary RAM-based copy a program was using (Section 9's explicit
-                    correction).
+                    correction). A program may hold some file data in its process memory, and
+                    the OS may also cache file data in memory — these are not the same thing,
+                    and neither makes RAM a permanent copy of the file.
 Example          → Diagram C (Section 9) shows the file returning to (remaining on) storage
-                    once a program's active use of it ends — RAM is only ever a temporary,
-                    working copy of a file's data, never the file's permanent home.
+                    once a program's active use of it ends — in the model taught here, the
+                    file's persistent data lives on storage, and RAM holds only temporary
+                    working data, never the file's permanent home.
 ```
 
 ---

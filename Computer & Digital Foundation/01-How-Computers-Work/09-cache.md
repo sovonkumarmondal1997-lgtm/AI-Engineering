@@ -130,7 +130,7 @@ actual problem cache solves.
 
 ## 3. Why does an Applied AI Engineer need to understand it?
 
-You will not write code that directly manages CPU cache — cache operation is handled by hardware
+You will not write code that directly manages CPU cache — cache operation is primarily handled by hardware
 (Section 5 explains this precisely). So why does this matter?
 
 **Concrete connections to your future AI Engineering work, kept conceptual here:**
@@ -193,14 +193,16 @@ right at hand — very fast to reach, but the drawer can only hold a few items. 
 often, but still fairly regularly, sit on a nearby shelf — a bit farther to reach, but the shelf
 holds more than the drawer. Things rarely needed are kept in a large storage room down the hall —
 holding far more than the drawer or shelf combined, but taking noticeably longer to walk to and
-retrieve something from.
+retrieve something from. (RAM and persistent storage are different things, so they get different
+places in this analogy: the shelf is RAM, and the storage room is persistent storage.)
 
 **Mapping this onto this lesson's concepts:**
 
 ```text
-Desk drawer      → cache (closest, fastest, smallest)
-Storage room      → RAM/storage, conceptually (farther, slower, much larger)
-Person            → CPU
+Desk drawer      → CPU cache (closest, fastest, smallest)
+Nearby shelf     → RAM (farther, slower, larger)
+Storage room     → persistent storage (farthest, slowest, much larger)
+Person           → CPU
 ```
 
 Frequently used items are kept nearby (matching this lesson's core "smaller + faster + closer
@@ -215,8 +217,8 @@ location — there simply isn't room.
 
 **Where this analogy must break down, explicitly and immediately:** a person consciously *decides*
 what to put in their desk drawer versus the shelf versus the storage room, based on judgment.
-**The CPU does not manually choose cache contents this way.** Cache management is handled
-automatically by hardware mechanisms (Section 5 explains this directly) — an ordinary program does
+**The CPU does not manually choose cache contents this way.** Cache behavior is primarily
+managed by hardware mechanisms (Section 5 explains this directly) — an ordinary program does
 not contain instructions saying "put this specific value in the cache" the way a person might
 consciously decide to move an item to their desk drawer. This is a required correction: do not
 carry the "conscious choice" part of this analogy forward into your understanding of how real
@@ -249,6 +251,10 @@ larger, slower level — potentially another cache level, and ultimately RAM if 
 L1 → L2 → L3 → RAM
 ```
 
+For this beginner lesson, use L1 → L2 → L3 → RAM as a simplified conceptual model. Real
+processors may have different numbers of cache levels, different cache types, different sharing
+arrangements, and different lookup paths.
+
 - **L1** is generally the smallest and fastest cache level — closest to the CPU's actual execution
   circuitry.
 - **L2** is generally larger and somewhat slower than L1.
@@ -263,8 +269,9 @@ L1 → L2 → L3 → RAM
 - **Latency** — how long a single request takes to be fulfilled at that level. Latency generally
   *increases* as you move from L1 toward RAM (i.e., L1 is fastest/lowest-latency; RAM is
   slowest/highest-latency among the levels shown here).
-- **Proximity** — how physically close a given level is to the CPU's execution circuitry.
-  Proximity generally *decreases* (gets farther) as you move from L1 toward RAM.
+- **Proximity** — conceptually, how close a memory level is to the CPU's execution resources
+  within the memory hierarchy. In general, levels farther out (from L1 toward RAM) have greater
+  access cost.
 
 **Two required, explicit cautions:**
 
@@ -275,13 +282,15 @@ capacities, and other characteristics differ across different CPU designs. L1/L2
 widely-used model, useful for building a correct general mental picture — but **it is not a
 universal guarantee for every CPU that exists.**
 
-> Cache is automatically used by hardware — programs generally do not issue ordinary instructions
-> saying "put this variable in L2."
+> Cache is used by hardware — programs generally do not issue ordinary instructions saying "put
+> this variable in L2."
 
-This directly extends Section 4's analogy-breakdown point: ordinary program instructions (Concept
-7) do not typically contain explicit cache-management commands. The CPU's hardware handles the
-decision of what stays in cache, and at which level, automatically and largely invisibly to the
-program itself. **This lesson does not teach the specific algorithms hardware uses to make these
+This directly extends Section 4's analogy-breakdown point: ordinary application code generally
+does not select individual cache levels or manually place ordinary data into L1/L2/L3, and
+ordinary program instructions (Concept 7) do not typically contain explicit cache-management
+commands. Cache behavior is primarily managed by hardware, although software and operating
+systems can influence caching through architecture-specific mechanisms. The hardware handles the
+decision of what stays in cache, and at which level, largely invisibly to the program itself. **This lesson does not teach the specific algorithms hardware uses to make these
 decisions** — that is explicitly out of scope (see this lesson's Critical Scope Boundary).
 
 ---
@@ -397,8 +406,9 @@ misleading.
 
 A cache miss is a completely normal, expected, routine event — it happens constantly during
 ordinary program execution, and simply means the CPU has to retrieve the needed data from a
-farther level (Section 6's step 5). It has no relationship whatsoever to program correctness,
-crashes, or errors. Section 11 (Misconception 3) and Section 12 (Scenario 2) both return to this
+farther level (Section 6's step 5). A cache miss does not itself indicate a program error,
+crash, or failure; it means the requested data or instruction was not found at the cache level
+being checked. Section 11 (Misconception 3) and Section 12 (Scenario 2) both return to this
 point directly, because it is a very common beginner misunderstanding.
 
 ---
@@ -591,10 +601,10 @@ L3 cache:                                8 MiB (1 instance)
 Reading this example output using this lesson's vocabulary: `L1d` refers to the L1 **data** cache
 (Section 11 below explains the data/instruction distinction); `L1i` refers to the L1
 **instruction** cache; `L2` and `L3` are the next levels out, each reported here as larger than
-the level before it — consistent with Section 5's general capacity trend. "(4 instances)" reflects
-that this particular system has multiple cores (Concept 3), each with (or sharing) their own
-cache resources — this lesson does not explain the precise sharing arrangement, which varies by
-architecture.
+the level before it — consistent with Section 5's general capacity trend. "(4 instances)" is part
+of this system's reported cache information. Do not infer the exact cache-sharing topology from
+this number alone; use the detailed cache/topology information when that distinction matters —
+this lesson does not explain the precise sharing arrangement, which varies by architecture.
 
 **A more detailed, read-only inspection interface:**
 
@@ -715,8 +725,8 @@ Why it happens   → The word "storage" can loosely suggest permanence in everyd
 Misconception 3  → "A cache miss means the program crashed."
 Correct idea     → A cache miss is a normal, routine, extremely common event during ordinary
                     program execution (Section 7's explicit correction) — it simply means the
-                    CPU has to retrieve data from a farther, slower level. It has no
-                    relationship to program correctness, errors, or crashes whatsoever.
+                    CPU has to retrieve data from a farther, slower level. A cache miss does
+                    not itself indicate a program error, crash, or failure.
 Why it happens   → The word "miss" can sound negative or alarming in everyday language,
                     creating a false impression that something has gone wrong, rather than
                     recognizing it as an expected, routine part of how the memory hierarchy
@@ -760,8 +770,8 @@ Why it happens   → Because L1/L2/L3 is such a commonly taught and commonly enc
 
 ```text
 Misconception 7  → "Programs manually choose which cache level to use."
-Correct idea     → Cache is automatically managed by hardware mechanisms (Section 5's explicit
-                    statement); ordinary program instructions (Concept 7) do not typically
+Correct idea     → Cache behavior is primarily managed by hardware mechanisms (Section 5's
+                    explicit statement); ordinary program instructions (Concept 7) do not typically
                     contain commands specifying which cache level to use for a given value.
 Why it happens   → Because programmers do explicitly work with other memory concepts (like
                     variables), it's easy to assume a similar level of direct, explicit control
@@ -839,8 +849,8 @@ Why it happens   → Since cache's whole purpose is to reduce reliance on RAM, i
 
 **Scenario 1 — the learner runs `lscpu | grep -i cache` and sees no output.**
 
-This does not mean the CPU has no cache — every modern CPU has cache; it's a fundamental part of
-how CPUs are built (Section 2's foundational "why"). Possible explanations include: this
+This does not mean the CPU has no cache — most modern general-purpose CPUs use cache
+hierarchies; it's a fundamental part of how CPUs are built (Section 2's foundational "why"). Possible explanations include: this
 particular `lscpu` version or system configuration may not report cache information in the exact
 format `grep -i cache` is filtering for, or `lscpu`'s output format may vary between systems and
 versions. The correct next step is not to conclude "my CPU has no cache," but to try the more
@@ -867,7 +877,7 @@ describe the relationship between cache levels' speed characteristics.
 **Scenario 4 — the learner says: "The program tells the CPU to use L2 cache."**
 
 This requires correction, per Misconception 7. Ordinary program instructions do not typically
-specify which cache level to use — cache placement and lookup are handled automatically by
+specify which cache level to use — cache placement and lookup are primarily handled by
 hardware mechanisms, largely transparent to the program itself (Section 5's explicit statement).
 The corrected understanding: the program simply requests data/executes instructions normally
 (Concept 7); the CPU's hardware handles cache lookup and placement without needing, or generally
@@ -1086,8 +1096,8 @@ RAM
 ```
 
 Every application — including AI applications — executes as instructions (Concept 7) that need
-data, and that data's journey from wherever it's stored to the CPU passes through exactly this
-chain. This matters to a future Applied AI Engineer working with:
+data. For this lesson, use the chain above as a simplified conceptual path for understanding how
+processor memory accesses interact with the cache hierarchy and RAM. This matters to a future Applied AI Engineer working with:
 
 - **Numerical processing** — the core of most AI computation, where data access patterns directly
   connect to this lesson's locality concepts.

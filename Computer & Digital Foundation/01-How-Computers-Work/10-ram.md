@@ -30,11 +30,11 @@ when using it.
 **Main memory:** This is another common name for RAM, emphasizing its role as the primary,
 general-purpose working memory a running program relies on — distinguishing it from registers and
 cache (smaller, specialized, closer to the CPU, per Concept 6 and Concept 9) and from storage
-(much larger, persistent, and — as Section 4 explains — fundamentally different in a key way).
+(much larger, persistent, and — as Section 9 explains — fundamentally different in a key way).
 
-**Volatile memory:** RAM is described as "volatile," meaning its contents are not retained once
-power is removed. Section 4 (of this lesson's required core concepts) covers this fully — it's
-introduced here only as a term you'll see used to describe RAM specifically.
+**Volatile memory:** Conventional DRAM-based system RAM is described as "volatile," meaning its
+stored contents are not retained once power is removed. Section 9 (RAM vs Storage) covers this
+further — it's introduced here only as a term you'll see used to describe RAM specifically.
 
 **Capacity — simple meaning (recalled from Concept 9):** How much data RAM can hold at once —
 commonly measured in gigabytes (GB) today.
@@ -109,7 +109,11 @@ problem Concept 9 described for cache, but at a much larger scale.
 faster to access than persistent storage, and specifically designed to hold the active, in-use
 data and instructions a running program needs, for as long as that program is actually running.
 
-**This is a simplified conceptual hierarchy, stated explicitly:**
+**This is a simplified conceptual hierarchy, stated explicitly** — not a literal specification of
+every data movement in a modern computer; real systems contain additional mechanisms and layers.
+For this lesson, treat RAM as the physical working-memory layer available to the running system.
+Modern operating systems use virtual memory, so not every part of a program's address space must
+be resident in physical RAM at every moment; those details are covered later.
 
 ```text
 Storage
@@ -145,22 +149,25 @@ Engineer.
 - **Data structures** — the way a program organizes data in memory affects how much RAM it uses;
   this lesson does not teach specific data structures (a later stage of the roadmap), only that
   they consume RAM.
-- **Model loading** — bringing a trained AI model into active use typically requires loading its
-  data into RAM (or, for GPU-based work, an analogous GPU memory space — a much later concept
-  file, not taught here).
+- **Model loading** — loading a model may require system RAM, accelerator memory, mapped storage,
+  or a combination, depending on the framework and execution architecture (accelerator memory is
+  a much later concept file, not taught here).
 - **Inference services** — a running service that uses a model to produce results needs enough RAM
   to hold the model and the data it's currently processing, for as long as it's running.
 - **Concurrent applications** — Concept 3 introduced the idea of multiple things happening on
-  multiple cores; each concurrently running piece of work generally needs its own share of RAM,
-  which is why running many things simultaneously increases overall memory pressure.
+  multiple cores; each concurrently running process consumes memory, while multiple threads
+  within the same process generally share the process's address space (although each thread has
+  some private execution state, such as its own stack). This is why running many things
+  simultaneously increases overall memory pressure.
 - **CPU-based workloads** — Concept 3's compute-bound discussion, and Concept 9's
   compute-bound-vs-memory-bound distinction, both connect directly to RAM: a workload can be
   limited by how much data can fit in and move through RAM, not only by raw computation speed.
 
 **Why an AI Engineer must reason about memory requirements, stated plainly:** unlike a small,
 simple program, real AI workloads frequently work with large amounts of data — datasets, model
-parameters, intermediate results — all of which must fit within available RAM (or be handled some
-other way, a topic this lesson does not teach) while a program runs. Understanding RAM as a real,
+parameters, intermediate results — all of which must be accessible through the system's available
+memory mechanisms while a program runs (this does not necessarily mean the entire data must be
+resident in physical RAM at once; the other ways of handling it are not taught in this lesson). Understanding RAM as a real,
 finite, shared resource — not an unlimited abstraction — is a foundational habit an Applied AI
 Engineer needs, well before reaching the more advanced stages of the roadmap where memory
 management becomes an explicit, practical skill. **This lesson does not teach advanced memory
@@ -271,8 +278,9 @@ A high-level conceptual walkthrough, directly extending Concept 9's seven-step m
 7. CPU continues execution.
 ```
 
-Walking through this: a running program's instructions and data reside in RAM (step 2) for as long
-as they're needed. When the CPU needs something specific, it doesn't go straight to RAM by
+Walking through this: a running program's instructions and data are generally held in RAM (step 2)
+for as long as they're needed (a simplified model — with virtual memory, not every part of a
+program's address space must be resident in RAM at every moment, a topic covered later). When the CPU needs something specific, it doesn't go straight to RAM by
 default — the cache hierarchy is checked first (step 4, per Concept 9), and only if the needed
 data isn't found there does the request actually reach RAM (step 5), which then supplies it (step
 6), allowing execution to continue (step 7).
@@ -409,9 +417,9 @@ finished, important documents are kept. The whiteboard is fast and convenient fo
 anything on it is gone once wiped clean (or, for RAM, once power is lost); the filing cabinet
 reliably keeps documents indefinitely, but you wouldn't want to do active scratch work directly
 inside a filing cabinet drawer. **Where this analogy breaks down:** a whiteboard is erased by a
-deliberate human action; RAM loses its contents automatically and immediately whenever power is
-removed, with no human "erasing" step involved — Section 4 (Volatility) makes this distinction
-precise.
+deliberate human action; conventional system RAM loses its contents automatically and immediately whenever power is
+removed, with no human "erasing" step involved — the comparison table above makes this
+distinction precise.
 
 ---
 
@@ -458,8 +466,9 @@ Reading this using this lesson's vocabulary:
 - **total** — the total RAM capacity visible to this environment (Section 7's "capacity").
 - **used** — memory currently in active use.
 - **free** — memory not currently being used for anything at all.
-- **shared** — memory shared between multiple processes (this lesson does not teach process
-  memory sharing in depth).
+- **shared** — Linux's shared-memory-related accounting, primarily associated with `Shmem`; its
+  precise interpretation is OS-specific (this lesson does not teach process memory sharing in
+  depth).
 - **buff/cache** — memory the Linux kernel is using for buffers and file-system caching (this is
   **not** the same thing as CPU hardware cache from Concept 9 — this field refers to a
   software/OS-level use of RAM, another example of the word "cache" appearing in a different
@@ -558,8 +567,8 @@ here.
 
 ```text
 Misconception 1  → "RAM is permanent storage."
-Correct idea     → RAM is volatile — it loses its contents when power is removed (Section 4,
-                    fully developed). Persistent storage (a later concept file) is what's
+Correct idea     → Conventional DRAM-based system RAM is volatile — its contents are not
+                    retained when power is removed (Section 9). Persistent storage (a later concept file) is what's
                     designed for genuine, long-term, power-independent retention.
 Why it happens   → The word "memory" can loosely suggest permanence in everyday language,
                     which obscures RAM's fundamentally temporary, volatile nature.
@@ -640,7 +649,7 @@ Why it happens   → Since cache's whole purpose is to reduce reliance on slower
 Misconception 8  → "RAM loses data because it is broken when power is removed."
 Correct idea     → RAM losing its contents when power is removed is normal, expected,
                     designed behavior — not a malfunction or damage. This is simply what
-                    "volatile" means (Section 4) — it's an inherent property of how common RAM
+                    "volatile" means (Section 9) — it's an inherent property of how common RAM
                     technology works, not a sign that anything is broken.
 Why it happens   → "Losing data" sounds like something has gone wrong, which can create a false
                     impression of malfunction rather than recognizing this as RAM's normal,
@@ -727,7 +736,7 @@ program to use at any given moment (Section 7, Section 10's `available` field).
 
 This requires correction, per Misconception 2 and Section 9's comparison table. Loading a file's
 contents into RAM makes that data *active working memory* for as long as the program needs it —
-but RAM itself remains volatile (Section 4) and is not designed for long-term retention. The file
+but RAM itself remains volatile (Section 9) and is not designed for long-term retention. The file
 still exists on persistent storage; RAM merely holds a working copy of (or reference to) its
 contents while it's actively being used — RAM being *capable of holding data temporarily* does not
 make it storage in the persistent, long-term sense this lesson and later concept files use that
@@ -966,16 +975,17 @@ Storage
 
 This matters directly to a future Applied AI Engineer working with:
 
-- **Datasets** — actively-used data must fit in RAM (or be handled through mechanisms this lesson
-  did not teach) while being processed.
+- **Datasets** — data being actively processed must be accessible through the system's available
+  memory mechanisms; it does not necessarily mean the entire dataset must be resident in physical
+  RAM at once (those mechanisms are not taught in this lesson).
 - **Preprocessing** — transforming data typically creates additional in-RAM data structures,
   increasing memory usage beyond just the original dataset.
 - **Python applications** — every Python program, including AI applications, occupies RAM for its
   own execution.
 - **Inference services** — running services that use models to produce results need sufficient RAM
   to hold the model and its active working data.
-- **Model loading** — bringing a trained model into active use typically requires loading its data
-  into RAM.
+- **Model loading** — loading a model may require system RAM, accelerator memory, mapped
+  storage, or a combination, depending on the framework and execution architecture.
 - **Concurrent workloads** — multiple simultaneous jobs or services increase overall memory
   pressure, as Section 12 and Section 13's integration scenarios explored.
 - **CPU-based computation** — reasoning about whether a workload is memory-bound or compute-bound

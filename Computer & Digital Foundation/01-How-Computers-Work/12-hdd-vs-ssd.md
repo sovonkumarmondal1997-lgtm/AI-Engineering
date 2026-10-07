@@ -20,7 +20,7 @@ magnetically on spinning, rotating platters, using a physically moving arm to re
 data.
 
 **SSD — simple meaning:** SSD stands for **Solid-State Drive** — a storage device that stores data
-electronically in flash memory chips, with no spinning parts and no moving read/write arm at all.
+electronically in flash memory chips (modern mainstream SSDs typically use NAND flash memory), with no spinning parts and no moving read/write arm at all.
 
 **The core difference, stated immediately, as this lesson's Primary Learning Objective requires:**
 
@@ -288,7 +288,9 @@ data returned
 **The single most important difference visible in these two chains:** the HDD path includes an
 explicit **mechanical positioning** step that the SSD path simply does not have. Everything else in
 both chains — the application making a request, the OS handling it, a controller/device
-participating, data ultimately being returned — is structurally similar. The presence or absence of
+participating, data ultimately being returned — is structurally similar. At this simplified level,
+both paths can be understood as an application request being handled by the operating system and
+ultimately serviced by a storage device. The presence or absence of
 that one mechanical step is the foundational reason Section 7 explains for why these two
 technologies commonly perform differently.
 
@@ -324,7 +326,7 @@ consolidated comparison table, covering every dimension this lesson is required 
 | Physical form factors | Established, various sizes | Established, various sizes (including compact options) |
 | Capacity | Often strong at large sizes | Broad and increasing |
 | Cost per capacity | Often lower, historically | Often higher, historically (gap has narrowed over time) |
-| Performance consistency | Can vary more with access pattern (random vs. sequential) | Generally more consistent across access patterns |
+| Performance consistency | Can vary more with access pattern (random vs. sequential) | Avoids HDD-style seek and rotational latency, but can still vary with workload, controller behavior, caching, thermal conditions, and queue depth |
 | Typical use cases | Bulk/capacity-oriented storage, archives, backups | Operating systems, active development, responsiveness-sensitive workloads |
 | Failure characteristics | Mechanical wear/shock-related risks | Electronic wear/controller-related risks; not immune to failure |
 | AI-engineering relevance | Attractive for large, infrequently-accessed datasets/archives | Attractive for frequently-accessed data, model loading, development |
@@ -362,8 +364,10 @@ Throughput  = how much data can be transferred over time
   about expected storage performance.
 
 **Why HDDs are especially affected by mechanical positioning for random access:** Section 6's
-mechanical-positioning step has to happen *again* every time a request jumps to a different,
-unrelated location on the platter — exactly what random access involves. Sequential access, by
+mechanical-positioning step is generally repeated for random-access workloads, because requests
+may target different physical locations on the media — exactly what random access involves.
+(This is a general tendency, not a claim that every logical request maps one-to-one to a physical
+repositioning.) Sequential access, by
 contrast, lets an HDD read a continuous run of data with much less repositioning, since the data
 being read is physically close together. This is why HDDs are particularly, disproportionately
 affected by random-access workloads compared to sequential ones.
@@ -389,7 +393,7 @@ volume per unit time), and IOPS (operations per second, particularly relevant fo
 operations) are three separate, independently-varying properties. A device could have strong
 throughput for large sequential transfers while still having comparatively higher latency for
 random, small operations — these are not the same measurement, and this lesson does not benchmark
-any of them (Section 16's explicit prohibition).
+any of them (Section 14's explicit prohibition).
 
 **Where SSD advantages are particularly visible, stated with required careful qualification:**
 
@@ -521,7 +525,9 @@ be appropriate, and the important trade-off involved.
 
 ### Example 1 — Operating system
 
-**Workload:** The operating system itself is read constantly during startup and ongoing use.
+**Workload:** During startup, the operating system loads required components and data from
+storage. During normal operation, additional OS components and data may be accessed from storage
+as needed, while frequently used data can remain cached in memory.
 **Storage requirement:** Fast, responsive access to many small files. **Why SSD is generally
 beneficial:** the OS workload involves substantial random access to many small files (Section 7) —
 exactly the pattern where SSDs' lack of mechanical positioning provides the most noticeable
@@ -553,7 +559,9 @@ sequential (e.g., streaming a video file) access.
 requirement:** High capacity, low access-frequency sensitivity. **Why cost-per-capacity can
 matter:** since a backup is, ideally, rarely read, its performance characteristics matter far less
 than how much it costs to store a large volume of data reliably — again favoring HDD's
-historical capacity-cost profile for this specific use case.
+historical capacity-cost profile for this specific use case. (Choosing HDD versus SSD is only
+one part of backup design; reliability also depends on redundancy, retention, verification, and
+recovery procedures.)
 
 ### Example 5 — AI dataset
 
@@ -568,8 +576,9 @@ decision exercise develops this reasoning further.
 ### Example 6 — Model files
 
 **Workload:** Loading a trained AI model's saved parameters before use. **Storage requirement:**
-The model file must be read from persistent storage into RAM (Concept 11, Section 5's chain) before
-it can actually be used. **Why fast storage can improve loading workflows:** faster storage access
+Model data must become accessible through the system's memory and address-space mechanisms
+(Concept 11, Section 5's chain) before computation can use it. At this beginner level, think of
+this as data being loaded from persistent storage into memory. **Why fast storage can improve loading workflows:** faster storage access
 (SSD's characteristic advantage) can reduce how long this loading step takes, which matters
 especially in workflows where a model is loaded frequently (e.g., during iterative development or
 frequent restarts).
@@ -803,11 +812,11 @@ comparison.
 **Scenario 7 — the learner says: "If my WSL2 environment reports a storage device, I can identify
 exactly whether my host uses an HDD or SSD."**
 
-This requires correction, per Section 17 (WSL2-Specific Validation) and the concrete example in
-Section 15's practical work. WSL2 is a virtualized environment, and Linux-visible storage
-information may be virtualized rather than a direct, accurate reflection of the physical host's
-actual storage technology — this lesson's own practical section demonstrates a real case where a
-WSL2-reported field (`ROTA`) gave a misleading answer. Guest-visible storage information should be
+This requires correction, per Section 14 (Practical Learning Task, including its WSL2-specific
+caveats) and the illustrative example in Section 14's practical work. WSL2 is a virtualized
+environment, and Linux-visible storage information may be virtualized rather than a direct,
+accurate reflection of the physical host's actual storage technology — this lesson's own practical
+section illustrates how a WSL2-reported field (`ROTA`) can give a misleading answer. Guest-visible storage information should be
 interpreted as describing the virtualized environment specifically, not treated as definitive
 proof of the physical host's hardware.
 
@@ -996,7 +1005,7 @@ Concept 11, Section 10) — device names, sizes, types, and mount points.
 
 **A required, explicit caution:** do not claim that this output necessarily identifies the host's
 physical HDD/SSD technology — WSL2 is a virtualized environment, and what it reports may not
-directly reflect the physical hardware underneath (Section 17 develops this fully).
+directly reflect the physical hardware underneath (the WSL2-specific caveats later in this section develop this).
 
 **Step 2 — Inspect filesystem space.**
 
@@ -1026,12 +1035,14 @@ lsblk -o NAME,SIZE,TYPE,ROTA,MODEL
 
 *What each field shows:* `NAME` — the device's identifier; `SIZE` — its reported capacity; `TYPE` —
 what kind of block device it is (e.g., `disk`); `ROTA` — whether the device is reported as
-"rotational" (`1`) or not (`0`) — in native Linux environments, this field is sometimes used as a
-rough hint that a device might be an HDD (rotational) versus an SSD (non-rotational); `MODEL` — a
-reported device model name/description.
+"rotational" (`1`) or not (`0`) — it reports whether the Linux block layer considers the visible
+device rotational or non-rotational. In a native Linux environment this can be a useful clue when
+distinguishing HDD-like and SSD-like devices, but virtualization and storage abstraction can make
+it unsuitable for identifying the physical host's actual storage technology; `MODEL` — a reported
+device model name/description.
 
-**A required, explicit, and concretely demonstrated caveat.** In one specific WSL2/Ubuntu
-environment observed while preparing this lesson, this command produced:
+**A required, explicit caveat, shown with an illustrative example.** *Illustrative example — not
+expected output. Your WSL2 output may differ.*
 
 ```text
 NAME   SIZE TYPE ROTA MODEL
@@ -1041,12 +1052,14 @@ sdc      1G disk    1 Virtual Disk
 sdd      1T disk    1 Virtual Disk
 ```
 
-Notice: every device shows `ROTA = 1` (reported as "rotational"), and every `MODEL` reads
-**"Virtual Disk"** — not any real manufacturer or model name. This is a concrete, real
-demonstration of exactly the caveat this lesson requires: **`ROTA` may be useful in some Linux
+In this illustrative example, every device shows `ROTA = 1` (reported as "rotational"), and every
+`MODEL` reads **"Virtual Disk"** — not any real manufacturer or model name. The output is
+illustrative only, your own output may differ, and `ROTA` and `MODEL` should not be treated as
+definitive identification of the physical host's HDD/SSD technology, since WSL2/virtualization can
+expose virtualized storage information. This illustrates the caveat this lesson requires: **`ROTA` may be useful in some Linux
 environments to indicate whether a device is rotational, but under WSL2/virtualized storage this
-must NOT be treated as definitive proof of the host's physical HDD/SSD technology.** The physical
-host machine this example was captured on is not necessarily HDD-based just because every
+must NOT be treated as definitive proof of the host's physical HDD/SSD technology.** A physical
+host machine is not necessarily HDD-based just because every
 WSL2-visible device reports `ROTA = 1` — the virtualization layer presents its own reported values,
 which do not reliably reflect the true physical hardware underneath. **Your own output may differ,
 and should be treated as your own system's specific values — not a universal expectation, and not
@@ -1059,7 +1072,7 @@ proof of your physical host's actual storage technology.**
 - WSL2 is a virtualized Linux environment.
 - Linux-visible devices may be virtualized rather than a direct exposure of physical hardware.
 - The underlying Windows physical storage hardware may not be directly exposed to WSL2 at all.
-- `lsblk` output must be interpreted in context — as this lesson's own captured example shows,
+- `lsblk` output must be interpreted in context — as this lesson's illustrative example shows,
   it can report misleading or generic values (`ROTA = 1` for every device; `MODEL = Virtual Disk`)
   under virtualization.
 - `ROTA` is not guaranteed to identify the physical host disk's actual technology.

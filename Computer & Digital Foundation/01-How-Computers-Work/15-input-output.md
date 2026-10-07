@@ -169,7 +169,11 @@ sound is output. "Output" simply means data leaving the system/component being o
 | Direction (relative to the system being observed) | Data entering | Data leaving |
 | Examples | Keyboard, file read, network request received | Screen display, file write, network response sent |
 | Fixed/universal? | No — relative to system boundary (Section 2) | No — relative to system boundary (Section 2) |
-| Requires a source/destination outside the system? | Yes — a data *source* | Yes — a data *destination* |
+| Involves crossing the boundary being observed? | Yes — a data *source* beyond that boundary | Yes — a data *destination* beyond that boundary |
+
+I/O normally involves data crossing an interface or system boundary, such as between a program and
+a file, device, network endpoint, or operating-system service. What counts as "outside" depends on
+the boundary being observed.
 
 ---
 
@@ -274,9 +278,10 @@ a result is produced; and writing that result out is output.
 
 **A required, explicit clarification:** storage and RAM are not themselves "I/O" — they are places
 data can reside (Concept 10, Concept 11). I/O is the *act* of moving data into or out of the
-system boundary being observed (Section 2) — reading from storage or writing to RAM-backed program
-state happens *through* I/O operations, but storage and RAM are not I/O in themselves, exactly as
-this lesson's required distinctions insist.
+system boundary being observed (Section 2). Reading from or writing to storage or devices involves
+I/O. Reading and writing ordinary RAM with CPU memory operations is memory access, not normally
+classified as I/O, and I/O operations may use RAM buffers as part of the transfer. Storage and RAM
+are not I/O in themselves, exactly as this lesson's required distinctions insist.
 
 ---
 
@@ -287,7 +292,9 @@ this lesson's required distinctions insist.
 File I/O refers to the specific category of I/O involving files:
 
 - **Reading a file** — file input (Section 3).
-- **Writing a file** — file output (Section 4), typically replacing existing contents.
+- **Writing a file** — file output (Section 4): sending data to a file through a file-I/O
+  operation. Depending on how the file is opened and the operation used, the data may create,
+  overwrite, append to, or otherwise modify file contents.
 - **Appending to a file** — file output that adds new data onto the end of existing contents
   (recalling Concept 14, Section 7's "append" operation) without replacing what was already there.
 
@@ -472,6 +479,9 @@ writes error information to stderr (if something went wrong)
 > Simplified conceptual diagram. A program can read from stdin, and separately writes to stdout
 > and stderr — three distinct conceptual streams.
 
+stdin, stdout, and stderr are distinct logical streams, but their destinations can be
+redirected. For example, stdout and stderr can be directed to the same destination.
+
 ### Comparison Table — stdin vs. stdout vs. stderr
 
 | Property | stdin | stdout | stderr |
@@ -493,12 +503,16 @@ writes error information to stderr (if something went wrong)
 
 **Introduced only at a high conceptual level.**
 
-**Synchronous I/O — simple meaning:** the program waits for the I/O operation to complete before
-continuing in the relevant execution flow.
+**Synchronous I/O — simple meaning:** I/O that coordinates completion with the calling flow — the
+caller may wait for the operation to complete before proceeding.
 
-**Asynchronous I/O — simple meaning:** the program can arrange for I/O completion to be handled
-without simply blocking the same flow until completion — it can move on to other work and be
-notified, or check back, once the I/O finishes.
+**Asynchronous I/O — simple meaning:** I/O that allows an operation to be initiated independently
+of its eventual completion, with completion handled later (for example, by being notified or
+checking back).
+
+**Blocking vs. non-blocking — related, but not identical.** Blocking/non-blocking describes
+whether a particular operation causes the calling thread to wait at a given point. It is related
+to, but not identical to, synchronous/asynchronous I/O.
 
 **A simple analogy, immediately followed by its technical limits.** Imagine ordering food and
 standing at the counter, doing nothing else until your order is ready (synchronous) — versus
@@ -529,9 +543,10 @@ Program ──▶ [ request I/O ] ──▶ Program continues with other work
 
 | Property | Synchronous I/O | Asynchronous I/O |
 |---|---|---|
-| Program behavior while I/O is in progress | Waits (blocks) until the operation completes | Can continue with other work |
-| Simpler to reason about? | Generally yes | Generally more complex |
-| Requires additional coordination mechanisms? | No | Yes (not taught in this lesson) |
+| Completion relationship | Completion is coordinated with the calling flow | Completion can be handled independently of the initiating call |
+| Can the caller wait? | Yes, commonly | The initiating call need not wait for completion |
+| Simpler to reason about? | Generally yes | Generally more coordination is involved |
+| Requires additional coordination mechanisms? | Generally not | Generally yes (not taught in this lesson) |
 
 **A required, explicit boundary:**
 
@@ -546,7 +561,8 @@ Program ──▶ [ request I/O ] ──▶ Program continues with other work
 **Recalling vocabulary already established in Concept 1, Concept 9, Concept 10, Concept 11, and
 Concept 12 — now applied specifically to I/O generally:**
 
-- **Latency** — how long a single I/O operation takes to begin/complete.
+- **Latency** — the delay associated with an I/O operation or response, such as the time between
+  requesting an operation and receiving a response or completion.
 - **Throughput** — how much data can be moved over time.
 - **Bandwidth** — recalled from Concept 1 and Concept 10 — the data-transfer capacity of a given
   communication pathway, closely related to throughput.
@@ -609,11 +625,11 @@ Ubuntu
 ```
 
 **Checking command availability first.** Every command below (`pwd`, `echo`, `ls`, `printf`,
-`cat`, `wc`, `head`, `tail`, `file`, `stat`) was confirmed available in the environment used to
-prepare this lesson via `which`. **The output shown below is genuinely observed** — captured by
-actually running these commands in an isolated temporary directory (`/tmp/io-lesson-demo`), which
-was fully removed afterward. **Your own output will very likely differ in some specific values —
-treat the output below as this lesson's own observed example.**
+`cat`, `wc`, `head`, `tail`, `file`, `stat`) was available in the environment used to prepare this
+lesson. **The output shown below is example output captured in an Ubuntu/WSL2 environment** using
+an isolated temporary directory (`/tmp/io-lesson-demo`). Exact output may vary depending on the
+distribution, command version, locale, and environment, so treat it as this lesson's own example
+rather than a universal expectation.
 
 **Step 1 — set up an isolated, temporary working directory:**
 
@@ -628,7 +644,7 @@ cd /tmp/io-lesson-demo
 echo "This goes to standard output."
 ```
 
-*Observed output:*
+*Example output (environment-specific):*
 
 ```text
 This goes to standard output.
@@ -643,7 +659,7 @@ destination for a program's normal output.
 ls this-file-does-not-exist.txt
 ```
 
-*Observed output:*
+*Example output (environment-specific):*
 
 ```text
 ls: cannot access 'this-file-does-not-exist.txt': No such file or directory
@@ -661,7 +677,7 @@ touch realfile.txt
 ls realfile.txt this-file-does-not-exist.txt
 ```
 
-*Observed output:*
+*Example output (environment-specific):*
 
 ```text
 ls: cannot access 'this-file-does-not-exist.txt': No such file or directory
@@ -671,7 +687,7 @@ realfile.txt
 *What this demonstrates:* a single command can produce output on **both** streams at once —
 `realfile.txt` (found successfully) went to stdout, while the error about the missing file went to
 stderr, concretely illustrating Section 10's point about keeping these two streams distinct. Notice
-that the error line appeared *first* in this genuinely captured output, even though `realfile.txt`
+that the error line appeared *first* in this captured example output, even though `realfile.txt`
 was listed second in the command — this is expected: stdout and stderr are separate, independent
 streams (Section 10's diagram), and their exact interleaving when displayed together is not
 guaranteed to match any particular order.
@@ -682,7 +698,7 @@ guaranteed to match any particular order.
 printf "line one\nline two\nline three\n" | wc -l
 ```
 
-*Observed output:*
+*Example output (environment-specific):*
 
 ```text
 3
@@ -700,7 +716,7 @@ echo "Hello from a file." > input.txt
 cat input.txt
 ```
 
-*Observed output:*
+*Example output (environment-specific):*
 
 ```text
 Hello from a file.
@@ -719,7 +735,7 @@ file output.txt
 wc -l output.txt
 ```
 
-*Observed output:*
+*Example output (environment-specific):*
 
 ```text
 captured output
@@ -747,8 +763,7 @@ rm -rf /tmp/io-lesson-demo
 ```
 
 This removes the entire isolated temporary directory and everything created inside it — nothing
-outside `/tmp/io-lesson-demo` was touched at any point, and this cleanup step was genuinely
-performed while preparing this lesson.
+outside `/tmp/io-lesson-demo` is touched by these steps.
 
 **Step 10 — reasoning about network I/O without requiring network access.** This lesson's Section 9
 network example (client → request → server → response → client) does not require you to actually
@@ -762,7 +777,7 @@ data counts as input versus output from, exactly as Section 2 teaches.
 - These observations were made inside WSL2's Ubuntu Linux environment, in an isolated `/tmp`
   directory — consistent with every prior concept file's practical-section approach.
 - Do not assume a specific username or exact byte-for-byte output — your own environment's
-  specific values will differ from this lesson's genuinely captured example.
+  specific values will differ from this lesson's captured example.
 - This lesson does not require internet access, and none was used in preparing it.
 
 ---

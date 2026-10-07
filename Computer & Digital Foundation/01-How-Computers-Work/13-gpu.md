@@ -296,6 +296,11 @@ because you need to use it yet:**
 > programming a GPU using these concepts — writing CUDA code, managing threads/blocks/grids
 > directly — is a **later topic, not taught here.**
 
+GPU hardware architecture is not the same thing as the CUDA programming model. Threads, blocks,
+and grids are CUDA programming-model concepts. They are one concrete way of organizing GPU work,
+not universal names for the physical structure of every GPU or every GPU programming environment;
+other GPU programming environments use different abstractions.
+
 **The high-level execution flow, connecting back to Concept 2's fetch-decode-execute model:**
 
 ```text
@@ -327,11 +332,18 @@ this file).
 Recall Concept 6's registers and Concept 9's cache — a GPU has analogous concepts, organized
 differently to suit its different execution model.
 
-**GPU compute units.** A GPU is organized into a number of larger compute units (sometimes called,
-depending on vendor and generation, "streaming multiprocessor-style" organization, or other
-vendor-specific names this lesson does not enumerate) — each compute unit contains many of the
-lightweight execution units introduced in Section 6, working together on a portion of the overall
-workload.
+**GPU architecture varies significantly by vendor and generation.** At a high level, GPUs contain
+many parallel execution resources organized into larger architectural groups, but the exact
+hierarchy and terminology are vendor-specific. For example, NVIDIA uses Streaming Multiprocessors
+(SMs), while AMD uses Compute Units (CUs) and other architecture-specific structures. These
+should not be treated as universally identical hardware units, and there is no single universal
+physical hierarchy called "GPU → compute units → execution units" — this lesson uses it only as a
+simplified conceptual abstraction.
+
+**GPU compute units.** In that simplified abstraction, a GPU is organized into a number of larger
+compute units (the vendor-specific groups described above) — each compute unit contains many of
+the lightweight execution units introduced in Section 6, working together on a portion of the
+overall workload.
 
 **Execution units.** Within each compute unit, individual execution units (Section 6's
 "lightweight execution units") actually carry out the arithmetic and logical operations (recalling
@@ -345,7 +357,9 @@ active execution units.
 **On-chip/shared/local memory — conceptual mention only.** GPUs generally provide some fast memory
 located close to groups of execution units, conceptually analogous in *purpose* to Concept 9's
 cache (fast memory kept close to reduce access delay) — but organized and used differently, in ways
-this lesson does not teach in depth (see the Strict Boundary section — shared-memory bank
+this lesson does not teach in depth. Some GPU memory resources are hardware-managed caches, while
+others — such as CUDA shared memory — can be explicitly managed by GPU programs. They are both
+fast resources located close to computation, but they are not interchangeable (see the Strict Boundary section — shared-memory bank
 conflicts, detailed cache hierarchy, and similar internals are explicitly out of scope).
 
 **Global/device memory.** Beyond this fast, close memory, a GPU also has access to its own larger,
@@ -380,10 +394,13 @@ its own dedicated memory (VRAM), separate from the system RAM the CPU primarily 
 **Why data may need to move between CPU/system memory and GPU/device memory.** Data a GPU needs to
 work with (for example, an image to process, or — relevant to AI, previewed in Section 12 — a
 dataset or model's numerical parameters) commonly starts out in system RAM (having been loaded
-from storage, per Concept 10 and Concept 11's original chain) or on persistent storage. Before the
-GPU can actually compute with that data, it generally needs to be **transferred** from system
-RAM into the GPU's own VRAM — a real data-movement step, taking real time, connecting directly to
-Concept 1's original communication-pathway discussion.
+from storage, per Concept 10 and Concept 11's original chain) or on persistent storage. On systems
+with a discrete GPU and separate device memory, data often needs to be **transferred** or
+otherwise made accessible to GPU/device memory before efficient GPU execution — from system RAM
+into the GPU's own VRAM, a real data-movement step taking real time, connecting directly to
+Concept 1's original communication-pathway discussion. Integrated GPUs commonly share system
+memory, and unified-memory systems can work differently from this simple separate-RAM/
+separate-VRAM model.
 
 **A conceptual diagram — CPU + RAM + GPU + VRAM relationship:**
 
@@ -563,9 +580,9 @@ which glxinfo
 Only use a tool if `which` actually reports a path for it — if a command prints nothing, that tool
 is not installed in this environment, and this lesson does not instruct you to install it.
 
-**Real, verified observations from one specific WSL2/Ubuntu environment, captured while preparing
-this lesson — your own results will very likely differ, and should be treated as your own
-system's specific values, not a universal expectation:**
+**Example output captured from a specific WSL2/Ubuntu environment (author-captured and
+environment-specific, not independently reproduced) — your own results will very likely differ,
+and should be treated as your own system's specific values, not a universal expectation:**
 
 ```text
 $ which lspci
@@ -594,7 +611,7 @@ lshw -C display
 *What this command is for:* `lshw` ("list hardware") reports hardware information the kernel
 exposes; `-C display` filters that report to just the display/graphics-related section.
 
-*The real, verified output captured from this environment:*
+*The example output captured from that environment:*
 
 ```text
 WARNING: you should run this program as super-user.
@@ -613,20 +630,24 @@ WARNING: you should run this program as super-user.
 WARNING: output may be incomplete or inaccurate, you should run this program as super-user.
 ```
 
-**Interpreting this real, captured output, using this lesson's vocabulary:**
+**Interpreting this captured example output, using this lesson's vocabulary:**
 
 - The `product` field reports **"Basic Render Driver"**, and the `vendor` field reports
   **"Microsoft Corporation"** — not a real GPU manufacturer's actual product name. The
-  `configuration` field shows `driver=dxgkrnl` — `dxgkrnl` is a Windows/WSL2 graphics-virtualization
-  component, **not** a native Linux GPU driver.
-- **This is a directly observable example of GPU virtualization**, exactly as this lesson's
-  required caveats describe: what WSL2 exposes here is a *virtualized* rendering interface
-  (provided by Windows through WSLg, the WSL graphical-support subsystem), **not** a direct,
-  complete representation of the physical GPU actually installed in the host machine.
+  `configuration` field shows `driver=dxgkrnl` — `dxgkrnl` is associated with the Windows/WSL2 GPU
+  virtualization/interface mechanism, **not** a native Linux GPU driver for a specific physical
+  GPU.
+- **This is an example of GPU virtualization**, as this lesson's required caveats describe: WSL2
+  can expose GPU functionality through Windows/WSL GPU virtualization and related driver
+  interfaces, so what the Linux guest sees is a *virtualized* interface, **not** a direct,
+  complete representation of the physical GPU actually installed in the host machine
+  (physical GPU → Windows graphics/driver stack → WSL GPU virtualization/interface → Linux/WSL
+  environment). WSLg is a separate thing — the Linux GUI/application integration layer — and
+  should not be treated as a synonym for `dxgkrnl`.
 - The command itself warns, twice, that it should be run as super-user and that its output "may be
   incomplete or inaccurate" without elevated privileges — **this lesson does not instruct you to
   run it with `sudo`**, consistent with this lesson's safety requirements; the incompleteness is
-  simply reported honestly, exactly as observed.
+  simply reported honestly, as it appeared in the captured example.
 
 **Step 4 — optionally, check for other GPU-related information sources, safely:**
 
@@ -638,7 +659,7 @@ ls /sys/class/drm
 on a native Linux system with a GPU driver loaded, would typically list one or more graphics
 device entries.
 
-*The real, verified output captured from this environment:*
+*The example output captured from that environment:*
 
 ```text
 version
@@ -653,7 +674,7 @@ reported result**, not a fabricated or assumed one.
 - **Native hardware information** would come from running these same tools directly on a natively
   installed Linux system, with direct access to the physical hardware and appropriate drivers
   loaded.
-- **WSL2 virtualized/exposed information** is what you actually observed above — a
+- **WSL2 virtualized/exposed information** is what the captured example above shows — a
   virtualization-layer rendering interface (`dxgkrnl`), not necessarily a complete or accurate
   picture of the physical GPU.
 - **Information unavailable inside the current environment** — as seen with `lspci` and
@@ -703,8 +724,9 @@ must match the example above.
 **Why modern AI workloads commonly benefit from GPUs, explained conceptually:**
 
 - **Matrix multiplication** — a specific, common mathematical operation (this lesson does not teach
-  the mathematics itself) that involves an enormous number of similar, largely independent
-  individual multiplication-and-addition steps — exactly the data-parallel shape (Section 5) GPUs
+  the mathematics itself) that exposes substantial parallelism because many output
+  elements can be computed independently, while each output element itself involves a reduction
+  over multiple multiplication-and-addition operations — a data-parallel shape (Section 5) GPUs
   are built for.
 - **Tensor operations** — "tensor" is a term for a general, multi-dimensional collection of numbers
   (this lesson does not teach tensor mathematics) — AI computation involves enormous numbers of
@@ -719,8 +741,9 @@ must match the example above.
   data (this lesson does not teach how training actually works) — a process that involves an
   enormous number of matrix/tensor operations, repeated many times.
 - **Model inference** — using an already-trained model to produce a result (also not taught in
-  depth here) — which likewise commonly involves substantial matrix/tensor computation, though
-  typically less than training requires.
+  depth here) — which likewise commonly involves substantial matrix/tensor computation. Training
+  and inference have different computational patterns and resource requirements; both can be
+  computationally intensive and can benefit substantially from accelerators.
 
 **A required, explicit, firm boundary:**
 
@@ -922,7 +945,7 @@ Misconception 11 → "All computers have a usable discrete GPU."
 Correct idea     → Many computers (especially laptops, and this lesson's own practical
                     observation in Section 11) have only an integrated GPU, or in some
                     environments, no directly accessible GPU information at all — this
-                    lesson's own real, captured practical-section output demonstrated exactly
+                    lesson's own captured example practical-section output illustrated exactly
                     this: no `nvidia-smi`, no `lspci`, and only a virtualized rendering
                     interface visible through `lshw`.
 Why it happens   → Discrete, high-performance GPUs are commonly discussed in gaming and AI
@@ -933,7 +956,7 @@ Why it happens   → Discrete, high-performance GPUs are commonly discussed in g
 ```text
 Misconception 12 → "WSL2 GPU information necessarily represents the complete physical hardware
                     topology."
-Correct idea     → As Section 11's real, captured example directly demonstrated (a "Basic
+Correct idea     → As Section 11's captured example illustrated (a "Basic
                     Render Driver" from "Microsoft Corporation" via the `dxgkrnl` driver),
                     WSL2 can expose a virtualized rendering interface rather than a complete,
                     accurate picture of the actual physical GPU installed on the host machine.
