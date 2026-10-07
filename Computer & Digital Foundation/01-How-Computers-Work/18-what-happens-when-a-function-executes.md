@@ -131,8 +131,8 @@ frameworks:**
 - **Preprocessing/postprocessing** — the steps before and after model inference (Section 15
   develops this fully) are themselves function calls.
 - **Debugging stack traces** — this lesson's own genuinely captured practical work (Section 9)
-  demonstrates a real Python traceback, which is, directly, a printed record of the call chain
-  this entire lesson explains.
+  demonstrates a real Python traceback, which records execution-frame information associated with
+  an exception and shows the chain of calls this entire lesson explains.
 - **Performance reasoning** — Section 6's function-call-overhead discussion gives you the
   vocabulary to reason about why deeply nested or heavily recursive code can have real, measurable
   cost.
@@ -313,6 +313,9 @@ callee's specific instructions.
 **Return value produced; return control; caller resumes.** Once the callee finishes, any return
 value (Section 5) is made available to the caller, control transfers back to the point right after
 the original call, and the callee's stack frame is no longer active (Section 8's "unwinding").
+This describes **normal completion** (callee → normal return → caller resumes). If instead an
+**exception** is raised, it propagates up through the call chain until a handler is found or the
+program terminates — the caller does not simply resume after the call.
 
 ### The Required Stack-Frame Model
 
@@ -328,6 +331,11 @@ A conceptual stack frame can contain or reference things such as:
 
 > The exact contents and layout of a stack frame depend on the CPU architecture, ABI, compiler,
 > language runtime, optimization level, and calling convention.
+
+At the conceptual level, each active function invocation has execution state. Native compiled
+programs often represent this state using machine stack frames, but language runtimes may
+implement call state differently — a Python function invocation is not necessarily one native
+machine stack frame.
 
 This lesson does **not** teach you that every language or compiler creates an identical stack
 frame, and does **not** claim that every variable is physically stored on the stack (this
@@ -370,9 +378,10 @@ resumes execution
 
 ### Stack Growth and Stack Unwinding During Nested Calls
 
-Every time a function calls another function, a new stack frame (this section) is conceptually
-added to the top of the call stack — the stack **grows**. Every time a function returns, its
-frame is conceptually removed from the top — the stack **unwinds** (also called "popping" a
+In the common conceptual call-stack model, each nested invocation adds another active execution
+frame (this section) to the top of the call stack — the stack **grows**. When the invocation
+completes, its active execution state is no longer needed for that call and the implementation can
+release or reuse the associated resources — the stack **unwinds** (also called "popping" a
 frame). This growing-and-unwinding behavior is exactly what makes nested calls (Section 7) and
 recursion (below) work correctly: each active call has its own space, and that space is reliably
 reclaimed, in LIFO order, the moment that specific call finishes.
@@ -447,10 +456,13 @@ function definition.
 **Stack overflow, conceptually.** Because each active call consumes some amount of call-stack
 space, and because available call-stack space is finite, recursion that never reaches a
 terminating condition (or that recurses far too deeply for legitimate reasons) can exhaust that
-space — this is conceptually what a **stack overflow** is. This lesson's own genuinely observed
-practical work (Section 9) demonstrates a real, safely-triggered `RecursionError` — Python's own
-built-in protection against exactly this scenario, deliberately lowered to a small limit so the
-error occurs quickly and harmlessly, without risking an actual uncontrolled crash.
+space — this is conceptually what a **stack overflow** is (actual exhaustion of native
+thread-stack capacity). This lesson's own genuinely observed practical work (Section 9)
+demonstrates a real, safely-triggered `RecursionError`. A `RecursionError` means Python's
+recursion-depth limit was exceeded; the two are related — the limit exists partly to prevent
+uncontrolled recursion from exhausting the underlying native stack — but they are not synonymous,
+and the demonstration shows Python's recursion-depth protection, not native stack exhaustion. The
+limit is deliberately lowered so the error occurs quickly and harmlessly.
 
 **This lesson does not teach advanced recursion algorithms or recursion-optimization techniques**
 (such as tail-call handling) — only the conceptual relationship between repeated function calls
@@ -602,8 +614,10 @@ Thread C:  main → logging
 ### Function Call Overhead
 
 **A function call is not completely free.** Recalling this lesson's own genuinely observed
-`objdump` evidence (Section 9) — several real instructions (`push`, `mov`, `call`, `pop`, `ret`)
-were required just to set up and tear down one small function call. There may be work associated
+`objdump` evidence (Section 9) — in that particular GCC `-O0`, x86-64 build, several real
+instructions (`push`, `mov`, `call`, `pop`, `ret`) were used to set up and tear down one small
+function call (other compilers, optimization levels, and architectures can produce different
+machine code). There may be work associated
 with:
 
 - Transferring control
@@ -661,10 +675,10 @@ native machine-level implementation   (the actual CPU instructions ultimately ex
 For a natively-compiled function (Section 9's C example), the source-level function and its
 machine-level implementation are fairly directly connected — the compiler (Concept 8) translates
 it into machine code with an explicit `call`/`ret` structure. For a Python function (Section 7,
-Section 9's examples), the source-level function is executed *through* a runtime/interpreter
-(Concept 8) — the Python-level "call" you write does not directly correspond to a single native
-`call` instruction the way the C example does; the interpreter itself is doing additional work to
-carry out that call.
+Section 9's examples), the source-level function is executed *through* a Python
+implementation/runtime (such as CPython; Concept 8) — the Python-level "call" you write does not
+directly correspond to a single native `call` instruction the way the C example does; the runtime
+itself is doing additional work to carry out that call.
 
 ### Comparison Table — Python-Level Function vs. Native Machine-Level Function
 
@@ -713,8 +727,11 @@ x = add(10, 20)
 5. Execution state for this call is established (Section 6's stack frame).
 6. `a` and `b` represent the function's inputs — `a` is `10`, `b` is `20` (Section 5's
    parameter/argument distinction, made concrete).
-7. `result` is computed (`a + b`).
-8. The CPU executes the required instructions (Concept 7) to actually carry out that addition.
+7. `result` is computed (`a + b`) — at the Python-language level, `a + b` requests an addition
+   operation.
+8. The Python implementation performs the necessary runtime work to carry out that operation, and
+   the CPU executes the resulting native instructions (Concept 7); the exact native instructions
+   depend on the implementation and version.
 9. The result (`30`) is returned.
 10. Control returns to the caller.
 11. `x` conceptually receives the result.
@@ -936,8 +953,9 @@ Handled expected error (limit intentionally set very low): RecursionError('maxim
 
 *What this demonstrates:* `sys.setrecursionlimit(5)` deliberately, safely, and harmlessly lowers
 Python's own recursion-depth limit so a genuine `RecursionError` is triggered quickly and caught —
-a real, concrete, controlled demonstration of Section 6's stack-overflow discussion, without
-risking an actual uncontrolled crash.
+a controlled demonstration of Python's recursion-depth protection (related to, but not the same
+as, the native stack overflow in Section 6's discussion), without risking an actual uncontrolled
+crash.
 
 **D. Observe a genuine, uncaught traceback through nested calls.**
 
@@ -973,10 +991,11 @@ Traceback (most recent call last):
 ZeroDivisionError: division by zero
 ```
 
-*What this demonstrates:* a Python traceback **is, directly, a printed representation of the call
-stack** (Section 7) at the moment an unhandled error occurred — reading from the bottom up shows
-exactly the chain `main → calculate → process`, matching this lesson's own nested-call diagram
-precisely. This is precisely why Section 3 named "debugging stack traces" as a core AI-engineering
+*What this demonstrates:* a Python traceback records execution-frame information associated with
+an exception and shows the chain of calls through which it propagated (Section 7) — it is not an
+exact dump of the live call stack, but it is extremely useful for reconstructing the call chain at
+the point of failure. Reading it shows the chain `main → calculate → process`, matching this
+lesson's own nested-call diagram. This is precisely why Section 3 named "debugging stack traces" as a core AI-engineering
 relevance point.
 
 **E. Compile a tiny C example and observe real function-call machine code, using `objdump`
@@ -1032,7 +1051,8 @@ convention lesson:*
   evidence of Section 6's "control transfer" step.
 - `add` ends with a real **`ret`** instruction — direct, real evidence of "return control"
   actually happening at the machine level.
-- `push rbp` / `pop rbp` at the start/end of `add` are real, observable instructions related to
+- In this particular GCC `-O0`, x86-64 build, `push rbp` / `pop rbp` at the start/end of `add` are
+  real, observable instructions related to
   managing call-related state (Section 6's stack frame) — **this lesson does not explain their
   precise mechanics**; that belongs to compiler-generated prologue/epilogue internals, explicitly
   deferred (see this lesson's Strict Boundary).
@@ -1083,7 +1103,9 @@ Misconception 3  → "Every function call creates exactly the same stack frame."
 Correct idea     → The exact contents and layout of a stack frame depend on the CPU
                     architecture, ABI, compiler, language runtime, optimization level, and
                     calling convention (Section 6's required, mandatory qualification) — there
-                    is no single, universal stack-frame layout.
+                    is no single, universal stack-frame layout, and a language runtime (such as
+                    a Python implementation) may represent call state differently from a native
+                    machine stack frame.
 Example          → Section 9's genuinely observed `add` and `compute` functions, compiled from
                     the same file with the same compiler, still have different instruction
                     sequences — even within one program, calls are not perfectly uniform.
@@ -1148,7 +1170,7 @@ Correct idea     → Recalling Concept 8 directly: Python source code goes throu
                     runtime/interpreter, not a one-to-one direct mapping to CPU instructions
                     the way a compiled native function's call/ret sequence does (Section 6's
                     required distinction).
-Example          → Section 9's Python examples were executed by the Python interpreter; the
+Example          → Section 9's Python examples were executed by a Python implementation/runtime; the
                     genuinely observed `objdump` machine code came from a separate, compiled C
                     example — this lesson never claims the Python examples produced that same
                     machine code directly.
@@ -1178,10 +1200,11 @@ Example          → Section 9's genuinely observed `countdown` recursion demo r
 
 ```text
 Misconception 12 → "A stack frame is permanent."
-Correct idea     → A stack frame exists only for the duration of its specific active call
-                    (Section 6's "stack unwinding" discussion) — once the function returns, that
-                    frame's state is no longer active and its space becomes available for reuse
-                    by future calls.
+Correct idea     → The active execution state of a call exists only for the duration of that
+                    call (Section 6's "stack unwinding" discussion) — once the function
+                    returns, that state is no longer needed for continuing the call and its
+                    space can be released or reused by future calls (frame information may
+                    remain accessible for debugging or introspection).
 Example          → Section 7's nested-call diagram shows `process()`'s frame existing only
                     briefly, removed from the top of the stack the moment it returns.
 ```
@@ -1217,13 +1240,14 @@ to each recursive call is actually moving toward that base case, referencing Sec
 
 **Scenario 2 — Stack overflow / `RecursionError`.** A learner sees a `RecursionError` (or a
 native "stack overflow") and assumes their code is fundamentally broken. Reasoning required:
-recall Section 6 — this specifically means too many active calls existed at once, exceeding
-available call-stack capacity; the learner should examine whether recursion is missing a
+recall Section 6 — a `RecursionError` means Python's recursion-depth limit was exceeded (too many
+active calls at once); native stack exhaustion is a related but distinct failure mode; the learner should examine whether recursion is missing a
 correctly-reached base case, or whether the recursion depth genuinely, legitimately exceeds what's
 reasonable for the problem.
 
 **Scenario 3 — Confusing traceback.** A learner sees a traceback (Section 9) and doesn't know
-where to start reading it. Reasoning required: recall that a traceback lists the call chain,
+where to start reading it. Reasoning required: recall that a traceback shows execution-frame
+information for the call chain associated with the exception,
 generally from outermost call to innermost (Section 9's genuinely observed example) — the actual
 error is described at the very bottom, and the lines above show the chain of calls that led there.
 
@@ -1411,8 +1435,8 @@ this connects to registers, RAM, and the process/thread model you've already stu
 - **Debugging** — nearly every bug you'll investigate eventually requires reasoning about which
   function called which, with what values, and what was returned.
 - **Stack traces** — this lesson's own genuinely observed Python traceback (Section 9) is exactly
-  the tool you'll rely on constantly; understanding what it represents (the call stack at the
-  moment of failure) makes it immediately more useful.
+  the tool you'll rely on constantly; understanding what it represents (call-chain information for
+  the point of failure) makes it immediately more useful.
 - **Backend services** — request-handling code is built from function calls; understanding the
   call/return model helps you reason about request-handling logic correctly.
 - **API request handling** — Section 3 and Section 12 (Level 5, exercise 33)'s handler →

@@ -54,8 +54,9 @@ before the CPU ever executes a single instruction belonging to your program.
 
 - **Program stored on storage** — inert data sitting on a storage device (Concept 11), not
   currently doing anything (Concept 14's file vocabulary applies directly).
-- **Executable artifact** — a specific kind of stored file (Concept 14) containing, typically,
-  machine code (Concept 7) ready to be run.
+- **Executable artifact** — a program artifact that a platform's execution mechanism can start or
+  hand to a runtime for execution. Native executables typically contain machine code (Concept 7),
+  while scripts and bytecode-based programs may rely on an interpreter or virtual machine.
 - **Process** — a *running instance* (Concept 16, Section 1) — this only comes into existence once
   the program is actually launched.
 - **Running program** — informal language for "a process that is currently executing" — this
@@ -144,7 +145,7 @@ Program file (executable, on storage, Concept 11/14)
 | Property | Launch (Section 3) | Loading (Section 5) | Execution (Section 9 onward) |
 |---|---|---|---|
 | What happens | A request is made and received by the OS, which creates a process | The executable's contents are made available within the process's address space | The CPU actually fetches/decodes/executes instructions (Concept 2, 7), beginning at the entry point |
-| Who/what acts | User or another program, then the OS (Section 3, 4) | The loader (part of OS responsibility, Section 5) | The CPU (Concept 2) |
+| Who/what acts | User or another program, then the OS (Section 3, 4) | The loader (OS/kernel mechanisms, plus a dynamic linker or runtime where applicable, Section 5) | The CPU (Concept 2) |
 | Result | A new process exists (Concept 16) | The process's code/data are ready to run (Section 6, 7) | Instructions are actually carried out, eventually reaching application code (Section 12) |
 
 **A required, explicit clarification:** these three phases happen in roughly this order (launch →
@@ -216,6 +217,14 @@ steps conceptually happen and roughly what each accomplishes.
 request, a **new process is created** — this is precisely Concept 16, Section 13's "process
 creation" step, now given its proper place in the full startup sequence.
 
+**A qualification on this conceptual model.** A platform must establish a process execution
+context and arrange for the requested program to execute, and the exact mechanism varies by
+operating system. On Linux/POSIX, process creation and program-image replacement are distinct
+concepts: `fork()` creates a new process, `execve()` replaces the current process's program image
+(without creating a new process or PID), and `posix_spawn()` provides a higher-level launch
+mechanism. This lesson uses "process created, then program loaded" as a conceptual model only; the
+details are Module 0.2 material.
+
 **The new process receives an identity** — a **PID** (Concept 16, Section 4) — uniquely
 identifying this specific new running instance, distinct from any other process, even another
 instance of the exact same program (Concept 16, Section 2's concrete example).
@@ -235,9 +244,11 @@ storage (Concept 11) — inert bytes, per Concept 14's file vocabulary. For the 
 execute the instructions inside it, those bytes must somehow become available to the newly created
 process in a form its execution can actually use.
 
-**Loader — simple meaning:** a loader is the conceptual mechanism (part of the operating system's
+**Loader — simple meaning:** a loader is the conceptual mechanism (largely the operating system's
 responsibility, Section 3) responsible for preparing an executable so it can actually be executed
-by a process.
+by a process. In practice the OS/kernel participates in establishing the process/program image,
+dynamically linked native programs can also involve a user-space dynamic linker, and language
+runtimes or interpreters can participate too — the exact implementation varies.
 
 **What loading conceptually involves.** Loading means making the program's executable contents —
 its instructions (Concept 7) and associated data (Section 7) — available within the newly created
@@ -343,7 +354,9 @@ the executable file itself, but must be available for the program to actually ru
 If a program's logic depends on functionality provided by a separate component (a shared library,
 a runtime), that component generally needs to be located and made ready *before* the program's own
 logic can correctly begin — otherwise, the program would attempt to use functionality that isn't
-actually present yet.
+actually present yet. In other words, dependencies required for initial execution are made
+available during startup, while some libraries, symbols, or modules may be loaded or resolved
+later.
 
 **This lesson's own genuinely observed practical work (Section 14) demonstrates this directly** —
 inspecting a real executable's dynamic library dependencies with `ldd`.
@@ -452,11 +465,13 @@ models, not a claim that "language X always works this way":**
 
 - **C** — commonly, an example of a compiled, native-executable language, where entry-point startup
   code runs before `main`.
-- **Python** — commonly, an example where a Python implementation's runtime/interpreter (Concept
-  8, Section 7-9's original discussion) must start up before your Python source-level code actually
-  begins executing.
-- **Java** — commonly, an example involving a virtual machine (Concept 8, Section 6's "Bytecode +
-  Virtual Machine" model) that must start up before your Java application code begins.
+- **Python** — for CPython and similar interpreter-based implementations, an example where the
+  runtime/interpreter (Concept 8, Section 7-9's original discussion) must start up before your
+  Python source-level code actually begins executing. The Python language does not mandate one
+  implementation strategy.
+- **Java** — commonly, a JVM execution-model example (Concept 8, Section 6's "Bytecode + Virtual
+  Machine" model) where a virtual machine must start up before your Java application code begins;
+  it is not a claim that every Java implementation or launcher behaves identically at the OS level.
 
 **A required, explicit, firm correction:**
 
@@ -626,14 +641,14 @@ Ubuntu
 ```
 
 **Checking command availability first.** Every command below (`file`, `ldd`, `readelf`, `ps`,
-`sleep`, `time`) was confirmed available in the environment used to prepare this lesson via
-`which`. **The output shown below is genuinely observed** — captured by actually running these
-commands. **Your own output will very likely differ (library paths, addresses, PIDs) — treat the
-output below as this lesson's own observed example.**
+`sleep`, `time`) was available in the environment used to prepare this lesson. **The output shown
+below is example output captured in one specific WSL2 environment** (the process example in Step E
+is illustrative — see there). **Your own output will very likely differ (library paths, addresses,
+PIDs) — treat the output below as this lesson's own example.**
 
 **Step A — identify a harmless, already-installed executable to inspect.** `/bin/sleep` (the
-standard Linux "wait for a given time" utility) is used here — a small, harmless, universally
-available executable, ideal for safe observation.
+standard Linux "wait for a given time" utility) is used here — a small, harmless, commonly
+available Linux utility, ideal for safe observation.
 
 **Step B — observe the file type.**
 
@@ -657,6 +672,9 @@ that "program file" isn't always as simple as one single, direct file.
 ```bash
 ldd /bin/sleep
 ```
+
+Only use `ldd` with executables you trust, such as system binaries or binaries you built yourself.
+Do not use it on untrusted executables.
 
 *Observed output from this WSL2 environment:*
 
@@ -721,30 +739,26 @@ recommended workflow, start a harmless, long-running command such as `sleep 60 &
 
 ```bash
 sleep 60 &
-echo "$!"
+PID=$!
+
+echo "Created PID: $PID"
+
+ps -p "$PID" -o pid,ppid,stat,etime,cmd
 ```
 
-This captures the new process's PID (Concept 16, Section 4) immediately after creation — a direct,
-practical link back to Concept 16's process-identity discussion, now observed at the exact moment
-of creation this lesson's startup sequence describes.
+This captures the new process's PID (Concept 16, Section 4) immediately after creation in the
+`PID` variable, and uses that same dynamically captured PID for every later step — a direct,
+practical link back to Concept 16's process-identity discussion, now at the moment of creation
+this lesson's startup sequence describes. Never type a PID from an example: the number your
+system assigns will be different, and a hard-coded PID could belong to a different process.
 
-*Observed output from this WSL2 environment (captured using an equivalent harmless, long-running
-command for this specific demonstration — the observable concepts, PID/state/termination, are
-identical regardless of which harmless command is used):*
+*Illustrative example of the expected shape of the output (placeholder values, not captured
+output — your PIDs, parent PID, and elapsed time will differ):*
 
 ```text
-PID: 5218
-```
-
-```bash
-ps -p 5218 -o pid,ppid,stat,etime,cmd
-```
-
-*Observed output:*
-
-```text
+Created PID: <PID>
     PID    PPID STAT     ELAPSED CMD
-   5218    5216 Sl         00:00 tail -f /dev/null
+  <PID> <PPID> S         00:00 sleep 60
 ```
 
 *What this demonstrates:* this is Concept 16, Section 14's identical `ps` inspection, now framed
@@ -766,21 +780,22 @@ user 0.00
 sys 0.00
 ```
 
-*What this demonstrates:* `time` measures how long a command takes to run overall — including,
-conceptually, the startup sequence this entire lesson describes (process creation, loading,
-initial state setup, entry point, and finally the trivial `true` command's own execution) before
-the command completes. **This lesson does not teach detailed timing/benchmarking methodology** —
+*What this demonstrates:* `time` measures the command's total elapsed time and CPU time; it does
+not isolate program-startup time from the rest of the command's execution. The measured total
+includes, conceptually, the startup sequence this entire lesson describes (process creation,
+loading, initial state setup, entry point) together with the trivial `true` command's own
+execution. **This lesson does not teach detailed timing/benchmarking methodology** —
 this is included only to give a small, safe, concrete sense that "starting a program" is real,
 measurable work, however brief for a tiny program like `true`.
 
 **Step G — clean up: terminate only the self-created process from Step E.**
 
 ```bash
-kill 5218
+kill "$PID"
 ```
 
 **This lesson never kills arbitrary processes** — only the specific, harmless, self-created
-process from Step E, identified by its exact PID, exactly matching Concept 16, Section 14's
+process from Step E, identified by the PID captured dynamically in Step E, exactly matching Concept 16, Section 14's
 identical safety practice.
 
 **Required WSL2-specific caveats:**
@@ -865,8 +880,8 @@ before any of their application-specific AI logic can run.
    identical point) — each with its own PID and execution context, even though both originate from
    the same executable.
 6. **Why can startup work involve both storage I/O and CPU computation?** Loading the executable
-   and its dependencies (Section 5, Section 8) involves reading data from storage (Concept 11,
-   Concept 15), while establishing execution state and beginning runtime initialization (Section 9,
+   and its dependencies (Section 5, Section 8) may involve storage I/O (Concept 11, Concept 15),
+   although required data may already be cached in memory, while establishing execution state and beginning runtime initialization (Section 9,
    Section 11) involves actual CPU computation (Concept 2) — startup is not purely one or the
    other.
 7. **Why can a program spend significant time initializing before doing useful application work?**
@@ -1150,9 +1165,10 @@ sequence varies between native, interpreted, and managed execution models.
   Strict Boundary).
 - **Operating System Fundamentals (Module 0.2)** — the detailed kernel mechanisms
   (`fork()`/`exec()`, page tables, dynamic linking) this lesson deliberately deferred throughout.
-- **AI Engineering** — every AI application, service, or worker you build will go through exactly
-  this startup sequence before any of its application-specific logic — including model loading —
-  can begin (Section 15's AI-engineering relevance discussion).
+- **AI Engineering** — AI applications, services, and workers generally undergo analogous
+  startup stages before any of their application-specific logic — including model loading — can
+  begin, although the exact sequence depends on the operating system, runtime, launcher,
+  container/platform, and application architecture (Section 15's AI-engineering relevance discussion).
 
 **A required, final, explicit boundary:**
 

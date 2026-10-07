@@ -271,9 +271,9 @@ GPU-style (parallel):
 
 **Why this specific shape matters, stated as the required, explicit central claim:**
 
-> A single matrix/tensor operation on a large grid of numbers can be broken down into an enormous
-> number of small, similar, independent arithmetic steps — precisely the data-parallel shape
-> (above) that GPU architecture (Concept 13) is built to execute efficiently.
+> Many matrix and tensor operations can be decomposed into large numbers of arithmetic
+> suboperations that can be executed in parallel — the data-parallel shape (above) that GPU
+> architecture (Concept 13) is built to execute efficiently.
 
 **A required, explicit qualification, consistent with this lesson's careful language:**
 
@@ -317,7 +317,7 @@ Enormous number of small, similar, largely-independent arithmetic operations
         │
         │  this is a highly data-parallel shape (Section 5)
         ▼
-GPU architecture (Concept 13): many simple execution units, built for exactly this shape
+GPU architecture (Concept 13): many parallel execution resources, built for exactly this shape
         │
         ▼
 Many operations computed together → potential acceleration
@@ -373,9 +373,15 @@ CPU/application continues orchestration
 Output produced (Concept 14, 15)
 ```
 
-> Simplified conceptual workflow. An AI system is generally **not** "running entirely on the
-> GPU" — the CPU orchestrates every stage surrounding the GPU's specific, heavy-numerical
-> contribution.
+> Simplified conceptual workflow of a common discrete-GPU setup. An AI system is generally **not**
+> "running entirely on the GPU" — in a typical heterogeneous AI system, the CPU runs the
+> application and commonly handles orchestration, control logic, I/O, and data preparation, while
+> the GPU performs selected compute-intensive operations. The exact division of work depends on
+> the hardware and software stack. Some modern systems use unified/shared memory, and other
+> architectures can provide different data paths (detailed unified-memory architecture is outside
+> this lesson's scope). GPUs are also one important class of AI accelerator, but modern AI systems
+> can also use CPUs, NPUs, TPUs, and other specialized accelerators; this lesson focuses on GPUs
+> because they are a major example of highly parallel AI compute.
 
 ### Training vs. Inference
 
@@ -385,14 +391,16 @@ model's output becomes more accurate over time. Training commonly involves an en
 repeated passes over the data, each pass involving substantial matrix/tensor computation (above)
 — making training a strong, frequent candidate for GPU acceleration, since throughput (finishing
 an enormous amount of similar computation as quickly as possible, Concept 13, Section 4) is
-generally the dominant concern.
+often the dominant concern (training is often throughput-oriented).
 
 **Inference — recalled at a beginner level, no algorithm detail:** using an already-trained model
-to produce a result for new input. Inference typically involves much less computation per request
-than training, and its performance concerns can differ substantially: a service answering one
-user's request at a time is often dominated by **latency** (how quickly that one request completes,
-Concept 13, Section 4) rather than throughput, while a service processing many requests in bulk may
-again be dominated by throughput — Section 7's Example 1 and Example 4 trace both cases concretely.
+to produce a result for new input. Training and inference have different computational patterns
+and resource requirements; both can be computationally intensive and can benefit substantially
+from accelerators. Inference's performance concerns can differ from training's: inference may be
+latency-oriented for interactive serving or throughput-oriented for batched serving — a service
+answering one user's request at a time is often dominated by **latency** (how quickly that one
+request completes, Concept 13, Section 4) rather than throughput, while a service processing many
+requests in bulk may again be dominated by throughput — Section 7's Example 1 and Example 4 trace both cases concretely.
 
 ### Diagram — Training vs. Inference Conceptual Flow
 
@@ -421,8 +429,8 @@ Dominant concern: throughput               throughput (bulk requests)
 |---|---|---|
 | Purpose | Adjust a model's internal values using data | Use an already-trained model to produce a result |
 | Typical data volume per run | Very large (a full dataset, repeated passes) | Small (one request, or a modest batch) |
-| Typical computation volume | Enormous, repeated many times | Smaller, generally once per request |
-| Dominant performance concern | Usually throughput (Concept 13, Section 4) | Often latency (single request) or throughput (bulk) |
+| Typical computation volume | Enormous, repeated many times | Often smaller per request, though it can still be substantial |
+| Dominant performance concern | Often throughput (Concept 13, Section 4) | Latency (interactive/single request) or throughput (batched/bulk) |
 | GPU benefit | Very commonly substantial (Section 5, 6) | Often substantial, but not universal (below) |
 
 **A required, explicit correction:**
@@ -577,8 +585,9 @@ any possible benefit for a task this small.
 This section performs the required, explicit integration of the specific prerequisite concepts
 this lesson depends on most directly. Section 15 performs the full, module-wide integration.
 
-- **Concept 2 — CPU.** The CPU remains the orchestrator in every example in Section 7 — preparing
-  data, making decisions, and coordinating the GPU's involvement. AI workloads do not eliminate the
+- **Concept 2 — CPU.** The CPU is the orchestrator in the typical examples in Section 7 —
+  preparing data, making decisions, and coordinating the GPU's involvement (the exact division of
+  work depends on the architecture and runtime). AI workloads do not eliminate the
   CPU's role; they add a second kind of processor for a specific class of work.
 - **Concept 3 — Cores.** The sequential-vs-parallel distinction (Section 5) and the "more execution
   units only help independent work" principle both originate directly from Concept 3's treatment of
@@ -630,19 +639,24 @@ GPU memory / VRAM (Concept 13, Section 8 below)
 Results transferred back toward RAM → possibly written back to storage (Concept 19)
 ```
 
-> Simplified conceptual diagram, directly extending Concept 19's storage↔RAM diagram by one more
-> layer (GPU memory) — this lesson does not teach the transfer mechanism's implementation (PCIe
+> Simplified conceptual diagram of a common discrete-GPU model, directly extending Concept 19's
+> storage↔RAM diagram by one more layer (GPU memory). In a common discrete-GPU setup, application
+> data is loaded from storage into system memory and then transferred or made accessible to GPU
+> memory; unified/shared-memory systems and other architectures and technologies can provide
+> different data paths. This lesson does not teach the transfer mechanism's implementation (PCIe
 > protocol, DMA — Section 8's Strict Boundary explicitly defers these).
 
 ### Comparison Table 4 — RAM vs. GPU Memory/VRAM vs. Storage
+
+*The table describes the typical discrete-GPU model; unified/shared-memory architectures exist.*
 
 | Property | System RAM (Concept 10) | GPU Memory / VRAM (Concept 13) | Storage (Concept 11, 19) |
 |---|---|---|---|
 | Persistence | Volatile | Volatile | Non-volatile (persistent) |
 | Primary user | CPU | GPU | Neither, directly — holds data until loaded |
 | Typical role | Active working memory for a running process | Active working memory for GPU computation | Long-term retention of datasets, models, checkpoints |
-| Directly usable by the GPU's execution units? | No — data must be transferred in first | Yes | No — must reach RAM, then GPU memory, first |
-| Directly usable by the CPU? | Yes | No — not directly | No — must be loaded into RAM first (Concept 19) |
+| Directly usable by the GPU's execution units? | Normally no in discrete-GPU systems — data is transferred (or made accessible) first | Yes | Normally no — in the common model it reaches RAM, then GPU memory, first |
+| Directly usable by the CPU? | Yes | Normally no in discrete-GPU systems — not directly | Normally no — loaded into RAM first (Concept 19) |
 
 **A required, explicit qualification:**
 
@@ -713,6 +727,10 @@ configuration, and never fabricates output.
 **A required, explicit caution, directly recalling Concept 13, Section 11:**
 
 > Never assume NVIDIA GPU access. Check command availability before using anything.
+
+The outputs shown below are example output from the specific WSL2 environment in which the lesson
+was observed; your own output will vary depending on hardware, WSL configuration, drivers,
+installed tools, and operating environment.
 
 ```bash
 uname -a
@@ -896,7 +914,7 @@ Correct model    → Small, sequential, or lightweight AI-adjacent tasks (e.g., 
 Misconception 5  → "GPUs replace CPUs."
 Why it happens   → Dramatic GPU acceleration for suitable workloads can make it seem like the
                     GPU is doing "everything."
-Correct model    → Every example in Section 7 shows the CPU handling orchestration, data
+Correct model    → The typical examples in Section 7 show the CPU handling orchestration, data
                     preparation, control decisions, and I/O — a real AI system needs both,
                     cooperating (Section 6, Section 8), not one replacing the other.
 ```
@@ -926,9 +944,12 @@ Correct model    → System RAM (Concept 10) and GPU memory/VRAM (Concept 13, Se
 Misconception 8  → "Storage is GPU memory."
 Why it happens   → Both eventually "hold" the data a GPU computation needs, which can blur the
                     distinction if the intermediate steps aren't considered carefully.
-Correct model    → Storage (Concept 11) is persistent and far removed from the GPU; data must
-                    travel storage → RAM → GPU memory (Section 8's diagram) before a GPU can
-                    compute with it — storage is never used directly by a GPU's execution units.
+Correct model    → Storage (Concept 11) is persistent and far removed from the GPU; in a common
+                    discrete-GPU setup, data is loaded from storage into system memory and then
+                    transferred or made accessible to GPU memory (Section 8's diagram) before a
+                    GPU computes with it. Other architectures and technologies can provide
+                    different data paths (for example, direct storage-to-GPU-memory access such
+                    as GPUDirect Storage — outside this lesson's scope).
 ```
 
 ```text
@@ -1027,26 +1048,30 @@ setup (Section 6's mandatory limitations) — demonstrates that GPU acceleration
 universal (Misconception 14).
 
 **Scenario 4 — Incorrect assumption that the GPU replaces the CPU.** A learner assumes an
-all-GPU system needs no CPU-side logic at all. Reasoning: every real workflow (Section 7) still
-requires the CPU for orchestration, I/O, and control decisions (Misconception 5/6) — the correct
+all-GPU system needs no CPU-side logic at all. Reasoning: most conventional AI systems (Section
+7) still include CPU-side application/control logic for orchestration, I/O, and control decisions
+(Misconception 5/6), although the exact division of work depends on the architecture and runtime — the correct
 mental model is cooperation, not replacement.
 
 **Scenario 5 — Memory capacity mismatch.** A workload's data (or model) is larger than the
 available GPU memory (Concept 13, Section 8's VRAM-capacity discussion). Reasoning: this is a
-genuine, practical constraint — the workload's data must actually fit in GPU memory to be computed
-there; more system RAM or more storage capacity does not resolve a GPU-memory capacity constraint
+genuine, practical constraint — the amount of data that must be resident or efficiently
+accessible for GPU computation is constrained by the available memory architecture, and larger
+workloads may require partitioning, staging, or other techniques; more system RAM or more storage capacity does not resolve a GPU-memory capacity constraint
 (Misconception 7/8's distinctions apply directly).
 
 **Scenario 6 — CPU/GPU utilization mismatch.** GPU utilization is reported near 0% while CPU
 utilization is near 100%, during what was expected to be a GPU-accelerated task. Reasoning: this
-strongly suggests the heavy computation genuinely is not reaching the GPU (Scenario 1's identical
-underlying cause) — the CPU is doing all the actual work, meaning either the workload doesn't have
-a GPU-suitable parallel portion, or that portion isn't being routed to the GPU.
+may indicate that the expected GPU computation is not reaching or continuously feeding the GPU
+(Scenario 1's identical underlying cause) — the CPU may be doing the actual work, meaning either
+the workload doesn't have a GPU-suitable parallel portion, or that portion isn't being routed to
+the GPU. Low utilization can also have other causes, such as synchronization, I/O, or
+insufficient work.
 
 **Scenario 7 — Inference latency unexpectedly high.** A model serving single requests responds far
 more slowly than expected. Reasoning: if each request's actual computation is small, the dominant
 cost may be data-transfer/setup overhead per request (Section 6) rather than the computation
-itself — recalling Section 11's [sic, Section 6's] latency-vs-throughput distinction: an
+itself — recalling Section 6's latency-vs-throughput distinction: an
 architecture optimized for throughput across many requests at once can perform poorly when handling
 one request at a time.
 
@@ -1289,7 +1314,7 @@ Why GPUs matter for AI (Concept 20 — this lesson) — why a second processor, 
 - *"moving that data through storage and memory"* — Concept 11, 19, and this lesson's Section 8:
   storage → system RAM → (where applicable) GPU memory, each transfer a real, non-free step.
 - *"performing computation using CPUs and sometimes GPUs"* — Concept 2, 3, 13, and this lesson's
-  Section 5 through 9: the CPU always orchestrates; the GPU joins specifically for
+  Section 5 through 9: in typical systems the CPU orchestrates; the GPU joins specifically for
   sufficiently large, sufficiently parallel numerical work.
 - *"producing outputs"* — Concept 14, 15: results written out, returned, or persisted.
 

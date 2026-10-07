@@ -55,6 +55,10 @@ technically stronger mental model, because it leaves out something essential: *w
 > A process is a running instance of a program with an execution context and associated resources
 > managed by the operating system.
 
+"Running" here means "in execution under the operating system's management" — at any moment a
+process may be actively running, waiting/blocked, stopped, or otherwise not currently executing
+(Section 8).
+
 Breaking this down, term by term (each developed fully in its own section below):
 
 - **"Running instance of a program"** — Section 2 distinguishes program from process precisely;
@@ -89,8 +93,10 @@ Process
 **Source code — recalled from Concept 7 and Concept 8:** human-readable program text.
 
 **Executable — recalled from Concept 8's own AOT-compilation discussion:** a file (Concept 14)
-containing, typically, native machine code (Concept 7) that the operating system can load and run
-directly.
+that the operating system can launch as a program. A common example is a file containing native
+machine code (Concept 7) that the operating system can load and run directly, though not every
+executable target is necessarily a native machine-code file (for example, executable scripts run
+through an interpreter).
 
 **Program — this lesson's usage:** a general term referring to the stored instructions/code that
 define what should happen when run — this can refer loosely to the source code, or to the compiled
@@ -120,7 +126,7 @@ resources, managed by the operating system.
 
 | Property | Source code | Executable | Process |
 |---|---|---|---|
-| What it is | Human-readable program text (Concept 7, 8) | A file containing machine code, ready to be run (Concept 8, 14) | A running instance, with execution context and resources (Section 1) |
+| What it is | Human-readable program text (Concept 7, 8) | A file the OS can launch as a program — commonly containing machine code, ready to be run (Concept 8, 14) | A running instance, with execution context and resources (Section 1) |
 | Is it "running"? | No | No — it's a file sitting on storage (Concept 11) until launched | Yes — by definition |
 | Can multiple exist from one of these? | Yes — many builds/versions | Yes — one executable file, but see Section 2's concrete example below | Yes — many processes from the same executable, at once |
 | Where does it typically reside? | A file (Concept 14) | A file (Concept 14), on storage (Concept 11) | Actively managed by the operating system, using CPU (Concept 2), RAM (Concept 10), and other resources |
@@ -223,10 +229,14 @@ that one, even if other processes with the identical program name also happen to
 
 ## 5. Process Memory
 
-**A process has an associated memory space** — a portion of RAM (Concept 10) that this specific
-running instance uses to hold its instructions, data, and working state.
+**A process has a virtual address space** that provides the memory view available to that
+specific running instance for its instructions, data, and working state. Parts of that address
+space may currently be backed by physical RAM (Concept 10) or by other resources (such as
+file-backed or shared memory) — it is not simply a dedicated chunk of physical RAM. Detailed
+virtual-memory mechanisms are intentionally deferred.
 
-**Commonly-used conceptual regions/uses of process memory, introduced only at this level:**
+**Commonly-used conceptual regions/uses of a process's address space, introduced only at this
+level:**
 
 - **Code** — the portion holding the process's actual machine-code instructions (Concept 7) — the
   same instructions the CPU (Concept 2) fetches, decodes, and executes.
@@ -407,8 +417,9 @@ Terminated
 
 **A required, explicit qualification:**
 
-> Actual operating systems may use more detailed state models and implementation-specific
-> terminology than this simplified five-state model. This lesson does not teach detailed scheduler
+> This is a simplified conceptual, OS-neutral model — it is not a literal enumeration of Linux
+> process states. Actual operating systems may use more detailed state models and
+> implementation-specific terminology than this simplified five-state model. This lesson does not teach detailed scheduler
 > internals — exactly how and when the operating system moves a process between these states.
 > Later topic — not taught here (Module 0.2).
 
@@ -501,9 +512,9 @@ Core 3 →  [ C running ][ C running ][ C running ] ...
 
 | Property | Concurrency | Parallelism |
 |---|---|---|
-| Definition | Multiple tasks being managed/progressed | Multiple tasks actually executing at the same instant |
-| Requires multiple CPU cores? | No | Yes (Concept 3) |
-| Can happen on a single core? | Yes (by taking turns, Section 11) | No |
+| Definition | Multiple tasks being managed/progressed over overlapping periods | Multiple tasks actually executing at the same instant, using available execution resources |
+| Requires multiple physical CPU cores? | No | Not necessarily — it commonly occurs across multiple cores (Concept 3), and CPUs with SMT can also run multiple hardware threads on one physical core |
+| Can happen on a single execution resource? | Yes (by taking turns, Section 11) | No — it needs more than one execution resource (more than one core or hardware thread) |
 | Example (this lesson) | Three processes taking turns on one core | Three processes each running on their own core, at once |
 
 **A required, explicit boundary:**
@@ -532,12 +543,15 @@ Multiple cores + multiple runnable processes
 ```
 
 This is precisely Section 10's diagram, restated in this section's specific process-vs-core
-framing: a single CPU core can only actually execute one process's instructions at any given
-instant (Section 6's execution-context idea, tied to Concept 2's fetch-decode-execute model) — but
-it can switch between different processes' execution contexts over time, giving the *appearance*
-of many processes running "at once" even though, on that single core, only one genuinely is at any
-exact instant (concurrency, per Section 10). With multiple cores (Concept 3), genuine parallel
-process execution becomes possible.
+framing. A physical CPU core may expose one or more logical CPUs (hardware threads, via SMT —
+Concept 3), and the operating system schedules runnable execution contexts onto logical CPUs. As a
+beginner model, think of each logical CPU as one execution opportunity (Section 6's
+execution-context idea, tied to Concept 2's fetch-decode-execute model): a single logical CPU
+executes one execution context at a time, but it can switch between different processes' contexts
+over time, giving the *appearance* of many processes running "at once" even though, on that single
+logical CPU, only one genuinely is at any exact instant (concurrency, per Section 10). With
+multiple cores or hardware threads (Concept 3), genuine parallel process execution becomes
+possible.
 
 ### Comparison Table — Process vs. CPU Core
 
@@ -595,7 +609,7 @@ resources (a "multi-threaded" process).
 |---|---|---|
 | Scope | Broader execution/resource boundary (Section 1) | An execution path within a process |
 | Has its own memory space? | Yes (Section 5) | Generally shares the containing process's memory |
-| Has its own PID? | Yes (Section 4) | Not in the same sense — threads exist within a process's identity |
+| Has its own PID? | Yes (Section 4) | A process has a process identity (PID); individual threads can also have thread identities (on Linux, process/thread-group identity is distinguished from individual thread identity) — threads exist within a process |
 | Minimum count per process | At least one | N/A (a thread only exists within a process) |
 
 **A required, explicit boundary, restated firmly:**
@@ -622,13 +636,16 @@ process terminates
 ```
 
 **Process creation.** When a program is launched (this lesson does not teach the detailed startup
-sequence — that is Concept 17, a later, dedicated lesson), the operating system creates a new
-process for it: assigning it a PID (Section 4), setting up its initial memory (Section 5), and
-placing it into the "New," then "Ready," state (Section 8).
+sequence — that is Concept 17, a later, dedicated lesson), the operating system commonly creates a
+new process for it: assigning it a PID (Section 4), setting up its initial memory (Section 5), and
+placing it into the "New," then "Ready," state (Section 8). Program execution does not
+necessarily require creating a *new* process, though — an existing process can execute another
+program, replacing its own program image. The exact startup sequence is OS-dependent.
 
 **Process termination.** When a process finishes executing (or is stopped), it transitions to the
 "Terminated" state (Section 8) — its resources (Section 7) are reclaimed by the operating system,
-and it no longer exists as a running entity.
+and it no longer exists as a running entity. (On Unix-like systems such as Linux, a terminated
+child process can temporarily remain as a "zombie" until its parent collects its exit status.)
 
 **Exit status.** A value a process provides when it terminates, conventionally indicating whether
 it completed successfully or encountered a problem. **This lesson introduces exit status only at
@@ -772,7 +789,9 @@ Section 8 and Section 9 describe conceptually.
 kill 4949
 ```
 
-*What this does:* sends a termination request to the specific process with PID `4949` — the exact
+*What this does:* `kill <PID>` sends a signal to the specified process; without specifying another
+signal, the default is SIGTERM, which requests termination. Here it sends that request to the
+specific process with PID `4949` — the exact
 `sleep` process created in Step 1 for this observation, and no other process. **This lesson never
 kills arbitrary processes** — only a harmless, self-created process, clearly identified by its
 exact PID, is ever terminated.
@@ -1073,8 +1092,8 @@ Example          → A single process with multiple threads still has one PID, o
 
 ```text
 Misconception 10 → "A process owns physical RAM."
-Correct idea     → A process uses a portion of RAM (Section 5, Section 7) under operating-system
-                    management — it does not exclusively, permanently own the physical RAM
+Correct idea     → A process has a virtual address space whose parts may be backed by physical
+                    RAM (Section 5, Section 7) under operating-system management — it does not exclusively, permanently own the physical RAM
                     hardware itself (Concept 10), which is a shared resource across the whole
                     system.
 Example          → Section 7's diagram shows the process relying on RAM as one of several

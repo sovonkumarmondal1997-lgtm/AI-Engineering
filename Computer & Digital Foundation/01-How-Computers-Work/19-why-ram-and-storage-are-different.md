@@ -59,7 +59,7 @@ persistently, including when the computer is powered off (Concept 11).
 | Relative latency | Generally lower (faster to access) | Generally higher (slower to access) |
 | Relative bandwidth | Generally higher | Generally lower, though this varies by device (Concept 12) |
 | Relative capacity | Generally smaller | Generally larger |
-| Relationship to active computation | Directly involved — the CPU reads/writes it during execution (Concept 2) | Not directly involved — the CPU cannot execute instructions straight from storage (developed in Section 6) |
+| Relationship to active computation | Directly involved — the CPU reads/writes it during execution (Concept 2) | Not directly involved — a conventional CPU does not normally fetch instructions directly from storage (developed in Section 6) |
 | Examples | The working data of a program you're currently running | A saved document, an installed program, a dataset file sitting unopened |
 
 **A required, explicit qualification, stated immediately and repeated throughout this lesson:**
@@ -136,11 +136,16 @@ practically useful, not academic.
 **Concrete connections, kept conceptual — this lesson does not teach ML mathematics:**
 
 - **Loading datasets** — a dataset (Concept 11's original example) exists persistently on
-  storage; using it for training or evaluation requires bringing the relevant portion into RAM
-  (Concept 10) first.
+  storage; using it for training or evaluation makes the required data available to the process
+  through the system's memory hierarchy. Depending on the software and operating system, data may
+  be buffered, memory-mapped, cached, or loaded explicitly into process memory. CPU workloads may
+  use system RAM (Concept 10), GPU workloads may use GPU/device memory, and large datasets do not
+  necessarily need to fit entirely in RAM — data can be processed incrementally, streamed, or in
+  chunks.
 - **Loading model files** — a trained model's saved parameters (Concept 12's checkpoint example)
-  are a file on storage until they're loaded into RAM (and, for GPU-based work, GPU memory —
-  Concept 13, not developed further here) for actual use.
+  are a file on storage until they're made accessible to the compute system — through system RAM
+  and/or, for GPU-based work, GPU memory (Concept 13, not developed further here) — for actual
+  use.
 - **Active model/data in memory** — while a model is actually being used for inference or
   training, its working state is in RAM, not on storage — this distinction is the central,
   required point this entire lesson builds toward, restated explicitly:
@@ -155,8 +160,9 @@ practically useful, not academic.
   typically GPU memory) during the training process.
 - **Checkpoints** — periodic saves of a model's training progress (Concept 11, Concept 12) are
   written *from* RAM *to* storage, and later read back *from* storage *into* RAM to resume.
-- **Logs** — records of what an AI system did over time (Concept 11, Concept 15) are written from
-  active memory out to persistent storage.
+- **Logs** — records of what an AI system did over time (Concept 11, Concept 15) are eventually
+  written out to persistent storage; a program may buffer log data in memory before the operating
+  system and filesystem eventually write it to persistent storage.
 - **Configuration** — settings read at startup (Concept 17) exist on storage until loaded into a
   running process's memory.
 - **Large artifacts** — any sizable AI-project output (Concept 11) faces the exact same
@@ -274,8 +280,26 @@ out to storage (Section 6, Section 10's checkpoint example demonstrate this conc
    lesson, its own memory.
 4. **Relevant program/data becomes available to the executing process.** Recalling Concept 17,
    Section 5's "executable loading" and Concept 17, Section 6's "process address space": the
-   program's instructions and data are made available within the process's memory — which resides
-   in RAM (Concept 10), not directly on the storage device where the file was found.
+   program's instructions and data are made available within the process's memory — in this
+   lesson's simplified model, backed by RAM (Concept 10) rather than the CPU working directly on
+   the storage device where the file was found. More precisely, a process has a virtual address
+   space; the operating system maps parts of it to physical memory as needed, so some pages may
+   currently be resident in RAM while others are backed by files or swap, and the complete
+   executable is not necessarily copied into RAM up front:
+
+   ```text
+   Executable / libraries on storage
+               ↓
+          Process created
+               ↓
+       Virtual address space
+               ↓
+   Pages needed by execution
+               ↓
+   Physical memory / caches
+               ↓
+         CPU execution
+   ```
 5. **The CPU performs computation using memory.** Recalling Concept 2, Concept 6, Concept 7, and
    Concept 18: the CPU executes instructions, reading and writing values that live in the
    process's RAM (and, along the way, cache and registers) — never reaching all the way back to
@@ -355,16 +379,17 @@ RAM:      Process A (PID 101)      Process B (PID 102)    Process C (PID 103)
 
 | Property | Program file (on storage) | RAM-resident execution (a process's active memory) | Process (Concept 16) |
 |---|---|---|---|
-| Where it resides | Storage (Concept 11, 14) | RAM (Concept 10) | Managed by the OS; its memory resides in RAM |
+| Where it resides | Storage (Concept 11, 14) | RAM (Concept 10), within a virtual address space the OS maps to physical memory | Managed by the OS; its virtual address space is backed in part by RAM |
 | Persistent? | Yes | No — exists only while the process runs | No — exists only while running (Concept 16, Section 8) |
 | Has a PID? | No | N/A | Yes (Concept 16) |
 | How many can exist from one file? | One file | One per active launch | One per active launch (Concept 16, Section 2) |
 | Directly usable by the CPU? | No (Section 6) | Yes | Yes, via its RAM-resident memory |
 
 **This lesson's own genuinely observed practical evidence (Section 11) demonstrates this
-concretely** — a real, running process's `/proc/<PID>/status` reports a real `VmRSS` (resident
-memory) value, direct confirmation that a running process actively occupies RAM, entirely
-separate from wherever its executable file sits on storage.
+concretely** — on Linux, a running process's `/proc/<PID>/status` reports a `VmRSS` (resident set
+size) value, an approximate indication that a running process has memory resident in physical
+memory, entirely separate from wherever its executable file sits on storage. (`/proc` and `VmRSS`
+are Linux-specific observations, and processes can share some physical memory.)
 
 **Connecting to Concept 18, without repeating it:** once a process is executing, every function
 call (Concept 18) it makes operates on data held in that process's RAM-resident memory — the call
@@ -453,9 +478,12 @@ into one vague claim.
 
 **Why this ordering matters, restated once more for this lesson's specific purpose:** each layer
 trades capacity for speed as you move toward the CPU (Concept 9's original trade-off, extended
-across the whole hierarchy) — and, crucially, only storage retains its contents without power.
-Everything above storage in this diagram — registers, cache, and RAM — is volatile (Concept 6,
-Concept 9, Concept 10). This is precisely why a computer needs *both* ends of this hierarchy: the
+across the whole hierarchy) — and, crucially, in the conventional architecture used in this
+lesson, only storage retains its contents without power. Everything above storage in this
+diagram — registers, cache, and RAM — is volatile (Concept 6, Concept 9, Concept 10). (In the
+conventional computer architecture used here, DRAM is volatile working memory while SSD/HDD
+storage is persistent. Other technologies, such as persistent memory, can occupy intermediate
+points in the memory/storage hierarchy and are outside this lesson's scope.) This is precisely why a computer needs *both* ends of this hierarchy: the
 volatile end for speed, and the persistent end (storage) so that anything worth keeping survives
 being powered off.
 
@@ -546,8 +574,9 @@ Ubuntu
 which free df lsblk du ps
 ```
 
-*Genuinely observed:* all five tools were confirmed available in the environment used to prepare
-this lesson.
+*Example environment:* all five tools were available in the environment used to prepare this
+lesson. The outputs below are observed example output from that WSL2 environment, not universal
+expected output; `/proc` and `VmRSS` are Linux-specific.
 
 **A. Observe RAM (recalling Concept 10, Section 10's identical use of `free -h`).**
 
@@ -641,10 +670,12 @@ State:	R (running)
 VmRSS:	    9040 kB
 ```
 
-*What this demonstrates:* `VmRSS` ("Virtual Memory Resident Set Size") reports how much RAM this
-specific running process is genuinely using **right now** — real, concrete confirmation of Section
-7's central distinction: the `python3` executable itself sits unchanged on storage, while this one
-specific process actively occupies about 9 MB of RAM for as long as it runs.
+*What this demonstrates:* `VmRSS` is an approximate measure of the process's resident set size —
+memory currently resident in physical memory and associated with the process. It is not an exact
+measure of private RAM consumption (it can include anonymous, file-backed, and shared resident
+memory). It still illustrates Section 7's central distinction: the `python3` executable itself
+sits unchanged on storage, while this one specific process has memory resident in RAM (about 9 MB
+in this example output) for as long as it runs.
 
 **F. Clean up — genuinely performed while preparing this lesson.**
 
@@ -789,8 +820,9 @@ Example           → A storage device can have strong bandwidth for one large s
 Misconception 12 → "If storage is large enough, RAM is unnecessary."
 Why someone thinks it → If storage can "hold everything," it might seem like the only resource
                          that matters.
-Correct model     → The CPU cannot execute instructions or compute directly from storage (Section
-                     6) — RAM is required specifically because it provides the fast, active
+Correct model     → A conventional CPU does not normally fetch each instruction directly from an
+                     SSD or HDD; executable code is made accessible through the system's memory
+                     subsystem (Section 6) — RAM is required specifically because it provides the fast, active
                      working memory storage cannot provide, regardless of how large storage is.
 Example           → Section 13's debugging scenarios directly explore what happens when a system
                      has abundant storage but limited RAM.
@@ -991,7 +1023,9 @@ Answers are intentionally not provided directly below these questions.
 - A program file on storage and a running process using RAM are genuinely different things, even
   though one produces the other.
 - Storage capacity and RAM capacity are independent specifications with no fixed relationship.
-- Neither RAM nor storage can substitute for the other — a computer needs both.
+- Conventional RAM and persistent storage serve different primary roles and are not
+  interchangeable. Systems can use mechanisms such as swap to use storage as a backing resource
+  for memory, but this does not make storage equivalent to RAM — a computer needs both.
 
 ### Production Relevance
 
@@ -1000,8 +1034,8 @@ Understanding why RAM and storage differ is directly useful for:
 - **Reasoning about system capacity** — knowing whether a workload's constraint is storage space
   or RAM availability (Section 13's scenarios) determines what actually needs to change.
 - **Reasoning about AI data and model workflows** — datasets and model files exist on storage but
-  must be brought into RAM (and, later, GPU memory — Concept 20, not taught here) to actually be
-  used, exactly as Section 3 and Section 10 established.
+  must be made accessible to the compute system — through system RAM and/or, later, GPU memory
+  (Concept 20, not taught here) — to actually be used, as Section 3 and Section 10 established.
 - **Debugging memory-related problems** — distinguishing "out of storage space" from "out of RAM"
   (Section 13, Scenario 5) leads to entirely different, correct fixes.
 - **Reasoning about persistence** — knowing that unsaved work exists only in RAM (Misconception 8)
