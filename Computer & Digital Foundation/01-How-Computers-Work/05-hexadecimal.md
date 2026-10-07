@@ -113,17 +113,19 @@ D6BA
 Both `1101011010111010` and `D6BA` represent the **exact same underlying value** — hexadecimal
 does not create a different or "more efficient" value; it simply provides a **more compact
 way for a human to write, read, and communicate that same value.** The 16-digit binary string
-becomes a 4-character hexadecimal string. This compactness is the entire practical reason
-hexadecimal is used so heavily in computing contexts humans interact with.
+becomes a 4-character hexadecimal string. This compactness, together with hexadecimal's exact 4-bit
+relationship with binary, is a major reason it is widely used in computing contexts humans
+interact with.
 
 **A required, explicit clarification:**
 
 > Hexadecimal does not make the computer "more efficient"; it makes representation easier for
 > humans to read and reason about.
 
-The underlying hardware never uses hexadecimal internally — computer hardware works with the
-distinguishable digital (binary) states described in Concept 4. Hexadecimal exists entirely for
-the benefit of **humans** who need to read, write, or discuss binary-represented values without
+Hexadecimal is a human-facing notation used to display and communicate values that are
+represented digitally by the system. The hardware itself does not have a separate physical
+"hexadecimal mode"; its digital representations are expressed through underlying binary states
+and encodings, as described in Concept 4. Hexadecimal exists for the benefit of **humans** who need to read, write, or discuss binary-represented values without
 drowning in long strings of `0`s and `1`s. This is why hexadecimal appears constantly in places
 meant for human inspection (which Section 3 covers), even though the computer itself never
 "switches" to using hexadecimal at any point.
@@ -385,8 +387,9 @@ nibbles:
 2 hexadecimal digits
 ```
 
-This is the exact mathematical reason **one byte is always written as exactly two hexadecimal
-digits** — a relationship you will rely on constantly once you start reading real hexadecimal
+A byte contains 8 bits, so when a byte value is represented using fixed-width hexadecimal
+notation, it is conventionally written using **exactly two hexadecimal digits** (for example,
+`0A` rather than `A`) — a relationship you will rely on constantly once you start reading real hexadecimal
 output (Section 7, Example 1, and Section 9).
 
 **The full binary ↔ hexadecimal mapping**, repeated here for direct reference during the worked
@@ -583,7 +586,8 @@ in Section 4 and Section 6:
 ## 9. Practical Commands/Linux & WSL2 Observation
 
 As with previous concepts, these are safe, read-only demonstrations. None require `sudo` or
-modify any system configuration or existing files. Reminder of your environment:
+modify any system configuration or existing files. For the hands-on demonstrations in this
+lesson, the assumed environment is:
 
 ```text
 Windows
@@ -642,8 +646,8 @@ bits" chain conceptually; this lesson does not re-teach that encoding in depth).
 which xxd
 ```
 
-If nothing is printed, try `od` instead, which is present on virtually every Ubuntu installation
-by default:
+If nothing is printed, try `od` instead, which is commonly available in standard Ubuntu
+environments:
 
 ```bash
 od -An -tx1 /tmp/hex-lesson-demo.txt

@@ -65,8 +65,8 @@ understanding everything a computer represents.
 
 *Simple meaning:* A byte is a small group of 8 bits, handled together as a single unit.
 
-*Technical meaning:* A byte is the standard unit of digital information in modern computing,
-consisting of exactly 8 bits.
+*Technical meaning:* A byte is the standard unit of digital information in modern computing. In
+modern mainstream computing, a byte is 8 bits.
 
 *Why it matters:* Bits are rarely dealt with completely individually in practice — computers
 group them into bytes (and larger groupings built from bytes) as a practical, standard-sized unit
@@ -115,11 +115,11 @@ The `0` and `1` are a human-readable abstraction laid on top of the physical rea
 physical reality itself. This distinction — physical digital state vs. abstract representation —
 matters enough that it comes back explicitly in Section 6.
 
-**Why binary specifically is useful for digital electronics:** Because digital circuits are built
-to reliably distinguish exactly two states, the natural number system to describe what they're
-doing is one that also only has two digit values — binary (base-2). Binary isn't an arbitrary
-choice layered on top of the hardware; it's the number system that matches, exactly, how many
-distinguishable states the underlying hardware actually has. This is also why, once you reach
+**Why binary specifically is useful for digital electronics:** Modern digital computers
+predominantly use binary logic, where circuits are designed to reliably distinguish two logical
+states, represented abstractly as `0` and `1`. The natural number system to describe that is one
+that also only has two digit values — binary (base-2). Binary isn't an arbitrary choice layered on
+top of the hardware; it's the number system that matches this two-state design. This is also why, once you reach
 groups of bits, mathematics based on powers of two (`2^n`, covered fully in Section 5) becomes the
 natural way to reason about how much can be represented.
 
@@ -127,7 +127,8 @@ natural way to reason about how much can be represented.
 
 ## 3. Why does an Applied AI Engineer need to understand it?
 
-Every single piece of data an AI system ever works with — without exception — exists, underneath
+Digital information is represented using bits, and in modern computers those bits are commonly
+organized into bytes and larger units — so the data an AI system works with exists, underneath
 everything else, as bits and bytes. You don't need to know the deep technical detail of any of
 these yet, but you should understand that binary representation is the common foundation
 underneath all of the following:
@@ -164,9 +165,11 @@ memory
 computation
 ```
 
-A larger file takes more storage space, takes longer to load into memory, and takes longer to move
-across the system's communication pathways — all practical, real engineering concerns that begin
-with the simple fact that data size is measured in bits and bytes.
+All else being equal, larger amounts of data require more storage capacity and more data
+transfer; at a fixed transfer rate, transferring more data generally takes longer (for example,
+loading it into memory or moving it across the system's communication pathways) — all practical,
+real engineering concerns that begin with the simple fact that data size is measured in bits and
+bytes.
 
 **Practical units of digital information**, used to describe data size:
 
@@ -672,9 +675,8 @@ at all.
 **Seeing an actual binary representation, using your shell's arithmetic and a documented
 technique:**
 
-Bash provides a way to convert a number into binary text directly, using its built-in arithmetic
-and `bc` (a basic calculator program), or more simply, using Bash's own numeric base conversion.
-One safe, explainable way, using only Bash itself:
+One simple way to perform the conversion from a Bash shell is to use the `bc` calculator utility
+(an external program that the shell runs, not a Bash built-in):
 
 ```bash
 echo "obase=2; 5" | bc
@@ -689,7 +691,7 @@ decimal text formatting — unlike the `printf '%d'` example above.
 **If `bc` is not installed:** check availability first, rather than assuming:
 
 ```bash
-which bc
+command -v bc
 ```
 
 If nothing is printed, `bc` isn't installed on your system by default (this varies by Ubuntu

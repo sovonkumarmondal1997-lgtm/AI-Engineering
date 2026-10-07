@@ -102,8 +102,10 @@ eventually may be written elsewhere
 Walking through this: before the CPU can act on a value, that value has to become available to it
 — exactly how it gets there (from RAM, previously computed, etc.) is not covered in this lesson,
 since it depends on the detailed instruction-execution mechanics of Concept 7. Once available, the
-value is held in a register. The CPU's circuitry then performs whatever operation an instruction
-specifies, using that register's contents. The result of that operation often stays in a register
+value is commonly held in a register. Many CPU operations use values held in registers as
+operands (depending on the instruction set, an instruction may also use an immediate value or a
+memory operand). The CPU's circuitry then performs whatever operation an instruction specifies,
+using those operands, which are often register contents. The result of that operation often stays in a register
 too — ready for the *next* instruction that might need it — and only eventually, if needed, gets
 written somewhere else (like RAM), a detail this lesson does not explain further.
 
@@ -258,6 +260,9 @@ will encounter in real systems:
 64-bit register → 64 bits
 ```
 
+These are common scalar/general-purpose register widths. Modern CPUs may also provide wider
+vector/SIMD registers, such as 128-, 256-, or 512-bit registers, depending on the architecture.
+
 **Register capacity — how many distinct values a register of a given width can hold.** This is a
 direct application of Concept 4's `n bits → 2^n combinations` relationship. A 64-bit register can
 hold:
@@ -273,7 +278,8 @@ you, just with a much larger `n`.)
 
 **An explicit caution: do not assume every CPU has only 64-bit registers.** The specific set of
 registers a CPU provides — how many there are, how wide each one is, and what roles they serve —
-depends entirely on that CPU's **architecture** (its overall hardware design family). Different
+depends primarily on that CPU's **instruction-set architecture (ISA)** and execution mode (the
+architecturally visible registers, their names, widths, and roles). Different
 CPU architectures provide different register sets; there is no single universal register layout
 that every CPU uses. Section 8 returns to this point when discussing register categories, and
 Section 11's practical commands return to it again when interpreting real system output.
@@ -309,7 +315,9 @@ Register
 ```
 
 Each cell in this simplified diagram represents one bit position within the register, holding
-either a `0` or a `1` at any given moment — together, all of these bit positions form the
+either a `0` or a `1` at any given moment. (Physically, the register's circuitry represents a bit
+pattern using distinguishable electronic states; `0` and `1` are the digital abstraction we use
+to describe those states.) Together, all of these bit positions form the
 register's current value, exactly as Concept 4 described a byte (or any other bit pattern) being
 built from individual bits.
 
@@ -371,8 +379,8 @@ already learned there apply to register contents without any modification.
 Each of these follows directly and exactly from Concept 5, Section 6: since 1 hexadecimal digit
 represents exactly 4 bits, and 1 byte is 8 bits (2 hex digits), any register width can be
 converted to a hex-digit count simply by dividing its bit width by 4. A 32-bit register's contents
-always take exactly 8 hexadecimal digits to write out in full, no more and no fewer; a 64-bit
-register's contents always take exactly 16.
+can be written with up to 8 hexadecimal digits, and a 64-bit register's contents with up to 16;
+in a fixed-width display they are commonly padded with leading zeros to exactly 8 and 16 digits.
 
 **Why hexadecimal is useful for representing register values.** A register's contents are just a
 bit pattern (Section 6) — and as Concept 5 established, long binary strings are hard for humans to
@@ -513,8 +521,8 @@ genuinely advanced topic.
 
 **Register vs memory address — a brief, foundational distinction only:** A register is a storage
 location itself. A **memory address** is a different concept entirely — it is a way of specifying
-*which location* within RAM (or another addressable storage) a particular piece of data lives at,
-similar in spirit to a house's street address identifying a specific location without being the
+*which location* a particular piece of data lives at — a way of identifying an addressable memory
+location or region in the system's address space — similar in spirit to a house's street address identifying a specific location without being the
 house itself. **Detailed memory addressing is not taught in this lesson** — it belongs to later
 lessons, once RAM itself has been properly introduced. The only thing to hold onto here: a
 register and a memory address are two different kinds of things — one is a physical storage
@@ -545,8 +553,9 @@ A 64-bit register might contain:
 Using Concept 5's hexadecimal-to-decimal method: the meaningful digits here are `2A`, which equal
 decimal `42` (`2×16 + 10×1 = 42`, exactly as computed in Concept 5, Section 7, Example 4). The long
 run of leading zeros exists because this is being shown as a **full 64-bit, fixed-width
-representation** — Section 7 established that a 64-bit value always takes exactly 16 hexadecimal
-digits to write out in full, so the value `42` (which only needs 2 hex digits on its own) is padded
+representation** — Section 7 established that a 64-bit value can be represented using up to 16
+hexadecimal digits, and in a fixed-width display it is commonly padded with leading zeros to
+exactly 16 digits, so the value `42` (which only needs 2 hex digits on its own) is padded
 with 14 leading zeros to fill that fixed 16-digit width. This directly mirrors Concept 5's
 "leading zeros don't change the value" principle (Concept 5, Misconception 8), applied here to a
 real, fixed-width, register-sized example.
@@ -644,8 +653,9 @@ getconf LONG_BIT
 system/environment convention related to how the C programming language's "long" data type is
 sized in this environment.
 
-*Why it's relevant here:* This is another architecture-level data point loosely related to
-"64-bit" as a general environment convention — offered as a further example of what's observable
+*Why it's relevant here:* `getconf LONG_BIT` reports a C-language/environment convention
+describing the width of the `long` data type in that environment, loosely related to "64-bit" as
+a general environment convention — offered as a further example of what's observable
 from the shell, not as a description of any specific register.
 
 *What the result does NOT prove:* This number describes a programming-language/environment
@@ -736,8 +746,9 @@ Why it happens   → Both "variable" and "register" describe "a place that holds
 ```text
 Misconception 6  → "Hexadecimal is what is physically stored inside a register."
 Correct idea     → Hexadecimal is a human-readable notation for the underlying bit pattern
-                    (Concept 5; Section 7 of this lesson) — the register itself physically
-                    holds binary (bit-based) electronic state, never hexadecimal characters
+                    (Concept 5; Section 7 of this lesson) — the register's circuitry
+                    represents a bit pattern using distinguishable electronic states (`0` and
+                    `1` being the digital abstraction), never hexadecimal characters
                     themselves. Hexadecimal only exists on the page or screen, for a human
                     reading a description of the register's contents.
 Why it happens   → Register values are so commonly displayed in hexadecimal (Section 7) that
@@ -817,8 +828,8 @@ capacity, not a requirement that every stored value use all of it meaningfully.
 **Scenario 2 — a learner sees `0x000000000000002A` and says: "This is a hexadecimal value
 physically stored in the CPU."**
 
-Correction: the register physically stores a **binary bit pattern** — actual electronic digital
-state, per Section 6. `0x000000000000002A` is a **human-readable hexadecimal notation**
+Correction: the register physically represents a **binary bit pattern** using distinguishable
+electronic states, per Section 6. `0x000000000000002A` is a **human-readable hexadecimal notation**
 describing that bit pattern, used for display purposes (in documentation, a debugging tool, or
 this lesson) — it is not what's physically present inside the register itself. This is precisely
 Misconception 6, and the corrected statement should be something like: "This hexadecimal text

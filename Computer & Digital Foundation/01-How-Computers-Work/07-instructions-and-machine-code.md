@@ -65,8 +65,8 @@ a specific pattern of bits.
 
 **Where the analogy must break down immediately, and why this matters:** A recipe is written in
 natural human language, and a human cook fills in gaps using judgment. **A CPU does not
-understand English, or any human language, at all.** A CPU's circuitry only responds to specific,
-exact bit patterns it was physically designed to recognize — nothing resembling reading or
+understand English, or any human language, at all.** At the ISA level, the processor recognizes
+specific, exact instruction encodings (bit patterns) it was designed to execute — nothing resembling reading or
 interpreting words. Do not let the recipe analogy suggest, even loosely, that a CPU is "reading" a
 command the way you'd read this sentence. Section 2 explains exactly why this distinction matters,
 and Section 12 (Misconception 8) returns to this point directly.
@@ -144,9 +144,11 @@ CPU core
 registers / memory
 ```
 
-Every single thing an AI application does — no matter how high-level the Python code looks —
-eventually becomes real CPU instructions, executed on a real CPU core, reading and writing real
-registers (Concept 6) and, eventually, memory (a later lesson). This chain is the concrete,
+AI applications ultimately rely on executable instructions running on CPUs and/or specialized
+accelerators — no matter how high-level the Python code looks. CPU-executed portions become CPU
+machine instructions, executed on a real CPU core, reading and writing real registers (Concept 6)
+and, eventually, memory (a later lesson), while GPU and other accelerator workloads follow their
+own execution models. This chain is the concrete,
 end-to-end version of an idea this entire module has been building toward since Concept 1.
 
 **Why understanding instructions specifically helps, even though you won't write them directly:**
@@ -167,8 +169,10 @@ end-to-end version of an idea this entire module has been building toward since 
   preview of one such tool, `objdump`, in Concept 6's discussion of debugging tools, and it
   returns properly in Section 11 of this lesson).
 - **Understanding CPU vs. GPU computation later** — a later concept file (GPU) will explain why
-  GPUs matter for AI; understanding that CPUs execute instructions one core at a time (Concept 3)
-  is the necessary baseline for eventually contrasting that with how GPUs work.
+  GPUs matter for AI; understanding that CPU cores execute machine instructions according to the
+  processor's architecture (Concept 3) is the necessary baseline for eventually contrasting that
+  with how GPUs work. (Modern CPU cores can overlap and execute multiple instructions
+  concurrently internally; this lesson uses a simplified sequential model.)
 - **Understanding why high-level code is not the same thing as hardware execution** — this is
   perhaps the single most valuable, durable idea in this lesson: your Python code is a *human-
   readable description of intent*; what actually runs on the hardware is something else entirely
@@ -252,6 +256,10 @@ architecture, but several concepts appear across virtually all instruction sets:
   adds the fixed number `5` to a register uses `5` as an immediate value).
 - **Instruction format** — the overall structure/layout an architecture uses to organize an
   opcode and its operands within an instruction's encoding.
+
+This is a conceptual model. Real instruction encodings can contain additional
+architecture-specific fields such as prefixes, addressing information, immediates, and
+displacements.
 
 **A conceptual example instruction, for teaching purposes:**
 
@@ -430,9 +438,10 @@ hardware is physically built to recognize and execute — nothing outside that d
 directly executed by that CPU.
 
 **"ISA"** is a common abbreviation for **Instruction Set Architecture** — you may see this term
-in documentation or discussions; it refers to this same concept (the defined instruction set,
-together with the architectural rules — like register organization, from Concept 6 — surrounding
-it). **This lesson introduces the term but does not teach ISA design in depth** — that is a
+in documentation or discussions. The instruction set is one important part of the ISA; the ISA is
+the broader programmer-visible specification of the processor architecture — its instructions
+together with the architectural rules governing things like registers (from Concept 6),
+operands, memory access, and other processor-visible behavior. **This lesson introduces the term but does not teach ISA design in depth** — that is a
 substantially more advanced topic than this foundational lesson covers.
 
 **Why different architectures have different instruction sets:**
@@ -586,7 +595,7 @@ x = 5 + 3
 
 Even though this line looks simple, executing it in a real Python program typically involves
 multiple lower-level operations — not because Python is unusually inefficient, but because a
-running Python program involves a runtime (Concept 8, the next lesson, explains this properly)
+Python implementation such as CPython processes Python source through a runtime (Concept 8, the next lesson, explains this properly)
 that itself has to do work to interpret and carry out what this line means, and that work is built
 from many CPU instructions, not just one. **This lesson does not explain compiler or interpreter
 internals** — that is Concept 8's entire subject. The only point established here is the
@@ -670,9 +679,10 @@ gcc -O0 -c add.c -o add.o
 
 *What this does:* `gcc` is a compiler (Concept 8, the next lesson, explains what compilation
 actually is — this lesson only uses the tool, without explaining its internals). `-c` tells it to
-produce an object file rather than a complete, runnable program; `-O0` disables optimization, so
-the resulting machine code stays close to a direct translation of the source, which is easier to
-follow for this observation.
+produce an object file rather than a complete, runnable program; `-O0` disables most GCC
+optimization passes, generally making the generated code easier to relate to the source for
+learning and debugging. It does not imply a one-to-one translation from source statements to
+machine instructions.
 
 **Confirm what kind of file this is:**
 
@@ -693,6 +703,12 @@ xxd add.o
 practical section). **`xxd` displays bytes — it does not identify which bytes are instructions and
 which are something else** (like file-format headers or metadata) — this is precisely why Example
 4 in Section 10 matters: raw bytes alone don't announce their own meaning.
+
+If `xxd` is unavailable, `od` can show similar information:
+
+```bash
+od -Ax -tx1z add.o | head
+```
 
 **Inspect the disassembly:**
 
@@ -729,19 +745,20 @@ You can apply the same `xxd` and `objdump` observation technique to a program th
 installed on your system, without needing to compile anything yourself:
 
 ```bash
-file /bin/ls
-objdump -d /bin/ls | head -50
+command -v ls
+file "$(command -v ls)"
+objdump -d "$(command -v ls)" | head -50
 ```
 
 *What this shows:* The same kind of disassembly output as Path A, but for an existing,
-already-compiled program rather than one you compiled yourself. This does not modify `/bin/ls` in
+already-compiled program rather than one you compiled yourself. This does not modify `ls` in
 any way — `objdump` only reads the file. `head -50` limits the output to a manageable first
 portion, since a real program like `ls` contains vastly more instructions than the tiny example in
 Path A.
 
 *What you should observe:* A large amount of disassembled instruction output — confirming that a
-real, everyday program is, underneath its familiar behavior, entirely composed of instructions
-exactly like the kind this lesson has been describing.
+real, everyday program contains, underneath its familiar behavior, machine instructions (along
+with data and file-format metadata) of exactly the kind this lesson has been describing.
 
 **A required, final caution for this entire section:** Whichever path you use, remember Section
 9's boundary (this lesson does not teach pipeline internals or real-time CPU state) and Concept
@@ -841,8 +858,8 @@ Why it happens   → Because machine code is so frequently displayed in hexadeci
 
 ```text
 Misconception 8  → "The CPU understands English-like instructions."
-Correct idea     → A CPU's circuitry only responds to specific, exact bit patterns it is
-                    physically built to recognize (Section 1's recipe-analogy caution, Section
+Correct idea     → At the ISA level, a processor recognizes specific, exact instruction
+                    encodings (bit patterns) it is built to execute (Section 1's recipe-analogy caution, Section
                     2). Assembly-style text like `ADD R1, R2` is for human readability only —
                     it is translated (by an assembler, a tool not taught in depth in this
                     lesson) into actual machine code before a CPU can execute anything
@@ -1112,9 +1129,11 @@ This foundation becomes directly useful when you later study:
   information at or near the instruction level.
 - **Systems programming** — work that operates closer to the hardware than typical application
   code assumes exactly this instruction-level foundation.
-- **CPU/GPU execution** — understanding CPUs execute instructions one core at a time (Concept 3)
-  is the necessary contrast for later understanding why GPUs (a later concept file) are structured
-  so differently.
+- **CPU/GPU execution** — understanding that CPU cores execute machine instructions according to
+  the processor's architecture (Concept 3) is the necessary contrast for later understanding why
+  GPUs (a later concept file) are structured so differently. (Modern CPU cores can overlap and
+  execute multiple instructions concurrently internally; this lesson uses a simplified sequential
+  model.)
 - **AI inference optimization** — techniques for making trained models run faster ultimately
   connect back to how efficiently the underlying instructions execute.
 

@@ -23,10 +23,12 @@ programming language — for example, a Python file, or a C file. It's called "s
 the original form a program starts from, before anything happens to it.
 
 **Compiler — simple meaning:** A compiler is a program that translates one representation of a
-program into another representation, before that program runs.
+program into another representation.
 
 **Compilation — simple meaning:** Compilation is the process a compiler performs — translating a
-program's representation into another representation, ahead of execution.
+program's representation into another representation. **AOT (ahead-of-time) compilation** is
+compilation performed before execution; **JIT (just-in-time) compilation** is compilation
+performed during execution (Section 6 returns to both).
 
 **Interpreter — simple meaning:** An interpreter is a program that carries out what a program
 representation means, at the time it runs, rather than only translating it ahead of time into
@@ -35,9 +37,9 @@ something else first.
 **Interpretation — simple meaning:** Interpretation is the process an interpreter performs —
 executing a program representation's meaning directly, at runtime.
 
-**Executable — simple meaning:** An executable is a file containing a program in a form the
-operating system can load and run directly — commonly, though not always, containing native
-machine code (Concept 7).
+**Executable — simple meaning:** An executable is a program representation that the operating
+system can launch as a program. A common example is a native executable containing machine code
+(Concept 7), but executable scripts can also be launched through an interpreter mechanism.
 
 **Bytecode — simple meaning:** Bytecode is a translated form of a program, produced by a
 compiler, but **not** the same thing as CPU machine code (Concept 7) — it's an intermediate
@@ -71,8 +73,8 @@ languages.
 
 ## 2. Why does it exist?
 
-**The fundamental problem.** Concept 7 established that a CPU only ever executes precise,
-architecture-specific machine code — it has no capacity to understand human-readable source code
+**The fundamental problem.** Concept 7 established that, at this level, the CPU is best thought
+of as executing precise, architecture-defined machine instructions — it has no capacity to understand human-readable source code
 directly (Concept 7, Section 1's recipe-analogy caution; Concept 7, Misconception 8). At the same
 time, writing raw machine code by hand is extraordinarily impractical for humans — tedious,
 error-prone, and disconnected from how people naturally think about solving problems.
@@ -92,7 +94,7 @@ Machine-level execution
 Programming languages exist specifically to let humans express what they want a program to do at
 a much higher, more manageable level of abstraction than machine code — using words, structure,
 and logic that map to how people think, rather than to how a specific CPU architecture encodes
-instructions (Concept 7's central theme). But because the CPU only ever executes machine code,
+instructions (Concept 7's central theme). But because, at this level, the CPU executes architecture-defined machine instructions,
 **something** has to bridge the gap between what a human wrote and what the CPU can actually run.
 
 **Why a programming language cannot simply be executed directly by a CPU as written:** Exactly as
@@ -182,7 +184,7 @@ A translator listens to your instruction (in your language) and produces an equi
 instruction in the other language — the *meaning* is preserved, but the *form* changes
 completely. This is a reasonable first mental image for **compilation**: a compiler takes source
 code (in a human-readable language) and produces a translated version, in a different
-representation (Section 1) — ahead of time, before anyone acts on it.
+representation (Section 1) — in the simplest, ahead-of-time case, before anyone acts on it.
 
 **Where this analogy is useful:** It captures the core idea of translation happening as a
 distinct, complete step, producing a separate, finished result — matching compilation's basic
@@ -229,7 +231,7 @@ execute a program representation through a runtime mechanism
 ```
 
 **And, critically, stated explicitly and immediately:** real systems can, and very commonly do,
-**combine both approaches** — this is not an either/or choice for most real, modern programming
+**combine both approaches** — this is not an either/or choice for many modern programming
 language implementations. Section 5 (hybrid execution) and Section 8 (the comparison table) both
 return to this directly. Holding "compiled" and "interpreted" as two mutually exclusive categories
 is precisely the oversimplification this lesson's Primary Learning Objective requires you to move
@@ -339,6 +341,10 @@ executable containing native machine code. When the program is later run, the op
 loads that executable, and the CPU executes its machine instructions directly (Concept 7). **This
 lesson does not teach OS loader internals** — exactly how the operating system "loads" a program
 is a topic for Module 0.2 and beyond.
+
+This is a simplified Stage-0 model. A real GCC build may involve preprocessing, compilation,
+assembly, and linking before the final executable is produced. Those internal stages are outside
+this lesson's scope.
 
 ### Interpreted-style execution
 
@@ -697,11 +703,12 @@ Check your Python implementation's version:
 
 ```bash
 python3 --version
+python3 -c "import sys; print(sys.implementation.name)"
 ```
 
-*What this shows:* Which specific Python implementation and version is installed. **If the output
-identifies this as "Python" without further qualification, it is reasonable to note that the most
-common Python implementation is called CPython** — this lesson mentions this only as a factual
+*What this shows:* `python3 --version` shows the Python **version**; `sys.implementation.name`
+shows the Python **implementation** (CPython, for example, reports `cpython`). **It is reasonable
+to note that the most common Python implementation is called CPython** — this lesson mentions this only as a factual
 label, without teaching anything about CPython's internals (explicitly out of scope, per Section
 7's caution).
 
@@ -725,8 +732,8 @@ specific, identifiable Python implementation, and it produced a result — exact
 end of Section 7's conceptual path, with the middle steps (bytecode, runtime execution) understood
 conceptually rather than directly observed.
 
-**Do not make unsupported claims about the exact implementation** beyond what `python3 --version`
-actually tells you — if your environment's Python is explicitly identified as CPython, that can be
+**Do not make unsupported claims about the exact implementation** beyond what `python3 --version` and
+`sys.implementation.name` actually tell you — if your environment's Python is explicitly identified as CPython, that can be
 stated as a fact about your environment specifically, not generalized into a claim about "how
 Python works" universally, since other Python implementations exist and were not taught here.
 
@@ -754,7 +761,8 @@ runtime execution → what happens when you actually run `python3 example.py`, o
 
 Note that `program.c` never becomes an "executable" on its own — only after `gcc` compiles it. By
 contrast, `example.py` is run directly by `python3` — there is no separate, standalone executable
-file produced as a visible end product in this simple observation, even though (per Section 7's
+file produced as a visible end product of running this simple command (this does not mean
+Python programs can never be packaged into executable artifacts), even though (per Section 7's
 conceptual path) real translation and execution work still happens internally.
 
 **Clean up when finished:**
@@ -785,7 +793,7 @@ Correct idea     → This is an oversimplification this lesson's Primary Learnin
                     cleanly opposite categories.
 Why it happens   → "Compiled" and "interpreted" are commonly taught as a simple binary choice
                     in casual conversation, which hides the real variety of hybrid approaches
-                    (Section 6, Section 8) that most real, modern systems actually use.
+                    (Section 6, Section 8) that many modern implementations actually use.
 ```
 
 ```text
@@ -902,7 +910,7 @@ Misconception 10 → "Compilation and interpretation are mutually exclusive."
 Correct idea     → As Section 6 (hybrid execution), Section 8 (comparison table), and Section 9
                     (Java example) all demonstrate, many real, common systems combine both —
                     compiling source to bytecode, then interpreting and/or JIT-compiling that
-                    bytecode at runtime. They are not an either/or choice for most modern,
+                    bytecode at runtime. They are not an either/or choice for many modern,
                     real-world language implementations.
 Why it happens   → Presenting compilation and interpretation as a simple two-option choice
                     (Misconception 1) naturally extends into assuming they must be mutually
