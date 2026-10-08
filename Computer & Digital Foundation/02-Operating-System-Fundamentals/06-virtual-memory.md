@@ -20,7 +20,7 @@
 - **Virtual address.** Simple meaning: an address a running process uses to refer to a piece of memory — a number the process's code works with. It is not, by itself, a real physical location.
 - **Physical address.** Simple meaning: the real, actual location in the physical RAM hardware where data is genuinely stored.
 - **Virtual address space.** Simple meaning: the entire private range of virtual addresses one process is given to work with — its own numbering system, separate from every other process's.
-- **Virtual memory.** Simple meaning: the overall system — implemented jointly by the CPU hardware and the operating system — that gives every process its own virtual address space and transparently translates its virtual addresses into real physical addresses.
+- **Virtual memory.** Simple meaning: the overall system — implemented jointly by the CPU hardware and the operating system — that gives every process its own virtual address space and transparently translates its virtual addresses into real physical addresses, while also providing protection and controlled mappings.
 
 **A simple mental model** for this lesson:
 
@@ -135,17 +135,17 @@ Imagine a large residential building where, instead of giving each tenant the bu
 | Term | Definition |
 |---|---|
 | **Virtual address** | An address used by a running process's code to refer to memory; meaningful only within that process's own virtual address space |
-| **Physical address** | The real, actual location within the physical RAM hardware |
+| **Physical address** | A location in the system's physical address space (for ordinary program memory, this means a location in physical RAM) |
 | **Address space** | The complete range of addresses available to something — a process's *virtual* address space is the range of virtual addresses it can use |
 | **Page** | A fixed-size chunk into which a virtual address space is divided (Section 11) |
 | **Page frame** | A fixed-size chunk of *physical* memory, the same size as a page, into which a page can be placed |
-| **Page table** | The kernel/hardware-maintained data structure recording which virtual pages currently map to which physical page frames, for one specific process |
+| **Page table** | The data structure recording which virtual pages currently map to which physical page frames, for one specific process; the operating system manages the page-table data structures, and CPU/MMU hardware uses them for address translation |
 | **Page-table entry** | One single record within a page table, describing the mapping (and protection information) for one specific virtual page |
 | **Memory mapping** | The general concept of associating a range of virtual addresses with a specific underlying physical (or other) resource |
 | **Mapped memory** | Virtual memory that currently has an established mapping, whether or not that mapping is currently backed by resident physical memory |
 | **Page fault** | An event triggered when a process accesses a virtual address whose current mapping requires OS intervention before the access can proceed (Section 6’s “Page faults” subsection) |
 | **Resident memory** | The portion of a process's mapped memory that is *currently* actually present in physical RAM, right now |
-| **Swap** | Disk-backed storage the OS can use to hold memory contents that aren't currently resident in RAM (Section 6’s “Swap” subsection) |
+| **Swap** | Storage the OS can use to hold memory pages that aren't currently resident in ordinary physical RAM; traditionally disk/SSD-backed, though Linux can also use compressed in-memory mechanisms such as zram (Section 6’s “Swap” subsection) |
 | **Memory protection** | Hardware- and OS-enforced rules about whether a given mapped region may be read, written, or executed (Section 6’s “Memory protection” subsection) |
 
 **Why this table exists, and why precision matters here:** these eleven terms are frequently blurred together informally, but each refers to something genuinely distinct. Section 10's misconception table returns to several of the most commonly confused pairs directly.
@@ -176,6 +176,8 @@ offset                       (added to pinpoint the exact byte within that frame
      ↓
 physical address
 ```
+
+**One qualification:** this flow is intentionally simplified. Real CPUs normally cache recent virtual-to-physical translations in hardware structures such as the TLB, so a complete page-table lookup is not needed for every memory access.
 
 **What this illustrates, at the level this lesson needs:** the page number portion of a virtual address is used to *look up* where the corresponding data physically lives right now; the offset portion is unchanged by translation — it says *where within* that located page frame the actual byte is. **Do not treat the specific hex value, the specific split point, or any implied page size here as representing a real architecture** — this is a conceptual illustration only, deliberately kept independent of any one CPU's actual addressing scheme.
 
@@ -251,13 +253,13 @@ Page 3    ───────────────────────�
 
 ### Swap
 
-**Swap, defined:** disk-backed storage the operating system can use to hold memory contents that aren't currently resident in physical RAM, freeing up RAM for other, currently more active data.
+**Swap, defined:** storage the operating system uses for pages that are not currently resident in ordinary physical RAM, freeing up RAM for other, currently more active data. Traditional swap uses disk/SSD-backed swap files or partitions, while Linux can also use compressed in-memory mechanisms such as zram. The rest of this subsection describes the traditional disk-backed case.
 
 **A direct comparison, to prevent exactly the confusion Section 10's misconceptions address:**
 
 | | Physical RAM | Virtual memory | Swap |
 |---|---|---|---|
-| **What it is** | Real memory hardware | The overall addressing/translation system (this whole lesson) | Disk-backed storage used to extend available memory capacity |
+| **What it is** | Real memory hardware | The overall addressing/translation system (this whole lesson) | Storage (traditionally disk/SSD-backed) used to extend available memory capacity |
 | **Speed** | Very fast | N/A — it's a system, not a storage medium | Much slower than RAM — genuinely, often by orders of magnitude, since it involves disk-speed access |
 | **Is it "extra RAM"?** | It *is* the RAM | No — virtual memory is the addressing system that makes use of both RAM and swap | No — swap extends *capacity*, at a real performance cost; it is not equivalent to more RAM |
 | **Relationship to processes** | Holds currently resident pages | Every process's addressing goes through this system | Holds pages the OS has decided are not currently resident, to free RAM |
@@ -310,7 +312,7 @@ This lesson does not teach advanced sandboxing or security mechanisms built on t
 5e5cbe8e3000-5e5cbe926000 rw-p 00000000 00:00 0       [heap]
 ```
 
-The permission field (`r--p`, `r-xp`, `rw-p`) shows exactly this concept in real, observed data: `r--p` is read-only, `r-xp` is read-and-execute (the actual program code), and `rw-p` is read-and-write (the process's heap, where ordinary mutable data lives) — three different memory regions belonging to the *same* process, each with genuinely different, hardware-enforceable permissions.
+The permission field (`r--p`, `r-xp`, `rw-p`) shows exactly this concept in real, observed data: `r--p` is read-only, `r-xp` is a private mapping that is readable and executable (such mappings commonly contain executable code, although the exact mapping depends on the process), and `rw-p` is read-and-write (the process's heap, where ordinary mutable data lives) — three different memory regions belonging to the *same* process, each with genuinely different, hardware-enforceable permissions.
 
 **Connecting this to earlier concepts:**
 
@@ -337,7 +339,7 @@ Process B
 
 - **Within Process A**, Thread 1, Thread 2, and Thread 3 all translate their virtual addresses through the *same* page table — a virtual address one thread writes to is immediately visible to the others, because they are all looking at the same underlying mappings. This is the concrete, memory-level mechanism behind Concept 04's claim that sibling threads share the process's heap, code, and global data.
 - **Process B's threads** share *their own* address space with each other, but not with Process A's — Process A's and Process B's page tables are entirely separate, exactly as Section 6's "Process isolation" subsection described for processes generally.
-- **This is also exactly why shared-memory race conditions (Concept 04) are a within-process phenomenon**, not something that happens between separate processes by default: two threads racing on the same shared variable are only possible because they're translating through the same page table to the same physical memory in the first place.
+- **This is also why shared-memory race conditions (Concept 04) arise by default between threads of one process:** threads within the same process share the process's virtual address space by default, so two threads racing on the same shared variable are translating through the same page table to the same physical memory. Separate processes normally have separate virtual address spaces, but processes can deliberately establish shared-memory mappings. Therefore, race conditions can occur both between threads and between processes when they concurrently access shared mutable state.
 
 **This lesson does not re-teach thread synchronization** (Concept 04 already introduced race conditions and thread safety) — only the virtual-memory-level reason *why* sharing between threads, but not between processes, is the default.
 
@@ -431,7 +433,7 @@ Production Reliability               (Section 8)
 | Processes | Each process has its own virtual address space — the subject of this entire lesson | Prerequisite (Concept 03) | Already covered |
 | Threads | Sibling threads share their process's single virtual address space (Section 6’s “Threads and virtual memory” subsection) | Prerequisite (Concept 04) | Already covered |
 | Scheduling | Independent of memory mapping, but the scheduler must ensure a process's memory context is correctly available whenever it runs | Prerequisite (Concept 05) | Already covered |
-| Filesystems | File data becomes resident memory via mapping when read; some files can even be memory-mapped directly (mentioned by name only) | Later | Concept 07 |
+| Filesystems | Ordinary `read()` copies file data into a buffer in the process's memory, while `mmap()` establishes a virtual-memory mapping of a file/object into the process's address space (mentioned by name only) | Later | Concept 07 |
 | Permissions | A different, file/resource-level permission system from memory protection (Section 6’s “Memory protection” subsection) — related in spirit, distinct in mechanism | Later | Concept 08 |
 | Environment Variables | Independent of virtual memory — part of a process's environment, not its addressing | Later | Concept 09 |
 | Signals | An invalid memory access (Section 6’s “Page faults” subsection) is typically delivered to a process as a signal | Later | Concept 10 |
@@ -460,7 +462,7 @@ Mem:           3.8Gi       810Mi       2.6Gi       4.0Mi       536Mi       3.0Gi
 Swap:          1.0Gi          0B       1.0Gi
 ```
 
-**What to look for:** `total` is this environment's overall visible RAM (3.8 GiB here — reflecting what WSL2 has been allocated by Windows, not necessarily the physical machine's full RAM); `used` and `free` are self-explanatory; `buff/cache` is memory the kernel is using for filesystem caching, which it can reclaim if needed (not "wasted" memory); `available` is a more realistic estimate of memory a new process could actually use. The `Swap` row shows `1.0Gi` total configured swap, with `0B` currently used at the moment this was captured — direct, genuine confirmation that this lesson's swap concept (Section 6) is configured and present in this environment, just not currently under enough pressure to be in active use.
+**What to look for:** `total` is this environment's overall visible RAM (3.8 GiB here — reflecting what WSL2 has been allocated by Windows, not necessarily the physical machine's full RAM); `used` and `free` are not as self-explanatory as they look: modern Linux `free` reports `total`, `used`, `free`, and `available`, where `used = total - available`, and `free` counts only memory that is completely unused; `buff/cache` is memory the kernel is using for filesystem caching, which it can reclaim if needed (not "wasted" memory); `available` is the more useful estimate when asking how much memory can be used without significant swapping. The `Swap` row shows `1.0Gi` total configured swap, with `0B` currently used at the moment this was captured — direct, genuine confirmation that this lesson's swap concept (Section 6) is configured and present in this environment, just not currently under enough pressure to be in active use.
 
 ### Kernel memory information: `/proc/meminfo`
 
@@ -513,7 +515,7 @@ ps -p "$PID" -o pid,ppid,stat,%cpu,%mem,vsz,rss,cmd
    5867    5865 Sl    0.0  0.2  83856  8020 tail -f /dev/null
 ```
 
-**This is a directly observed, concrete example of Section 7's last row.** `VSZ` (virtual size, `83856` KB) is how much of this process's virtual address space is mapped; `RSS` (resident set size, `8020` KB) is how much of that is *currently* actually resident in physical RAM — a real illustration of "mapped memory" and "resident memory" being genuinely different numbers for the exact same process, at the exact same moment. (The same columns are available for every process at once with `ps aux`, which adds no new concept beyond showing this per-process pair for the whole system rather than one PID.)
+**This is a directly observed, concrete example of Section 7's last row.** `VSZ` (virtual size, `83856` KB) is the virtual memory size reported for the process — its virtual-memory footprint, which should not be interpreted as physical RAM usage; `RSS` (resident set size, `8020` KB) is how much of that is *currently* actually resident in physical RAM — a real illustration of "mapped memory" and "resident memory" being genuinely different numbers for the exact same process, at the exact same moment. (The same columns are available for every process at once with `ps aux`, which adds no new concept beyond showing this per-process pair for the whole system rather than one PID.)
 
 **Inspecting memory-relevant fields in `/proc/<PID>/status`:**
 
@@ -534,7 +536,7 @@ VmLib:	    3240 kB
 Threads:	2
 ```
 
-**What to look for:** `VmSize` and `VmRSS` match `ps`'s `VSZ`/`RSS` exactly, confirming both are reading the same kernel-tracked values. `VmPeak` (`149380` kB) — larger than the current `VmSize` — shows this process's virtual address space was mapped even larger at some earlier point; `VmData`, `VmStk`, `VmExe`, and `VmLib` break resident memory down by category (data/heap, stack, executable code, and shared libraries — each mentioned only briefly here, without repeating Concept 03's full component breakdown).
+**What to look for:** `VmSize` and `VmRSS` match `ps`'s `VSZ`/`RSS` exactly, confirming both are reading the same kernel-tracked values. `VmPeak` (`149380` kB) — larger than the current `VmSize` — shows this process's virtual address space was mapped even larger at some earlier point; `VmSize` is the virtual memory size, and `VmRSS` is the resident set size. `VmData`, `VmStk`, `VmExe`, and `VmLib` are the *virtual* sizes of the data segment (data/heap), stack, executable/text, and shared-library regions. They are **not** a breakdown of resident memory, and they should not be expected to add up to `VmRSS`.
 
 **Inspecting memory mappings directly, with `/proc/<PID>/maps`:**
 

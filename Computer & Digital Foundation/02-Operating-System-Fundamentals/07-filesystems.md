@@ -13,7 +13,7 @@
 
 **Storage.** Simple meaning: the physical hardware that holds data even when the computer is turned off (Module 0.1 introduced this as distinct from RAM). Technical meaning: a storage device is physical hardware providing persistent, non-volatile capacity — raw space, addressed in low-level chunks the hardware itself understands, with no inherent concept of "files" or "names" at all.
 
-**Filesystem.** Simple meaning: the organization system that turns a storage device's raw space into named, findable files and folders. Technical meaning: a filesystem is the software layer — implemented largely by the kernel — that organizes a storage device's raw capacity into a structured collection of named files and directories, and provides applications a consistent way to create, read, write, and locate them.
+**Filesystem.** Simple meaning: the organization system that turns a storage device's raw space into named, findable files and folders. Technical meaning: a filesystem is the software layer — on Linux, accessed through kernel filesystem infrastructure such as the VFS, with filesystem implementations integrated into or accessed through that infrastructure — that organizes a storage device's raw capacity into a structured collection of named files and directories, and provides applications a consistent way to create, read, write, and locate them.
 
 **File.** Simple meaning: one named, stored unit of data — a document, a script, an image, anything you'd think of as "a file." Technical meaning: a file is a named collection of data, along with associated metadata (Section 5), that the filesystem tracks as a single, addressable unit.
 
@@ -194,23 +194,23 @@ The exact same line of code (`open("data/train.csv")`) can succeed or fail depen
 ├── etc           (system-wide configuration files)
 ├── home            (personal directories for regular users)
 ├── proc              (a virtual filesystem exposing kernel/process info — see below)
-├── tmp                 (temporary files, often cleared on reboot)
+├── tmp                 (temporary files, may be cleaned automatically)
 ├── usr                   (installed programs and their supporting files)
 └── var                     (variable/changing data — logs, caches, and similar)
 ```
 
-**Important caveat:** this is a common, representative layout — **not every Linux distribution has exactly this layout or contents**, and this lesson deliberately does not claim otherwise. The *purposes* below are broadly consistent across mainstream Linux distributions, even where exact contents vary.
+**Important caveat:** this is a common, representative layout — **not every Linux distribution has exactly this layout or contents**, and this lesson deliberately does not claim otherwise. The *purposes* below are broadly consistent across mainstream Linux distributions, even where exact contents vary. (For example, on many modern Linux distributions using a merged-`/usr` layout, `/bin` may be a symbolic link to `/usr/bin`.)
 
 | Path | Common purpose |
 |---|---|
 | `/` | The root of the entire filesystem hierarchy — every absolute path starts here |
 | `/home` | Personal directories for regular (non-administrative) users |
-| `/tmp` | Temporary files, often cleared automatically on reboot — not for anything meant to persist long-term |
+| `/tmp` | Temporary files; systems may automatically clean it according to their configuration — it should not be relied upon for long-term persistence |
 | `/etc` | System-wide configuration files |
 | `/var` | Data expected to change over time while the system runs — logs are a common example |
 | `/usr` | Installed programs and the supporting files they need |
 | `/dev` | Special files representing devices (Module 0.1's I/O concepts, exposed here as filesystem entries) |
-| `/proc` | **Not ordinary persistent storage at all** — a virtual filesystem, generated live by the kernel, exposing kernel and process information (Concept 02, Concept 03) through filesystem-style paths. Nothing under `/proc` is actually stored on a disk; it's produced on demand, in memory, each time it's read. |
+| `/proc` | **Not ordinary persistent storage at all** — a Linux pseudo-filesystem whose entries provide dynamically generated views of kernel, process, and system information (Concept 02, Concept 03) through filesystem-style paths, rather than ordinary persistent disk files. Nothing under `/proc` is actually stored on a disk. |
 
 **Connecting `/proc` to previous lessons directly:** Concept 02 and Concept 03 already used `/proc/<PID>/status` and similar paths to inspect running processes — this lesson's contribution is naming *why* that works: `/proc` looks and behaves like a normal filesystem (you can `cd` into it, `cat` files from it, use paths to navigate it) precisely because the kernel deliberately exposes its internal information through the same filesystem interface applications already know how to use — without `/proc` being backed by any actual persistent storage.
 
@@ -255,7 +255,7 @@ Relative to `project/`, each item's path:
 
 ### Inodes, at a foundational conceptual level
 
-**Inode.** Simple meaning: an internal record the filesystem keeps for each file, holding its metadata and pointing to where its actual data lives — separate from the file's name. Technical meaning: an inode is a data structure used by many Unix-like filesystems to store a file's metadata and references to its actual data blocks; the filename itself is not the inode, but is instead associated with an inode through a directory entry.
+**Inode.** Simple meaning: an internal record the filesystem keeps for each file, holding its metadata and pointing to where its actual data lives — separate from the file's name. The inode model below is a Unix/Linux-specific conceptual model. Technical meaning: an inode is a data structure used by many Unix-like filesystems to store a file's metadata and references to its actual data blocks; the filename itself is not the inode, but is instead associated with an inode through a directory entry.
 
 ```text
 filename
@@ -354,9 +354,9 @@ Persistent file data                    Process memory
  process/machine restarts)                space, exists only while running)
 ```
 
-**How these two connect:** when a process reads a file, its content is typically brought into the process's memory to be worked with (via the read system call, Concept 02). Additionally, operating systems provide a mechanism — **memory mapping** — by which a file's contents can be made to appear directly within a process's virtual address space (Concept 06), so that accessing that memory transparently reads (or writes) the underlying file, without an explicit read/write call for every access. **This lesson introduces this only at the foundational conceptual level.** It does not teach the detailed implementation of `mmap()`, nor the operating system's page-cache mechanism (which keeps recently-used file data cached in memory for performance) in any depth — both are meaningfully more advanced topics than this lesson's scope.
+**How these two connect:** when a process reads a file, its content is typically brought into the process's memory to be worked with (via the read system call, Concept 02). Additionally, operating systems provide a mechanism — **memory mapping** — by which a file's contents can be made to appear directly within a process's virtual address space (Concept 06), so that accessing that memory reads the file's contents without an explicit read/write call for every access. With a file-backed memory mapping, the file's contents are mapped into the process's virtual address space; for shared mappings, modifications can be propagated to the underlying file, while private mappings use copy-on-write and do not propagate modifications to the underlying file. **This lesson introduces this only at the foundational conceptual level.** It does not teach the detailed implementation of `mmap()`, nor the operating system's page-cache mechanism (which keeps recently-used file data cached in memory for performance) in any depth — both are meaningfully more advanced topics than this lesson's scope.
 
-**The one distinction worth holding onto precisely:** a file's data, sitting in persistent storage, and that same data once it's been read into a process's memory, are related but not identical — the file persists independent of any process; the in-memory copy exists only as long as the process holds it (and only as current as the last time it was read or written back).
+**The one distinction worth holding onto precisely:** a file's data, sitting in persistent storage, and that same data once it's been read into a process's memory, are related but not identical — the file persists independent of any process; the in-memory copy exists only as long as the process holds it (and only as current as the last time it was read or written back). At any particular moment, recently accessed or modified file data may also be cached in memory; caching does not by itself mean that the data has ceased to be persistent file data.
 
 ---
 
@@ -439,7 +439,7 @@ Permissions                    (the very next lesson — previewed only, not tau
 
 ## 9. Practical Observation / Commands
 
-You are working in Ubuntu inside WSL2. All commands below are safe, read-only (except creating and cleaning up one small, isolated demonstration directory), and require no `sudo`. No system configuration, permissions on existing files, or unrelated data is touched anywhere in this lesson. **WSL2 caveat, stated once, applying throughout:** WSL2 is a virtualized Linux environment — some filesystem observations reflect this virtualized Linux environment specifically, and, as this section demonstrates directly with genuinely observed output, some directories bridge into the Windows host's own drives through a distinct mounting mechanism.
+You are working in Ubuntu inside WSL2. All commands below are safe, read-only (except creating and cleaning up one small, isolated demonstration directory), and require no `sudo`. No system configuration, permissions on existing files, or unrelated data is touched anywhere in this lesson. **WSL2 caveat, stated once, applying throughout:** WSL2 is a virtualized Linux environment — some filesystem observations reflect this virtualized Linux environment specifically, and, as this section demonstrates directly with genuinely observed output, some directories bridge into the Windows host's own drives through a distinct mounting mechanism. All "Observed in this environment" outputs below are examples recorded from the WSL2 environment used when this lesson was created, not guaranteed output for every learner's WSL2 installation.
 
 ### `pwd` — current working directory
 
@@ -498,7 +498,7 @@ Change: 2026-09-10 14:58:38.186487441 +0000
 
 **What to look for, matching directly to Section 5's concepts:** `size` (22 bytes — this file's content size); `Inode: 223` (a real, directly observed inode number — Section 5's "Inodes" subsection made concrete); `Access:` permission string and `Uid`/`Gid` (ownership); and four separate timestamp fields (`Access`, `Modify`, `Change`, `Birth`) — a genuinely observed illustration that "timestamps" is not necessarily just one single field, and that the exact set of timestamp fields a filesystem exposes is filesystem-dependent (Section 5's caveat about not overstating universal metadata fields). **Only report the fields your own `stat` output actually shows — do not assume every filesystem or every `stat` implementation displays identical fields.**
 
-### `file` — determining actual file type
+### `file` — classifying what a file appears to contain
 
 ```bash
 file app/main.py
@@ -514,7 +514,7 @@ data/train.csv: ASCII text
 app: directory
 ```
 
-**What to look for:** the `file` command inspects a file's actual content to report its real type, rather than trusting its name or extension. Both `main.py` and `train.csv` were correctly identified as `ASCII text` — genuinely determined from their content, not merely assumed from their `.py`/`.csv` extensions. **This reinforces a foundational point from Module 0.1: a filename extension is a naming convention for humans (and some tools), not a guarantee of a file's actual type** — a file could be renamed with any extension and `file` would still report what it actually contains.
+**What to look for:** the `file` command examines filesystem information and, for regular files, may inspect their contents using known signatures and heuristics to classify what they appear to contain, rather than trusting the name or extension. Both `main.py` and `train.csv` were classified as `ASCII text` — based on their content, not merely assumed from their `.py`/`.csv` extensions. **This reinforces a foundational point from Module 0.1: a filename extension is a naming convention for humans (and some tools), not a guarantee of a file's format** — a file could be renamed with any extension and `file` would still classify it by what it appears to contain (a heuristic classification, not an absolute authority).
 
 ### `df -h` — filesystem capacity
 
@@ -550,7 +550,9 @@ du -sh <path>/*
 4.0K    fs-demo/data
 ```
 
-**The distinction this demonstrates directly:** `df -h` answers "how much space is available on this entire filesystem?" while `du -sh` answers "how much space does this specific file or directory actually use?" — two genuinely different, commonly confused questions. Note also that `README.md`, despite being an empty (0-byte) file, still occupies a minimum block of actual disk space when its directory entry is included in `du`'s reporting for the parent — a small, concrete illustration that a filesystem's actual space usage isn't always a perfectly literal byte-for-byte reflection of file content size alone.
+**The distinction this demonstrates directly:** `df -h` answers "how much space is available on this entire filesystem?" while `du -sh` answers "how much space does this specific file or directory actually use?" — two genuinely different, commonly confused questions. Note also that `README.md`, an empty (0-byte) regular file, is reported as `0` — an empty regular file can have zero allocated data blocks — while its containing directory (`fs-demo`, `app`, `data`) still consumes filesystem space. This is a small, concrete illustration that filesystem space usage is not always identical to the sum of file content sizes.
+
+`df` and `du` can legitimately differ because they measure different things; differences can also arise from cases such as deleted-but-open files, sparse files, hard links, mount boundaries, and filesystem metadata.
 
 ### `mount` — currently mounted filesystems
 
@@ -586,7 +588,7 @@ ls -d fs-demo   # confirms removal
 |---|---|
 | "A filesystem is the same thing as a hard drive." | A hard drive (or other storage device) is physical hardware; a filesystem is the organizational software layer built on top of it (Section 1). |
 | "A file is just its filename." | A file consists of content plus separately tracked metadata (Section 5); its filename is only one small piece — and, via inodes (Section 5), even the name itself is a separate association layered on top of the file's actual identity. |
-| "The file extension determines the actual file type." | An extension is a naming convention; a file's real type is determined by its actual content, as Section 9's genuinely observed `file` command output demonstrated directly. |
+| "The file extension determines the actual file type." | An extension is a naming convention; a filename extension alone does not guarantee the file's format. Tools like `file` classify what a file appears to contain using its contents and known signatures, as Section 9's genuinely observed `file` command output demonstrated. |
 | "Every Linux filesystem has exactly the same internal implementation." | Filesystem implementation varies by type (Section 5) — this lesson deliberately avoids describing any one implementation as universal, and Section 9's genuinely observed `mount` output showed two different filesystem types (`ext4`, `9p`) in the very same environment. |
 | "`/proc` stores normal persistent files." | `/proc` is a virtual filesystem generated live by the kernel, exposing kernel/process information — nothing under it is actually stored on disk (Section 5). |
 | "A directory contains file data directly." | A directory contains associations between names and inodes (directory entries) — the actual file data lives separately, referenced through the inode (Section 5). |
@@ -652,7 +654,7 @@ Each scenario follows: problem, beginner's likely assumption, correct mental mod
 
 1. *Problem:* a learner sees files under `/proc` and assumes they are ordinary, persistent files, perhaps worth backing up or expecting to survive a reboot.
 2. *Beginner's likely assumption:* "These are regular files, just like anything else under `/home` or `/var`."
-3. *Correct mental model:* `/proc` is a **virtual filesystem** — its contents are generated live by the kernel, in memory, each time they're read (Section 5, and Concept 02's original introduction of `/proc`), not stored on any physical device at all.
+3. *Correct mental model:* `/proc` is a **virtual filesystem** — its entries are dynamically generated views of kernel and process information (Section 5, and Concept 02's original introduction of `/proc`), not stored on any physical device at all.
 4. *Investigation approach:* consider whether a given path's contents change from moment to moment in a way ordinary persistent files wouldn't (for example, `/proc/<PID>/status`'s memory figures changing as a process runs) — this behavior is a strong signal of a virtual, kernel-generated filesystem rather than genuine persistent storage.
 5. *Expected conclusion:* treating `/proc` entries as something to preserve, back up, or expect to survive a reboot reflects a misunderstanding of what they actually are — they are a live window into kernel state, not stored data.
 
@@ -730,7 +732,7 @@ Work through these in your own words. No answer key exists for this lesson — t
 
 - `ls -la` should show a permission/type string, owner, group, size, and timestamp for every entry, including the special `.`/`..` entries.
 - `stat` should report a size, an inode number, ownership, and one or more timestamp fields for any file you inspect.
-- `file` should correctly identify a plain-text file's type regardless of its extension.
+- `file` should classify a plain-text file as text based on its contents, regardless of its extension.
 - `df -h` and `du -sh` should report *different* numbers when checked against the same directory, because they measure genuinely different things (filesystem-wide capacity vs. this-specific-directory's usage).
 - If your environment is WSL2, `mount` should show your root filesystem as one filesystem type, and — if you have Windows-drive integration configured — any `/mnt/<drive>` mount as a distinctly different filesystem type.
 
@@ -795,7 +797,7 @@ For a production Applied AI Engineer, this lesson's mental model shows up consta
 - **Python backend and AI inference services.** Every configuration file, every model artifact, every log line depends on the filesystem concepts this lesson introduced — path resolution, metadata, and capacity all directly shape whether a service starts and keeps running correctly.
 - **Model artifacts and datasets.** Understanding file size versus process memory (Section 11, Scenario D) is essential for correctly reasoning about a model-serving machine's actual resource constraints.
 - **Logs.** Unbounded log growth is a classic, entirely filesystem-capacity-driven production failure mode (Section 11, Scenario B) — recognizing `df -h`/`du -sh` as the right diagnostic tools is a direct, practical skill.
-- **Temporary files and cache directories.** Understanding conventional locations (`/tmp`, Section 5) and their expected lifetime (often cleared on reboot) prevents relying on them for anything that actually needs to persist.
+- **Temporary files and cache directories.** Understanding conventional locations (`/tmp`, Section 5) and their expected lifetime (systems may clean them automatically, depending on configuration) prevents relying on them for anything that actually needs to persist.
 - **Generated outputs.** Experiment outputs, evaluation results, and other generated artifacts all depend on correct path handling to be findable and reproducible later.
 - **Disk capacity.** A "disk full" failure is a distinct category from a memory-related failure (Concept 06) — correctly diagnosing which one you're facing determines which tools and which fix are relevant.
 - **Filesystem failures and startup dependencies.** A service that depends on a configuration file or model artifact existing at a specific path will fail at startup if that path is wrong — a category of failure this lesson's Scenario A and Scenario C directly prepare you to diagnose.

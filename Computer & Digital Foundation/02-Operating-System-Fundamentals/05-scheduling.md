@@ -11,7 +11,7 @@
 
 **Connecting to what you already know.** [Processes](03-processes.md) established that a process can be running, waiting, or in several other states, without necessarily using the CPU at every moment it exists. [Threads](04-threads.md) established that a process can contain multiple independent execution paths, each with its own state, and that "concurrency does not necessarily require multiple CPU cores" — a claim this lesson now explains fully. Both lessons deferred one question: **who decides which runnable process or thread actually gets to use the CPU, and when?** That decision-maker is the **scheduler**, and this lesson is entirely about how it works, conceptually. This lesson also depends on [Kernel and User Space](01-kernel-and-user-space.md) and [System Calls](02-system-calls.md) — scheduling is a kernel responsibility, and the same kernel-mediated mechanisms already introduced apply here too, without being repeated.
 
-**CPU scheduling.** Simple meaning: CPU scheduling is how the operating system decides which runnable piece of work gets to use the CPU right now, out of everything that currently wants to run. Technical meaning: CPU scheduling is the kernel's ongoing process of selecting, from among all currently runnable execution entities (processes and threads), which one is granted CPU execution time at any given moment, and for how long.
+**CPU scheduling.** Simple meaning: CPU scheduling is how the operating system decides which runnable piece of work gets to use the CPU right now, out of everything that currently wants to run. Technical meaning: CPU scheduling is the kernel's ongoing process of selecting, from among all currently runnable execution entities (processes and threads), which one is granted CPU execution time at any given moment, and for how long. Modern operating systems commonly schedule execution entities such as threads/tasks; a process provides a broader resource and isolation context and may contain one or more threads.
 
 **Scheduler.** Simple meaning: the part of the operating system that makes this decision. Technical meaning: the scheduler is the kernel component responsible for implementing a scheduling policy — the specific rules used to choose which runnable entity executes next (Section 5).
 
@@ -21,7 +21,7 @@
 
 **Waiting/blocked state.** Already introduced in Concept 03 and Concept 04: a process or thread that exists, but cannot currently make progress because it's waiting for something (a file, a network reply, another event) — and, critically for this lesson, does not need CPU time while it waits.
 
-**Preemption.** Simple meaning: the OS's ability to interrupt a currently running task and hand the CPU to something else. Technical meaning: preemption is the scheduler's ability to suspend a currently executing task before it has voluntarily given up the CPU, in order to grant execution time to a different runnable entity (Section 5).
+**Preemption.** Simple meaning: in a preemptive scheduling system, the OS's ability to interrupt a currently running task and hand the CPU to something else. Technical meaning: in a preemptive scheduling system, the OS can suspend a currently executing task before it has voluntarily given up the CPU or finished, in order to grant execution time to a different runnable entity (Section 5).
 
 **Why scheduling exists, in one sentence, expanded fully in Section 2:** there is very often more runnable work than the CPU can execute all at once, so the operating system needs a mechanism for deciding, over and over, "who gets to execute now?"
 
@@ -70,7 +70,7 @@ must decide which two run first, for how long, and what happens next.
 
 Six runnable threads cannot all literally execute simultaneously on only two CPU cores — this is simply a physical fact about the hardware, not a design choice. **The operating system needs a mechanism for managing these limited execution opportunities fairly and effectively.** That mechanism is the scheduler.
 
-**With multiple cores, real parallel execution is possible** — up to as many runnable entities as there are cores can genuinely execute at the exact same instant (Concept 04's parallelism definition, reinforced in Section 6). **With only one core, tasks can still make progress through time-sharing** — the scheduler rapidly alternates which task is executing, so that over a longer stretch of time, multiple tasks each get *some* progress, even though at any single instant, only one is actually executing on that core.
+**With multiple independent hardware execution resources, real parallel execution is possible** — genuine simultaneous execution requires multiple such resources, commonly multiple logical CPUs, which may be provided by multiple physical CPU cores and/or simultaneous multithreading (hardware threads). Up to as many runnable entities as there are logical CPUs can genuinely execute at the exact same instant (Concept 04's parallelism definition, reinforced in Section 6). **With only one core, tasks can still make progress through time-sharing** — the scheduler rapidly alternates which task is executing, so that over a longer stretch of time, multiple tasks each get *some* progress, even though at any single instant, only one is actually executing on that core.
 
 **Why this matters even as core counts grow:** more cores raise the number of tasks that can genuinely run in parallel, but they don't eliminate the underlying problem — a busy production server can easily have far more runnable threads than it has cores, at which point scheduling decisions matter just as much as they would on a single-core machine.
 
@@ -158,7 +158,7 @@ Every time the scheduler makes a decision, it is choosing an answer to: **"Of ev
 
 ### Preemption
 
-**Preemption**, defined precisely: the scheduler's ability to interrupt a currently running task — before that task has voluntarily paused or finished — in order to let a different runnable task execute instead.
+**Preemption**, defined precisely: in a preemptive scheduling system, the OS can interrupt a running task — before it voluntarily yields or finishes — and give CPU time to another runnable task instead.
 
 **Why preemption exists:**
 
@@ -176,11 +176,11 @@ Task A:         ███
 Task C:             ████
 ```
 
-Each transition in this diagram represents a scheduling decision — the scheduler decided to interrupt whatever was currently running and grant CPU time to something else. **This lesson does not teach the hardware-level interrupt mechanism that makes preemption physically possible** — only the conceptual fact that the OS has this capability, and why it's useful.
+Each transition in this diagram represents a scheduling decision followed by a change of which task is executing — the scheduler decided to interrupt whatever was currently running and grant CPU time to something else. **This lesson does not teach the hardware-level interrupt mechanism that makes preemption physically possible** — only the conceptual fact that the OS has this capability, and why it's useful.
 
 ### Context switching
 
-**Context switch**, defined: the act of the CPU stopping execution of one task and beginning (or resuming) execution of another, while preserving enough of each task's state that it can correctly continue later, exactly where it left off.
+**Context switch**, defined: the act of the CPU stopping execution of one task and beginning (or resuming) execution of another, while preserving enough of each task's state that it can correctly continue later, exactly where it left off. A scheduling decision determines which runnable entity should execute; a context switch occurs only when execution actually changes from one task/thread to another (the scheduler can also select the task that is already running, in which case no switch happens).
 
 ```text
 Running task A
@@ -228,7 +228,7 @@ This distinction matters enormously for how a workload interacts with scheduling
 
 **CPU-bound.** Simple meaning: work that spends most of its time actually computing. Technical meaning: a CPU-bound task's execution time is dominated by CPU computation rather than waiting on external resources — it stays runnable and actively executing for long, largely continuous stretches whenever the scheduler grants it CPU time. Examples: numerical computation, CPU-heavy preprocessing, CPU-heavy data transformation.
 
-**I/O-bound.** Simple meaning: work that spends most of its time waiting for something else. Technical meaning: an I/O-bound task's execution time is dominated by waiting for external resources (network responses, disk/file operations, database operations, external API calls) rather than active computation — it frequently transitions into the waiting/blocked state, needing very little continuous CPU time relative to how long it takes overall to complete.
+**I/O-bound.** Simple meaning: work that spends most of its time waiting for something else. Technical meaning: an I/O-bound task's execution time is dominated by waiting for external resources (network responses, disk/file operations, database operations, external API calls) rather than active computation — it frequently transitions into the waiting/blocked state, needing very little continuous CPU time relative to how long it takes overall to complete. "I/O-bound" describes a workload that spends a large proportion of its time waiting on external resources relative to CPU computation; it does not necessarily mean zero or low CPU usage.
 
 **Why this distinction interacts differently with scheduling:** a CPU-bound task wants sustained CPU execution time and directly competes with other CPU-bound work for it; an I/O-bound task spends much of its life *not* runnable at all (while waiting), so it can share CPU capacity with other work far more easily, and preemption/context-switching between many I/O-bound tasks is often what makes a system with far more runnable-at-various-times tasks than cores still feel responsive.
 
@@ -248,7 +248,14 @@ This distinction matters enormously for how a workload interacts with scheduling
 
 **Throughput.** Simple meaning: how much total work gets completed over a stretch of time. Technical meaning: throughput measures the total volume of work a system completes per unit of time — for example, requests handled per second, or batches processed per hour.
 
-**Latency.** Simple meaning: how long one specific task takes to get done. Technical meaning: latency measures the time a single operation or task takes from when it becomes runnable (or is requested) to when it completes (or receives service).
+**Latency.** Simple meaning: how long one specific task takes to get done. Technical meaning: latency measures the time a single operation or task takes from when it becomes runnable (or is requested) to when it completes (or receives service). "Latency" is used loosely, so it helps to separate the pieces:
+
+```text
+Scheduling delay:  time a runnable task waits before receiving CPU execution.
+Execution/service time:  time spent doing the actual work once execution is available.
+Response latency:  time from a request/event until the requested result or response is produced.
+Throughput:  amount of completed work per unit of time.
+```
 
 **Why scheduling policy can involve a real trade-off between them:** a policy tuned to maximize total throughput might let some tasks wait relatively longer in exchange for more total work completed overall; a policy tuned to minimize latency for specific tasks might interrupt other work more frequently to keep response times low, at some cost to total throughput. **No single scheduler setting optimizes every workload** — a batch-processing workload generally cares most about throughput, while an interactive API request generally cares most about latency, and these preferences can genuinely conflict when both kinds of work share the same machine (Section 18's scenarios return to this directly).
 
@@ -256,7 +263,7 @@ This distinction matters enormously for how a workload interacts with scheduling
 
 **One CPU core:** one execution stream can execute at any given instant — multiple runnable tasks on one core must take turns (time-sharing/concurrency, Section 6).
 
-**Multiple CPU cores:** multiple execution streams can execute at the exact same instant — genuine parallelism becomes possible, up to the number of cores available.
+**Multiple logical CPUs (independent hardware execution resources):** multiple execution streams can execute at the exact same instant — genuine parallelism becomes possible, up to the number of logical CPUs available. These may come from multiple physical CPU cores and/or simultaneous multithreading (hardware threads).
 
 **The scheduler's job, generalized to multiple cores:** it must coordinate runnable work across *all* available CPU execution resources — deciding not just "who runs next" but "who runs next, and on which core." **This lesson does not teach CPU affinity configuration, NUMA, cache topology, or advanced load-balancing algorithms** — all genuinely important topics for advanced systems engineering, but well beyond this beginner-level foundation.
 
@@ -310,7 +317,7 @@ Core 1:  A   A   A   A   A   A
 Core 2:  B   B   B   B   B   B
 ```
 
-Here, A and B genuinely execute at the same instant, on separate cores — this is parallelism, and it requires more than one execution resource to be possible at all.
+Here, A and B genuinely execute at the same instant, on separate execution resources (shown as cores; more precisely, logical CPUs) — this is parallelism, and it requires more than one independent hardware execution resource to be possible at all.
 
 **Scheduling is what enables controlled sharing of CPU execution opportunities in both cases** — on a single core, it's the entire mechanism making concurrency possible; on multiple cores, it additionally decides how to distribute runnable work across the available parallel execution resources.
 
@@ -336,11 +343,21 @@ CPU execution
 **Two scheduling-relevant layers, kept clearly separate:**
 
 - **OS scheduling** — what this lesson teaches: the kernel deciding which runnable OS thread/process gets CPU time. This layer exists for every program on the system, in every language.
-- **Python runtime behavior (the GIL)** — a CPython-specific constraint, already introduced in Concept 04, that affects which of a Python process's *threads* can be actively executing Python bytecode at a given moment, even when the OS scheduler has made multiple of that process's threads "running" from the OS's point of view.
+- **Python runtime behavior (the GIL)** — a CPython runtime-level mechanism (not the OS scheduler), already introduced in Concept 04. In the traditional GIL-enabled CPython build, it restricts execution so that only one thread at a time executes Python bytecode within that interpreter, even when the OS scheduler has made multiple of that process's threads "running" from the OS's point of view. Python 3.13+ also supports free-threaded builds where the GIL can be disabled; in those builds, Python threads can execute Python code in parallel on multiple available logical CPUs, and the exact runtime/build configuration matters.
 
-**These are not the same concept, and conflating them is a direct source of confusion:** the OS scheduler can absolutely grant CPU time to more than one of a Python process's threads; what CPython's GIL constrains is something layered *on top of* that, specific to CPU-bound Python bytecode execution within one process. I/O-bound Python workloads (Section 5, Section 18) benefit from OS-level thread scheduling largely undisturbed by this extra constraint, because a thread that's waiting on I/O isn't holding the GIL in the first place. **This lesson does not re-teach the GIL's full mechanics** (Concept 04 already covered it carefully) — only its relationship to the OS-scheduling concepts this lesson introduces.
+```text
+OS scheduler
+     ↓
+OS threads/tasks
+     ↓
+CPython runtime
+     ↓
+GIL-enabled vs free-threaded behavior
+```
 
-**Why processes provide a separate execution context worth remembering here:** because CPython's GIL applies within a single process, running separate Python *processes* (Concept 03) — each with its own interpreter and its own GIL — is one way real systems get around GIL-related constraints for CPU-bound work. This lesson does not teach Python multiprocessing in depth; it is mentioned only to connect this lesson's scheduling model back to the process/thread distinction Concepts 03–04 already built.
+**These are not the same concept, and conflating them is a direct source of confusion:** OS scheduling ≠ the Python GIL. The OS scheduler can absolutely grant CPU time to more than one of a Python process's threads; what the GIL constrains (in GIL-enabled builds) is something layered *on top of* that, specific to CPU-bound Python bytecode execution within one process. I/O-bound Python workloads (Section 5, Section 18) benefit from OS-level thread scheduling largely undisturbed by this extra constraint, because a thread that's waiting on I/O isn't holding the GIL in the first place. **This lesson does not re-teach the GIL's full mechanics** (Concept 04 already covered it carefully) — only its relationship to the OS-scheduling concepts this lesson introduces.
+
+**Why processes provide a separate execution context worth remembering here:** because the GIL in GIL-enabled CPython applies within a single interpreter, running separate Python *processes* (Concept 03) — each with its own interpreter and its own GIL — is one common way real systems get around GIL-related constraints for CPU-bound work (free-threaded CPython builds are another option). This lesson does not teach Python multiprocessing in depth; it is mentioned only to connect this lesson's scheduling model back to the process/thread distinction Concepts 03–04 already built.
 
 ---
 
@@ -463,10 +480,21 @@ print("done, x =", x)
 
 This busy-loop runs for a fixed 2.5 seconds of wall-clock time, regardless of the machine's speed, then exits — a deliberately bounded, safe stand-in for genuine CPU-bound work.
 
-**Step 1 — start two of these processes at once**, to create more runnable CPU-bound work than a single core could handle alone, and capture their PIDs:
+**Step 1 — start two of these processes at once**, to create more runnable CPU-bound work than a single core could handle alone, and capture their PIDs. First define the bounded busy-loop code above as a shell variable (copy-paste the whole block):
 
 ```bash
-python3 -c "$CMD" &   # CMD holds the busy-loop code above
+CMD='import time
+start = time.time()
+x = 0
+while time.time() - start < 2.5:
+    x += 1
+print("done, x =", x)'
+```
+
+Then launch both processes:
+
+```bash
+python3 -c "$CMD" &
 PID1=$!
 python3 -c "$CMD" &
 PID2=$!
@@ -493,7 +521,7 @@ Actual observed output:
    5698    5695 R    98.7  0.2 python3 -c ...
 ```
 
-**What this demonstrates, concretely:** both processes show `STAT R` (running — Concept 03's Linux-specific state notation) and roughly `98.7%` CPU each, at the same moment. Because this environment has 8 logical CPUs (confirmed above) and only 2 CPU-bound processes were competing, **both got to run in genuine parallel**, each essentially saturating one logical CPU — a direct, observed instance of Section 6's "multiple cores permit genuine parallelism" diagram, with real numbers instead of an abstract example. On a machine with fewer available CPUs than runnable CPU-bound tasks, this same lab would instead show lower per-process `%CPU` figures, as the scheduler time-shared a smaller number of cores across more runnable work — this lesson did not need to force that scenario to demonstrate the underlying principle, since the principle itself (Section 2, Section 6) holds regardless of which specific numbers a given machine happens to produce.
+**What this demonstrates, concretely:** both processes show `STAT R` (Linux's "running or runnable" state — it may be executing on a CPU at the moment of observation, or runnable and waiting for CPU time; Concept 03's Linux-specific state notation) and roughly `98.7%` CPU each, at the same moment. The near-100% `%CPU` figures (a measurement, not a scheduler trace) suggest each was actually executing. Because this environment has 8 logical CPUs (confirmed above) and only 2 CPU-bound processes were competing, **both most likely got to run in genuine parallel**, each essentially saturating one logical CPU — a direct, observed instance of Section 6's "multiple independent execution resources permit genuine parallelism" diagram, with real numbers instead of an abstract example. On a machine with fewer available CPUs than runnable CPU-bound tasks, this same lab would instead show lower per-process `%CPU` figures, as the scheduler time-shared a smaller number of cores across more runnable work — this lesson did not need to force that scenario to demonstrate the underlying principle, since the principle itself (Section 2, Section 6) holds regardless of which specific numbers a given machine happens to produce.
 
 **Step 3 — a `top` snapshot capturing the same kind of moment**, from a separate single-process run of the same bounded workload:
 
@@ -513,7 +541,7 @@ Tasks:  33 total,   2 running,  31 sleeping,   0 stopped,   0 zombie
       1 root      20   0   24416  14688  10620 S   0.0   0.4   0:01.81 systemd
 ```
 
-The bounded Python process (PID `5716`) shows `S` (state) `R` and `100.0%` CPU, actively saturating one logical CPU, while `systemd` (PID `1`) sits at `0.0%` — visibly `S` (sleeping/waiting), consistent with Section 5's "a waiting task generally does not need to consume CPU continuously."
+The bounded Python process (PID `5716`) shows `S` (state) `R` (running or runnable) and `100.0%` CPU, which indicates it was saturating one logical CPU, while `systemd` (PID `1`) sits at `0.0%` — visibly `S` (sleeping/waiting), consistent with Section 5's "a waiting task generally does not need to consume CPU continuously."
 
 **Step 4 — let both processes finish naturally, and verify cleanup:**
 
@@ -546,7 +574,7 @@ Both processes completed on their own (their bounded 2.5-second loops simply ran
 | "If a process is running, it is continuously using the CPU." | "Running" means currently executing at this instant; a process can be running now and waiting a moment later, and the two states can alternate rapidly (Section 5). |
 | "Every process gets its own CPU core." | Only as many processes/threads as there are cores can literally execute at the same instant; the rest share cores via time-sharing (Section 2, Section 6). |
 | "The OS runs all processes at exactly the same time." | On a machine with fewer cores than runnable tasks, tasks take turns (concurrency), not literal simultaneous execution (Section 6). |
-| "Concurrency means parallelism." | Concurrency is overlapping progress over time; parallelism specifically requires literal simultaneous execution on separate cores (Section 6) — Concept 04 already introduced this distinction, and it applies identically here. |
+| "Concurrency means parallelism." | Concurrency is overlapping progress over time; parallelism specifically requires literal simultaneous execution on separate hardware execution resources (logical CPUs, Section 6) — Concept 04 already introduced this distinction, and it applies identically here. |
 | "Multiple CPU cores mean scheduling is no longer necessary." | Even with many cores, the number of runnable tasks can still exceed available cores (Section 2); scheduling remains necessary whenever that's true. |
 | "The scheduler chooses the process that started first." | Real scheduling policies weigh multiple factors (priority, fairness, task behavior, and more — Section 5), not simply arrival order. |
 | "The scheduler simply gives every process the same amount of CPU time." | Real policies are more nuanced than strict equal division, accounting for priority and other factors (Section 5) — this lesson deliberately avoids claiming any single simple rule describes real schedulers. |
@@ -558,7 +586,7 @@ Both processes completed on their own (their bounded 2.5-second loops simply ran
 | "Low CPU usage means a process is healthy." | Low CPU usage can also mean a process is stuck waiting on something that should have responded already (Section 11's Scenario 7) — low usage alone doesn't guarantee everything is fine. |
 | "I/O-bound tasks do not involve scheduling." | I/O-bound tasks are still scheduled during the (often brief) periods when they are runnable; they simply spend more time in the waiting/blocked state, needing CPU less continuously (Section 5). |
 | "The OS scheduler understands Python functions." | The scheduler operates on OS-managed threads and processes; it has no concept of Python-level functions, objects, or logical tasks (Section 6). |
-| "Python's GIL is the same thing as the OS scheduler." | The OS scheduler decides which OS threads get CPU time; the GIL is a separate, CPython-specific constraint layered on top of that, affecting which thread can execute Python bytecode at a given moment (Section 6). |
+| "Python's GIL is the same thing as the OS scheduler." | The OS scheduler decides which OS threads get CPU time; the GIL is a separate, CPython runtime-level mechanism layered on top of that, which in GIL-enabled builds affects which thread can execute Python bytecode at a given moment (Section 6). |
 | "The GIL means Python threads never run concurrently." | Python threads can still make concurrent progress, especially for I/O-bound work, where a thread waiting on I/O isn't holding the GIL (Concept 04, Section 6). |
 | "Scheduling only matters for operating-system developers." | Every Python AI service's real-world latency and throughput is directly shaped by scheduling decisions happening underneath it (Section 3, Section 18). |
 | "GPU acceleration makes CPU scheduling irrelevant." | CPU-side preparation, orchestration, and data movement around GPU-accelerated work still depend entirely on ordinary CPU scheduling (Section 3). |
@@ -692,7 +720,7 @@ Work through these in your own words. No answer key exists for this lesson — t
 
 - Correctly define CPU scheduling, runnable, running, and waiting/blocked, in your own words.
 - Explain why an operating system needs a scheduler, referencing the CPU-capacity-vs-workload problem.
-- Correctly distinguish concurrency from parallelism, and explain why multiple cores are required for genuine parallelism.
+- Correctly distinguish concurrency from parallelism, and explain why multiple independent hardware execution resources (commonly multiple logical CPUs) are required for genuine parallelism.
 - Explain preemption and context switching, including why context switching has real overhead.
 - Explain the difference between CPU-bound and I/O-bound work, and why they interact differently with scheduling.
 - Explain the difference between throughput and latency, and why scheduling can involve trade-offs between them.
@@ -702,7 +730,7 @@ Work through these in your own words. No answer key exists for this lesson — t
 **What the practical scheduling observations should generally demonstrate, regardless of the exact numbers:**
 
 - Two bounded CPU-bound processes, run at the same time on a machine with enough available CPUs, should each show `%CPU` close to what a single core can provide (often near 100% each, if enough cores are free) — a direct, observable instance of parallelism.
-- A CPU-bound process's `ps`/`top` state should show as actively running (`R`) while it's genuinely computing; a waiting process (like a typical idle system service) should show a much lower `%CPU` and a waiting/sleeping state (`S`).
+- A CPU-bound process's `ps`/`top` state should show as `R` (running or runnable) while it's genuinely computing, usually with high `%CPU` if it is actually executing; a waiting process (like a typical idle system service) should show a much lower `%CPU` and a waiting/sleeping state (`S`).
 - Bounded processes should terminate on their own, without needing `kill`, and disappear from `ps` afterward.
 
 **Possible environment-dependent results — these will vary by machine and are expected to vary:**
@@ -711,7 +739,7 @@ Work through these in your own words. No answer key exists for this lesson — t
 - The exact `%CPU` values you observe for concurrently running bounded processes depend on your core count, current system load, and what else is running on your machine or host at the time — this lesson's environment happened to have enough spare cores (8) for two bounded processes to run without meaningful contention; a busier or smaller machine could show lower per-process percentages instead, which would still be entirely consistent with this lesson's model.
 - Whether `htop` is installed depends on your specific environment — this lesson's environment did not have it, and that did not block the lesson's practical work.
 
-**Why observed CPU percentages are measurements, not a direct view of every scheduler decision:** as Section 11's Scenario 6 explained, `%CPU` reflects a sampled measurement over some time window, not a complete, instant-by-instant record of every scheduling decision the kernel made — treat it as a useful, genuine signal, not a literal transcript of the scheduler's internal reasoning.
+**Why observed CPU percentages are measurements, not a direct view of every scheduler decision:** as Section 11's Scenario 6 explained, `%CPU` reflects a sampled measurement over some time window, not a complete, instant-by-instant record of every scheduling decision the kernel made — treat it as a useful, genuine signal, not a literal transcript of the scheduler's internal reasoning. `ps` `%CPU` has its own measurement semantics (CPU time relative to how long the process has been running), `top` samples and refreshes over an update interval, and observed values vary by tool and environment.
 
 ---
 
@@ -742,7 +770,7 @@ Answers are intentionally not provided directly below these questions.
 ### Concurrency and parallelism
 
 - What is the difference between concurrency and parallelism?
-- Why does genuine parallelism require multiple CPU cores?
+- Why does genuine parallelism require multiple independent hardware execution resources (commonly multiple logical CPUs)?
 
 ### Preemption and context switching
 

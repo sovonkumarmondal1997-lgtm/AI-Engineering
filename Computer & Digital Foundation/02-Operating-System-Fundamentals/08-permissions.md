@@ -96,7 +96,7 @@ Imagine a building where every room has a rule posted on its door: who may enter
 
 **Where this analogy must not replace the technical model, and breaks down:**
 
-- A building's front desk can use human judgment ("I recognize you, go ahead"); the OS's permission check (Section 6) is entirely mechanical — it checks exactly three category-based rules (owner/group/others, Section 5), nothing more.
+- A building's front desk can use human judgment ("I recognize you, go ahead"); the OS's permission check (Section 6) is entirely mechanical — for the traditional Unix permission-bit model taught in this lesson, the check uses the owner, group, and others permission categories (Section 5). Linux can also apply additional access-control mechanisms, which are outside this lesson's scope.
 - "Read," "write," and "execute" mean something genuinely different for a *directory* than for a regular file (Section 5's dedicated "Files vs. Directories" section) — a detail this simple room analogy cannot capture, and that this lesson insists on getting exactly right.
 - Real permissions are represented as precise, structured data — three-bit combinations, expressible in both symbolic and numeric form (Section 5) — not a vague, informal posted rule.
 
@@ -110,7 +110,7 @@ The rest of this lesson moves from this everyday intuition into the actual, prec
 
 **User.** Every person or service account on a Linux system has an identity the OS tracks.
 
-**UID (User ID).** Simple meaning: the number the OS actually uses internally to represent a user's identity. Technical meaning: the UID is the numeric identifier the kernel uses for permission checks; the human-readable username is just a convenient label mapped to that number.
+**UID (User ID).** Simple meaning: the number the OS actually uses internally to represent a user's identity. Technical meaning: the UID is the numeric identifier the kernel uses to represent a user's identity; in the ordinary Unix/Linux permission model, the process's user and group credentials (including any supplementary groups) are used to determine which permission category applies. The human-readable username is just a convenient label mapped to that number.
 
 **Group.** A named collection of users, used to grant a shared level of access to multiple users at once, without having to grant it to each individually.
 
@@ -139,7 +139,7 @@ sovon adm cdrom sudo dip plugdev users
 
 ### Permission categories
 
-Every file and directory's permissions are organized into exactly three categories:
+In the traditional Unix/Linux permission-bit model, access permissions are divided into three categories: owner, group, and others.
 
 | Category | Applies to |
 |---|---|
@@ -168,7 +168,7 @@ Each category gets its own, independently set combination of read/write/execute 
 **For a directory:**
 
 - **`r` (read)** — permission to **list** the names of entries inside the directory (what `ls` shows) — this is *not* the same as being able to read the *content* of the files inside it.
-- **`w` (write)** — permission to **create, rename, or delete entries within the directory** — this is *not* "edit the directory like a text file"; a directory has no editable "content" in that sense. Having write on a directory affects whether you can add or remove things *inside* it, not whether you can modify the directory's own listing directly.
+- **`w` (write)** — permission to **create, rename, or delete entries within the directory** (directory write permission allows modification of directory entries, subject to additional restrictions such as the sticky bit) — this is *not* "edit the directory like a text file"; a directory has no editable "content" in that sense. Having write on a directory affects whether you can add or remove things *inside* it, not whether you can modify the directory's own listing directly.
 - **`x` (execute)** — permission to **traverse into the directory** — that is, to actually enter it and access things inside it by name (including files whose exact name you already know), *combined with whatever permissions apply to those specific items*.
 
 **Why this distinction matters so much: read and execute on a directory answer two different questions.** `r` on a directory answers "can I see what's in here (get a listing)?" `x` on a directory answers "can I actually get in and reach something inside, by name?" These are independent — Section 9's genuinely observed lab demonstrates both directions of this directly: a directory with `x` but not `r` lets you access a specific, already-known filename inside it but not list its contents; a directory with `r` but not `x` lets you list what's inside but not actually access any of it.
@@ -196,7 +196,7 @@ x = 1
 | read + write | 6 | `rw-` |
 | read + write + execute | 7 | `rwx` |
 
-**A full permission value is three digits — one for owner, one for group, one for others — read left to right:**
+**In the basic `rwx` model, permissions are commonly represented using three octal digits — one for owner, one for group, one for others — read left to right** (Linux also supports additional special mode bits, which are outside this lesson's scope):
 
 | Numeric | Owner | Group | Others | Meaning |
 |---|---|---|---|---|
@@ -356,7 +356,7 @@ Python receives success or error                    (data, or a permission-relat
 
 **Connecting each step to earlier Module 0.2 concepts, without repeating them:**
 
-- **User space and the kernel (Concept 01):** the Python process runs in user space and has no ability to directly grant itself access — the decision is made entirely by the kernel, the one trusted, privileged component with authority over this.
+- **User space and the kernel (Concept 01):** the Python process runs in user space and has no ability to directly grant itself access — the decision is made by the kernel, the trusted, privileged component with authority over this. (This lesson teaches the traditional Unix/Linux permission-bit model; Linux can also apply additional access-control mechanisms, which are intentionally outside this lesson's scope.)
 - **System calls (Concept 02):** "requests file access" is, underneath, exactly the system-call mechanism Concept 02 introduced — the permission check happens as part of the kernel's handling of that call, at the "validation" step Concept 02 already described in general terms.
 - **Processes (Concept 03):** the "process/user/group identity" the OS checks is the requesting process's own identity, established when it was created (a preview of the Process Lifecycle lesson still ahead).
 - **Filesystems (Concept 07):** the "target resource metadata" is precisely the metadata Concept 07 introduced — owner, group, and permission bits, stored alongside every file and directory.
@@ -402,7 +402,7 @@ Application Behavior
 
 | Concept | Relationship to permissions | Prerequisite or later? | Full treatment |
 |---|---|---|---|
-| Kernel and User Space | The kernel is the sole authority that enforces permission checks; user-space code cannot bypass them | Prerequisite (Concept 01) | Already covered |
+| Kernel and User Space | The kernel is the trusted authority that enforces the permission-bit checks taught here; user-space code cannot bypass them | Prerequisite (Concept 01) | Already covered |
 | System Calls | Permission checks happen as part of the kernel's handling of file-related system calls (Section 6) | Prerequisite (Concept 02) | Already covered |
 | Processes | A process's identity (UID/GID, inherited at creation) is exactly what permission checks evaluate against | Prerequisite (Concept 03) | Already covered |
 | Threads | Threads within a process share that process's identity, and therefore share the same permission outcomes | Prerequisite (Concept 04) | Already covered |
@@ -481,7 +481,7 @@ hello
 /bin/bash: line 20: notes.txt: Permission denied
 ```
 
-**This is a genuinely important, often-surprising result: even the file's *owner* is denied write access once the write bit is removed.** Permission bits are not a suggestion that only applies to "other people" — they apply to the owner's own access too, exactly as literally specified.
+**This is a genuinely important, often-surprising result: even the file's *owner* is denied write access once the write bit is removed (for an ordinary unprivileged process).** Permission bits are not a suggestion that only applies to "other people" — they apply to the owner's own access too, exactly as literally specified.
 
 ### 4. Restoring safe permissions
 
@@ -637,7 +637,7 @@ Verify
 
 1. *Problem:* a Python program raises this exact error trying to open a file.
 2. *Beginner's likely assumption:* "The file must be missing, or my code has a typo."
-3. *Correct mental model:* this specific error means the file was *found*, but access to it was refused by the permission check (Section 6) — a different failure category from `FileNotFoundError` (Section 10).
+3. *Correct mental model:* `PermissionError` means the requested operation was denied because the process lacked sufficient access rights. The denial may involve the target file, a directory in the path, or another access-control condition (Section 6) — a different failure category from `FileNotFoundError` (Section 10).
 4. *Investigation approach:* run `whoami`/`id` to confirm which identity is actually running the script, then `ls -l`/`stat` on the target file to compare its owner/group/permission bits against that identity.
 5. *Expected conclusion:* the requesting identity does not have the required permission category (owner/group/others) satisfied for the requested operation — the fix is granting the *minimum* needed access to the *correct* identity, not blanket-opening the file.
 
