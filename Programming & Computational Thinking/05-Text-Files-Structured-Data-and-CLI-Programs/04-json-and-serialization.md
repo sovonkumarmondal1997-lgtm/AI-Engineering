@@ -238,7 +238,14 @@ and the CSV chapter's own §38.2, both return to this).
   `True`, `False`, `None`, `TRUE`, or `Null` are all invalid JSON.
 - **Numbers are written without quotes**, and without leading zeros
   (except a bare `0` itself) — `42`, `3.14`, `-7`, `1.5e10` are all
-  valid; `042` is not.
+  valid; `042` is not. Standard JSON numbers also do not permit a
+  leading `+` (`+1`), a missing integer part (`.5`), or a trailing
+  decimal point (`1.`); an exponent is `e` or `E`, an optional sign,
+  and digits (`1e5`, `2.5E-3`).
+- **Strings may contain only these escape forms:** `\"`, `\\`, `\/`,
+  `\b`, `\f`, `\n`, `\r`, `\t`, and `\uXXXX`. Control characters
+  (code points below U+0020, such as a literal newline or tab) are not
+  permitted unescaped inside a JSON string.
 - **Objects use `{` `}`; arrays use `[` `]`** — these are not
   interchangeable.
 
@@ -485,7 +492,7 @@ introduces `json.dump()` — no `s` — which does both at once).
 
 ### 10.1 The full signature
 
-```python
+```text
 json.dumps(
     obj,
     *,
@@ -568,9 +575,9 @@ print(type(data))
 <class 'dict'>
 ```
 
-**Input:** a `str` (or `bytes`/`bytearray`, historically, though
+**Input:** a `str` (or `bytes`/`bytearray`, though
 passing already-decoded `str` explicitly is the recommended, explicit
-practice, §16.3) that must contain syntactically valid JSON text.
+practice, §16.3) that must contain JSON text the decoder accepts.
 **Output:** the corresponding Python object — a `dict` for a JSON
 object, a `list` for a JSON array, and so on down to the appropriate
 Python primitive for every nested value, all the way through arbitrary
@@ -581,7 +588,7 @@ nesting depth, strings, lists, dictionaries, numbers, booleans, and
 
 ### 12.1 The full signature
 
-```python
+```text
 json.loads(
     s,
     *,
@@ -681,7 +688,7 @@ opening is sufficient.
 
 ### 14.1 The same serialization options as `dumps()`, plus a file target
 
-```python
+```text
 json.dump(
     obj,
     fp,
@@ -706,6 +713,12 @@ Every parameter from §10.2 (`skipkeys`, `ensure_ascii`,
 into.
 
 ### 14.2 Stream-specific behavior
+
+**Warning:** JSON is not a framed record format. Repeatedly calling
+`json.dump()` against the same file stream to append multiple
+independent JSON values does not produce one valid JSON document. Use
+one enclosing JSON structure or a record-oriented format such as JSON
+Lines (§41) when you need multiple independently processed records.
 
 `json.dump()` writes incrementally to `fp` as it serializes, rather
 than necessarily building the complete JSON string in memory first and
@@ -770,9 +783,11 @@ function received a value of the wrong shape for what it expects.
 
 ### 16.3 A brief note on bytes input
 
-Historically, `json.loads()`/`json.load()` could also accept `bytes` or
-`bytearray` input directly, using `json.detect_encoding()` internally
-to guess the text encoding per the JSON specification's own rules. The
+`json.loads()` accepts a `str`, `bytes`, or `bytearray` containing JSON
+data (for bytes input it uses `json.detect_encoding()` internally to
+guess the text encoding per the JSON specification's own rules).
+`json.load()` accepts an already-open file object, which may be a
+binary file object. The
 clearer, more explicit, and recommended practice — consistent with
 every principle
 [01-reading-and-writing-text-files.md](01-reading-and-writing-text-files.md)'s
@@ -803,6 +818,14 @@ Notice the encode side accepts a **`tuple`** (converted to a JSON
 array, indistinguishable on the way back out) even though the decode
 side never *produces* one — this is exactly §6.2's "what Python has
 that JSON does not" point, made concrete in table form.
+
+Note also that the table describes values; JSON object **keys** are
+always strings. On encode, `dict` keys that are `str` are used as-is,
+`int`, `float`, `bool`, and `None` keys are converted to strings
+(`"1"`, `"2.5"`, `"true"`, `"null"`), and other key types raise
+`TypeError` (unless `skipkeys=True`) — so not every Python `dict` maps
+directly to JSON, and keys do not round-trip back to their original
+types.
 
 ### 17.3 Types with no direct mapping at all
 
@@ -989,7 +1012,7 @@ encoder has no built-in rule for `datetime` objects (or `Decimal`,
 ### 21.2 `default=` — the simplest fix
 
 ```python
-json.dumps({"timestamp": datetime.now()}, default=str)
+json.dumps({"timestamp": datetime(2026, 9, 21, 14, 3, 0, 123456)}, default=str)
 ```
 
 ```text
@@ -1138,7 +1161,7 @@ text = '{"name": "Alice"} some trailing text here'
 data, end_index = decoder.raw_decode(text)
 
 print(data)          # {'name': 'Alice'}
-print(end_index)       # 18  -- the character position where the JSON value ended
+print(end_index)       # 17  -- the character position where the JSON value ended
 ```
 
 `.raw_decode(s, idx=0)` parses **one JSON value starting at position
@@ -1455,7 +1478,7 @@ json.dumps(float("nan"), allow_nan=False)
 ```text
 Traceback (most recent call last):
   ...
-ValueError: Out of range float values are not JSON compliant
+ValueError: Out of range float values are not JSON compliant: nan
 ```
 
 `allow_nan=False` makes the encoder **refuse to serialize** these
@@ -1476,7 +1499,7 @@ print(json.dumps(data))
 ```
 
 ```text
-{"city": "Kolkata", "language": "বাংলা"}
+{"city": "Kolkata", "language": "\u09ac\u09be\u0982\u09b2\u09be"}
 ```
 
 By default, every character outside the plain ASCII range is escaped as
@@ -1702,8 +1725,8 @@ except json.JSONDecodeError as error:
 ```
 
 ```text
-Invalid JSON: Expecting value: line 1 column 28 (char 27)
-Line 1, column 28 (char 27)
+Invalid JSON: Expecting value: line 1 column 26 (char 25)
+Line 1, column 26 (char 25)
 ```
 
 `json.JSONDecodeError` (a subclass of the built-in `ValueError`) is
@@ -1725,7 +1748,9 @@ data = json.loads(text)   # succeeds -- this IS syntactically valid JSON
 ```
 
 `json.loads()` succeeding tells you exactly one thing: **the text was
-syntactically well-formed JSON.** It tells you **nothing** about
+accepted by Python's JSON decoder** — which, with its default permissive
+handling (e.g. `NaN`/`Infinity`, §28–§29), does not necessarily mean the
+input strictly conforms to the JSON specification. It tells you **nothing** about
 whether the *resulting data* makes sense for your application —
 `{"age": "hello"}` parses without error, even though `"hello"` is
 obviously not a sensible age. **Never treat successful `json.loads()`
@@ -1819,7 +1844,7 @@ DEFAULT_CONFIG = {"features": {"logging": False}}
 
 def load_config(path: Path) -> dict:
     raw = json.loads(path.read_text(encoding="utf-8"))
-    validate_config(raw)   # §34.2's function, or an extended version of it
+    validate_config(raw)   # §34.2's pattern, adapted to this example's "app" shape (name and version live under "app")
 
     config = {**DEFAULT_CONFIG, **raw}
     return config
@@ -1831,7 +1856,11 @@ def load_config(path: Path) -> dict:
 supplies `DEFAULT_CONFIG`'s values for anything `raw` does not itself
 provide (a genuinely nested config would need a more careful, recursive
 merge — left as a natural extension, not developed fully here).
-**Validation** is §34.2's job, applied immediately after parsing.
+**Validation** is §34.2's job, applied immediately after parsing —
+for this §35.1 example, that means checking `raw["app"]["name"]` and
+`raw["app"]["version"]` rather than §34.2's top-level `"version"` and
+`"application"` fields (the validation pattern is identical; only the
+field names differ).
 **Versioning** — checking a `"version"`/`"schema_version"` field before
 trusting the rest of the structure — is §40's own, fuller subject.
 **Environment overrides** (letting an environment variable override a
@@ -1996,9 +2025,12 @@ not fully control (a network request, a file another process could
 write to, user input), an attacker can supply text that is not JSON at
 all, but a malicious Python expression, and have it **execute** with
 your program's own privileges. `json.loads()`, by contrast, is a
-dedicated **parser** — it can only ever produce the six JSON value
-types (§4.1), and has no mechanism to execute arbitrary code, no matter
-what text it is given. **There is never a legitimate reason to use
+dedicated **parser** — without custom hooks, the standard decoder
+produces Python representations of the JSON value types (§4.1);
+custom decoder hooks (`object_hook`, `parse_float`, and so on) can
+deliberately transform decoded values into other Python objects. Unlike
+`eval()`, `json.loads()` does not execute arbitrary Python expressions
+from the input, no matter what text it is given. **There is never a legitimate reason to use
 `eval()` to parse JSON — `json.loads()` is always the correct tool,
 with no exceptions.**
 
@@ -2069,8 +2101,10 @@ simply placed one per line.
 Exactly §40.1's limitation is what JSON Lines directly solves: because
 each line is an **independent, complete** JSON value, a file can be
 processed **one line, one record, at a time** — read a line, parse
-*just that line* with `json.loads()`, process it, move on — without
-ever needing the entire file's structure in memory at once. This makes
+*just that line* with `json.loads()`, process it, move on — so
+memory does not need to grow with the total number of records (peak
+memory still depends on the current record's size and any state you
+retain while processing). This makes
 JSON Lines a natural fit for **logs** (one JSON-formatted log entry per
 line, appended over time, exactly mirroring
 [01-reading-and-writing-text-files.md](01-reading-and-writing-text-files.md)'s
@@ -2099,6 +2133,12 @@ def write_json_lines(path: Path, records: Iterator[dict]) -> None:
             f.write(json.dumps(record))
             f.write("\n")
 ```
+
+This simple reader stops at the first malformed line, because
+`json.loads()` raises `json.JSONDecodeError`. A production ingestion
+reader that must continue past isolated bad records should catch
+`json.JSONDecodeError` at the record (line) boundary and log or
+quarantine that line.
 
 **Nothing new is needed here** — this is exactly
 [01-reading-and-writing-text-files.md](01-reading-and-writing-text-files.md)'s
@@ -2155,6 +2195,10 @@ def save_json_safely(path: Path, data: object) -> None:
     temporary_path.write_text(json.dumps(data, indent=2), encoding="utf-8")
     temporary_path.replace(path)
 ```
+
+This is a basic single-writer pattern. A production system with
+concurrent writers may need a uniquely named temporary file and
+additional coordination/durability guarantees.
 
 Directly reusing
 [02-pathlib-and-portable-paths.md](02-pathlib-and-portable-paths.md)'s
@@ -2433,8 +2477,10 @@ json.dumps({"status": Status.ACTIVE.value})
 {"status": "active"}
 ```
 
-**`Enum` has no built-in JSON mapping** (§17.3) — you must explicitly
-choose what to serialize. **Choosing between `.name` (`"ACTIVE"`) and
+**Ordinary `Enum` members are not directly serializable by the default
+JSON encoder** (§17.3; `int`- and `float`-derived Enum classes such as
+`IntEnum` have special support) — you must explicitly choose what to
+serialize. **Choosing between `.name` (`"ACTIVE"`) and
 `.value` (`"active"`) is a deliberate data-contract decision**, not an
 arbitrary one: `.value` is often more meaningful to an external system
 that has no knowledge of your Python `Enum` class at all; `.name`
@@ -2472,7 +2518,7 @@ that reintroduces exactly the precision loss `Decimal` exists to avoid.
 ```python
 from datetime import datetime
 
-now = datetime.now()
+now = datetime(2026, 9, 21, 14, 3, 0, 123456)
 json.dumps({"created_at": now})
 ```
 
@@ -2523,6 +2569,9 @@ Traceback (most recent call last):
   ...
 TypeError: Object of type PosixPath is not JSON serializable
 ```
+
+(On POSIX systems the error names `PosixPath`; on Windows it names
+`WindowsPath`.)
 
 ```python
 json.dumps({"output": str(Path("data/results.json"))})
@@ -2849,8 +2898,8 @@ data = eval(text)
 # GOOD
 data = json.loads(text)
 ```
-**Why:** §39.3 — `eval()` executes arbitrary code; `json.loads()` can
-only ever produce JSON's six value types.
+**Why:** §39.3 — `eval()` executes arbitrary code; `json.loads()` (without custom hooks) produces only
+Python representations of JSON's value types and never executes the input.
 
 ```python
 # BAD -- data is already a dict; this raises TypeError
@@ -3036,8 +3085,8 @@ Python's `json` module.
 |---|---|---|---|---|---|
 | `json.dumps` | Serialize to a `str` | `json.dumps(obj, **opts)` | `indent`, `sort_keys`, `default`, `ensure_ascii`, ... (§10) | `str` | Never writes a file |
 | `json.loads` | Deserialize from a `str` | `json.loads(s, **opts)` | `object_hook`, `parse_float`, `parse_int`, ... (§12) | The corresponding Python object | Requires syntactically complete JSON text |
-| `json.dump` | Serialize directly to a file object | `json.dump(obj, fp, **opts)` | Same as `dumps`, plus `fp` | `None` | `fp` must already be open, in text mode |
-| `json.load` | Deserialize directly from a file object | `json.load(fp, **opts)` | Same as `loads`, plus `fp` | The corresponding Python object | Open with explicit `encoding="utf-8"` (§13.2) |
+| `json.dump` | Serialize directly to a file object | `json.dump(obj, fp, **opts)` | Same as `dumps`, plus `fp` | `None` | `fp` must already be open, in text mode (it receives JSON text) |
+| `json.load` | Deserialize directly from a file object | `json.load(fp, **opts)` | Same as `loads`, plus `fp` | The corresponding Python object | `fp` must be a readable file-like object (text or binary file objects work); for normal text-file use, specify `encoding="utf-8"` (§13.2) |
 | `json.detect_encoding` | Guess text encoding from raw bytes, per the JSON spec | `json.detect_encoding(b)` | — | The detected encoding name, as `str` | Low-level; rarely called directly (§8.3) |
 
 ### 53.2 Classes
@@ -3251,7 +3300,8 @@ statistics (total, valid, rejected counts) — exactly mirroring
 example, now for JSON Lines instead of CSV.
 
 **Expected behavior:** processes a file with any number of records
-using essentially constant memory, regardless of total file size.
+without memory growing with the total number of records (peak memory
+still depends on the current record and any retained state).
 
 **Suggested architecture:** a streaming reader generator, a pure
 validate-and-transform function (testable with plain dicts, no file
@@ -3421,7 +3471,7 @@ node = {"name": "root"}
 node["parent"] = node
 json.dumps(node)
 ```
-*Diagnose:* what does §38's principle say about why this specifically
+*Diagnose:* what does §32.2 say about why this specifically
 cannot be represented in JSON at all (§32.2)? *Corrected:* redesign
 the data to avoid the cycle (e.g. store an ID reference instead of the
 actual parent object).
@@ -3436,7 +3486,9 @@ class BrokenEncoder(json.JSONEncoder):
 ```
 *Diagnose:* what happens when this encoder encounters a type it does
 not explicitly check for (§22.1)? *Corrected:* add
-`return super().default(obj)` as the final line.
+`return super().default(obj)` as the final line — without it, `default()`
+falls off the end and returns `None`, so unsupported objects silently
+become `null` instead of the standard encoder raising `TypeError`.
 
 **11. A wrong `object_hook`.**
 ```python
@@ -3641,8 +3693,8 @@ print(json.dumps({"b": 1, "a": 2}, sort_keys=True))
     a restricted data format — even "trusted" input can, through a
     supply-chain compromise, a bug elsewhere, or simple human error,
     end up containing something other than what you expect; `json.loads()`
-    can only ever produce JSON's six value types, with no code-
-    execution capability at all, regardless of what the input actually
+    (without custom hooks) produces only Python representations of
+    JSON's value types, with no code-execution capability at all, regardless of what the input actually
     contains (§39.3).
 11. A JSON document's overall structure — where a given array or
     object actually ends — is only fully determinable once the entire

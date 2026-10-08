@@ -534,7 +534,8 @@ formats and protocols.
 same single byte under UTF-8 (§9.3), meaning enormous amounts of
 existing ASCII-only text and tooling work correctly, unmodified, under
 UTF-8. **Full Unicode support** — unlike ASCII, UTF-8 can represent
-*every* Unicode code point, without exception. **Space efficiency for
+*every* Unicode scalar value (every code point except the surrogate
+range `U+D800`–`U+DFFF`) using 1–4 bytes. **Space efficiency for
 common text** — text that is mostly or entirely ASCII stays compact
 (one byte per character), while still allowing any other script or
 symbol to appear when actually needed, using more bytes only where
@@ -581,7 +582,7 @@ concrete, common bug for any text containing non-ASCII characters.
 |---|---|---|
 | `U+0000`–`U+007F` | `0xxxxxxx` | 1 |
 | `U+0080`–`U+07FF` | `110xxxxx 10xxxxxx` | 2 |
-| `U+0800`–`U+FFFF` | `1110xxxx 10xxxxxx 10xxxxxx` | 3 |
+| `U+0800`–`U+D7FF` and `U+E000`–`U+FFFF` (surrogates `U+D800`–`U+DFFF` excluded) | `1110xxxx 10xxxxxx 10xxxxxx` | 3 |
 | `U+10000`–`U+10FFFF` | `11110xxx 10xxxxxx 10xxxxxx 10xxxxxx` | 4 |
 
 Each `x` represents one bit of the code point's actual numeric value,
@@ -651,8 +652,8 @@ print(text.encode("utf-16-le"))
 ```
 
 ```text
-b'\xff\xfeA\x00\x00\x3d\x08\xde'
-b'A\x00=\xd8\x08\xde'
+b'\xff\xfeA\x00=\xd8B\xde'
+b'A\x00=\xd8B\xde'
 ```
 
 (Exact byte values for the emoji's surrogate pair may render
@@ -698,7 +699,7 @@ print(len(text.encode("utf-32-le")))
 ```
 
 ```text
-b'\xff\xfe\x00\x00A\x00\x00\x00=\xf6\x01\x00'
+b'\xff\xfe\x00\x00A\x00\x00\x00B\xf6\x01\x00'
 8
 ```
 
@@ -771,7 +772,7 @@ for a specific regional locale, may have been written in Latin-1,
 Windows-1252, or another regional legacy encoding, rather than UTF-8 —
 simply because UTF-8 was not yet universally the default at the time it
 was created. **Assuming every historical file is UTF-8 is a real,
-common, and avoidable mistake** (§57 mistake 1) — §22 covers how to
+common, and avoidable mistake** (§48 mistake 1) — §22 covers how to
 approach an unknown or suspected-legacy encoding responsibly.
 
 ## 16. Encoding Comparison
@@ -882,8 +883,8 @@ decision point, and it applies identically to `str.encode()`,
 | **`replace`** | Substitutes `?` for the unencodable character | Substitutes `U+FFFD` (the replacement character) | Moderate — visibly marks the problem, but still loses the original data |
 | **`backslashreplace`** | Substitutes a `\xNN`/`\uNNNN`-style escape | Substitutes a `\xNN`-style escape (decode support added in Python 3.5) | Low — preserves a recoverable, if unusual, textual trace |
 | **`namereplace`** | Substitutes a `\N{...}`-style named escape | *(encode-only)* | Low — human-readable diagnostic trace |
-| **`surrogateescape`** | Encodes previously-surrogate-escaped bytes back to their original form | Maps invalid bytes to a reserved surrogate code-point range (`U+DC80`–`U+DCFF`), enabling lossless round-tripping | Specialized — used internally for filesystem paths (§35) |
-| **`surrogatepass`** | Allows encoding lone surrogate code points directly (normally forbidden) | Allows decoding lone surrogate byte sequences directly | Specialized — narrow, low-level use cases |
+| **`surrogateescape`** | Encodes previously-surrogate-escaped bytes back to their original form | Maps invalid bytes to a reserved surrogate code-point range (`U+DC80`–`U+DCFF`), enabling lossless round-tripping | Specialized — used internally for filesystem paths (§38.3) |
+| **`surrogatepass`** | Specialized handler supported by specific Unicode codecs (e.g. UTF-8/16/32): lets surrogate code points pass through encoding (normally forbidden) | Lets lone surrogate byte sequences pass through decoding | Specialized — narrow, low-level use cases |
 
 ### 19.3 Worked examples
 
@@ -945,7 +946,7 @@ that encoding at all. **Why it failed:** `'\xe9'` (`é`, `U+00E9`) is
 outside ASCII's 128-character range (§9.2). **Inspecting the error:**
 the message names the exact codec (`'ascii'`), the exact problem
 character, and its exact `position` within the string — directly
-actionable diagnostic information (§42's debugging workflow relies on
+actionable diagnostic information (§46's debugging workflow relies on
 exactly this). **Selecting an appropriate encoding:** the fix is
 almost always choosing an encoding that *can* represent the character
 in question — most often, `"utf-8"` — rather than reaching for
@@ -971,7 +972,7 @@ encoding. **Why it failed:** `0xc3` is the first byte of `é`'s
 byte under plain ASCII, which only ever expects single bytes in the
 `0`–`127` range. **The byte position** the error reports (`position 3`
 here) points precisely at where the invalid byte sequence begins —
-again, directly actionable (§42). **The debugging process:** confirm
+again, directly actionable (§46). **The debugging process:** confirm
 what encoding the bytes were *actually* produced with (§22), rather
 than guessing at alternative encodings one at a time.
 
@@ -1005,7 +1006,7 @@ characters (`Ã` and `©`) — Latin-1 never raises on decode (§15.2), so
 this produces **no exception at all**, only visibly wrong text. This is
 mojibake's defining, dangerous characteristic: **it frequently fails
 silently, not loudly** — exactly why §22's practical identification
-guidance, and §55's dedicated mojibake-debugging section, both matter.
+guidance, and §46's dedicated debugging workflow, both matter.
 
 ### 21.3 The general pattern
 
@@ -1018,7 +1019,7 @@ encodings — UTF-8 bytes decoded as Windows-1252 produces one
 characteristic pattern of corruption; Windows-1252 (or Latin-1) bytes
 decoded as UTF-8 produces a *different* characteristic pattern (often
 raising `UnicodeDecodeError` outright, since not every byte sequence a
-single-byte encoding can produce is valid UTF-8) — §55 works through
+single-byte encoding can produce is valid UTF-8) — §21.2 works through
 both directions concretely.
 
 ### 21.4 How to diagnose and avoid it
@@ -1052,7 +1053,7 @@ system** — what software or system generated this file, and what
 encoding does *it* default to, or document using? **Metadata** — does
 the file, protocol, or surrounding context carry explicit encoding
 information (an HTTP `Content-Type` header's `charset=` parameter,
-§45; a JSON file's own convention of always being UTF-8, per
+§40.2; JSON exchanged between systems being required to be UTF-8 by RFC 8259, per
 [04-json-and-serialization.md](04-json-and-serialization.md)'s §25.3)?
 **Protocol specification** — does the format itself mandate a specific
 encoding (JSON, notably, is specified to always be Unicode, almost
@@ -1182,7 +1183,7 @@ present; the former does not, leaving it as a stray character). Using
 the wrong one of the pair — reading a BOM-prefixed file as plain
 `"utf-8"`, or writing a BOM-prefixed file when downstream tooling does
 not expect one — is a real, common, and easily avoidable source of
-subtle bugs (§57 mistake, and §54's debugging workflow, both return to
+subtle bugs (§48 mistake, and §46's debugging workflow, both return to
 this).
 
 ## 25. `open()` and Encoding
@@ -1215,9 +1216,12 @@ On one machine, this might quietly use UTF-8, and behave identically
 to specifying it explicitly. On another — a machine with a different
 locale configuration (§34) — it might use a different default entirely,
 producing mojibake (§21) or a `UnicodeDecodeError` (§20.2) on the
-*exact same file*, with the *exact same code*. **This unpredictability,
-not any specific wrong behavior, is the actual danger of omitting
-`encoding=`.**
+*exact same file*, with the *exact same code*. Python versions before
+3.15 generally use the locale encoding unless UTF-8 mode is enabled;
+Python 3.15+ uses UTF-8 by default through UTF-8 mode unless that mode
+is explicitly disabled (§37.3). **This unpredictability, not any
+specific wrong behavior, is the actual danger of omitting `encoding=`;
+explicit `encoding=` remains the right habit for data-file contracts.**
 
 ### 25.3 `errors=` on `open()`
 
@@ -1250,14 +1254,14 @@ open("file.txt", "r", encoding="utf-8", newline="\r\n")           # only recogni
 
 `newline=` controls **how line-ending characters are recognized and
 translated** as text is read or written — a genuinely separate concern
-from `encoding=` (§67 makes this separation explicit, as its own
+from `encoding=` (§57.2 makes this separation explicit, as its own
 mental-model layer). §27–§29 build the vocabulary this parameter needs
 (what a newline actually is, and how it differs across platforms)
-before §31 explains precisely what each `newline=` value does.
+before §29 explains precisely what each `newline=` value does.
 
 ### 26.2 Why this section is deliberately brief, for now
 
-This parameter genuinely deserves full, careful treatment — §31
+This parameter genuinely deserves full, careful treatment — §29
 ("Universal Newlines") gives it exactly that, once §27–§30 have built
 the necessary background. Introducing it here only establishes that it
 exists, and that it is a parameter of `open()` distinct from
@@ -1319,13 +1323,13 @@ unwanted artifacts — commonly, a stray `\r` character appearing at the
 *end* of every line (often rendered, depending on the viewing tool, as
 nothing visible at all, or occasionally as a visible `^M` symbol in
 certain terminal tools) — because the reading system did not
-automatically translate the unfamiliar convention. §31's universal-
+automatically translate the unfamiliar convention. §29's universal-
 newline handling is Python's own, deliberate defense against exactly
 this class of cross-platform annoyance.
 
 ### 28.3 WSL2 considerations
 
-Because you are running Ubuntu through **WSL2** — a genuine Linux
+If you are running Ubuntu through **WSL2** — a genuine Linux
 environment (already established in
 [02-pathlib-and-portable-paths.md](02-pathlib-and-portable-paths.md)'s
 §25.4) — files created *natively within* WSL2's own Linux filesystem
@@ -1333,7 +1337,7 @@ follow ordinary Linux (`\n`) conventions. Files that originated on the
 **Windows side** (anything accessed via `/mnt/c/...`, per that same
 chapter's §25.5), or that were edited by a Windows-native text editor
 before being brought into WSL2, may well still carry `\r\n` line
-endings — worth checking explicitly (§56's debugging techniques), never
+endings — worth checking explicitly (§47's debugging techniques), never
 assumed, when a file's true origin crosses that boundary.
 
 ## 29. Universal Newlines
@@ -1374,7 +1378,7 @@ With `newline=""`, **on read**: line boundaries are still recognized
 normalization to `\n` happens at all. **On write**: `\n` characters you
 write are passed through to disk **completely unmodified** — no
 platform-native translation happens either. **This is precisely why
-CSV files are opened with `newline=""`** (§32 develops the connection
+CSV files are opened with `newline=""`** (§34.1 develops the connection
 fully): the `csv` module needs to perform its *own*, precise line-ending
 handling (including recognizing embedded newlines within quoted fields,
 [03-csv-files.md](03-csv-files.md)'s §8), and Python's own separate
@@ -1582,7 +1586,8 @@ module in full, sole control of exactly how line endings are written
 and read — including correctly recognizing genuine embedded newlines
 *inside* quoted CSV fields
 ([03-csv-files.md](03-csv-files.md)'s §8.1), which requires exactly the
-untranslated, "as written" byte-level view `newline=""` provides.
+untranslated, "as written" text-level line endings `newline=""` preserves
+after decoding (it does not expose raw bytes).
 
 ### 34.2 CSV encoding assumptions and legacy CSV
 
@@ -1621,7 +1626,7 @@ Unlike CSV, **JSON text files do not need `newline=""`**
 ([04-json-and-serialization.md](04-json-and-serialization.md)'s §13.2
 already stated this without full justification; here is the full
 reasoning): JSON has no equivalent of CSV's raw, embedded-in-a-field
-newline character requiring precise, untranslated byte-level handling
+newline character requiring precise, untranslated line-ending handling
 — a JSON string value's own internal newline is represented as the
 *escape sequence* `\n` (two characters, backslash and `n`) within the
 JSON text itself, never as a genuine, literal newline byte
@@ -1660,6 +1665,9 @@ print(sys.stdout.encoding)
 ```text
 utf-8
 ```
+
+(Example output only — the actual value depends on your terminal,
+locale, and Python configuration, §35.2.)
 
 Python's standard input, output, and error streams (`sys.stdin`,
 `sys.stdout`, `sys.stderr` — fully developed later in
@@ -1705,7 +1713,10 @@ print(locale.getpreferredencoding(False))
 ```
 
 `locale.getpreferredencoding()` returns the text encoding associated
-with the current process's **locale** settings — a system-level
+with the current process's **locale** settings (the newer
+`locale.getencoding()`, Python 3.11+, returns the current locale
+encoding directly; neither one alone describes what `open()` defaults
+to once UTF-8 mode is in effect, §37) — a system-level
 configuration describing language, region, and related formatting
 conventions. Historically, on many systems, this locale-derived value
 was exactly what `open()` silently fell back to when `encoding=` was
@@ -1748,7 +1759,7 @@ print(sys.flags.utf8_mode)
 **Even where UTF-8 mode is active, and even on a version of Python
 where UTF-8 is the overall default, explicit `encoding="utf-8"` in
 every `open()` call remains the better practice** — it makes your
-code's **data contract** (§69) self-evident directly in the code
+code's **data contract** (§59) self-evident directly in the code
 itself, immune to *any* environment-level configuration, present or
 future, correct today and correct if that code is later run under a
 different Python version, a different operating system, or a different
@@ -1785,13 +1796,13 @@ specific text-encoding preference was ever actually configured).
 
 ### 37.3 A genuinely important, version-specific caveat
 
-**Per PEP 686, UTF-8 mode is planned to become Python's *default*
-behavior, beginning with Python 3.15** — a meaningful, deliberate shift
-away from locale-dependent defaulting altogether, for every Python
-installation, not merely ones where UTF-8 mode has been explicitly
-enabled. As of this chapter's writing, this is a genuinely significant,
-forward-looking version distinction worth knowing explicitly: **do not
-assume every Python installation you will encounter already defaults
+**Per PEP 686, beginning with Python 3.15, UTF-8 mode is Python's
+default behavior unless it is explicitly disabled** (for example with
+`PYTHONUTF8=0` or `-X utf8=0`) — a meaningful, deliberate shift away
+from locale-dependent defaulting. Earlier Python versions generally use
+the locale encoding unless UTF-8 mode is enabled. This is a
+version distinction worth knowing explicitly: **do not assume every
+Python installation you will encounter already defaults
 to UTF-8 without explicit configuration** — verify your actual Python
 version's behavior (`sys.flags.utf8_mode`, §36.4) rather than assuming,
 and, regardless of which default your specific Python version happens
@@ -1980,7 +1991,7 @@ affected) can be genuinely difficult to trace back to its actual root
 cause, long after the corrupted data has already been baked into a
 trained model. This is precisely why this chapter's emphasis on
 **explicit encoding, deliberate error handling, and validation at
-ingestion** (§40.4, §69) matters especially, not merely academically,
+ingestion** (§40.4, §59) matters especially, not merely academically,
 for AI/ML data pipelines specifically.
 
 ## 42. Unicode Normalization
@@ -2052,12 +2063,12 @@ comparable directly with `==` afterward.
 ### 42.4 When normalization is useful — and when it is not something to apply unconditionally
 
 Normalization is genuinely valuable before comparing, searching,
-deduplicating (§43), or using text as an identifier or lookup key,
+deduplicating (§42.4), or using text as an identifier or lookup key,
 where two differently-encoded-but-visually-identical strings should be
 treated as "the same." **It should not be applied unconditionally,
 without consideration, to every piece of text your program handles** —
 NFKC/NFKD's compatibility normalization specifically can discard real,
-sometimes meaningful, distinctions (§43.2 returns to this trade-off
+sometimes meaningful, distinctions (§42.4 returns to this trade-off
 directly) — normalization is a deliberate choice, made for a specific,
 understood reason, not a reflexive "always apply this" habit.
 
@@ -2196,7 +2207,7 @@ testing, not an obscure theoretical curiosity.
    `UnicodeDecodeError`'s own message (§20.2), if one is raised.
 6. **Inspect for a BOM** (§23) — the first few bytes of the file,
    compared against §23.3's known BOM byte sequences.
-7. **Inspect newline style** (§56 develops this specifically) — a
+7. **Inspect newline style** (§47 develops this specifically) — a
    separate, but frequently co-occurring, concern.
 8. **Compare platform behavior**, if the same file behaves differently
    on two different machines — a strong signal of a default-encoding
@@ -2439,10 +2450,10 @@ import unicodedata
 
 KNOWN_BOMS = {
     b"\xef\xbb\xbf": "utf-8-sig",
-    b"\xff\xfe\x00\x00": "utf-32-le",
-    b"\x00\x00\xfe\xff": "utf-32-be",
-    b"\xff\xfe": "utf-16-le",
-    b"\xfe\xff": "utf-16-be",
+    b"\xff\xfe\x00\x00": "utf-32",   # BOM-aware codecs: detect the byte order AND strip the BOM
+    b"\x00\x00\xfe\xff": "utf-32",
+    b"\xff\xfe": "utf-16",
+    b"\xfe\xff": "utf-16",
 }
 
 
@@ -2467,7 +2478,7 @@ def detect_newline_style(text: str) -> str:
     return ", ".join(styles) if styles else "none detected"
 
 
-def inspect_file(path: Path, encoding: str = "utf-8") -> None:
+def inspect_file(path: Path, encoding: str | None = None) -> None:
     # 1-2. Inspect raw bytes and report size.
     data = path.read_bytes()
     print(f"File: {path}")
@@ -2477,6 +2488,10 @@ def inspect_file(path: Path, encoding: str = "utf-8") -> None:
     bom = detect_bom(data)
     print(f"BOM detected: {bom or 'none'}")
     decode_encoding = bom if bom else encoding
+    if decode_encoding is None:
+        raise ValueError(
+            "No BOM found and no encoding provided; an explicit encoding is required."
+        )
 
     # 4-5. Attempt decoding, reporting any error precisely.
     try:
@@ -2495,10 +2510,6 @@ def inspect_file(path: Path, encoding: str = "utf-8") -> None:
     non_ascii = [c for c in text if ord(c) > 127][:5]
     for character in non_ascii:
         print(f"  {character!r}: U+{ord(character):04X} ({unicodedata.name(character, 'UNKNOWN')})")
-
-    # 9. Optionally write a normalized, UTF-8 output file.
-    normalized = unicodedata.normalize("NFC", text)
-    path.with_suffix(".normalized.txt").write_text(normalized, encoding="utf-8")
 ```
 
 **Every stage explained:** raw bytes are inspected first, before any
@@ -2509,10 +2520,13 @@ reported with full diagnostic detail rather than silently guessed
 around (§20.2); newline style is detected using the raw, undecoded-
 translation-free text (mirroring §47.2's diagnostic pattern);
 non-ASCII characters are reported with their precise code points and
-Unicode names (§5.2–§5.3, using `unicodedata.name()`, §66); and the
-output is explicitly normalized (§42.2) and written as plain UTF-8
-(§24.1's correct default), regardless of whatever encoding the input
-file actually used.
+Unicode names (§5.2–§5.3, using `unicodedata.name()`, §56.4). The
+function only inspects and reports — it never writes a transformed file
+(normalization, §42.2, and re-encoding belong to the conversion
+projects, not to an inspector). With no BOM, it does not assume an
+encoding: the caller must supply one, or a clear error is raised. The
+`utf-16`/`utf-32`/`utf-8-sig` codecs consume the BOM, so no stray
+`U+FEFF` is left at the start of the text.
 
 ### 50.2 Example 2 — Advanced: Robust Text Ingestion Pipeline
 
@@ -2578,11 +2592,13 @@ def ingest_text_file(
     lines = text.splitlines()
 
     # WRITE UTF-8 OUTPUT
-    output_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    # newline="" disables platform translation, so "\n" really is written as LF
+    with output_path.open("w", encoding="utf-8", newline="") as f:
+        f.write("\n".join(lines) + "\n")
 
-    # VALIDATE OUTPUT
-    written_back = output_path.read_text(encoding="utf-8")
-    if written_back.splitlines() != lines:
+    # VALIDATE OUTPUT (check the actual bytes, so newline translation cannot hide a problem)
+    written_bytes = output_path.read_bytes()
+    if b"\r" in written_bytes or written_bytes.decode("utf-8").splitlines() != lines:
         raise EncodingDecisionError(f"Output verification failed for {output_path}")
 
     return IngestResult(
@@ -2602,8 +2618,9 @@ clear, specific exception instead; decoding uses `errors="strict"`
 explicitly (§19.5), never `"ignore"`. **Newline policy:** the pipeline
 deliberately normalizes to a single, consistent `\n`-based output
 (`"\n".join(lines) + "\n"`), regardless of the input's original
-convention — a deliberate, explicit choice, not an accident of
-whichever `newline=` happened to be in effect. **Unicode normalization**
+convention — a deliberate, explicit choice, made deterministic by
+opening the output with `newline=""` (without it, ordinary text-mode
+writing would translate `\n` to `\r\n` on Windows). **Unicode normalization**
 is applied, but only as a documented, optional (`normalize=True`)
 parameter — never unconditionally forced (§42.4's caution). **Output
 validation** — reading the just-written output back and confirming it
@@ -2889,10 +2906,11 @@ Python's standard library.
 
 | API | What it does | Returns | Caveat |
 |---|---|---|---|
-| `locale.getpreferredencoding()` | The encoding associated with the current locale | `str` | Historically what `open()` fell back to without explicit `encoding=` (§36.2) |
+| `locale.getpreferredencoding()` | The encoding associated with the current locale | `str` | Historically what `open()` fell back to without explicit `encoding=`; not the whole story under UTF-8 mode (§36.2) |
+| `locale.getencoding()` | The current locale encoding (Python 3.11+) | `str` | Reports the locale encoding itself, independent of UTF-8 mode (§36.2) |
 | `sys.getfilesystemencoding()` | The encoding used for filenames/paths | `str` | Does **not** describe file *content* encoding (§38.2) |
 | `sys.stdin.encoding` / `sys.stdout.encoding` / `sys.stderr.encoding` | The encoding of each standard stream | `str` | Determined by the surrounding environment, not your code (§35.2) |
-| `sys.flags.utf8_mode` | Whether Python's UTF-8 mode is currently active | `int` (`1` or `0`) | Planned to become the default starting with Python 3.15, per PEP 686 (§37.3) |
+| `sys.flags.utf8_mode` | Whether Python's UTF-8 mode is currently active | `int` (`1` or `0`) | The default starting with Python 3.15 unless explicitly disabled, per PEP 686 (§37.3) |
 
 ## 57. Internal Mental Model
 
@@ -2946,7 +2964,7 @@ file handling" as one single, undifferentiated concern.
 | | Linux | Windows | macOS | WSL2 |
 |---|---|---|---|---|
 | **Default line ending** | `\n` | `\r\n` | `\n` | `\n` (native Linux filesystem) |
-| **Filesystem encoding** | Typically UTF-8 | Typically UTF-16-based internally, exposed as configurable | Typically UTF-8 | Typically UTF-8 (genuine Linux environment) |
+| **Filesystem encoding** | Typically UTF-8 | Windows native Unicode APIs are UTF-16-based, while modern Python generally uses UTF-8 for filesystem encoding | Typically UTF-8 | Typically UTF-8 (genuine Linux environment) |
 | **Terminal encoding** | Typically UTF-8 | Historically variable; increasingly UTF-8-capable | Typically UTF-8 | Typically UTF-8 |
 | **A special consideration** | — | Legacy code pages/locale-dependent defaults still occasionally encountered | — | Files from `/mnt/c/...` (Windows side) may carry `\r\n`; native `/home/...` files follow Linux convention (§28.3) |
 
@@ -3488,7 +3506,7 @@ print(data.decode("ascii", errors="replace"))
 3. `4` then `5` — `len("café")` counts 4 Unicode characters/code
    points; `len("café".encode("utf-8"))` counts bytes, and `é` alone
    takes 2 UTF-8 bytes (§11.3–§11.4).
-4. `café` then `caf�` — the UTF-8 decode succeeds cleanly with no
+4. `café` then `caf��` — the UTF-8 decode succeeds cleanly with no
    replacement needed; the ASCII decode encounters `0xc3` and `0xa9`
    (both outside ASCII's range), each replaced with the Unicode
    replacement character `U+FFFD` (§19.2–§19.3).

@@ -382,8 +382,10 @@ how those bytes map to characters, and that mapping is not universal.
 platform-dependent default, which can make identical code behave
 differently on different machines.
 **Example:** `open("notes.txt", "r", encoding="utf-8")`.
-**Caveat:** `"utf-8"` is the correct default choice for nearly every
-text file you will encounter in this roadmap.
+**Caveat:** `"utf-8"` is an excellent, very common choice, and the
+right one whenever the file is known to be UTF-8 or you control the
+format. The correct encoding ultimately depends on the actual file
+you are reading, so use the encoding you know the data to have.
 
 ### 8.6 `errors`
 
@@ -909,13 +911,19 @@ need the whole file as one string or one list.
 Every open file object tracks exactly **where** the next read or write
 will happen — the **file position**, or **cursor** (unrelated to your
 mouse). Opening a file in `"r"` mode places the cursor at position 0
-(the very start); every character read moves it forward by exactly that
-many characters.
+(the very start); reading moves it forward.
 
 ### 16.2 `tell()` — asking where the cursor is
 
 **Syntax:** `f.tell()` — returns the current cursor position as an
 `int`.
+
+In text mode, treat that number as an **opaque position value**: it is
+meant to be saved and later passed to `seek()`, not interpreted. It is
+not reliably a count of characters read, nor of bytes consumed, nor a
+portable textual offset (it can differ with encoding and newline
+translation). `0` at the start of the file is the one value you can
+rely on by meaning.
 
 ### 16.3 `seek()` — moving the cursor
 
@@ -947,8 +955,12 @@ First line
 
 **Explaining the output line by line:** the cursor starts at `0`.
 `readline()` reads the first line and prints it (with its `\n`, hence
-the blank line after it in the output). `tell()` now reports `11` —
-the number of characters consumed by that first line. `seek(0)`
+the blank line after it in the output). `tell()` now reports a new,
+non-zero position — `11` for this particular simple ASCII file, which
+happens to match the length of `'First line\n'`, but that match is a
+coincidence of this example, not something to rely on for text files in
+general. What matters is that this value could be saved and handed to
+`seek()` later. `seek(0)`
 explicitly resets the cursor back to the very start. The following
 `readline()` therefore reads the *same* first line again, from the
 beginning, rather than continuing on to the second line.
@@ -1158,9 +1170,11 @@ f.close()
 ```
 
 Closing tells the operating system your program is done with the file:
-any data still sitting in an internal **buffer** and not yet physically
-written gets flushed out (§33), and the operating-system resources
-reserved for keeping the file open (§6.3) are released.
+any data still sitting in Python's internal **buffer** gets flushed out
+and handed to the operating system (§33), and the operating-system
+resources reserved for keeping the file open (§6.3) are released. This
+does not by itself guarantee the bytes have reached physical storage
+(§33.3).
 
 ### 20.2 What happens if you never close a file
 
@@ -1406,7 +1420,7 @@ Each function has exactly **one clear responsibility**, a small,
 predictable parameter list, and a predictable return value — it never
 returns the raw file object itself, which would force every caller to
 also understand file-closing responsibility. None of them catch
-exceptions internally — §28.5 explains exactly why that is the correct
+exceptions internally — §28.3 explains exactly why that is the correct
 default, not an oversight.
 
 ### 23.3 Bad design: one giant function
@@ -1538,9 +1552,12 @@ whichever encoding you specify.
 written language in use today and is the dominant standard across the
 modern web, most operating systems, and most file formats. Unless you
 have a specific, deliberate reason to use something else,
-**`encoding="utf-8"` is the correct default for every text file you
-read or write** — an explicit habit worth building from day one, rather
-than relying on Python's platform-dependent default.
+**`encoding="utf-8"` is the right explicit choice whenever the file is
+known to be UTF-8 or you control the format** (the usual case in this
+roadmap). The correct encoding depends on the actual data, and Python's
+default text encoding can be platform-dependent — so, when you know the
+expected encoding, state it explicitly rather than relying on the
+default. That is a habit worth building from day one.
 
 ### 25.4 Why encoding mismatches cause failures
 
@@ -1567,7 +1584,7 @@ outcome you want.
 ### 25.5 Where this chapter's coverage stops
 
 This section covers what you need to safely use `open()` day to day:
-always pass `encoding="utf-8"` explicitly, and understand, conceptually,
+pass the known encoding (usually `encoding="utf-8"`) explicitly, and understand, conceptually,
 why that parameter exists and what breaks when it is wrong or omitted.
 The full picture — encoding detection, `errors=` in complete detail,
 byte-order marks, and platform interactions — belongs entirely to
@@ -1775,9 +1792,12 @@ with open("output.txt", "w", encoding="utf-8") as f:
 ```
 
 This trades a small amount of memory (holding all processed lines at
-once) for a strong guarantee: `output.txt` is either fully correct, or
-untouched — never half-finished. §42 develops the full production
-version of this idea (a temporary file, replaced only on success).
+once) for protection against **processing failures**: if `process()`
+raises, `output.txt` has not been opened yet, so it is untouched. It is
+**not** atomic output replacement — the write itself can still fail
+(disk full, I/O error, crash) after `"w"` has already truncated the
+file, leaving it partial. True all-or-nothing replacement is the
+temporary-file strategy of §42.4.
 
 ## 30. Large Files and Memory
 
@@ -2183,7 +2203,7 @@ more than one line in memory at a time.
 with open("notes.txt", "r") as f:
     text = f.read()
 ```
-→ **Better:** always pass `encoding="utf-8"` explicitly (§25.3).
+→ **Better:** pass the known encoding explicitly — usually `encoding="utf-8"` (§25.3).
 
 **9. Catching `Exception` everywhere.**
 Directly §27.3's worked example — swallows every possible error
@@ -2255,11 +2275,17 @@ with open("output.txt", "a", encoding="utf-8") as f:
 **15. Not checking the actual exception message.**
 ```python
 # BAD -- reacts to "some OSError happened" without reading what it says
+try:
+    with open(path, "r", encoding="utf-8") as f:
+        data = f.read()
 except OSError:
     print("File error.")
 ```
 → **Better:**
 ```python
+try:
+    with open(path, "r", encoding="utf-8") as f:
+        data = f.read()
 except OSError as error:
     print(f"File error: {error}")
 ```
@@ -2645,10 +2671,12 @@ separate programs also touching the same file.
 
 ### 43.2 Two processes writing the same file
 
-If Process A and Process B both open the same file in `"w"` mode at
-roughly the same time, whichever one opens (and therefore truncates,
-§9.4) *last* wins — the other's intended output can be partially or
-entirely lost, with no error raised to either process.
+Opening a file in `"w"` mode truncates it (§9.4). If Process A and
+Process B both do so and then write, the resulting contents depend on
+timing and on filesystem and process behavior: the writers can
+overwrite or interfere with each other, and one's intended output can be
+partially or entirely lost, with no error raised to either process.
+Ordinary `"w"` or `"a"` usage is not a concurrency-control mechanism.
 
 ### 43.3 Append operations and race conditions
 
@@ -2820,15 +2848,18 @@ guarantee is built out fully with temporary files and atomic renames.
 ### Level 1 — Beginner
 
 1. **Create a text file** and write three lines to it in a single
-   `write()` call, using `"\n".join(...)`. *Expected behavior:* reading
-   the file back shows exactly three lines.
+   `write()` call, using `"\n".join(...)`. Note that `join` adds no
+   newline after the last item, so the file has no trailing newline.
+   *Expected behavior:* reading the file back shows exactly three lines.
 2. **Read text** from the file above and print its full content.
 3. **Append text** — add a fourth line without disturbing the first
-   three. *Edge case:* run your append code twice in a row — does the
+   three (since the file has no trailing newline, your appended text
+   must begin with `"\n"` to start a new line). *Edge case:* run your append code twice in a row — does the
    file now have five lines?
 4. **Count lines** using iteration (§15), not `readlines()`. *Edge
    case:* an empty file.
-5. **Count words** across an entire file. *Edge case:* a file
+5. **Count words** across an entire file. For this exercise, a word is
+   a whitespace-delimited token as produced by `str.split()`. *Edge case:* a file
    containing only whitespace.
 6. **Print each line** of a file, with its trailing newline stripped.
 
@@ -2865,8 +2896,11 @@ guarantee is built out fully with temporary files and atomic renames.
     that counts total characters in a file without using `read()` with
     no argument and without iterating line by line.
 16. **Write safe output** — rewrite a write-heavy function from an
-    earlier exercise so the output file is never left half-written if
-    an error occurs partway through (§29.2).
+    earlier exercise so that a *processing* error partway through
+    cannot leave the output file half-written (§29.2). Note this
+    protects against processing failures only, not failures of the write
+    itself; true all-or-nothing replacement uses the temporary-file
+    strategy (§42.4).
 17. **Handle expected exceptions** — take one function from an earlier
     exercise and deliberately test it against every relevant exception
     from §27.1, documenting which you chose to catch and which you let

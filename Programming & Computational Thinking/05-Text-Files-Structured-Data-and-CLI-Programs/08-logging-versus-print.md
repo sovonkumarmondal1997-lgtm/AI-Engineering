@@ -129,12 +129,13 @@ count = 3
 print(f"{name} processed {count} records")
 ```
 
-`print()` has exactly two legitimate homes in a well-designed Python
-program: **user-facing CLI output** (the actual result the program
-exists to produce) and **temporary, throwaway debugging** during
-development (a `print(x)` you add to see a value, then delete). §2–§3
-work through exactly why those two uses are legitimate and every other
-use is where problems start.
+`print()` has two primary, appropriate uses in a well-designed Python
+program (this is this chapter's teaching framing, not a rule defined by
+Python): **user-facing CLI output** (the actual result the program
+exists to produce) and **temporary, throwaway debugging** or
+experimentation during development (a `print(x)` you add to see a
+value, then delete). §2–§3 work through why those two uses are
+appropriate and why other uses are where problems start.
 
 ## 2. When `print()` Is Appropriate
 
@@ -779,7 +780,9 @@ separation the previous chapter established: stdout carries a
 program's actual, intended output; stderr carries diagnostics. Because
 logging output is, by definition, diagnostic, the module's own default
 behavior already agrees with that principle before you write a single
-line of configuration.
+line of configuration. (Stderr is the recommended conventional
+destination for CLI diagnostics; handlers can be explicitly configured
+to use another stream or destination.)
 
 ```bash
 python app.py > output.txt
@@ -1111,7 +1114,14 @@ A `Filter` (§11) is a reasonable place to apply masking consistently,
 across every log call, rather than remembering to call a masking
 function manually at every single site where a sensitive value might
 appear — the more centralized and automatic the protection, the less
-it depends on every future contributor remembering the rule.
+it depends on every future contributor remembering the rule. Filters
+can be attached to a logger or to a specific handler; a handler-level
+filter is preferable when different destinations need different
+representations (e.g. masked on the console, fuller in a protected
+file). Note that mutating a shared `LogRecord` affects every
+subsequent handler that sees it; where appropriate, a handler filter
+can copy the record (or return a replacement) instead of mutating the
+shared one.
 
 ## 19. Logging Performance
 
@@ -1133,8 +1143,17 @@ logger.debug(f"Full record: {expensive_summary(record)}")
 ```
 
 ```python
-# PREFERRED — lazy % formatting: the string is built ONLY if DEBUG is enabled.
+# BETTER, BUT NOT ENOUGH — % formatting defers building the final string,
+# yet expensive_summary(record) is still called EVERY time (Python evaluates
+# arguments before calling logger.debug()).
 logger.debug("Full record: %s", expensive_summary(record))
+```
+
+```python
+# PREFERRED for an expensive argument — skip the computation entirely
+# when DEBUG is disabled.
+if logger.isEnabledFor(logging.DEBUG):
+    logger.debug("Full record: %s", expensive_summary(record))
 ```
 
 This is the concrete reason `logger.debug("User %s processed", user_id)`
@@ -1142,12 +1161,14 @@ This is the concrete reason `logger.debug("User %s processed", user_id)`
 logging code: passing the message template and its arguments
 *separately*, using `%`-style placeholders, lets the logger check
 "is this level even enabled?" **first**, and only perform the actual
-string formatting (and evaluate any function calls embedded in it, like
-`expensive_summary()` above) if the record will actually be used. An
-f-string, by contrast, is fully evaluated by Python *before*
-`logger.debug()` is even called — the cost is paid unconditionally,
-even when `DEBUG` is disabled and the entire call would otherwise be
-free.
+string formatting (the interpolation) if the record will actually be
+used. This defers only the **formatting**, not the evaluation of
+argument expressions: a call like `expensive_summary(record)` still
+runs before `logger.debug()` is entered, so an expensive argument needs
+the `logger.isEnabledFor(...)` guard shown above. An f-string, by
+contrast, builds the entire final string *before* `logger.debug()` is
+even called — the cost is paid unconditionally, even when `DEBUG` is
+disabled and the entire call would otherwise be free.
 
 ## 20. Library vs. Application Logging
 
@@ -1181,8 +1202,9 @@ logging.getLogger(__name__).addHandler(logging.NullHandler())
 ```
 
 **An application's responsibility:** the application — specifically,
-its own top-level entry point (`main()`) — is the **one and only**
-place that should call `basicConfig()` or `dictConfig()`, deciding
+its own top-level entry point (`main()`) — should normally be the
+place that calls `basicConfig()` or `dictConfig()` (a strong
+recommended architecture, not a Python requirement), deciding
 levels, formats, and handlers for the entire program, including every
 library it imports. This is a direct, deliberate application of §8's
 hierarchy and propagation: because every logger, everywhere, is a
@@ -1320,7 +1342,7 @@ to be genuinely production-ready.
     a deliberate retention policy.
 12. **Mixing user output and diagnostics.** *Why:* directly breaks
     pipelines and automation (§13–§14). *Fix:* `print()`/stdout for
-    results, `logging`/stderr for diagnostics — consistently.
+    results, `logging` (stderr by default) for diagnostics — consistently.
 13. **Swallowing exceptions.** *Why:* §15 — a bare `except: pass`
     (with or without a nearby `print`) makes a real failure
     permanently invisible. *Fix:* log (at minimum) before deciding to
@@ -1541,11 +1563,12 @@ exit-code convention established in
 
 **Logging flow:** every processed record that fails validation
 produces one `WARNING`, on the logger, at `stderr` (console) *and* in
-the configured log file; overall start/finish produces `INFO`; any
-genuinely unexpected exception (a malformed line that isn't even valid
-JSON) produces one `ERROR` via `logger.exception()`, preserving its
-traceback in the log file for later diagnosis, without that traceback
-ever touching stdout.
+the configured log file; overall start/finish produces `INFO`; a line
+that isn't valid JSON, or is valid JSON but not an object, is expected
+invalid input and produces one `WARNING` (no traceback). Reserve
+`logger.exception()` for genuinely unexpected exceptions, which
+preserves their traceback in the log file without it ever touching
+stdout.
 
 **Implementation:**
 ```python
@@ -1627,8 +1650,13 @@ def process_file(path: Path) -> dict:
 
             try:
                 record = json.loads(stripped)
-            except json.JSONDecodeError:
-                logger.exception("Line %d: could not parse as JSON", line_number)
+            except json.JSONDecodeError as exc:
+                logger.warning("Line %d: invalid JSON: %s", line_number, exc)
+                invalid += 1
+                continue
+
+            if not isinstance(record, dict):
+                logger.warning("Line %d: expected a JSON object", line_number)
                 invalid += 1
                 continue
 
@@ -1669,7 +1697,7 @@ if __name__ == "__main__":
 import json
 import logging
 
-from process_records import main, validate_record
+from process_records import main, process_file, validate_record
 
 
 def test_validate_record():
@@ -1693,12 +1721,13 @@ def test_all_valid_records(tmp_path, capsys):
 def test_invalid_record_logged_as_warning(tmp_path, caplog):
     input_file = tmp_path / "data.jsonl"
     input_file.write_text('{"id": 1}\n', encoding="utf-8")
-    log_file = tmp_path / "app.log"
 
+    # Test process_file() directly: main() calls dictConfig(), which can
+    # replace the handlers pytest's caplog fixture relies on.
     with caplog.at_level(logging.WARNING):
-        status = main([str(input_file), "--log-file", str(log_file)])
+        summary = process_file(input_file)
 
-    assert status == 3
+    assert summary == {"valid": 0, "invalid": 1}
     assert any("invalid record" in record.message for record in caplog.records)
 ```
 
@@ -1712,9 +1741,10 @@ logs anything (§12's "called too late" pitfall, applied to
 `dictConfig()` too — configuration must happen before any logging call
 it's meant to affect); if `DEBUG`-level per-record detail is missing
 from the console but expected, check `--log-level` was passed as
-`DEBUG` explicitly, since `INFO` is the default; if a malformed line's
-traceback is missing from the log file, verify `logger.exception()` (not
-`logger.error()`) was used at that specific call site.
+`DEBUG` explicitly, since `INFO` is the default; if a malformed
+line is unexpectedly absent from the log, check that the
+`json.JSONDecodeError` branch's `logger.warning()` call is reached and
+that the handler's level allows `WARNING`.
 
 **Production improvements worth naming:** structured (JSON) log output
 for easier aggregation (§21); a `--fail-fast` flag; a maximum-
@@ -1882,14 +1912,20 @@ arguments)?
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("app")
 logger.setLevel(logging.DEBUG)
+
+for handler in logging.getLogger().handlers:
+    handler.setLevel(logging.INFO)
+
 logger.debug("still doesn't appear")
 ```
-*Diagnosis:* the **logger's** level is `DEBUG`, but the root logger's
-*handler* (attached by `basicConfig()`) still defaults to whatever
-level it was configured with — check the handler's own level, not just
-the logger's (§5, §9): a record must pass *both* the logger's level and
-the specific handler's level to actually be emitted through that
-handler.
+*Diagnosis:* the **logger's** level is `DEBUG`, so the record is
+created and passed on, but the root logger's *handler* has level
+`INFO` and rejects it. Logger-level and handler-level filtering are
+separate: a record must pass the relevant logger's level and then the
+destination handler's own level to be emitted (§5, §9). (With plain
+`basicConfig(level=logging.INFO)` alone, the handler's level is
+`NOTSET`, so the child logger's `DEBUG` record would be emitted — the
+handler level must have been set explicitly.)
 
 **7. Excessive logging**
 A production log file grows enormous within minutes. *Diagnosis:*

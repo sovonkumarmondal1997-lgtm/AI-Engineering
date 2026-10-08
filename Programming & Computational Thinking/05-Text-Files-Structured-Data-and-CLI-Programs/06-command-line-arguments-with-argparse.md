@@ -243,7 +243,9 @@ argparse's entire job begins with a plain Python list of strings.
 ## 5. `sys.argv`
 
 `sys.argv` is the raw, unprocessed list of command-line tokens Python's
-interpreter received from the operating system. It is the one and only
+interpreter received at startup. The underlying process-creation
+mechanism differs by platform, but Python exposes the command-line
+arguments to the program as strings through `sys.argv`. It is the one and only
 channel through which command-line input reaches your program, and
 argparse is built entirely on top of it.
 
@@ -432,7 +434,7 @@ parser = argparse.ArgumentParser(
 
 | Parameter | What it does | Notes |
 |---|---|---|
-| `prog` | Name shown in usage/help (defaults to `sys.argv[0]`'s basename) | Set explicitly for consistent help output regardless of how the script is invoked |
+| `prog` | Name shown in usage/help (historically `sys.argv[0]`'s basename; since Python 3.14, a program started with `python -m module` shows `python -m module`) | Set explicitly for consistent help output regardless of how the script is invoked |
 | `usage` | Overrides the auto-generated usage line entirely | Rarely needed; auto-generation is usually better and stays in sync as you add arguments |
 | `description` | Text shown above the argument list in `--help` | Explains what the tool *does* |
 | `epilog` | Text shown *below* the argument list in `--help` | Good place for usage examples (§24) |
@@ -442,6 +444,8 @@ parser = argparse.ArgumentParser(
 | `add_help` | Whether to auto-add `-h`/`--help` | Default `True`; set `False` only if you want to define help yourself |
 | `allow_abbrev` | Whether unambiguous long-option prefixes are accepted | Default `True`; see §49 for why production CLIs often disable it |
 | `exit_on_error` | Whether parse errors call `sys.exit()` or raise `ArgumentError` | Added in Python 3.9; default `True`; see §55 |
+| `suggest_on_error` | Whether to suggest close matches for mistyped choices/subcommands | Added in Python 3.14; default `True` starting with Python 3.15 |
+| `color` | Whether help/error output is colorized | Added in Python 3.14; output can vary by terminal/environment |
 | `argument_default` | A global default applied to every argument that doesn't set its own | Default `None`; see §53 |
 | `conflict_handler` | How to handle option-string collisions | Default `"error"`; `"resolve"` is the alternative (§54) |
 | `fromfile_prefix_chars` | Enables `@file` style argument-file expansion | Default `None` (disabled); see §51 |
@@ -766,11 +770,12 @@ Notes:
 - Positional arguments with `nargs` other than the default (§18) can
   also have defaults; a plain required positional (`nargs` unset)
   cannot meaningfully have one, since it must always be supplied.
-- The default value is used **as-is** — it is *not* passed through
-  `type=`. If your default is `"5"` but `type=int`, `args.count` will
-  be the string `"5"` when the flag is omitted and the int `5` when
-  supplied — a subtle inconsistency. Set defaults using the *already-
-  converted* Python value (`default=5`, not `default="5"`) to avoid it.
+- If the default value is a **string**, argparse applies the `type=`
+  converter to that default (`type=int, default="5"` gives the int `5`
+  when the flag is omitted). If the default is **not a string**, it is
+  used as supplied, without conversion. Setting defaults to the
+  *already-converted* Python value (`default=5`) remains the clearest
+  habit.
 - `default=argparse.SUPPRESS` is a special sentinel: if the argument is
   not supplied, no attribute is set on the `Namespace` at all (instead
   of being set to `None` or some other default). This is useful when
@@ -789,16 +794,16 @@ arguments are not. `required=True` overrides that for an optional
 argument, forcing the user to supply it despite its flag-like syntax:
 
 ```python
-parser.add_argument("--api-key", required=True)
+parser.add_argument("--environment", required=True)
 ```
 
 ```bash
-python app.py                       # error: the following arguments are required: --api-key
-python app.py --api-key abc123      # args.api_key == "abc123"
+python app.py                       # error: the following arguments are required: --environment
+python app.py --environment prod    # args.environment == "prod"
 ```
 
 When is this appropriate? When a value has no sensible default and the
-program genuinely cannot proceed without it — an API key, a target
+program genuinely cannot proceed without it — a target
 environment name, a destination that must be explicit for safety.
 
 When it is *not* appropriate: turning every argument required "just in
@@ -1057,6 +1062,10 @@ options:
   --verbose             Enable verbose output
 ```
 
+(The exact formatting of argparse help/error output can vary by Python
+version and terminal/environment settings; examples here show the
+logical content and representative formatting.)
+
 (On Python versions before 3.10, the `options:` heading reads
 `optional arguments:` instead — a cosmetic, version-dependent
 difference, not something your code needs to handle.)
@@ -1208,6 +1217,10 @@ args, unknown = parser.parse_known_args(["--verbose", "--extra", "value"])
 # unknown == ["--extra", "value"]
 ```
 
+Prefix matching (§49) still applies with `parse_known_args()`: an
+abbreviated form of a known option (such as `--verb` for `--verbose`)
+is consumed by the parser rather than appearing in the `unknown` list.
+
 ## 29. `parse_intermixed_args()`
 
 Ordinarily, argparse expects positional arguments to be contiguous
@@ -1232,11 +1245,13 @@ run confuses the single-pass matching algorithm.
 
 Limitations, stated plainly:
 
-- `parse_intermixed_args()` **does not support subparsers** in the same
-  parser.
-- It does **not support** more than one variable-length (`nargs="*"`,
-  `"+"` , or `"..."`-style) positional argument's worth of ambiguity —
-  the underlying algorithm still needs positionals to be resolvable.
+- Officially, `parse_intermixed_args()` **does not support subparsers**
+  in the same parser, nor **mutually exclusive groups that contain both
+  optional and positional arguments**.
+- Separately from those documented restrictions, it is good design to
+  avoid more than one variable-length (`nargs="*"`, `"+"`) positional
+  argument: where one ends and the next begins can be ambiguous. That
+  is a design recommendation, not an official unsupported feature.
 - There is a companion `parse_known_intermixed_args()`, mirroring
   `parse_known_args()`.
 - Reach for this only when you have a genuine, demonstrated need for
@@ -1679,7 +1694,7 @@ parser.add_argument("--input", type=Path)
 
 ```bash
 python app.py --input data/raw.csv
-# args.input == PosixPath('data/raw.csv')
+# args.input is a pathlib.Path (repr is platform-dependent, e.g. PosixPath('data/raw.csv') on POSIX)
 ```
 
 Notes specific to CLI usage:
@@ -1777,7 +1792,7 @@ other than a top-level script.
 would, without exiting — useful for custom flows.
 
 ```python
-if not any(vars(args).values()):
+if len(sys.argv) == 1:   # no arguments at all; falsey values like 0 or False can't be confused with this
     parser.print_help()
     return 1
 ```
@@ -1786,7 +1801,9 @@ A common pattern: printing help when no arguments were given at all
 (rather than argparse's default of silently proceeding, if everything
 happens to be optional with defaults) — genuinely useful for a
 top-level tool where "just print help" is friendlier than "run with all
-defaults and produce confusing output." `file=` defaults to `sys.stdout`;
+defaults and produce confusing output." (For a CLI with subcommands, test
+the explicit state instead — `if args.command is None:` — rather than
+the truthiness of parsed values.) `file=` defaults to `sys.stdout`;
 pass `file=sys.stderr` if the help is being shown as part of an error
 path.
 
@@ -1931,7 +1948,7 @@ Caveats:
 tokens.
 
 The default implementation returns `[arg_line]` (the whole line, as
-written, as one token) unless the line is empty. To instead treat each
+written, as one token) for every line — an empty line becomes `[""]`. To instead treat each
 *whitespace-separated word* on a line as its own token (useful for a
 file listing several filenames per line):
 
@@ -2893,7 +2910,8 @@ examples in §13, §12.
 
 ## 70. `argparse.FileType`
 
-`argparse.FileType` is a callable factory — pass an instance of it as
+`argparse.FileType` is **deprecated since Python 3.14**; it is covered
+here because you will meet it in existing code. It is a callable factory — pass an instance of it as
 `type=` — that **opens a file as part of parsing**, instead of just
 converting the argument to a `Path`.
 
@@ -2978,9 +2996,9 @@ CLI argument parsing is, for the overwhelming majority of programs, not
 a performance concern worth optimizing. A few honest notes on where
 cost actually lives:
 
-- **Parser construction** (all the `add_argument()` calls) is cheap —
-  microseconds, even for a parser with dozens of arguments and several
-  subcommands. It happens once per process invocation.
+- **Parser construction** (all the `add_argument()` calls) is cheap, even
+  for a parser with dozens of arguments and several subcommands. It
+  happens once per process invocation.
 - **Parsing itself** is proportional to the number of command-line
   tokens, which is always small (tens, not millions) — never a
   bottleneck.
@@ -2997,8 +3015,8 @@ cost actually lives:
   it does not need to be rebuilt per call) avoids repeated
   `add_argument()` overhead.
 - **Subparser complexity** scales with the number of subcommands and
-  shared arguments, but even a tool with dozens of subcommands parses
-  in well under a millisecond — not a practical concern.
+  shared arguments, but for normal CLI programs, argparse parsing is not generally a
+  meaningful performance bottleneck.
 
 The takeaway: design for clarity and correctness first (§57); do not
 pre-optimize argument parsing, and treat any reported CLI slowness as
@@ -3270,10 +3288,11 @@ edge case to check (e.g., what happens with no arguments at all).
    the same input.
 3. Add `fromfile_prefix_chars="@"` support to a parser that accepts
    many repeated `nargs="*"` values, and demonstrate `@file` expansion.
-4. Write a minimal custom `argparse.Action` that validates and
-   normalizes a value in one step (e.g., normalizing a path separator),
-   and explain, in a comment, why a `type=` function could or couldn't
-   have done the same thing.
+4. Write a minimal custom `argparse.Action` that records which option
+   alias was used (for example `--verbose` versus `-v`, via
+   `option_string`) while storing the normalized value, and explain, in
+   a comment, why a `type=` function cannot do this (it never receives
+   `option_string`).
 5. Override `convert_arg_line_to_args()` to support multiple
    space-separated values per line in an `@file`.
 6. Build a full `src/app/...`-style layout (§68) for one of the
@@ -3303,7 +3322,11 @@ print(args.input.read_text())  # AttributeError: 'NoneType' object has no attrib
 *Diagnose:* `--input` was never marked `required=True`, and has no
 `default=` — omitting it entirely produces `None`, not an error, and
 the crash happens much later, far from the real cause.
-*Fix:* add `required=True`, or check `if args.input is None:` before use.
+*Fix:* add `required=True` (prevents omission) **and** `type=Path`
+(converts the CLI string to a `Path`, so `.read_text()` exists on the
+value): `parser.add_argument("--input", type=Path, required=True)` with
+`from pathlib import Path`. `required=True` alone would still leave a
+plain `str`. Alternatively, check `if args.input is None:` before use.
 
 **2. The `type=bool` trap**
 ```python
@@ -3326,11 +3349,17 @@ two were given. *Diagnose:* the author wanted "one or more," which is
 ```python
 parser.add_argument("--count", type=int, default="5")
 args = parser.parse_args([])
-print(args.count + 1)  # TypeError: can only concatenate str
+print(args.count)
+print(type(args.count))
 ```
-*Diagnose:* the default (`"5"`, a string) is never passed through
-`type=` (§16) — only explicitly-supplied values are converted. *Fix:*
-`default=5` (an actual int).
+```text
+5
+<class 'int'>
+```
+*Diagnose:* not a bug — the default (`"5"`) is a string, so argparse
+applies `type=int` to it (§16), and the result is the int `5`; no
+`TypeError` occurs. (A non-string default, e.g. `default=5`, is used
+as supplied.) `default=5` is still the clearer way to write it.
 
 **5. Invalid choices, confusing error location**
 ```python
@@ -3348,11 +3377,12 @@ group = parser.add_mutually_exclusive_group(required=True)
 group.add_argument("--json", action="store_true")
 group.add_argument("--csv", action="store_true", default=True)
 ```
-`--csv`'s `default=True` conflicts with what `required=True` on the
-group is trying to enforce — the group only checks *explicit*
-presence, so this combination is at best misleading. *Diagnose:*
-don't set a truthy default inside a `required=True` mutually exclusive
-group; let absence-of-both correctly trigger the group's own error.
+The required group checks *explicit* option presence, and the truthy
+default does not satisfy that requirement — so running with neither
+flag still errors. However, the default creates a misleading `Namespace`
+state: `--json` alone gives `json=True, csv=True`. *Diagnose:* don't
+set a truthy default inside a `required=True` mutually exclusive group;
+let absence-of-both correctly trigger the group's own error.
 
 **7. Subparser dispatch failure**
 ```python
@@ -3602,7 +3632,8 @@ into the execution path.
     than assuming a list) fixes it.
 12. Check whether `type=Path` was actually applied to *this*
     `add_argument()` call and not a different one — a `Path`-typed
-    argument's repr is `PosixPath('data.csv')`, not the bare string
+    argument is a `pathlib.Path` object (its repr is platform-dependent,
+    e.g. `PosixPath('data.csv')` on POSIX), not the bare string
     `'data.csv'`; if it prints as a plain string, `type=Path` isn't
     actually wired up where you think it is.
 13. `choices=range(0, 11)` — it's a simple, closed, small set of valid

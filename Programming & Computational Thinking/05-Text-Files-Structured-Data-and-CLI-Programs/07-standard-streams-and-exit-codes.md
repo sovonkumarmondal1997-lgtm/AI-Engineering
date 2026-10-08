@@ -133,9 +133,10 @@ conflate them:
 
 ## 2. The Three Standard Streams
 
-Every process your operating system starts is automatically given
-**three** standard streams, by convention, before it runs a single
-line of its own code:
+A normal command-line process is conventionally started with **three**
+standard streams — stdin, stdout, and stderr — before it runs a single
+line of its own code. Their actual connections depend on how the
+process was launched:
 
 | Stream | Direction | Python object | Typical purpose | Default interactive destination |
 |---|---|---|---|---|
@@ -143,8 +144,8 @@ line of its own code:
 | **stdout** ("standard output") | out of the process | `sys.stdout` | the program's normal, intended output | the terminal screen |
 | **stderr** ("standard error") | out of the process | `sys.stderr` | diagnostics, warnings, error messages | the terminal screen |
 
-"Standard" here means: every process gets these three, automatically,
-regardless of what the program itself does — a program does not have
+"Standard" here means: a normal command-line process gets these three,
+conventionally, regardless of what the program itself does — a program does not have
 to request them, open them, or configure them to have them available.
 This is what makes them useful as a *default* communication channel:
 any program can assume stdin/stdout/stderr exist, without knowing
@@ -276,12 +277,12 @@ same ones available on any text-mode file object:
 | Method/attribute | Purpose |
 |---|---|
 | `read(size=-1)` | Read and return up to `size` characters (or everything, if omitted) |
-| `readline()` | Read and return one line, including its trailing newline (or `""` at EOF) |
-| `readlines()` | Read and return *all* remaining lines as a `list[str]` |
+| `readline()` | Read and return one line; the line terminator is included when present (`""` at EOF) |
+| `readlines()` | Read and return *all* remaining lines as a `list[str]`; terminators are included when present (the final line may lack one) |
 | `write(s)` | Write string `s`; returns the number of characters written |
 | `writelines(lines)` | Write an iterable of strings, with **no** automatic newlines added between them |
 | `flush()` | Force any buffered data to actually be sent onward now (§14) |
-| `isatty()` | `True` if this stream is connected to an interactive terminal (§15) |
+| `isatty()` | `True` if this stream is connected to a terminal/TTY device and is considered interactive (§15) |
 | `fileno()` | The underlying OS file descriptor's integer, if one exists (§36) |
 | `readable()` | Whether reading is currently supported on this stream |
 | `writable()` | Whether writing is currently supported on this stream |
@@ -339,8 +340,10 @@ convenient layer over the same underlying `sys.stdin` this whole
 chapter is about.
 
 **`sys.stdin.readline()`** — reads exactly one line, but — unlike
-`input()` — *keeps* the trailing newline (or returns an empty string,
-`""`, at EOF, §6), and takes no prompt argument:
+`input()` — *keeps* the line terminator when one is present (if the
+final line does not end with a newline, the returned string does not
+contain one), or returns an empty string, `""`, at EOF (§6), and takes
+no prompt argument:
 
 ```python
 line = sys.stdin.readline()
@@ -348,8 +351,8 @@ print(repr(line))   # e.g. "hello\n"
 ```
 
 **`sys.stdin.readlines()`** — reads **everything** remaining and
-returns it as a `list[str]`, one entry per line, each still carrying
-its trailing newline:
+returns it as a `list[str]`, one entry per line. Line terminators are included when present; the
+final line may not contain one:
 
 ```python
 lines = sys.stdin.readlines()
@@ -380,7 +383,7 @@ the whole input in memory the way `readlines()` does.
 | Approach | Reads | Returns | Use when |
 |---|---|---|---|
 | `input()` | one line, minus newline | `str` | simple, one-shot interactive prompts |
-| `sys.stdin.readline()` | one line, with newline | `str` (or `""` at EOF) | manual, single-line control |
+| `sys.stdin.readline()` | one line, with its newline when present | `str` (or `""` at EOF) | manual, single-line control |
 | `sys.stdin.readlines()` | everything | `list[str]` | need every line available as a list right away, input is known to be small |
 | `sys.stdin.read()` | everything | `str` | need the whole input as one blob (e.g. one JSON document) |
 | `for line in sys.stdin:` | one line at a time, streaming | (loop variable) | line-oriented processing of input of any size |
@@ -569,8 +572,10 @@ connected to the terminal. This is a **shell** feature, resolved
 *before* your Python program starts, exactly like the shell parsing
 covered in
 [06-command-line-arguments-with-argparse.md](06-command-line-arguments-with-argparse.md)'s
-§4 — your Python code has no idea redirection even happened; it simply
-finds its streams already connected to whatever the shell arranged.
+§4 — Python does not perform the shell's redirection setup; the process
+starts with its standard streams already connected as arranged by the
+shell or parent process. Python can still inspect some properties of
+those connections.
 
 | Syntax | Meaning |
 |---|---|
@@ -695,7 +700,9 @@ specifically for standard streams.
 By default, `sys.stdin`, `sys.stdout`, and `sys.stderr` are **text
 streams** — reading from them gives you `str`, and writing to them
 requires `str`. Internally, each wraps an underlying **binary**
-stream, accessible through a `.buffer` attribute where available:
+stream, accessible through a `.buffer` attribute where available (the
+standard streams normally expose `.buffer`, but code should not assume
+every replacement file-like object has this attribute):
 
 ```python
 sys.stdin.buffer    # the underlying binary input stream
@@ -800,7 +807,9 @@ else:
 ```
 
 `isatty()` tells you, for one specific stream, whether that particular
-stream is connected to a real interactive terminal right now. Each
+stream is connected to a terminal/TTY device and is considered
+interactive by the underlying stream (it does not prove a human is
+actually watching). Each
 stream is checked independently — it's entirely possible for stdin to
 be a TTY (a human typing) while stdout is redirected to a file, or the
 reverse.
@@ -896,11 +905,10 @@ overstated:
   covers designing your *own* meaningful exit-code scheme.
   There is no single Python-wide or OS-wide law dictating what every
   non-zero number must mean beyond "not success."
-- **Exit codes are typically small integers** — on POSIX systems, the
-  value is conventionally constrained to the range 0–255 by the
-  underlying OS mechanism; values outside that range are typically
-  wrapped, so relying on very large or negative "exit codes" is not
-  portable.
+- **Exit statuses are integers, but the range and interpretation of
+  non-zero values are platform- and convention-dependent.** For
+  portable CLI design, prefer small, documented status values and avoid
+  relying on large or negative values.
 
 ## 18. `sys.exit()` and `SystemExit`
 
@@ -944,8 +952,11 @@ This matters for two very different reasons:
 
 ## 19. `main()` Return Values vs. `sys.exit()`
 
-The production pattern this chapter (and the previous one) has been
-building toward:
+For application code, a strong production pattern — the one this
+chapter (and the previous one) has been building toward — is to keep
+process termination at the CLI boundary: `main()` returns an exit
+status, and the top-level entry point converts it to process
+termination:
 
 ```python
 def main() -> int:
@@ -1438,9 +1449,10 @@ same three streams, from the outside.
 
 ```python
 import subprocess
+import sys
 
 result = subprocess.run(
-    ["python", "--version"],
+    [sys.executable, "--version"],
     capture_output=True,
     text=True,
 )
@@ -1475,7 +1487,7 @@ because the child process exited with a non-zero status — it simply
 records that status in `.returncode`, leaving it up to you to check:
 
 ```python
-result = subprocess.run(["python", "validate.py", "data.csv"], capture_output=True, text=True)
+result = subprocess.run([sys.executable, "validate.py", "data.csv"], capture_output=True, text=True)
 
 if result.returncode != 0:
     print(f"validation failed: {result.stderr}", file=sys.stderr)
@@ -1487,9 +1499,10 @@ instead of returning normally:
 
 ```python
 import subprocess
+import sys
 
 try:
-    subprocess.run(["python", "validate.py", "data.csv"], check=True, capture_output=True, text=True)
+    subprocess.run([sys.executable, "validate.py", "data.csv"], check=True, capture_output=True, text=True)
 except subprocess.CalledProcessError as exc:
     print(f"validation failed (exit {exc.returncode}): {exc.stderr}", file=sys.stderr)
 ```
@@ -1853,8 +1866,8 @@ separate files (§10), `isatty()` (§15), `flush()` (§14), Python's
 
 8. **Ignoring exit codes entirely.** *Wrong:* a script that never
    calls `sys.exit()` and never returns a meaningful status from
-   `main()`, always implicitly exiting `0` regardless of what actually
-   happened. *Why wrong:* automation checking this program's exit
+   `main()`, so it falls through normally and exits with status `0`
+   even if it printed an error message. *Why wrong:* automation checking this program's exit
    status can never detect its failures (§22).
 
 9. **Returning `1` for every possible situation without a reason.**
@@ -1864,10 +1877,9 @@ separate files (§10), `isatty()` (§15), `flush()` (§14), Python's
    from the exit status.
 
 10. **Using `sys.exit()` deep inside business logic unnecessarily.**
-    *Why wrong:* couples ordinary domain logic to process termination,
-    making it untestable in isolation (calling the function directly in
-    a test would kill the test process) and impossible to reuse from
-    anywhere except a top-level script. *Correct:* raise a regular
+    *Why wrong:* unnecessarily couples ordinary domain logic to process termination,
+    making it harder to test and reuse because callers must handle
+    `SystemExit` rather than an ordinary return value or exception. *Correct:* raise a regular
     exception; let `main()` (§19, §24) be the one place that translates
     it into an exit status.
 
@@ -2390,15 +2402,15 @@ and to any text-mode file object)
 | API | Purpose | Notes |
 |---|---|---|
 | `read(size=-1)` | Read up to `size` characters, or everything if omitted | §5 |
-| `readline()` | Read one line (with trailing newline), or `""` at EOF | §5–§6 |
+| `readline()` | Read one line; the line terminator is included when present. Returns `""` at EOF | §5–§6 |
 | `readlines()` | Read all remaining lines as a `list[str]` | §5 |
 | `write(s)` | Write `s`; returns character count written | §7 |
 | `writelines(lines)` | Write an iterable of strings, no automatic newlines added | §7 |
 | `flush()` | Force buffered data out now | §14 |
-| `isatty()` | Whether this stream is an interactive terminal | §15 |
+| `isatty()` | Whether this stream is connected to a terminal/TTY device | §15 |
 | `fileno()` | The underlying OS file descriptor's integer | §36 |
 | `readable()` / `writable()` / `seekable()` | Whether the corresponding operation is supported | §4 |
-| `.buffer` | The underlying binary stream, for `sys.stdin`/`stdout`/`stderr` | §13 |
+| `.buffer` | The underlying binary stream, for `sys.stdin`/`stdout`/`stderr` (normally present; replacement file-like objects such as `io.StringIO` may lack it) | §13 |
 
 **`print()`**
 
@@ -2459,13 +2471,13 @@ project brief, beyond the table form of §56:
   read as one `str` (§5–§6). Use for "the whole input is one logical
   unit" (e.g., one JSON document).
 - **`sys.stdin.readline()`** — returns one line, including its
-  trailing newline, or `""` exactly at EOF (§5–§6). Use for manual,
+  line terminator when present, or `""` exactly at EOF (§5–§6). Use for manual,
   one-line-at-a-time control.
 - **`sys.stdin.readlines()`** — blocks until EOF, then returns every
   remaining line as a `list[str]` (§5). Use only when you need
   everything as a list and the input is known to be small.
-- **`sys.stdin.isatty()`** — `True` if stdin is connected to an
-  interactive terminal right now (§15). Use before assuming a human is
+- **`sys.stdin.isatty()`** — `True` if stdin is connected to a
+  terminal/TTY device right now (§15). Use before assuming a human is
   available to answer an `input()` prompt.
 - **`sys.stdin.fileno()`** — returns stdin's underlying OS file
   descriptor integer, conventionally `0` (§36). Rarely needed directly.
@@ -2478,8 +2490,8 @@ project brief, beyond the table form of §56:
   confusion versus `print()`'s automatic per-call newline.
 - **`sys.stdout.flush()`** — forces buffered output out immediately
   (§14). Use when real-time visibility matters more than efficiency.
-- **`sys.stdout.isatty()`** — `True` if stdout is connected to an
-  interactive terminal (§15). Use before emitting color/progress bars.
+- **`sys.stdout.isatty()`** — `True` if stdout is connected to a
+  terminal/TTY device (§15). Use before emitting color/progress bars.
 - **`sys.stdout.fileno()`** — stdout's descriptor, conventionally `1`
   (§36).
 - **`sys.stderr.write()` / `.writelines()` / `.flush()` / `.isatty()` /
@@ -2846,7 +2858,7 @@ import sys
 
 def main(argv: list[str] | None = None) -> int:
     validate = subprocess.run(
-        ["python", "validate.py", "data.csv"],
+        [sys.executable, "validate.py", "data.csv"],
         capture_output=True, text=True,
     )
     if validate.returncode != 0:
@@ -2864,9 +2876,10 @@ if __name__ == "__main__":
 **4. A parent process capturing a child's stdout and stderr**
 ```python
 import subprocess
+import sys
 
 result = subprocess.run(
-    ["python", "-c", "import sys; print('out'); print('err', file=sys.stderr); sys.exit(3)"],
+    [sys.executable, "-c", "import sys; print('out'); print('err', file=sys.stderr); sys.exit(3)"],
     capture_output=True, text=True,
 )
 
@@ -2987,7 +3000,8 @@ requirements.)
 - accepts an optional file path positional argument; reads stdin if
   omitted (§31–§32),
 - processes input **line-by-line**, treating each line as one JSON
-  record (JSON Lines format),
+  record (JSON Lines format); blank/whitespace-only lines are ignored
+  and are not counted as records,
 - writes each **valid** record straight through to stdout, unchanged,
 - writes a warning to **stderr** for each malformed or invalid record,
   without stopping the whole run,
@@ -3043,7 +3057,9 @@ def open_input(path: str | None):
     return Path(path).open("r", encoding="utf-8")
 
 
-def validate_record(record: dict) -> list[str]:
+def validate_record(record: object) -> list[str]:
+    if not isinstance(record, dict):
+        return ["record must be a JSON object"]
     errors = []
     if "id" not in record:
         errors.append("missing 'id'")

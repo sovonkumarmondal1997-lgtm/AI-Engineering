@@ -151,9 +151,11 @@ with open("people.csv", "r", newline="", encoding="utf-8") as f:
 ['Bob', '25', 'Delhi'] <class 'str'>
 ```
 
-**Every single field read from a CSV file is a plain Python `str`,
-with no exceptions** — `"30"` is text, not the integer `30`, until your
-own code explicitly converts it. `"true"`, `"2026-09-21"`, and `"30.5"`
+**With the default `csv` reader behavior, every field is a plain
+Python `str`** — `"30"` is text, not the integer `30`, until your own
+code explicitly converts it. (A few reader configurations, such as
+`quoting=csv.QUOTE_NONNUMERIC`, convert unquoted fields to `float`
+automatically, but the CSV format itself never encodes types.) `"true"`, `"2026-09-21"`, and `"30.5"`
 are, likewise, just characters — CSV itself has no concept of numbers,
 booleans, or dates; it only has text. §9 and §24 make this explicit
 conversion step a first-class part of this chapter, precisely because
@@ -539,7 +541,7 @@ chapter develops exactly why this laziness matters for large CSV files.
 
 ### 13.1 The full signature
 
-```python
+```text
 csv.reader(
     iterable,
     dialect='excel',
@@ -656,7 +658,7 @@ side too.
 
 ### 15.1 The full signature
 
-```python
+```text
 csv.writer(
     fileobj,
     dialect='excel',
@@ -1014,7 +1016,7 @@ copy-pasted (and potentially drifting out of sync) at every call site.
 
 ### 21.1 `csv.Dialect` — the base class
 
-```python
+```text
 class csv.Dialect
 ```
 
@@ -1184,8 +1186,8 @@ belongs to your own explicit `.strip()` calls during validation (§21,
 ### 23.2 `strict`
 
 ```python
-# A deliberately malformed row -- an unescaped quote appears mid-field
-malformed_line = 'Alice,New "York,30\n'
+# A deliberately malformed row -- a quoted field is never closed
+malformed_line = 'Alice,"broken\n'
 
 reader = csv.reader([malformed_line], strict=True)
 next(reader)
@@ -1194,13 +1196,14 @@ next(reader)
 ```text
 Traceback (most recent call last):
   ...
-_csv.Error: ... invalid ... quote ...
+_csv.Error: unexpected end of data
 ```
 
 `strict=False` (the default) tolerates certain kinds of ambiguous or
 technically-malformed CSV syntax, doing its best to produce *some*
 parsed result rather than raising. `strict=True` instead raises
-`csv.Error` immediately upon encountering genuinely malformed syntax —
+`csv.Error` immediately upon encountering genuinely malformed syntax
+(here, a quoted field that is never closed) —
 §24 develops exactly when this stricter behavior is the right
 production choice.
 
@@ -1231,8 +1234,9 @@ except csv.Error as error:
 
 `csv.Error` is the module's own dedicated exception type, raised for
 malformed syntax under `strict=True` (§23.2), an unregistered dialect
-name (§21.3), and a handful of other module-specific misconfigurations
-(such as calling `field_size_limit()` with an invalid argument, §27).
+name (§21.3), a field exceeding the size limit (§25), and a handful of
+other module-specific problems. (Invalid argument *types*, such as a
+non-integer passed to `field_size_limit()`, raise `TypeError` instead.)
 
 ### 24.3 What to catch, what to log, when to reject vs. quarantine
 
@@ -1275,7 +1279,7 @@ counted, reported** rejection — never silent disappearance.
 ```python
 import csv
 
-print(csv.field_size_limit())   # 131072  (128 * 1024, the default, on typical builds)
+print(csv.field_size_limit())   # 131072  (128 * 1024, the commonly observed default; may vary by build)
 ```
 
 `csv.field_size_limit()`, called with **no argument**, returns the
@@ -1467,8 +1471,10 @@ with open("huge.csv", "r", newline="", encoding="utf-8") as f:
 print(f"Active rows: {total_active}")
 ```
 
-This processes a file of **any** size — thousands or tens of millions
-of rows — using essentially constant memory throughout, because
+This processes a file of **any** number of rows — thousands or tens of
+millions — without memory growing with the file's row count (memory
+still depends on the size of the current row and any state you keep),
+because
 `csv.reader` is already a lazy iterator (§12.2): each `for` step parses
 and yields exactly one row, which is then discarded (freed for garbage
 collection) once the loop moves on to the next.
@@ -1954,11 +1960,14 @@ def sanitize_for_spreadsheet(value: str) -> str:
     return value
 ```
 
-Prefixing a value that begins with a trigger character with a leading
-apostrophe (`'`) is a common, practical mitigation — most spreadsheet
-software treats a leading apostrophe as "force this cell to be read as
-literal text," neutralizing the formula interpretation, while leaving
-the field's actual content (after the marker) intact and recoverable.
+CSV itself never executes formulas; it is the spreadsheet application
+that may interpret a value as one. Prefixing a value that begins with a
+trigger character with a leading apostrophe (`'`) is a common, practical
+mitigation — many spreadsheet applications treat a leading apostrophe as
+"force this cell to be read as literal text," though behavior is
+application-dependent, so choose a mitigation suited to your target
+application. Note that sanitizing alters the exported representation
+(the apostrophe may appear as data in some programs).
 **This is a defensive sanitization pattern to be aware of and apply
 when exporting untrusted data for spreadsheet consumption — not
 instructions for exploiting the vulnerability**, which this chapter
@@ -2499,7 +2508,7 @@ to use `extrasaction="ignore"`), not silencing the symptom.
 import csv
 from pathlib import Path
 
-REQUIRED_COLUMNS = {"customer_id", "name", "email", "age"}
+REQUIRED_COLUMNS = ["customer_id", "name", "email", "age"]   # ordered: also the output column order
 
 
 def load_and_check(input_path: Path, clean_path: Path, rejected_path: Path) -> dict[str, int]:
@@ -2507,7 +2516,7 @@ def load_and_check(input_path: Path, clean_path: Path, rejected_path: Path) -> d
         reader = csv.DictReader(infile)
 
         # 1. Validate headers before processing a single row.
-        missing_columns = REQUIRED_COLUMNS - set(reader.fieldnames or [])
+        missing_columns = set(REQUIRED_COLUMNS) - set(reader.fieldnames or [])
         if missing_columns:
             raise ValueError(f"Missing required columns: {missing_columns}")
 
@@ -2517,12 +2526,13 @@ def load_and_check(input_path: Path, clean_path: Path, rejected_path: Path) -> d
         for row in reader:
             # 2. Validate required fields and convert types.
             errors = []
-            if not row["customer_id"].strip():
+            # A short (ragged) row gives None for absent fields.
+            if not (row["customer_id"] or "").strip():
                 errors.append("missing customer_id")
-            if not row["name"].strip():
+            if not (row["name"] or "").strip():
                 errors.append("missing name")
             try:
-                age = int(row["age"].strip())
+                age = int((row["age"] or "").strip())
                 if age < 0 or age > 130:
                     errors.append("implausible age")
             except ValueError:
@@ -2538,13 +2548,13 @@ def load_and_check(input_path: Path, clean_path: Path, rejected_path: Path) -> d
 
     # 4. Write cleaned output.
     with clean_path.open("w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=list(REQUIRED_COLUMNS))
+        writer = csv.DictWriter(f, fieldnames=REQUIRED_COLUMNS)
         writer.writeheader()
         writer.writerows(valid_rows)
 
     # 5. Write rejected records, including why each was rejected.
     with rejected_path.open("w", newline="", encoding="utf-8") as f:
-        fieldnames = list(REQUIRED_COLUMNS) + ["errors"]
+        fieldnames = REQUIRED_COLUMNS + ["errors"]
         writer = csv.DictWriter(f, fieldnames=fieldnames, extrasaction="ignore")
         writer.writeheader()
         writer.writerows(rejected_rows)
@@ -2596,20 +2606,27 @@ def _read_rows(path: Path) -> Iterator[dict[str, str]]:
 def _validate_and_convert(row: dict[str, str]) -> tuple[dict[str, object] | None, list[str]]:
     errors: list[str] = []
 
-    transaction_id = row["transaction_id"].strip()
+    # A short (ragged) row gives None for absent fields.
+    transaction_id = (row["transaction_id"] or "").strip()
     if not transaction_id:
         errors.append("missing transaction_id")
 
-    try:
-        amount = float(row["amount"].strip())
-        if amount <= 0:
-            errors.append("amount must be positive")
-    except ValueError:
-        amount = None
-        errors.append("invalid amount")
+    amount_text = (row["amount"] or "").strip()
+    amount = None
+    if not amount_text:
+        errors.append("missing amount")
+    else:
+        try:
+            amount = float(amount_text)
+            if amount <= 0:
+                errors.append("amount must be positive")
+        except ValueError:
+            errors.append("invalid amount")
 
-    currency = row["currency"].strip().upper()
-    if currency not in {"USD", "EUR", "GBP"}:
+    currency = (row["currency"] or "").strip().upper()
+    if not currency:
+        errors.append("missing currency")
+    elif currency not in {"USD", "EUR", "GBP"}:
         errors.append(f"unsupported currency: {currency!r}")
 
     if errors:
@@ -2617,7 +2634,7 @@ def _validate_and_convert(row: dict[str, str]) -> tuple[dict[str, object] | None
 
     return {
         "transaction_id": transaction_id,
-        "customer_id": row["customer_id"].strip(),
+        "customer_id": (row["customer_id"] or "").strip(),
         "amount": amount,
         "currency": currency,
     }, []
@@ -2666,7 +2683,8 @@ pipeline scale). **Error handling:** a structurally invalid *file*
 `ValueError`; a structurally invalid *row* is quarantined individually,
 without aborting the rest of the run (§24.3). **Memory usage:** both
 `_read_rows` and the main loop stream row by row — the *entire* file is
-never held in memory at once, regardless of its size (§28.2–§28.3).
+never held in memory at once, regardless of its number of rows
+(§28.2–§28.3).
 **Data quality:** every rejected row carries its specific error
 reasons, rather than a bare "invalid" flag. **Logging boundaries:**
 this example deliberately returns a structured `IngestResult` rather
@@ -2695,7 +2713,7 @@ Python's `csv` module.
 |---|---|---|---|---|---|
 | `csv.reader` | Parse rows from a text stream | `csv.reader(f, dialect='excel', **fmtparams)` | `delimiter`, `quotechar`, `quoting`, `strict`, ... (§13) | A reader iterator, yielding `list[str]` per row | Requires an already-open iterable, not a path (§13.2) |
 | `csv.writer` | Write rows to a text stream | `csv.writer(f, dialect='excel', **fmtparams)` | `delimiter`, `lineterminator`, `quoting`, ... (§15) | A writer object with `.writerow()`/`.writerows()` | Open the file with `newline=""` (§26.2) |
-| `csv.DictReader` | Parse rows as dictionaries | `csv.DictReader(f, fieldnames=None, restkey=None, restval=None, dialect='excel')` | `fieldnames`, `restkey`, `restval` (§17) | An iterator yielding `dict[str, str]` per row | Duplicate header names silently overwrite (§34.1) |
+| `csv.DictReader` | Parse rows as dictionaries | `csv.DictReader(f, fieldnames=None, restkey=None, restval=None, dialect='excel')` | `fieldnames`, `restkey`, `restval` (§17) | An iterator yielding a `dict` per row (values are `str` by default; `restval`/`restkey` can yield `None` or `list[str]`, and some `quoting` settings numbers) | Duplicate header names silently overwrite (§34.1) |
 | `csv.DictWriter` | Write dictionaries as rows | `csv.DictWriter(f, fieldnames, restval='', extrasaction='raise', dialect='excel')` | `fieldnames` (required), `restval`, `extrasaction` (§19) | A writer object with `.writeheader()`/`.writerow()`/`.writerows()` | `fieldnames` is mandatory, unlike `DictReader`'s |
 | `csv.register_dialect` | Name a reusable formatting configuration | `csv.register_dialect(name, dialect=None, **fmtparams)` | Any `fmtparams` (§13.1/§15.1) | `None` | Overwrites a name if already registered |
 | `csv.unregister_dialect` | Remove a registered dialect | `csv.unregister_dialect(name)` | — | `None` | Raises `csv.Error` if the name was never registered |
@@ -2750,7 +2768,7 @@ all of it up front, before any processing begins, while Approach B
 interleaves parsing and processing, one row at a time. **Memory:**
 Approach A's memory usage grows linearly with the *total* number of
 rows, held simultaneously; Approach B's memory usage stays roughly
-constant, regardless of how many rows the file ultimately contains —
+constant with respect to the number of rows the file ultimately contains —
 exactly
 [01-reading-and-writing-text-files.md](01-reading-and-writing-text-files.md)'s
 §20 lesson, restated for CSV specifically (§28 already developed this

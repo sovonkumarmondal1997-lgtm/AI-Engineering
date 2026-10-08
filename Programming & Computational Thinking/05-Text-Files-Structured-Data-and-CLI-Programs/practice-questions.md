@@ -173,7 +173,7 @@ def load_employees(path: Path) -> list[dict]:
 ### Explanation
 
 `csv.DictReader` automatically reads the first row as field names and
-returns each subsequent row as an `OrderedDict`-like mapping from those
+returns each subsequent row as a dictionary (a `dict`) mapping those
 names to that row's values — this is why the CSV module is used
 instead of manually splitting each line on commas: a naive `split(",")`
 breaks the moment any field legitimately contains a comma inside
@@ -249,7 +249,8 @@ with `.get()` (from 04-json-and-serialization.md).
 ### Problem
 
 A file `report.txt` was created on a different machine and contains
-non-ASCII characters (accented letters, currency symbols). Write code
+non-ASCII characters (accented letters, currency symbols); the file is
+expected to be UTF-8 encoded. Write code
 that opens and reads it correctly, and explain, in a code comment,
 what would go wrong if the encoding were omitted or wrong.
 
@@ -597,7 +598,8 @@ argparse `type=Path`, path validation, `csv.reader`, `main() -> int`
 ### Problem
 
 You receive JSON like `{"items": [{"id": 1, "price": 10.5}, {"id": 2}]}`
-— note that the second item is missing `"price"`. Write a function
+(the document is expected to be a JSON object, and `"items"` a list of
+objects) — note that the second item is missing `"price"`. Write a function
 that computes the total price across all items, treating a missing
 `"price"` as a validation problem rather than crashing or silently
 treating it as `0`.
@@ -686,7 +688,7 @@ with open("commands.txt", "r", encoding="utf-8") as handle:
 ```python
 with open("commands.txt", "r", encoding="utf-8") as handle:
     for line in handle:
-        if line.strip() == "END":
+        if line.rstrip("\r\n") == "END":
             print("Found the end marker")
 ```
 
@@ -699,13 +701,15 @@ underlying file are translated to a single `\n` when read — so the
 line isn't `"END\r\n"` literally, but it *is* `"END\n"`, which still
 does not equal the bare string `"END"`. The original comparison fails
 regardless of which platform wrote the file, for exactly this reason.
-**Fix:** `.strip()` removes leading/trailing whitespace, including the
-trailing newline, before the comparison — a small but essential habit
-whenever comparing a line's content rather than its exact bytes.
+**Fix:** `.rstrip("\r\n")` removes just the line terminator before the
+comparison — the actual problem here — without discarding other
+leading/trailing whitespace the way `.strip()` would; a small but
+essential habit whenever comparing a line's content rather than its
+exact bytes.
 
 ### Concepts Tested
 
-Universal newline handling, line iteration, `.strip()`, a realistic
+Universal newline handling, line iteration, `.rstrip("\r\n")`, a realistic
 cross-platform newline bug (from 01 and 05).
 
 ---
@@ -961,7 +965,8 @@ transformation (from 03 and 04).
 ### Problem
 
 Write a function `safe_write(path, content)` that writes text content
-to a file inside a `reports/` directory, creating that directory if it
+to a file at `path` (for example `Path("reports/summary.txt")`, i.e.
+inside a `reports/` directory), creating the parent directory if it
 doesn't already exist, and refusing to overwrite an existing file
 unless an `overwrite=True` flag is passed.
 
@@ -981,11 +986,14 @@ from pathlib import Path
 def safe_write(path: Path, content: str, overwrite: bool = False) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
 
-    if path.exists() and not overwrite:
-        raise FileExistsError(f"refusing to overwrite existing file: {path} (pass overwrite=True)")
-
-    with path.open("w", encoding="utf-8") as handle:
-        handle.write(content)
+    # "x" = exclusive creation: fails if the file already exists, with no
+    # gap between the check and the create. "w" truncates/overwrites.
+    mode = "w" if overwrite else "x"
+    try:
+        with path.open(mode, encoding="utf-8") as handle:
+            handle.write(content)
+    except FileExistsError:
+        raise FileExistsError(f"refusing to overwrite existing file: {path} (pass overwrite=True)") from None
 ```
 
 ### Explanation
@@ -994,11 +1002,13 @@ def safe_write(path: Path, content: str, overwrite: bool = False) -> None:
 directory (and any missing parent directories) exists before an
 attempt to write into it — `exist_ok=True` means this doesn't raise if
 the directory is already there, which is the common, desired case.
-Checking `path.exists()` *before* opening for writing is what prevents
-an accidental silent overwrite — opening in `"w"` mode truncates an
-existing file immediately, with no warning, so the check has to happen
-first, as a deliberate gate, rather than relying on the write itself to
-somehow protect the existing content.
+Opening in `"w"` mode truncates an existing file immediately, with no
+warning, so the no-overwrite case uses `"x"` (exclusive creation)
+instead: it raises `FileExistsError` if the file is already there, as a
+single operation. A separate `path.exists()` check followed by
+`open("w")` would leave a gap in which another process could create
+the file (a time-of-check/time-of-use race), so it is not a race-free
+protection.
 
 ### Concepts Tested
 
@@ -1252,7 +1262,11 @@ the root logger already has a handler attached. Because `helper`'s
 explicit `basicConfig()` call — it silently consumes the one chance
 `basicConfig()` had to configure anything. **Fix:** call
 `basicConfig()` as the very first logging-related statement in the
-program, before importing anything that might log at import time.
+program, before importing anything that might log at import time. (In a
+real application, the cleaner design is for helper modules not to log
+at import time and for the application's entry point to own logging
+configuration, §08; moving `basicConfig()` before the import is the
+fix that fits this particular demonstration.)
 
 ### Concepts Tested
 
@@ -1375,7 +1389,9 @@ resolves the joined path to its absolute, `..`-free form with
 `.resolve()`, then checks with `.is_relative_to()` (available from
 Python 3.9) whether that resolved path is still actually inside the
 resolved base directory — rejecting it with a clear error if not,
-*before* any file operation is attempted.
+*before* any file operation is attempted. This is the validation
+technique this exercise demonstrates; it is not, by itself, a defense
+against every possible filesystem race or security issue.
 
 ### Concepts Tested
 
@@ -1678,7 +1694,9 @@ valid" from "some rows invalid" from "input file not found."
 
 - Use `argparse` for the file path argument.
 - Validate the file's existence with `pathlib` before opening it.
-- Use `csv.DictReader` and validate `amount` converts to `float`.
+- Use `csv.DictReader`. This exercise validates only `order_id`
+  (present and non-empty) and `amount` (converts to `float`);
+  `customer` is read but not validated.
 - Collect (don't fail fast on) row-level errors.
 - Log warnings for invalid rows; log an info-level summary.
 - Print only the JSON summary to stdout.
@@ -1901,14 +1919,20 @@ def main() -> int:
     dropped = 0
 
     for line_number, raw_line in enumerate(sys.stdin, start=1):
-        stripped = raw_line.strip()
-        if not stripped:
+        if not raw_line.strip():
             continue
         total += 1
         try:
-            record = json.loads(stripped)
+            record = json.loads(raw_line)
         except json.JSONDecodeError:
             logger.warning("Line %d: invalid JSON, dropping", line_number)
+            dropped += 1
+            continue
+
+        # Valid JSON syntax is not enough: the record must be a JSON object
+        # (a dict) before dictionary operations like `in` mean anything.
+        if not isinstance(record, dict):
+            logger.warning("Line %d: expected a JSON object, dropping", line_number)
             dropped += 1
             continue
 
@@ -1917,9 +1941,10 @@ def main() -> int:
             dropped += 1
             continue
 
-        print(stripped)   # pass the valid record through, unchanged, on stdout
+        # Pass the valid record through unchanged: only the line terminator
+        # is removed (print() adds one back), not other whitespace.
+        print(raw_line.rstrip("\r\n"))
 
-    logger.info("Processed %d records, dropped %d", total, dropped) if False else None
     return 0 if dropped == 0 else 3
 
 
@@ -1937,7 +1962,9 @@ pipeline. Every warning goes through `logger.warning(...)`, which
 defaults to stderr — a plain pipe (`producer | python validate_stream.py
 | consumer`) only connects stdout to the next stage, so these warnings
 never contaminate the data `consumer` receives, even though a human
-watching the terminal still sees them. Only genuinely valid records are
+watching the terminal still sees them. The solution separates three checks: JSON
+*syntax* validity (`json.loads()`), JSON *object* validity (is it a
+`dict`?), and the *required field* (`id`). Only genuinely valid records are
 `print()`ed, preserving the "clean stdout" contract the next pipeline
 stage depends on. The distinct exit code (`3` for "some records
 dropped") lets an orchestrator distinguish a fully clean run from one
@@ -1968,8 +1995,9 @@ are fine.
 - Validate `confidence` with an inclusive range check.
 - Use error collection for individual rows, but a fail/pass threshold
   decision at the end.
-- Use `argparse` `type=float` with a custom validator rejecting values
-  outside `[0.0, 100.0]` for `--max-invalid-percent`.
+- Use a custom `type=` function for `--max-invalid-percent` that
+  converts the input to `float`, validates that it is within
+  `[0.0, 100.0]`, and raises `argparse.ArgumentTypeError` when it is not.
 - Print a JSON summary to stdout; log details to stderr.
 - Exit `0` if under threshold, `3` if over.
 
@@ -2125,9 +2153,12 @@ retained far longer than anyone expects. This is precisely the "never
 log secrets" rule this module emphasizes repeatedly, violated by a
 single careless logging call. **Immediate fix:** log only the specific
 fields already known to be safe, by name — never the object as a
-whole. **Structural fix:** overriding `__repr__` on `PaymentConfig`
-itself to always mask `api_secret` means that *any* future code that
-logs, prints, or otherwise reprs the whole object — including code a
+whole. **Structural fix:** the custom `__repr__` is an *allowlisted*
+representation: it explicitly exposes only the approved non-secret
+fields and masks `api_secret`. It does not detect secrets
+automatically — if a future field is added, it will not appear in the
+representation unless someone deliberately adds it. That means *any*
+future code that logs, prints, or otherwise reprs the whole object — including code a
 teammate writes later without knowing this history — is protected by
 default, rather than depending on every future call site remembering
 to cherry-pick safe fields individually. This is a stronger guarantee
@@ -2203,7 +2234,10 @@ mojibake — it explicitly retries with a named fallback encoding
 (`cp1252`, a common legacy Windows encoding), and — critically — logs a
 `WARNING` when this happens, so the fact that a fallback was needed at
 all is visible to whoever operates this batch job, rather than
-disappearing invisibly into "it worked." If even the fallback fails,
+disappearing invisibly into "it worked." Note that `cp1252` is a configured fallback *policy* for this
+Windows-oriented scenario, not reliable automatic encoding detection:
+successfully decoding with it does not prove it was the original
+encoding. If even the fallback fails,
 the function raises a clear `ValueError` naming the file and both
 encodings attempted, rather than letting a raw `UnicodeDecodeError`
 propagate with no context about what was already tried.
@@ -2222,7 +2256,8 @@ BOM handling with `utf-8-sig`, encoding fallback strategy, logging a
 
 Design (and implement) a small composable CLI filter, `redact.py`,
 meant to sit inside a larger pipeline processing log lines:
-`cat app.log | python redact.py --pattern "sk_live_\w+" | tee scrubbed.log`.
+`cat app.log | python redact.py --pattern "sk_live_\w+" | tee scrubbed.log`
+(this shell example assumes a Unix-like shell: Linux, macOS, or WSL).
 It should replace any text matching a given regex pattern with `***`,
 streaming line by line, while logging (at `INFO`, to stderr) how many
 replacements were made in total once processing finishes — without
@@ -2308,7 +2343,8 @@ polluting stdout (06, 07, 08 combined; `re` introduced narrowly per
 ### Problem
 
 Design a pytest test suite for the `build_config()` function from
-Question 29 (`PORT`/`--port` precedence, required `API_KEY`, optional
+Question 29 (assume that implementation is saved as `myapp/config.py`;
+`PORT`/`--port` precedence, required `API_KEY`, optional
 `LOG_LEVEL`). Your tests must cover: the CLI-overrides-environment
 case, the environment-only case, the default-port case, the missing-
 `API_KEY` fail-fast case (and its exit code), and confirm that no test
@@ -2436,6 +2472,12 @@ short illustrative stub).
 
 ### Solution
 
+*(This is an illustrative reference implementation, not a complete
+production system: for brevity, input-file validation and output
+writing are done inline in `build_config()` and `process_readings()`
+rather than in the separate functions the diagram names, and row
+validation is limited to converting `value` to `float`.)*
+
 **Architecture:**
 
 ```
@@ -2462,7 +2504,7 @@ flags exist, their types, and basic per-argument constraints (choices,
 required-ness) — nothing about business rules lives here. The
 **configuration layer** (`build_config()`) is the single place CLI
 values and environment variables are merged according to an explicit
-precedence, validated, and normalized into one immutable `AppConfig` —
+precedence, validated, and normalized into one frozen `AppConfig` (its fields cannot be reassigned; this is not deep immutability) —
 no other function reads `os.environ` or `args` directly. The
 **validation layer** operates on `AppConfig`'s fields (e.g. checking
 `input_path` exists) and, separately, on each CSV row (error
@@ -2621,7 +2663,8 @@ precedence (`args.max_invalid_percent if ... is not None else
 os.getenv(...)`), eliminating the "configuration read from multiple
 places" bug class from earlier in this set. **Why a frozen
 `AppConfig`:** once built and validated, nothing later in the run
-should be able to silently change it. **Why `RotatingFileHandler`:**
+should be able to silently reassign its fields (`frozen=True` is not
+deep immutability). **Why `RotatingFileHandler`:**
 this is a pipeline step expected to run repeatedly (once per pipeline
 invocation) — a plain, non-rotating log file would grow without bound
 across many runs. **Why three distinct exit codes:** `4` (configuration

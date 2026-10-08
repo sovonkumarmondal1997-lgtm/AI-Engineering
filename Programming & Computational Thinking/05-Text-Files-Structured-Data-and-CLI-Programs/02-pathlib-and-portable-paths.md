@@ -830,10 +830,13 @@ On Linux/macOS, filenames beginning with `.` are conventionally
 "hidden" from typical directory listing tools, but `.iterdir()` and
 `.glob("*")` **do include them** — `pathlib` performs no hiding on
 your behalf; filter explicitly (e.g. `if not entry.name.startswith("."):`)
-if you want that behavior. `.glob()`/`.rglob()` follow symbolic links
-by default when descending into directories, which can matter for both
-correctness (accidentally traversing outside the intended tree) and
-performance (traversing a symlink cycle) — §18 and §29 return to this.
+if you want that behavior. Recursive `**` patterns (and therefore `.rglob()`) do **not**
+follow directory symlinks by default; Python 3.13+ adds
+`recurse_symlinks=True` to `.glob()`/`.rglob()` to opt in. Symlink
+handling matters for correctness (accidentally traversing outside the
+intended tree), security, and performance (traversing a symlink
+cycle), and not every pattern form treats symlinks identically — §18
+and §29 return to this.
 For very large directory trees, `.rglob()`'s cost is directly
 proportional to the number of files and directories visited — §29
 covers this fully.
@@ -1330,12 +1333,15 @@ this pattern?" — a subtle but important difference in purpose.
 **Version-sensitive behavior worth knowing:** historically (through
 Python 3.12), `.match()` treated `**` no differently from a single `*`
 — it did **not** support recursive matching the way `.glob("**/...")`
-does. Python 3.13 changed `.match()` to support `**` recursively and
-added a `case_sensitive` keyword parameter, matching `.glob()`'s
-behavior more closely. If recursive-depth matching is genuinely needed
-and you cannot assume Python 3.13+, prefer `.rglob()` (which reliably
-supports recursion on every supported version) over relying on
-`.match("**/...")`.
+does. `.match()` still matches from the right and does not do
+recursive `**` matching; for example,
+`Path("data/x/y/report.csv").match("data/**/*.csv")` is `False`.
+Python 3.13 introduced a separate method, **`Path.full_match()`**,
+which provides full glob-style matching of the whole path, including
+recursive `**` (the same example returns `True`). If recursive-depth
+matching is genuinely needed and you cannot assume Python 3.13+, prefer
+`.rglob()` (which reliably supports recursion on every supported
+version) over relying on `.match("**/...")`.
 
 ## 22. PathLike and Interoperability
 
@@ -1546,7 +1552,8 @@ though both describe, physically, the same underlying file.
 
 Reading or writing files that live on the Windows-mounted side
 (anything under `/mnt/c/...` and similar) from inside WSL2 is
-meaningfully slower than working with files that live natively inside
+often meaningfully slower (depending on the workload) than working with
+files that live natively inside
 the Linux filesystem (anything under `/home/...`) — because every such
 operation must cross the boundary between the Linux virtual machine and
 the Windows host. For real data-processing or AI-engineering work
@@ -1562,7 +1569,7 @@ cloud CI pipeline — none of which have any `/mnt/c/` concept at all,
 and some of which (a fresh Linux server, for instance) will behave
 identically to your WSL2 environment for `pathlib` purposes. Writing
 portable, `pathlib`-based paths now (§24) is what makes that eventual
-move require zero path-related code changes.
+move typically require few or no path-related code changes.
 
 ## 26. Permissions and Errors
 
@@ -1654,10 +1661,13 @@ def validate_input_file(path: Path) -> Path:
 
 **Why this belongs near the boundary:** once `validate_input_file` has
 returned successfully, every piece of code *downstream* of it can
-safely assume "this really is an existing, real file" — exactly the
-"transform into a reliable internal representation" idea from the
-previous chapter's §3, now applied specifically to paths rather than
-file content.
+rely on the precondition that this path **was** an existing file at the
+moment of validation — exactly the "transform into a reliable internal
+representation" idea from the previous chapter's §3, now applied
+specifically to paths rather than file content. It is not a permanent
+guarantee (§27, §29): the filesystem can change immediately afterward,
+so later operations can still fail and must still handle filesystem
+exceptions.
 
 ## 28. Path Traversal Security
 
@@ -1758,10 +1768,10 @@ except FileNotFoundError:
     content = ""
 ```
 
-This is not merely "shorter code" — it is **structurally immune** to
-the TOCTOU gap, because there is no separate check-then-act window at
-all: the single operation either succeeds or raises, atomically, as far
-as your program's own logic is concerned. This directly reuses
+This is not merely "shorter code" — it avoids the specific
+check-then-act race introduced by a separate existence check, because
+there is no gap between check and operation: the single operation
+either succeeds or raises (and the exception must still be handled). This directly reuses
 [01-reading-and-writing-text-files.md](01-reading-and-writing-text-files.md)'s
 §18.3/§28's "catch the specific, anticipated exception" principle — here
 applied specifically as a defense against a real class of filesystem
@@ -1783,13 +1793,23 @@ rather than assuming the earlier check makes the later operation safe.
 ```python
 from pathlib import Path
 import os
+import tempfile
 
 
 def write_safely(target: Path, content: str) -> None:
-    temporary_file = target.with_name(target.name + ".tmp")
-    temporary_file.write_text(content, encoding="utf-8")
+    # unique temporary file in the SAME directory (hence the same filesystem)
+    with tempfile.NamedTemporaryFile(
+        "w", encoding="utf-8", dir=target.parent,
+        prefix=target.name + ".", suffix=".tmp", delete=False,
+    ) as handle:
+        handle.write(content)
+        temporary_file = Path(handle.name)
     temporary_file.replace(target)
 ```
+
+A unique temporary name (rather than a fixed `target.tmp`) keeps
+concurrent writers from clobbering each other's temporary file; placing
+it in `target.parent` keeps `.replace()` on one filesystem.
 
 The idea: write the *entire* new content to a separate, temporary
 location first; only once that write has fully succeeded, use
@@ -2434,7 +2454,7 @@ member.
 
 | API | What it does | Caveat |
 |---|---|---|
-| `.match(pattern)` | Tests one path against a glob pattern | `**` recursive support only from Python 3.13 |
+| `.match(pattern)` | Tests one path against a glob pattern | No recursive `**`; use `.full_match()` (Python 3.13+) for that |
 
 ### 37.11 Path transformations (no filesystem access)
 
@@ -2951,7 +2971,7 @@ Scenario-based:
    they are relative to.
 
 **B. Code-reading**
-3. What does the following construct, exactly (as text)?
+3. On POSIX, what does the following construct, exactly (as text)?
 ```python
 Path("a") / "b" / "/c" / "d"
 ```
@@ -3005,15 +3025,19 @@ print(p.suffixes)
    point — typically the current working directory — which is not
    fixed and can differ between runs, machines, and launch methods
    (§4.7, §8.2).
-3. `PosixPath('/c/d')` — because `/c` is itself absolute, everything
-   before it in the composition (`"a"`, `"b"`) is discarded (§6.5).
+3. `PosixPath('/c/d')` — on POSIX, because `/c` is itself absolute,
+   everything before it in the composition (`"a"`, `"b"`) is discarded
+   (§6.5). Rooted/absolute components discard earlier parts on Windows
+   too, but the details differ (e.g. `/c` is rooted without a drive).
 4. `'report.tar'`, `'.gz'`, `['.tar', '.gz']` — `.stem` removes only the
    *last* suffix, and `.suffixes` lists every one (§7.1–§7.2).
-5. Possible causes: a race condition where something recreated the
-   directory with different permissions between check and creation
-   attempt (§13.4); or the path already exists but as a *file*, not a
-   directory — `exist_ok=True` tolerates an existing directory, not an
-   existing file at that same path, which still raises `FileExistsError`.
+5. Most commonly, the path already exists but as a *file* (or other
+   non-directory), not a directory — `exist_ok=True` tolerates an
+   existing directory, not another kind of object at that same path,
+   which still raises `FileExistsError`. Other conditions, such as
+   missing permissions, raise different exceptions (e.g.
+   `PermissionError`), and a concurrent-creation race (§13.4) is a rarer
+   possibility.
 6. `.rglob("*.log")` — it searches recursively at any depth, which
    `.iterdir()` and non-recursive `.glob()` do not (§12.3).
 7. `.match("*.csv")` — it tests one already-known path against a

@@ -651,11 +651,15 @@ security gap where "this value happens to be well-formed" was
 mistaken for "this value is safe to use in a specific dangerous
 context" (a filename, a shell command, a query).
 
-The right order, generally: **validate first** (reject clearly
-unacceptable input outright); **normalize** what's accepted (put it in
-one consistent internal form); **sanitize** only the specific, narrow
-cases where a value's *content* — not its overall validity — poses a
-risk in how it will subsequently be used.
+A common order is: **validate** (reject clearly unacceptable input
+outright); **normalize** what's accepted (put it in one consistent
+internal form); **sanitize** only the specific, narrow cases where a
+value's *content* — not its overall validity — poses a risk in how it
+will subsequently be used. The right order can depend on the input and
+its downstream use: normalization is sometimes needed *before*
+validation (for example, stripping whitespace and lowercasing before
+comparing against allowed values), and sanitization is context-specific
+and is not a universal substitute for rejecting invalid input.
 
 ## 10. Boundary Validation
 
@@ -930,7 +934,7 @@ path.is_dir()        # does it exist AND is it a directory?
 path.suffix           # ".csv" — the file extension, including the leading dot
 ```
 
-**Input path validation** — the file must already exist and be usable:
+**Input path validation** — the file must already exist and be a regular file (whether it is actually *usable* is only confirmed when you open it):
 ```python
 def validate_input_file(path: Path) -> Path:
     if not path.exists():
@@ -940,6 +944,10 @@ def validate_input_file(path: Path) -> Path:
     return path
 ```
 
+Passing these checks does not guarantee a later open or read will
+succeed: permissions, races, and other filesystem state can still
+cause an operational failure.
+
 **Output path validation** — often the *opposite* concern: avoiding an
 accidental overwrite, or ensuring the destination directory actually
 exists:
@@ -947,7 +955,7 @@ exists:
 def validate_output_path(path: Path, *, allow_overwrite: bool = False) -> Path:
     if path.exists() and not allow_overwrite:
         raise ValueError(f"output file already exists (use --force to overwrite): {path}")
-    if not path.parent.exists():
+    if not path.parent.is_dir():
         raise ValueError(f"output directory does not exist: {path.parent}")
     return path
 ```
@@ -997,12 +1005,17 @@ be parsed at all:
 ```python
 import json
 
-def parse_json_line(line: str) -> dict:
+def parse_json_line(line: str) -> object:
     try:
         return json.loads(line)
     except json.JSONDecodeError as exc:
         raise ValueError(f"invalid JSON: {exc}") from exc
 ```
+
+Successful parsing does not guarantee a `dict`: `json.loads()` can
+return a `dict` (object), `list` (array), `str`, `int`/`float`, `bool`,
+or `None` (`null`), so the return type is `object` here. Checking that
+the value has the shape you expect is the next, separate step.
 
 **Shape/schema validation** comes next — assuming it parsed, is its
 *structure* what the program actually expects:
@@ -1015,17 +1028,26 @@ def validate_record_shape(record: object) -> dict:
 
 **Required fields, field types, missing fields:**
 ```python
-REQUIRED_FIELDS = {"id": int, "name": str, "value": float}
+# "value" means any JSON number, so both int (5) and float (5.0) are accepted.
+REQUIRED_FIELDS = {"id": int, "name": str, "value": (int, float)}
 
 def validate_record_fields(record: dict) -> dict:
     for field, expected_type in REQUIRED_FIELDS.items():
         if field not in record:
             raise ValueError(f"missing required field: {field!r}")
-        if not isinstance(record[field], expected_type):
+        # bool is a subclass of int, so True/False must be rejected explicitly.
+        if isinstance(record[field], bool) or not isinstance(record[field], expected_type):
             actual = type(record[field]).__name__
-            raise ValueError(f"field {field!r} must be {expected_type.__name__}, got {actual}")
+            allowed = expected_type if isinstance(expected_type, tuple) else (expected_type,)
+            expected_names = " or ".join(t.__name__ for t in allowed)
+            raise ValueError(f"field {field!r} must be {expected_names}, got {actual}")
     return record
 ```
+
+JSON has no separate integer/float types: the JSON number `5` decodes
+to a Python `int`, so requiring exactly `float` would wrongly reject
+it. If downstream code needs a `float`, normalize afterwards with
+`float(record["value"])`.
 
 **Unexpected fields** — sometimes worth rejecting (a strict schema),
 sometimes worth simply ignoring (a lenient, forward-compatible schema)
@@ -1217,12 +1239,20 @@ fail cleanly — never silently).
 ```python
 # GOOD — converts a low-level error into a clear, boundary-appropriate one
 def load_port_from_env() -> int:
-    raw = os.environ["PORT"]              # KeyError if missing — let it propagate; that's a real bug in setup
+    raw = os.environ["PORT"]              # KeyError if missing — a raw KeyError here, see the note below
     try:
         return int(raw)                    # ValueError if malformed
     except ValueError:
         raise ValueError(f"PORT must be an integer, got {raw!r}") from None
 ```
+
+This helper deliberately demonstrates the low-level behavior: the raw
+`KeyError` for a missing variable is not a clear boundary error. In a
+real CLI, missing configuration (`PORT` is absent) is a different
+situation from malformed configuration (`PORT` is present but not an
+integer), and both should be reported to the user as clear,
+boundary-level configuration errors — for example by catching
+`KeyError` and raising `ValueError("PORT is required but not set")`.
 
 ## 20. Custom Validation Functions
 
@@ -1302,9 +1332,11 @@ class AppConfig:
 
 - **`@dataclass`** generates `__init__`, `__repr__`, and `__eq__`
   automatically from the declared fields — no boilerplate needed.
-- **`frozen=True`** makes instances **immutable** — once created, a
-  `Config`'s fields cannot be reassigned (`config.port = 9000` raises
-  `dataclasses.FrozenInstanceError`). This is a deliberate design
+- **`frozen=True`** makes instances read-only at the field level — once
+  created, a `Config`'s fields cannot be reassigned or deleted
+  (`config.port = 9000` raises `dataclasses.FrozenInstanceError`). It
+  is not *deep* immutability: a mutable object stored in a field (a
+  `list`, a `dict`) can still be mutated. This is a deliberate design
   choice: configuration, once validated and built, should not be
   quietly mutated somewhere deep in the program — a bug that changes
   `config.port` at runtime should fail loudly, not silently succeed.
@@ -1430,10 +1462,14 @@ directly into the configuration/validation layer, defensively:
   embedding untrusted text (a value from a config file, a CSV field)
   can, in some structured logging pipelines, be crafted to look like a
   *different* log entry, or to break structured (e.g. JSON) log
-  parsing downstream — one more reason to prefer `%`-style lazy
-  formatting with the untrusted value passed as a distinct argument
-  (§08's chapter's §19), rather than blindly interpolating it into the
-  message template itself.
+  parsing downstream. Passing the untrusted value as a distinct
+  `%`-style argument (§08's chapter's §19) is still the right habit — it
+  defers message formatting and keeps the value out of the template —
+  but lazy formatting is **not** log-injection sanitization: it does
+  not remove newlines, carriage returns, or control characters.
+  Preventing log injection may require escaping or encoding untrusted
+  values, structured-logging controls, or validation appropriate to
+  your logging pipeline.
 - **Unsafe deserialization** — a brief warning, not a full topic:
   Python's `pickle` module (and similarly powerful deserialization
   mechanisms in other libraries) can execute arbitrary code while
@@ -1467,6 +1503,10 @@ subprocess.run(f"cat {filename}", shell=True)
 # SAFE — arguments passed as a list; no shell parsing of the value occurs at all
 subprocess.run(["cat", filename])
 ```
+(This example uses the POSIX `cat` command; the shell-injection lesson
+is about passing arguments as a sequence with `shell=False` — the
+default — not about `cat` itself.)
+
 This directly matches
 [07-standard-streams-and-exit-codes.md](07-standard-streams-and-exit-codes.md)'s
 §73 guidance: pass arguments as a list to `subprocess.run()`, never a
@@ -1484,6 +1524,10 @@ query = f"SELECT * FROM users WHERE name = '{name}'"
 # SAFE — parameterized query; the database driver handles the value safely
 cursor.execute("SELECT * FROM users WHERE name = %s", (name,))
 ```
+(Placeholder syntax is driver-specific — `%s`, `?`, `:name`, and others
+exist — so this is an illustration of the parameterized-query
+principle, not syntax to copy for every database.)
+
 The general principle behind both examples: **use the safe, structured
 API a tool provides for combining a fixed template with untrusted
 values (parameterized queries, argument lists) instead of building the
@@ -1516,14 +1560,16 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-def build_config(argv=None) -> AppConfig:
-    config = _build_config_unlogged(argv)
+def log_loaded_config(config: AppConfig) -> None:
+    # AppConfig is the §22 dataclass (environment, port, debug, input_file)
     logger.info(
         "Configuration loaded: environment=%s port=%d debug=%s",
         config.environment, config.port, config.debug,
     )
     logger.debug("Input file: %s", config.input_file)
-    return config
+
+
+# usage: config = build_config(argv); log_loaded_config(config)
 ```
 
 **Never log secrets** — restated once more here because configuration
@@ -1853,6 +1899,15 @@ environment, with sensible defaults (`"development"`, `"INFO"`);
 CLI opens a network port) can be set via `PORT` in the environment or
 overridden by `--port` on the command line, CLI taking precedence, per
 §7's convention.
+
+**Validation scope and CSV contract:** `validate_row()` is
+deliberately small — it checks only that `id` is present and non-empty
+and that `value` converts to `float`; it is not a comprehensive CSV
+schema validator. The CSV is expected to have a header row containing
+`id` and `value`. An empty file, or a file with a header and zero data
+rows, is accepted as zero records (summary `valid=0, invalid=0`, exit
+status `0`); if a required column is missing from the header, every row
+is reported as invalid.
 
 **Validation flow:** the input file path is validated once
 (`validate_input_file`, fail-fast — there is nothing to process
