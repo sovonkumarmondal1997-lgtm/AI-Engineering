@@ -182,16 +182,19 @@ specific interpreter depends on activation or explicit targeting (Section 6).
 
 ### How VS Code selects it
 
-VS Code tracks its own, separate interpreter selection per workspace
-(`06-virtual-environments.md`, Section 13; `01-vscode-and-terminal.md`, Section 9) — a setting
-independent of whatever the terminal currently resolves `python` to (Section 9, Section 10 expand
-this directly).
+VS Code tracks its own interpreter selection per workspace
+(`06-virtual-environments.md`, Section 13; `01-vscode-and-terminal.md`, Section 9). This selection is
+conceptually distinct from whatever a shell resolves `python` to, although current VS Code Python
+tooling can use the selected environment to activate it in newly created integrated terminals
+(Section 9, Section 10 expand this directly).
 
 ### How the virtual environment relates to it
 
-A virtual environment (Section 6) *is*, at its core, a specific, isolated interpreter plus its own
-package location (`06-virtual-environments.md`, Section 7) — the environment does not exist apart
-from the interpreter it provides.
+A virtual environment (Section 6) is created from a base Python installation and provides an
+environment-specific Python executable/reference and, by default, its own site-packages
+(`06-virtual-environments.md`, Section 7) — the environment does not exist apart from the interpreter
+it provides. It is not a virtual machine and not a security sandbox, and the `--system-site-packages`
+option can deliberately change its default package isolation.
 
 ### Why two projects can use different Python environments
 
@@ -243,12 +246,33 @@ picture.
 ```text
 Project
    |
-pyproject.toml (declares dependencies)
+pyproject.toml (declares requirements)
    |
-pip / uv (installs them)
+dependency resolution (selects specific versions)
    |
-.venv (holds the result)
+lockfile, e.g. uv.lock (captures the resolved dependency graph)
+   |
+pip / uv (installs)
+   |
+.venv (the currently installed environment)
 ```
+
+`pyproject.toml` alone is not an exact reproducibility guarantee: it declares requirements, which can
+resolve to different versions at different times. A lockfile (for `uv` projects, `uv.lock`) captures
+what was resolved, and `.venv` is only the currently installed state. Not every project uses a lockfile.
+
+### `pip`, `uv pip`, and the `uv` project workflow
+
+```text
+pip                  -> package installation, targeting an environment
+uv pip               -> a pip-compatible interface provided by uv
+uv project workflow  -> pyproject.toml, uv.lock, .venv; uv add, uv lock, uv sync, uv run
+```
+
+`uv`'s project mode has its own project/environment workflow (`uv add` declares and installs,
+`uv lock` resolves, `uv sync` brings `.venv` in line with the lock, `uv run` runs a command in the
+project environment), so it should not be described as "pip but faster," and `pip` and `uv` should not
+be assumed to target environments or treat projects identically (`07-package-managers.md`, Section 13).
 
 ### Responsibilities, kept explicitly separate
 
@@ -285,6 +309,11 @@ configuration/metadata file — it declares:
   centralized location (`08-project-structure.md`, Section 18).
 - **Project organization signals** — supporting information about how the project itself is laid out.
 
+At a high level, a `pyproject.toml` can contain three kinds of tables: `[build-system]` (build backend
+requirements/configuration), `[project]` (standardized project metadata and dependencies), and `[tool]`
+(tool-specific configuration). The example in Section 14 shows only `[project]`; build mechanics are out
+of scope here.
+
 ### What it is NOT, restated for integration
 
 `pyproject.toml` is **configuration/metadata for the project** — it is not itself a virtual
@@ -308,26 +337,30 @@ A conceptual walkthrough of what happens at each step:
    (Section 5, `06-virtual-environments.md`, Section 13) is pointed at a specific environment
    (ideally the project's own `.venv`, Section 6).
 3. **A terminal is opened** — the integrated terminal (`01-vscode-and-terminal.md`, Section 4) starts
-   a shell session, independent of VS Code's own interpreter selection (Section 10 expands this).
-4. **A virtual environment is activated** — if done manually in that terminal
-   (`06-virtual-environments.md`, Section 10), the shell's own command resolution now also points at
-   this environment — a *second*, independently-achieved alignment with step 2, not a consequence of
-   it.
+   a shell session. Current VS Code Python tooling can use the selected interpreter to configure/activate
+   the environment in newly created terminals, but the shell's `python` is still resolved by the shell
+   itself (Section 10 expands this).
+4. **A virtual environment is activated** — automatically by VS Code's Python tooling in a new
+   terminal where that applies, or manually (`06-virtual-environments.md`, Section 10); either way,
+   the shell's own command resolution now points at that environment. The mechanisms can still diverge
+   (a different interpreter selected in VS Code, another Python resolved by the shell, a manually
+   activated environment, or a debug configuration override).
 5. **Python code is executed** — either via VS Code's run integration (which uses the interpreter
    selected in step 2) or via the terminal (which uses whatever step 3/4 resolved) —
    `02-ide-concepts.md`, Section 7 already established that a "Run" button typically triggers the same
    kind of process the terminal would.
-6. **The debugger starts** — using the *same* interpreter selection from step 2 (Section 12 expands
-   this directly).
+6. **The debugger starts** — by default using the interpreter selection from step 2, unless a debug
+   configuration overrides it (Section 12 expands this directly).
 7. **Formatter/linter tooling runs** — an extension (`03-extensions.md`, Section 5) invokes the
-   underlying formatter/linter tool (`04-formatters-and-linters.md`, Section 11), which itself
-   depends on which environment/interpreter it is configured to use.
+   underlying formatter/linter tool (`04-formatters-and-linters.md`, Section 11), which may depend on
+   the selected environment/interpreter, depending on the tool and how it is installed and configured.
 
 ### The relationship, stated plainly
 
 VS Code's editor, its extension ecosystem, its interpreter selection, its integrated terminal, and the
-project's environment are **five separate things that must be deliberately aligned** — VS Code does
-not automatically guarantee they agree with each other (Section 17 catalogs what happens when they
+project's environment are **five separate things that should be deliberately aligned** — VS Code's Python tooling helps
+(for example, by activating the selected environment in new terminals), but it does not guarantee
+they agree with each other (Section 17 catalogs what happens when they
 do not).
 
 ---
@@ -382,7 +415,9 @@ Fix code
 Run/debug
 ```
 
-Each step reuses tools already fully taught: **Format** and **Lint** run the tools from
+Each step reuses tools already fully taught: **Format** and **Lint** (whether a tool depends on the project's interpreter depends on the tool and
+how it is installed and configured: some are Python-based, some are standalone executables, and an
+IDE integration may invoke a tool differently from a direct command-line run) run the tools from
 `04-formatters-and-linters.md` (Sections 2, 6), either via VS Code's integration (Section 9, step 7)
 or directly from the terminal (Section 10). **Inspect diagnostics** and **Fix code** apply
 `04-formatters-and-linters.md`, Section 21's engineering response to whatever the linter reports.
@@ -422,8 +457,9 @@ Running Process
 ### Why selecting the wrong interpreter can affect debugging
 
 A debugger session (`05-debugger.md`, Section 3) observes and controls a **specific running process**
-(`05-debugger.md`, Section 5), started using a **specific interpreter**. If VS Code's interpreter
-selection (Section 9, step 2) does not match the environment the project's dependencies were actually
+(`05-debugger.md`, Section 5), started using a **specific interpreter**. By default this is VS Code's selected interpreter, though a
+debug configuration (`launch.json`) can override it with a specific one. If the interpreter in use
+(normally the selection from Section 9, step 2) does not match the environment the project's dependencies were actually
 installed into (Section 7), the debugger can fail to find an imported package, or otherwise behave
 differently than expected — directly the same interpreter-mismatch root cause already catalogued in
 `06-virtual-environments.md`, Section 26, Failure 1, now specifically affecting a debugging session
@@ -461,7 +497,9 @@ project/
 
 - **`src/`** — the project's source code (`08-project-structure.md`, Section 6) — what the debugger
   (Section 12) actually steps through, and what the formatter/linter (Section 11) actually operates
-  on.
+  on. A `src` layout normally expects the project/package to be installed into the environment (or
+  otherwise made available by project tooling); merely having a `src/` directory does not make
+  everything inside it automatically importable.
 - **`tests/`** — code verifying the application's behavior, kept separate from `src/`
   (`08-project-structure.md`, Section 7).
 - **`docs/`** — documentation beyond the README (`08-project-structure.md`, Section 8).
@@ -518,11 +556,15 @@ presented as genuinely executed output.
    requires-python = ">=3.12"
    dependencies = []
    ```
-7. **Install dependencies** — activating the environment (`06-virtual-environments.md`, Section 10),
-   then, illustratively:
+7. **Install and declare dependencies** — activating the environment (`06-virtual-environments.md`,
+   Section 10), then, illustratively:
    ```bash
    pip install requests
    ```
+   A plain `pip install` puts the package *into the environment*; it does not by itself *declare* it as a
+   project dependency. To make step 14's recreation work, also record it in `pyproject.toml` (for
+   example, `dependencies = ["requests"]`). In `uv`'s project workflow, `uv add requests` does both
+   (declares the dependency and updates the environment/lockfile) — see Section 7.
 8. **Write Python code** — in `src/`.
 9. **Format code** — via the IDE integration (Section 9, step 7) or directly
    (`04-formatters-and-linters.md`, Section 12).
@@ -534,8 +576,8 @@ presented as genuinely executed output.
     `07-package-managers.md`, Section 21's verification techniques, rather than assuming everything
     above worked.
 14. **Reproduce/recreate environment when necessary** — deleting and recreating `.venv`
-    (`06-virtual-environments.md`, Section 16), reinstalling from `pyproject.toml`'s declarations
-    (Section 8), when the environment becomes stale or inconsistent (Section 17).
+    (`06-virtual-environments.md`, Section 16), reinstalling from the project's declared dependencies (Section 8; and its lockfile, if the project uses
+    one, Section 7), when the environment becomes stale or inconsistent (Section 17).
 
 ---
 
@@ -648,8 +690,9 @@ symptom-vs-root-cause distinction.
    Scenario C).
 
 8. **Debugger starts with the wrong interpreter.**
-   *Underlying cause:* directly Section 12 — the debugger uses whatever interpreter VS Code's
-   selection (Section 9, step 2) currently points to, which may not match the environment the project
+   *Underlying cause:* directly Section 12 — by default the debugger uses whatever interpreter VS Code's
+   selection (Section 9, step 2) currently points to (unless a debug configuration overrides it),
+   which may not match the environment the project
    actually depends on.
 
 9. **Project works in the terminal but not in VS Code.**
@@ -678,8 +721,9 @@ symptom-vs-root-cause distinction.
 14. **Environment was deleted/recreated.**
     *Underlying cause:* `.venv` is disposable infrastructure (`06-virtual-environments.md`, Section
     15) — deleting and recreating it is normal, but any dependencies installed since the environment
-    was created must be reinstalled from `pyproject.toml`'s declarations (Section 8), or they will
-    simply be missing.
+    was created must be reinstalled from the project's declared dependencies (Section 8) — and only
+    packages that were actually declared can be recovered this way; a package that was only
+    `pip install`ed, never declared, will simply be missing.
 
 15. **Stale environment state.**
     *Underlying cause:* ad hoc installs and removals accumulate over time without review
@@ -1045,7 +1089,8 @@ This is a forward-looking preview only — none of the referenced technologies a
   discipline this lesson integrates, just applied to different kinds of dependencies.
 - **Evaluation tooling** — Section 22's example, applied specifically to systems measuring quality.
 - **Reproducibility** — `pyproject.toml`'s declared dependencies (Section 8), combined with isolation
-  (Section 6), are the foundation reproducibility is built on
+  (Section 6) and, where used, a lockfile such as `uv.lock` (Section 7), contribute to reproducibility
+  (not an exact guarantee by themselves)
   (`07-package-managers.md`, Section 22).
 - **Dependency isolation** — Section 6, Section 7, applied at whatever scale a future AI project
   reaches.
@@ -1207,8 +1252,8 @@ the underlying concept, not the exact command, is what matters.
    (`07-package-managers.md`, Section 15).
 
 6. **"If VS Code runs the code, the terminal must use the same interpreter."**
-   Incorrect — directly Section 9/Section 10: the two track interpreter selection independently and
-   can disagree unless deliberately aligned.
+   Incorrect — directly Section 9/Section 10: the two are separate mechanisms (even though VS Code can activate the selected environment in new
+   terminals) and can disagree unless deliberately aligned.
 
 7. **"A formatter checks whether code is correct."**
    Incorrect — a formatter only changes presentation (Section 11;
@@ -1323,8 +1368,9 @@ broader environment and project tooling, often chosen for speed and a more unifi
 3, `07-package-managers.md`, Section 13).
 
 **Q: How does VS Code know which Python interpreter to use?**
-A: Through its own, separate, workspace-scoped interpreter-selection setting — independent of whatever
-the terminal currently resolves `python` to (Section 5, Section 9).
+A: Through its own workspace-scoped interpreter-selection setting — conceptually distinct from whatever
+the terminal currently resolves `python` to, though VS Code can activate the selected environment in
+new integrated terminals (Section 5, Section 9).
 
 **Q: Why can a package be installed but still fail to import?**
 A: Because the install and the later import may use two different, misaligned interpreters/
@@ -1409,7 +1455,7 @@ Module 0.4 Developer Environment (this module)
 
 ### What this module's concepts become prerequisites for
 
-- **Reproducible development environments** — built directly on `pyproject.toml`'s declarations
+- **Reproducible development environments** — built on `pyproject.toml`'s declarations (plus a lockfile and controlled versions)
   (Section 8) and `.venv`'s isolation (Section 6).
 - **Dependency management** — the discipline established in Section 7 and
   `07-package-managers.md`, applied at increasing scale.
@@ -1444,7 +1490,7 @@ consistency, operational monitoring, and more) that this lesson does not teach.
 
 **None of these later topics are taught in this lesson.** Consistent with every scope boundary
 established throughout Module 0.4, this section exists only to show that the integrated workflow this
-lesson has assembled is the direct, necessary foundation every one of these later, more advanced
+lesson has assembled is a direct foundation for every one of these later, more advanced
 subjects will be built on top of.
 
 ---
@@ -1515,6 +1561,9 @@ eight lessons before it — has already explained in full.
 
 ## 35. Key Takeaways
 
+Python developer tooling evolves, so behavior can differ between versions; when troubleshooting, inspect
+the versions actually installed (for example, `python --version` and `uv --version`).
+
 - A Python developer environment is a coordinated system of tools, not any single tool used in
   isolation.
 - The terminal, VS Code, the Python interpreter, `venv`, `pip`/`uv`, `pyproject.toml`, formatter,
@@ -1523,11 +1572,13 @@ eight lessons before it — has already explained in full.
   thing.
 - `pyproject.toml` declares what a project needs; it is not code, not an environment, and not a
   package manager.
-- VS Code and the terminal track interpreter selection independently, and can disagree unless
+- VS Code's interpreter selection and the terminal's command resolution are separate mechanisms —
+  VS Code can activate the selected environment in new terminals — and they can still disagree unless
   deliberately aligned.
 - Formatting and linting improve presentation and catch suspicious patterns; neither proves a
   program's logic is correct.
-- The debugger's behavior depends entirely on which interpreter is currently selected.
+- The debugger's behavior depends on which interpreter it is launched with — by default, the one
+  currently selected, unless a debug configuration overrides it.
 - Every layer of this module's tooling ultimately runs as an ordinary operating-system process — no
   new execution mechanism was introduced beyond what Module 0.1 and Module 0.2 already taught.
 - Environment problems should be diagnosed systematically — reproduce, isolate, inspect, hypothesize,

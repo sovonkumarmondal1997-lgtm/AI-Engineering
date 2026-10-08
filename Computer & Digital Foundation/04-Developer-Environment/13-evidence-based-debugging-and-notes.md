@@ -16,8 +16,8 @@ By the end of this lesson you will be able to:
 
 - Apply the core engineering loop — goal, assumptions, smallest experiment, observe, explain,
   change one variable, verify, document — to any small technical problem.
-- Explain why evidence is more reliable than guessing or repeatedly rerunning a command hoping for
-  a different result.
+- Explain why direct, relevant evidence is generally more reliable than guessing or repeatedly
+  rerunning a command hoping for a different result.
 - Read an error message, a log line, an exit code, and a traceback for the specific facts they
   contain.
 - Isolate one variable at a time and build a minimal reproducible example of a problem.
@@ -37,13 +37,15 @@ By the end of this lesson you will be able to:
 
 - **Evidence** — a directly observed fact (an exact error message, a command's real output, a log
   line) as opposed to a memory, an assumption, or a guess.
-- **Exit code** — a number a process reports when it finishes, `0` meaning success and any non-zero
-  value meaning some kind of failure (Module 0.2,
+- **Exit code** — a number a process reports when it finishes. By convention, `0` normally means
+  success and a non-zero value normally means some kind of failure; what a particular non-zero code
+  means is specific to the program, and shell behavior can differ between environments (Module 0.2,
   [Process Lifecycle](../02-Operating-System-Fundamentals/14-process-lifecycle.md)).
 - **Minimal reproducible example** — the smallest possible version of a problem that still shows
   the failure, with everything unrelated removed.
-- **Isolating a variable** — changing exactly one thing between two attempts, so any difference in
-  outcome can be attributed to that one change with confidence.
+- **Isolating a variable** — a controlled-experiment heuristic: when practical, changing one thing
+  between two attempts, so any difference in outcome can be attributed to that change with greater
+  confidence.
 - **Root cause** — the actual, underlying reason a failure happened, as distinct from its symptom.
 
 ---
@@ -73,8 +75,8 @@ Goal → assumptions → smallest experiment → observe output/logs
   says.
 - **Explain failure** — if it didn't match your assumption, write down *why*, based only on what
   you actually observed.
-- **Change one variable** — adjust exactly one thing and re-run, so you can attribute any
-  difference to that one change (Section 6).
+- **Change one variable** — when practical, adjust one thing and re-run, so you can attribute any
+  difference to that change (Section 6).
 - **Verify** — confirm your fix or explanation actually holds, don't just assume it worked because
   the error stopped appearing once.
 - **Document** — write it down (Section 8), before moving on to the next thing.
@@ -83,6 +85,14 @@ This loop applies equally to "why won't this script run" and, much later, "why d
 server's response quality drop."
 
 ## 3. Why Evidence Beats Guessing and Rerunning
+
+Direct, relevant evidence is generally more reliable than an unsupported guess — but evidence can be
+incomplete, misleading, or interpreted incorrectly, and it reduces uncertainty without automatically
+proving causation. Seeing X and concluding "X definitely caused Y" is a guess too:
+
+```text
+Observation -> hypothesis -> controlled experiment -> verification -> stronger causal confidence
+```
 
 Two behaviors feel productive but usually aren't:
 
@@ -110,19 +120,23 @@ path (`config.yaml`) — enough to check, immediately, whether you're in the dir
 are (Module 0.3, Lesson 11) before guessing at anything more complicated.
 
 For a full **traceback**, `11-reproducible-python-workspaces-with-uv.md`, Section 11 already taught
-the core method: **read from the bottom up** — the last line names the error, the line just above it
-is the exact failing line, and the lines above that show the chain of calls that led there.
+the core method: **read from the bottom up**, as a heuristic. Start with the final exception message and
+identify its type and message; then inspect the relevant traceback frame(s) to locate where the failure
+occurred (often, though not always, the frame nearest the bottom); then read the preceding call chain
+for context on how execution got there.
 
 ## 5. Reading Logs, Exit Codes, Environment Details, and Process Information
 
 Beyond a single error message, a full investigation often needs:
 
-- **Logs** — read with `head`/`tail`/`less`/`grep` (Module 0.3) — look for the specific line at or
+- **Logs** — read with `head`/`tail`/`less`/`grep` (Unix/Bash-style tools, Module 0.3; PowerShell has
+  corresponding commands) — look for the specific line at or
   just before the moment things went wrong, not the whole file at once.
 - **Exit codes** — check with `echo $?` immediately after a command in Bash (or `$LASTEXITCODE` in
-  PowerShell); `0` means success, anything else means failure, and the specific non-zero value is
-  sometimes itself meaningful evidence.
-- **Environment details** — which interpreter (`which python3`), which directory (`pwd`), which
+  PowerShell); `0` normally means success and a non-zero value normally means failure; the specific non-zero value
+  is program-specific and sometimes itself meaningful evidence (check the tool's documentation).
+- **Environment details** — which interpreter (`which python3`), which directory (`pwd`) (Bash/Unix-style
+  examples; PowerShell uses, for example, `Get-Command` and `Get-Location`), which
   environment variables are actually set (Module 0.2,
   [Environment Variables](../02-Operating-System-Fundamentals/09-environment-variables.md)) — often
   the actual root cause hides here, not in the code itself.
@@ -130,11 +144,16 @@ Beyond a single error message, a full investigation often needs:
   [Processes](../02-Operating-System-Fundamentals/03-processes.md)) — is the process you expect
   actually running, and is it the one actually connected to the problem?
 
+**Evidence can contain sensitive information.** Logs, tracebacks, environment-variable output,
+configuration dumps, request data, and command output may include API keys, passwords, tokens, private
+paths, or personal information. Preserve exact evidence for debugging, but redact secrets and sensitive
+information before storing it (including in `learning-notes.md`) or sharing it.
+
 ## 6. Isolating One Variable at a Time
 
 If you change two things at once and the problem goes away, you don't actually know which change
-fixed it — or whether both were needed. **Isolating a variable** means changing exactly one thing
-between attempts:
+fixed it — or whether both were needed. When practical, **isolating a variable** means changing one
+thing between attempts:
 
 ```text
 Attempt 1: original command, in the wrong directory       → fails
@@ -182,7 +201,7 @@ Applying the loop from Section 2:
 
 ```text
 Goal:          Find out why `uv run python app.py` reports ModuleNotFoundError.
-Assumptions:   I expect the script to run, since I added the package to pyproject.toml earlier.
+Assumptions:   I expect the script to run, since I remember installing `requests` earlier.
 ```
 
 ```bash
@@ -195,32 +214,44 @@ ModuleNotFoundError: No module named 'requests'
 
 ```text
 Observe:       The exact error names the missing module: 'requests'.
-Explain:       I added "requests" to pyproject.toml, but do I remember running `uv sync`
-               afterward? I'm not certain — this is a real, checkable question, not a guess.
+Explain:       `uv run` normally makes sure the project environment is up to date before running,
+               so the likelier question is: was `requests` ever declared as a dependency of this
+               project? "I installed it earlier" may have meant a different environment (for example,
+               a plain `pip install` elsewhere). This is a checkable question, not a guess.
 ```
 
 ```bash
-cat pyproject.toml | grep requests
-uv sync
-uv run python app.py
+grep requests pyproject.toml
 ```
 
 ```text
-Change one variable:  Ran `uv sync` — nothing else about the script or environment changed.
-Verify:               The script now runs without the error.
+(no output — `requests` is not declared in the project's dependencies)
+```
+
+```text
+Change one variable:  Declared the dependency with `uv add requests` — nothing else about the script
+                      or environment changed. (`uv add` records it in pyproject.toml and updates the
+                      project's lock and environment.)
+Verify:               `uv run python app.py` now runs without the error.
 ```
 
 ```markdown
-## Issue: ModuleNotFoundError for 'requests' despite it being declared
+## Issue: ModuleNotFoundError for 'requests' under `uv run`
 
 - **Expected result:** script runs normally
 - **Actual result:** `ModuleNotFoundError: No module named 'requests'`
-- **Command/evidence checked:** confirmed `requests` was in `pyproject.toml`; ran `uv sync`
-- **Root cause:** dependency was declared but never synced into the environment
-- **Fix:** ran `uv sync`
-- **Prevention:** always run `uv sync` immediately after editing `pyproject.toml`, not "later"
-- **Next test:** if this recurs, check `uv.lock`'s timestamp against `pyproject.toml`'s last edit
+- **Command/evidence checked:** `grep requests pyproject.toml` showed no declaration; ran `uv add requests`
+- **Root cause:** `requests` was installed somewhere else, but never declared as a dependency of this project
+- **Fix:** `uv add requests`
+- **Prevention:** add dependencies with `uv add` (or edit `pyproject.toml`), rather than installing them by hand elsewhere
+- **Next test:** if a dependency *is* declared but the import still fails, run `uv lock --check` (checks that the lockfile is up to date with the project configuration) and `uv sync` to synchronize explicitly
 ```
+
+**A note on `uv` commands (current project workflow):** `uv add` declares a dependency; `uv lock` resolves
+the dependencies into `uv.lock`; `uv sync` explicitly synchronizes the environment with the lock; and
+`uv run` normally ensures the project is locked and synchronized as needed before running a command.
+After editing `pyproject.toml` by hand, the right command depends on what changed and what you are
+trying to verify; `uv sync` is a useful explicit check, not an always-required step.
 
 This same shape — goal, evidence, one change, verify, document — applies identically to a wrong
 directory, a missing `.env` value, or an occupied local port (Module 0.2's
@@ -231,30 +262,35 @@ lesson covers that last scenario in full).
 
 | Mistake | Why it slows you down | Better approach |
 |---|---|---|
-| Rerunning the exact same failing command repeatedly | Nothing changed, so nothing new can be learned | Change exactly one thing (Section 6) before rerunning. |
-| Changing several things at once "to be safe" | You can no longer tell which change actually mattered | Isolate one variable at a time (Section 6). |
+| Rerunning the exact same failing command repeatedly | Nothing changed, so nothing new can be learned | Change one thing (Section 6) before rerunning. |
+| Changing several things at once "to be safe" | You can no longer tell which change actually mattered | When practical, isolate one variable at a time (Section 6). |
 | Skimming an error message instead of reading it fully | You miss the exact, specific fact it's telling you | Read the full message, and for a traceback, start from the last line (Section 4). |
 | Debugging inside a large, complex script | Too many moving parts to reason about clearly | Build a minimal reproducible example first (Section 7). |
 | Fixing something without confirming *why* it was broken | The same problem often resurfaces differently later | Confirm a root cause with actual evidence before considering it fixed (Section 3, Section 9). |
 
 ## 11. From Here to Production: Incident Response, Evaluation, and AI-System Architecture Thinking
 
-This exact loop scales up directly, without changing shape:
+The reasoning discipline scales up, even though the tactics change:
+
+```text
+goal -> evidence -> hypotheses -> controlled investigation -> verification -> documentation
+```
 
 - **Production debugging** — a hung backend process or a failing deployment is diagnosed with the
-  same goal → evidence → one-variable-at-a-time method, just with more sophisticated tools around
-  it.
+  same discipline, but real incidents may also need parallel investigation, multiple signals,
+  observability, rollback, mitigation, and coordination, so changing literally one variable at a time
+  is not always possible.
 - **Incident response** — Section 8's `learning-notes.md` format is a small-scale version of a
   professional incident postmortem: expected vs. actual, evidence, root cause, fix, prevention.
 - **Evaluation** — diagnosing why a model's evaluation score dropped uses the identical
-  method: form a hypothesis about *one* changed variable (a prompt, a dataset version, a model
-  version), test it in isolation, and verify with evidence before concluding anything.
+  method: form a hypothesis about a changed variable (a prompt, a dataset version, a model
+  version), test it in isolation where practical, and verify with evidence before concluding anything.
 - **AI-system architecture thinking** — reasoning about why a multi-component AI system (retrieval,
   a model call, a tool call) produced a wrong result requires isolating *which* component actually
   failed — exactly Section 6 and Section 7's skills, applied to a more complex system.
 
-The tools change constantly throughout a career; this method — goal, evidence, one variable, verify,
-document — does not.
+The tools change constantly throughout a career; this method — goal, evidence, controlled
+investigation, verify, document — does not.
 
 ---
 
@@ -291,13 +327,13 @@ document — does not.
 
 Debugging well is a repeatable method, not a talent: state your goal and assumption, run the
 smallest experiment that can inform it, read the real output carefully, explain any surprise using
-only that evidence, change exactly one variable at a time, verify your fix actually holds, and
+only that evidence, change one variable at a time where practical, verify your fix actually holds, and
 write it down. Evidence — an exact error message, a real command's output, a traceback read from
-the bottom up — is always stronger than a guess or a hopeful rerun. Isolating one variable and
+the bottom up — is generally more reliable than a guess or a hopeful rerun (though evidence can still be incomplete or misread). Isolating one variable and
 building a minimal reproducible example turn a confusing, large problem into a small, confident
 answer. A `learning-notes.md` entry with expected result, actual result, evidence, root cause, fix,
-prevention, and next test turns a one-time frustration into reusable knowledge. This exact loop is
-also, unchanged in shape, what production debugging, incident response, evaluation, and AI-system
+prevention, and next test turns a one-time frustration into reusable knowledge. This same discipline is
+also, in scaled-up form, what production debugging, incident response, evaluation, and AI-system
 architecture reasoning look like later in the roadmap.
 
 ## Completion Checklist

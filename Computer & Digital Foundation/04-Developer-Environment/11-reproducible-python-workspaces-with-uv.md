@@ -40,14 +40,16 @@ This lesson turns those concepts into one consistent, repeatable, hands-on workf
 
 - **Python interpreter** — the program that actually reads and executes Python source code; your
   machine may have more than one installed.
-- **Isolated environment** — a self-contained space holding one specific interpreter and its own
-  installed packages, separate from any other project's.
+- **Isolated environment** — a space that isolates one project's Python packages from other
+  projects', associated with a base Python installation and its own installed packages. It is not a
+  container or a virtual machine.
 - **`uv`** — a modern, fast tool that can create and manage a project's environment and its
   dependencies in one workflow.
 - **`venv`** — Python's built-in tool for creating an isolated environment (without managing
   dependency installation itself).
 - **`pip`** — Python's traditional package installer, used to install packages into an environment.
-- **`pyproject.toml`** — a file declaring a project's metadata and its dependencies.
+- **`pyproject.toml`** — a standardized project/tool configuration file; its `[project]` table is where
+  standard project metadata and dependencies are declared.
 - **Dependency declaration** — a statement in `pyproject.toml` naming a package your project needs
   (and optionally, an acceptable version range).
 - **Lock file** — a file recording the *exact* version of every dependency (and its own
@@ -64,9 +66,14 @@ This lesson turns those concepts into one consistent, repeatable, hands-on workf
 always traces back to one thing: an environment that was never actually reproducible — packages
 installed by hand, in whatever order, with whatever versions happened to be available that day. This
 lesson builds the habit of making every project's setup explicit and repeatable from the very first
-`uv init`, so a script running on your machine will run the same way on anyone else's.
+`uv init`, so a script running on your machine is much more likely to run the same way on anyone else's.
 
 ## 2. The Python Interpreter, and Checking Its Version
+
+**Shell assumption:** the command examples in this lesson (`python3`, `which`, `mkdir -p`, `ls -la`,
+`cat`, `head`) assume a Unix-like shell, such as Linux Bash or macOS Bash/Zsh. On Windows, use the
+equivalent PowerShell commands (for example `py --version` or `python --version`, and `Get-Command`
+instead of `which`) or run the lesson inside WSL.
 
 ```bash
 python3 --version
@@ -97,7 +104,7 @@ B's environment at all — they simply don't share anything.
 | **`venv`** | Creates the isolated environment itself — a private folder holding an interpreter and its own packages. It does not install packages on its own. |
 | **`pip`** | Installs, upgrades, and removes packages *into* an environment. It does not create the environment itself. |
 | **`uv`** | A newer tool that can do both jobs — create the environment and manage its dependencies — through one consistent workflow, and is often significantly faster. |
-| **`pyproject.toml`** | Declares a project's dependencies and metadata as a file, so "what this project needs" is written down, not just remembered. |
+| **`pyproject.toml`** | A standardized project/tool configuration file whose `[project]` table declares a project's dependencies and metadata, so "what this project needs" is written down, not just remembered. |
 
 **The practical distinction:** `venv` + `pip` are two separate tools you coordinate yourself;
 `uv` is one tool that coordinates the same underlying ideas for you. Both approaches produce a
@@ -117,12 +124,14 @@ dependencies = [
 ```
 
 This says "this project needs `requests`, version 2.31 or newer" — but doesn't pin an exact version.
-A **lock file** (created automatically by `uv` when you sync dependencies, Section 10) records the
+A **lock file** (`uv.lock`, created or updated automatically by `uv` when you lock, sync, or run, Section 10) records the
 *exact* version actually installed, down to every indirect dependency. **Why both matter together:**
 the declaration expresses intent ("something compatible with 2.31 or later"); the lock file
-guarantees reproducibility ("this exact set of versions is what was tested and is known to work") —
-installing from the lock file on a different machine reproduces the identical environment, not just
-a roughly similar one.
+records the resolved dependency graph ("this exact set of versions is what was tested and is known to
+work") — installing from the lock file on a different machine reproduces the same dependency versions,
+not just a roughly similar set. This is *dependency* reproducibility, not complete machine/runtime
+reproducibility: the OS, CPU architecture, Python version, platform markers, native/system
+dependencies, package indexes, and other environmental factors can still affect behavior.
 
 ## 6. A Consistent Beginner Workflow
 
@@ -137,18 +146,25 @@ consistently, causes real problems.
 ```bash
 mkdir -p ~/practice-shell/uv-workspace
 cd ~/practice-shell/uv-workspace
-uv init
+uv init --no-package
 ```
 
-- `uv init` — creates a new, minimal project in the current directory: a `pyproject.toml`, a small
-  starter Python file, and project scaffolding — without installing anything yet.
+- `uv init` — creates a new project in the current directory without installing anything yet. What it
+  generates is version-sensitive: current `uv` versions default to an application layout that uses a
+  `src/` directory, so this lesson deliberately uses `--no-package`, which (per `uv`'s documentation)
+  produces the simple layout the following steps rely on: a `pyproject.toml`, a root-level `main.py`, a
+  `README.md`, and a `.python-version` file, with no build system.
 
 ```bash
 ls -la
 ```
 
-You should see `pyproject.toml` and a small `.py` file it generated, among a few other project
-files.
+You should see `pyproject.toml`, `main.py`, and a few other project files. Inspect what your `uv`
+version actually generated rather than assuming it matches exactly; `uv init --help` and `uv`'s
+official documentation describe the current templates.
+
+`.python-version` records which Python version the project should use — a separate concern from
+dependency locking, which is about package versions.
 
 ## 8. Inspecting `pyproject.toml`
 
@@ -156,7 +172,8 @@ files.
 cat pyproject.toml
 ```
 
-**Example content** (illustrative — your exact output may differ slightly by `uv` version):
+**Example content** (illustrative — the exact generated content depends on your `uv` version and the
+project template used, so inspect your actual file rather than expecting every field to match):
 
 ```toml
 [project]
@@ -177,8 +194,13 @@ metadata"); `requires-python` states which interpreter versions this project sup
 uv run python -c "import sys; print(sys.executable); print(sys.version)"
 ```
 
-- `uv run COMMAND` — runs `COMMAND` inside this project's own isolated environment, creating that
-  environment automatically the first time if it doesn't exist yet.
+- `uv run COMMAND` — runs `COMMAND` inside this project's own isolated environment. Per `uv`'s
+  documentation, the project is locked and synced as needed before the command is invoked, so the
+  environment is created or brought up to date automatically:
+
+  ```text
+  uv run  ->  ensures the project is locked/synchronized as needed  ->  runs the command in the project environment
+  ```
 
 **What to notice in the output:** `sys.executable` points to an interpreter *inside* this project's
 own environment folder (not your system Python from Section 2) — direct proof that `uv run`
@@ -186,16 +208,26 @@ executed your code through the isolated environment, not the global interpreter.
 
 ## 10. Syncing Dependencies
 
-Add a small, harmless dependency to `pyproject.toml`'s `dependencies` list (for example,
-`"requests>=2.31"`), then:
+Add a small, harmless dependency. The normal `uv` project workflow is:
+
+```bash
+uv add requests
+```
+
+- `uv add` — adds the package to the project's dependency declaration in `pyproject.toml` (and updates
+  the associated project state, such as the lock file and environment, per `uv`'s workflow).
+
+You can also write the same declaration by hand in `pyproject.toml`'s `dependencies` list (for example,
+`"requests>=2.31"`), which shows exactly what a declaration looks like; then:
 
 ```bash
 uv sync
 ```
 
-- `uv sync` — reads `pyproject.toml`'s declared dependencies, resolves exact compatible versions,
-  installs them into the project's environment, and writes (or updates) a lock file recording
-  exactly what was installed.
+- `uv sync` — explicitly synchronizes the project's environment with its lock state: it installs the
+  locked dependencies (locking first if needed) and removes packages that are not in the lock.
+  `uv run` also locks and syncs as needed before running a command; `uv sync` is the explicit,
+  stand-alone form.
 
 ```bash
 cat uv.lock | head -n 20
@@ -233,12 +265,12 @@ Traceback (most recent call last):
 ZeroDivisionError: division by zero
 ```
 
-**Read it from the bottom up:** the **last line** names the actual error
-(`ZeroDivisionError: division by zero`) — start here, not at the top. The line just above it
-(`return a / b`) is the exact line that raised it. The lines above *that* show the chain of calls
-that led there (`divide(10, 0)` was called from line 4). This bottom-to-top reading order is the
-single most useful debugging habit for any Python error you'll encounter for the rest of this
-roadmap.
+**Read it from the bottom up, as a debugging heuristic:** start at the **last line** to identify the
+final exception (`ZeroDivisionError: division by zero`). Then inspect the frame(s) just above it — here
+`return a / b` is where the exception was raised — and use the frames above *that* to see the chain of
+calls that led there (`divide(10, 0)` was called from line 4). The context in the traceback helps you
+locate where the failure originated, which is not always the line shown last. This bottom-to-top reading
+order is a very useful debugging habit for Python errors you'll encounter for the rest of this roadmap.
 
 ## 12. Reproducibility and Clean Setup Instructions
 
@@ -254,13 +286,14 @@ from nothing but your repository and a README. A good, minimal setup section rea
 ```
 
 **Why this matters:** it doesn't say "install these seven packages in this order" — it says "run
-`uv sync`," which reads `pyproject.toml` and the lock file and reproduces the *exact* environment,
-every time, on any machine.
+`uv sync`," which reads `pyproject.toml` and the lock file and recreates the project's dependency environment
+under the supported environment conditions (OS, architecture, Python version, and so on), rather than
+promising identical behavior on every machine.
 
 **Avoid randomly mixing tools within one project.** Running `pip install` by hand inside a
 `uv`-managed project's environment can install a package that `pyproject.toml` and the lock file
 don't know about — the next `uv sync` (on your machine or anyone else's) won't reproduce it,
-silently breaking the exact reproducibility this whole lesson is about. Pick one workflow per
+silently undermining the dependency reproducibility this whole lesson is about. Pick one workflow per
 project, and let its own tool (`uv sync`, or `pip install -r requirements.txt` in a `venv`/`pip`
 project) be the *only* way dependencies get installed.
 
@@ -268,10 +301,10 @@ project) be the *only* way dependencies get installed.
 
 | Problem | Likely cause | Safe next step |
 |---|---|---|
-| `python3: command not found` | Python isn't installed, or is installed as `python` not `python3` | Try `python --version`; if neither works, install Python 3 from your OS's official source (Section 2). |
+| `python3: command not found` | Python isn't installed, or is installed as `python` not `python3` | Try `python --version`; if neither works, Python may not be available: install it from your OS's official source, or through your chosen Python-management workflow (`uv` can also install and manage Python versions where appropriate — see its documentation) (Section 2). |
 | `uv: command not found` | `uv` isn't installed yet | Install it following `uv`'s own official documentation for your OS; then open a **new** terminal window before retrying. |
 | `uv run` uses a different Python version than you expected | The project's `requires-python` in `pyproject.toml` doesn't match the interpreter you assumed | Check `pyproject.toml`'s `requires-python` value and compare it to `python3 --version` from Section 2 — `uv` selects a compatible interpreter, which may not be your system default. |
-| `ModuleNotFoundError` for a package you're sure you declared | The environment hasn't been synced since you edited `pyproject.toml` | Run `uv sync` again — a dependency only becomes installed after syncing, not the moment it's added to the file. |
+| `ModuleNotFoundError` for a package you're sure you declared | The environment hasn't been locked/synced since the declaration changed, or the package was never actually declared | Run `uv sync` (or `uv run`, which locks and syncs as needed), and check that the package appears in `pyproject.toml`. Editing the file alone doesn't install anything; installation happens when the project is synced. |
 
 ## 14. Why This Matters for AI Engineering
 
@@ -282,7 +315,7 @@ project) be the *only* way dependencies get installed.
   you'll take when a training script, an API call, or an agent's tool call fails — this lesson is
   the foundation every later Python debugging session builds on.
 - **Lock files (Section 5)** are exactly what lets a teammate, a CI system, or a deployment
-  pipeline reproduce your exact environment — critical the moment more than one machine is
+  pipeline reproduce your dependency versions — critical the moment more than one machine is
   involved, which is essentially immediately in real AI-engineering work.
 - **Avoiding mixed-tool environments (Section 12)** prevents the specific, common failure mode
   where a project "works for me" because of a hand-installed package nobody else's setup has.
@@ -295,7 +328,8 @@ project) be the *only* way dependencies get installed.
    `which python3`. Write both down.
 2. Initialize a new `uv` project, and read through the generated `pyproject.toml` line by line,
    explaining each field in your own words.
-3. Add one small dependency to `pyproject.toml`, run `uv sync`, and confirm a lock file now exists.
+3. Add one small dependency (with `uv add`, or by editing `pyproject.toml` and running `uv sync`), and
+   confirm a lock file now exists.
 4. Write a small script with a deliberate, simple error (a typo in a variable name, or a division
    by zero like Section 11's example). Run it, and before reading the traceback's earlier lines,
    read only the **last** line and state what you think went wrong.
@@ -322,8 +356,8 @@ project) be the *only* way dependencies get installed.
 Every project needs its own isolated environment so its dependencies can never silently conflict
 with another project's. `venv` creates an environment; `pip` installs into one; `uv` does both,
 consistently, and is this lesson's default for new projects. `pyproject.toml` declares what a
-project needs; a lock file records exactly what was installed, making setup reproducible on any
-machine via a single `uv sync`. Reading a traceback from the bottom up — error first, then the
+project needs; a lock file records exactly what was installed, making dependency setup far more
+reproducible across machines via a single `uv sync`. Reading a traceback from the bottom up — error first, then the
 exact failing line, then the chain of calls above it — is the core Python debugging skill this
 lesson builds. Never mix tools at random within one project; let one workflow's own command be the
 only way dependencies get installed.

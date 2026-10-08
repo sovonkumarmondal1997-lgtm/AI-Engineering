@@ -20,9 +20,10 @@ By the end of this lesson you will be able to:
 - Use `git status`, `git add`, `git commit`, `git log`, and `git diff` to track and inspect changes.
 - Use `git switch` and `git branch` to move between and create branches.
 - Use `git pull` and `git push` to sync with a remote repository.
-- Write small, descriptive commits, checking `git status` and `git diff` before every one.
-- Write a `.gitignore` that correctly excludes `.env` files, virtual environments, caches, local
-  databases, and keys.
+- Write small, descriptive commits, checking `git status`, `git diff`, and `git diff --staged` before
+  every one.
+- Write a `.gitignore` that correctly excludes `.env` files, virtual environments, caches, and local
+  databases.
 - Explain, at a conceptual level, what a GitHub repository, README, issue, and pull request are.
 - Explain the purpose of an SSH key for GitHub authentication, and where to find current, official
   setup instructions when you actually configure one.
@@ -39,6 +40,8 @@ By the end of this lesson you will be able to:
   [Safe Terminal and Filesystem Literacy](../03-Command-Line/11-safe-terminal-and-filesystem-literacy.md)
   — the safe-practice-directory habit this lesson uses throughout.
 - No prior Git knowledge is assumed. This lesson is the entry point.
+- **Shell assumption:** the command examples assume a Unix-like shell, such as a Linux shell, a macOS
+  shell, or Git Bash/WSL where applicable.
 
 ## Key Terms
 
@@ -156,6 +159,15 @@ git diff
   staged. Read this before every `git add` — it's your last check on exactly what you're about to
   include.
 
+```bash
+git add README.md
+git diff --staged
+```
+
+- `git diff --staged` (also written `git diff --cached`) — after `git add`, plain `git diff` no longer
+  shows those changes, because they have moved to the staging area. `git diff --staged` shows exactly
+  what is staged for the next commit.
+
 ## 5. Moving Between Branches
 
 ```bash
@@ -186,14 +198,17 @@ connecting your local one to it — see Section 9):
 git push
 ```
 
-- `git push` — sends your local commits to the remote, making them visible there.
+- `git push` — sends your local commits to a configured remote, making them visible there. A plain
+  `git push` also needs the branch to have an upstream branch configured; a new branch may not have one
+  yet, and if it is missing Git prints the exact command to set it.
 
 ```bash
 git pull
 ```
 
-- `git pull` — fetches commits from the remote and merges them into your current branch, bringing
-  you up to date with anything others (or you, from another machine) have pushed.
+- `git pull` — obtains updates from the remote and integrates them into your current branch according
+  to the configured pull/integration behavior, bringing you up to date with anything others (or you,
+  from another machine) have pushed.
 
 **Beginner rule:** run `git pull` before starting new work in a shared repository, so you're
 building on the latest version, not an outdated one.
@@ -216,10 +231,11 @@ all three of those things much harder.
 
 ```bash
 git status
-git diff
+git diff --staged
 ```
 
-Read both. Confirm you're staging exactly what you intend — nothing more, nothing accidentally
+Read both (and use plain `git diff` before staging, to see changes not yet staged). Confirm you're
+staging exactly what you intend — nothing more, nothing accidentally
 included (Section 8 explains why this check matters especially for secrets).
 
 ## 8. `.gitignore` — What Must Never Be Committed
@@ -249,6 +265,11 @@ __pycache__/
 **Practical habit:** create your `.gitignore` **before** your first `git add`, so nothing you
 didn't mean to track is ever staged in the first place.
 
+**What `.gitignore` is not:** it helps prevent accidental tracking of matching *untracked* files. It is
+not a security boundary or a secret-management system; it does not protect files Git is already
+tracking, and it does not remove anything already committed from history. Real secrets must never be
+committed, and if one is committed, it needs appropriate secret rotation/remediation (Lesson 12).
+
 ## 9. GitHub — Repositories, README, Issues, and Pull Requests
 
 **GitHub** is a website that hosts Git repositories remotely, and adds collaboration features on
@@ -273,8 +294,9 @@ An **SSH key** is a pair of cryptographic keys — a private key you keep secret
 a public key you register with GitHub — that together let you authenticate to GitHub (for example,
 to `git push`) without typing a username and password every time.
 
-**The concept, in one sentence:** your machine proves it holds the private key; GitHub checks that
-against the public key you registered; if they match, you're authenticated.
+**The concept, in one sentence:** the private key never leaves your machine; during authentication your
+machine proves it possesses the private key, and GitHub verifies that proof using the public key you
+registered.
 
 **This lesson does not walk through generating or registering an SSH key.** Exact commands and
 GitHub's interface both change over time, and getting this step wrong (or following outdated
@@ -300,12 +322,14 @@ git commit -m "chore: add gitignore and initial README"
 git log
 ```
 
-Make a second, unrelated change and repeat the loop, deliberately checking `git diff` first:
+Make a second, unrelated change and repeat the loop, deliberately checking `git diff` first (before
+staging) and `git diff --staged` afterward (before committing):
 
 ```bash
 echo "## Notes" >> README.md
 git diff
 git add README.md
+git diff --staged
 git commit -m "docs: add notes section to README"
 git log
 ```
@@ -317,7 +341,7 @@ Confirm your history now shows two separate, small, descriptive commits — not 
 | Problem | Likely cause | Safe next step |
 |---|---|---|
 | A file you didn't mean to commit shows up in `git status` as staged | You ran a broad `git add .` without checking `git status` first | Unstage it and check status again before committing; going forward, review `git status` before every `git add`. |
-| `git commit` says "nothing to commit" | Nothing is staged — `git add` wasn't run, or nothing actually changed | Run `git status` and `git diff` to see the real current state before assuming the commit should work. |
+| `git commit` says "nothing to commit" | Nothing is staged — `git add` wasn't run, or nothing actually changed | Run `git status`, `git diff`, and `git diff --staged` to see the real current state before assuming the commit should work. |
 | A secret ends up in a commit despite `.gitignore` | The file was already tracked by Git *before* it was added to `.gitignore` — `.gitignore` only prevents tracking *new* files | See Lesson 12, Section 6 and Section 10 — this requires rotating the secret, not just editing `.gitignore`. |
 | `git push` fails, asking to `git pull` first | The remote has commits your local repository doesn't have yet | Run `git pull` first, resolve anything it reports, then push again — never force-push as a first response. |
 | Unsure which branch you're on | Switched branches earlier and lost track | Run `git branch` — the `*` marks your current branch — and `git status`, before making any further change. |
@@ -334,7 +358,7 @@ this lesson's basics are solid tends to produce confusion, not confidence.
 - **Every AI project needs a reproducible history.** A model-training script, a prompt template, or
   an agent's configuration all change over time — Git is how you know what changed and can revert
   a regression.
-- **`.gitignore` discipline (Section 8) is the first line of defense against leaking secrets** —
+- **`.gitignore` discipline (Section 8) is a first habit that reduces accidental leaks of secrets (it is not a security boundary)** —
   covered fully in Lesson 12, but the habit starts here, before you ever hold a real API key.
 - **Small, descriptive commits** make it possible to bisect a regression later — find exactly which
   change introduced a bug in a model's behavior or a service's reliability.
@@ -347,7 +371,8 @@ this lesson's basics are solid tends to produce confusion, not confidence.
 
 1. Initialize a new practice repository, create a `.gitignore` before adding any files, and make
    your first commit.
-2. Make a second change, run `git diff` before staging it, and write down — before committing —
+2. Make a second change, run `git diff` before staging it and `git diff --staged` after staging it, and
+   write down — before committing —
    what you expect `git log` to show afterward.
 3. Create a branch, switch to it, make a change, and confirm with `git branch` and `git status`
    that you're working on the branch you intended.
@@ -364,7 +389,7 @@ this lesson's basics are solid tends to produce confusion, not confidence.
 - **Exercise 2:** your written prediction of `git log`'s output matches what you actually see.
 - **Exercise 3:** `git branch` shows your new branch with a `*` next to it after switching.
 - **Exercise 4:** `.env` never appears in `git status`'s output — confirming `.gitignore` is
-  working before any real secret is ever involved.
+  working as intended (for untracked files) before any real secret is ever involved.
 - **Exercise 5:** your definitions should closely match this lesson's Section 2 and Section 3
   content, phrased in your own words.
 
@@ -374,10 +399,11 @@ this lesson's basics are solid tends to produce confusion, not confidence.
 
 Git tracks a project's history through a deliberate three-step loop: edit your working tree, stage
 exactly what you want to save, and commit it with a descriptive message — checking `git status` and
-`git diff` before every commit. Branches let you work independently without disturbing the main
+`git diff` (and `git diff --staged` after staging) before every commit. Branches let you work independently without disturbing the main
 history; remotes (commonly on GitHub) let you push and pull to synchronize with others. A
-`.gitignore`, written before your first commit, keeps secrets, virtual environments, and caches out
-of history entirely. GitHub adds a README, issues, and pull requests on top of plain Git for
+`.gitignore`, written before your first commit, helps keep secret files, virtual environments, and
+caches from being accidentally tracked (it is not a security boundary, and committed secrets still need
+rotation). GitHub adds a README, issues, and pull requests on top of plain Git for
 collaboration. SSH keys authenticate you to GitHub without a password — set them up later, following
 GitHub's own current documentation. Rebasing, advanced branching, Git internals, and release
 management are real topics, but not this lesson's — the beginner workflow above is enough to work

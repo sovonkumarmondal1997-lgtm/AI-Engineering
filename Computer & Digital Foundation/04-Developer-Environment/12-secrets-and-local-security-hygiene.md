@@ -22,7 +22,8 @@ By the end of this lesson you will be able to:
 - Explain how environment variables let a program use a secret without it being written into code.
 - Write a `.gitignore` entry that keeps `.env` out of version control, and explain why `.gitignore`
   alone is not enough once a secret has already been committed.
-- Check `git status` and `git diff` before every commit, specifically to catch an accidental secret.
+- Check `git status`, `git diff`, and `git diff --cached` before every commit, specifically to catch an
+  accidental secret.
 - Explain what "trusted extensions and packages" means, and why installing from unverified sources
   is a real risk.
 - Explain exactly what to do — and why — if a secret is ever exposed.
@@ -45,8 +46,9 @@ By the end of this lesson you will be able to:
 - **Environment variable** — a named value available to a running process, set outside the
   program's own source code (Module 0.2,
   [Environment Variables](../02-Operating-System-Fundamentals/09-environment-variables.md)).
-- **`.env` file** — a local, untracked file holding real environment variable values, including
-  secrets, for a project.
+- **`.env` file** — a local, untracked configuration file holding `NAME=value` lines (including
+  secrets) for a project. A `.env` file is not itself an environment variable; a loader or other tool
+  must read it and supply the values to a process.
 - **`.env.example`** — a companion file listing the *names* of the variables a project needs, with
   placeholder (not real) values, safe to commit.
 - **Credential rotation** — replacing a secret with a brand-new one and invalidating the old one,
@@ -107,7 +109,18 @@ DATABASE_URL=postgresql://user:PLACEHOLDER_PASSWORD@localhost:5432/mydb
 EXAMPLE_API_KEY=sk-EXAMPLE-PLACEHOLDER-0000000000
 ```
 
-A program reads these as **environment variables** — values available to a running process without
+A `.env` file is **not** the same thing as an environment variable, and creating one does not by itself
+put anything into a process's environment:
+
+```text
+.env file                   = a local configuration file containing values
+Environment variable        = a value supplied to a running process's environment
+loader / shell / framework / IDE / other tooling
+                            = the mechanism that may load or inject the file's values
+```
+
+A dotenv loader, a shell, a framework, an IDE, or similar tooling can read the file and make its values
+available to a program as **environment variables** — values available to a running process without
 being written into its source code at all (Module 0.2's
 [Environment Variables](../02-Operating-System-Fundamentals/09-environment-variables.md) lesson
 covers the underlying mechanism). This is *why* `.env` matters: the secret lives in one local file,
@@ -134,8 +147,9 @@ start of a project — it's part of what makes a project reproducible (Lesson 11
 .env
 ```
 
-One line in `.gitignore` (Lesson 10, Section 8) stops Git from ever tracking `.env` — as long as it
-was added **before** `.env` was ever committed.
+One line in `.gitignore` (Lesson 10, Section 8) prevents normal/accidental tracking of `.env` while it
+is untracked — as long as it was added **before** `.env` was ever committed. `.gitignore` is a
+convenience for avoiding accidental tracking; it is not a security boundary.
 
 **The critical limit, stated precisely:** `.gitignore` only prevents Git from tracking a file *it
 doesn't already know about*. If `.env` was committed even once, before `.gitignore` excluded it,
@@ -146,34 +160,46 @@ version, or the secret's value, from history. Section 10 covers what to actually
 ## 7. Secure Local Credential Storage, Conceptually
 
 Beyond a project's own `.env` file, most operating systems provide a **secure credential store** —
-a system-managed, encrypted place to keep secrets that don't belong to a specific project (for
+a system-managed place (typically with some form of protection) to keep secrets that don't belong to a specific project (for
 example, a personal GitHub token used across many projects): Windows Credential Manager, macOS
-Keychain, or a Linux secret service. This lesson does not walk through using one — recognize the
+Keychain, or a Linux secret service. Protection mechanisms and behavior vary by operating system,
+credential store, and configuration. This lesson does not walk through using one — recognize the
 concept now (a system-level, more permanent alternative to a project's `.env`), and reach for your
 OS's own current documentation when a secret genuinely spans more than one project.
 
-## 8. The Habit: Check `git status` and `git diff` Before Every Commit
+## 8. The Habit: Check `git status`, `git diff`, and `git diff --cached` Before Every Commit
 
 This is Lesson 10's habit, applied specifically as a secrets safeguard:
 
 ```bash
 git status
 git diff
+git diff --cached
 ```
 
-**Read both, every time, before `git add` and `git commit`** — specifically looking for anything
-that shouldn't be there: a `.env` file appearing in the list, or a line in `git diff` containing
-what looks like a real key or password pasted directly into a source file. This thirty-second habit
-is the single most effective, lowest-effort defense against ever committing a secret by accident.
+```text
+git diff          -> inspect unstaged changes
+git diff --cached -> inspect staged changes (what the next commit will contain)
+```
+
+**Read all three, every time, before `git commit`** (and `git diff` before `git add`) — specifically
+looking for anything that shouldn't be there: a `.env` file appearing in the list, or a line in `git diff`
+or `git diff --cached` containing what looks like a real key or password pasted directly into a source
+file. Once you run `git add`, those changes move from `git diff` to `git diff --cached`, so checking
+only `git diff` would miss them. This thirty-second habit is a strong, low-effort defense against
+accidentally committing a secret.
 
 ## 9. Trusted Extensions, Packages, and Updates
 
 Secrets hygiene isn't only about your own files — it also includes what code you let run on your
 machine at all:
 
-- **Install extensions and packages only from trusted, well-known publishers** — an editor
+- **Install extensions and packages only from sources you have reason to trust** — an editor
   extension or a Python package can run arbitrary code on your machine; an unverified or
-  low-reputation source is a real risk, not a theoretical one.
+  low-reputation source is a real risk, not a theoretical one. "Well-known" or "popular" alone does not
+  guarantee safety. Check that the publisher/package name is the correct one (not a look-alike), where
+  it comes from (source/provenance), whether it is maintained and has a reasonable reputation, what
+  access or capabilities it appears to need, and whether you actually need it.
 - **Avoid unverified installation commands** — a command copied from an untrusted forum post or
   video, piped directly into a shell without reading what it does, can do anything on your machine.
   Read a command before running it (Module 0.3's engineering-thinking habit, Module 0.4's own
@@ -187,16 +213,18 @@ If a real secret is ever committed, pasted publicly, or otherwise exposed, follo
 **precisely**, because the natural instinct (quietly delete the line) is not sufficient:
 
 1. **Revoke or rotate the secret immediately**, at its source (the provider's dashboard or
-   settings) — this is the only step that actually stops it from being usable. Deleting a line in a
+   settings) — this is the step that actually stops the exposed credential from being usable. Deleting a line in a
    later Git commit does **not** remove the secret from earlier history, and does **not** stop
    anyone who already saw it from using it.
-2. **Only after rotating**, clean up the repository if you want the old (now harmless) value out of
-   the visible history too — this is a "keeping things tidy" step, not the security fix itself.
+2. **After rotating**, clean up the repository so the old (now harmless) value is out of the visible
+   history too. This is still important, but it is not a substitute for rotation.
 3. **Update wherever the new value is needed** — your local `.env`, any deployed service, any
    teammate who needs it — using the same safe channels (not the same leak path that caused the
    exposure).
 
-**The one sentence to remember:** rotation is the fix; everything else is cleanup.
+**The one sentence to remember:** revocation/rotation is the immediate fix for the credential;
+repository/history cleanup is still important, and depending on the exposure, investigating what
+happened (who or what may have used it) may also be required.
 
 ---
 
@@ -209,8 +237,8 @@ If a real secret is ever committed, pasted publicly, or otherwise exposed, follo
    commit only that file.
 3. Deliberately paste a fake, placeholder-looking "key" directly into a `.py` file (something
    clearly not real, like `EXAMPLE_API_KEY = "sk-EXAMPLE-PLACEHOLDER-0000000000"`), then run
-   `git diff` and confirm you can see it clearly in the output — this is the check that would have
-   caught it before a commit.
+   `git diff` (and, after `git add`, `git diff --cached`) and confirm you can see it clearly in the
+   output — this is the check that would have caught it before a commit.
 4. Write, in your own words, the three-step response from Section 10, in the correct order,
    without looking.
 5. List three things you would check on a new machine before installing an editor extension or a
@@ -234,14 +262,14 @@ If a real secret is ever committed, pasted publicly, or otherwise exposed, follo
 
 A secret is anything that grants access or proves identity — API keys, passwords, tokens, private
 keys, and connection strings — and it must never be committed, pasted into code, logged,
-screenshotted, or posted publicly. `.env` holds real values locally, read as environment variables
-so secrets never live in source code; `.env.example` shares the required variable *names* safely.
-`.gitignore` prevents tracking `.env`, but only if it's in place *before* the file is ever
-committed — once committed, the fix is rotation, not deletion. Checking `git status` and `git diff`
-before every commit is the simplest, most reliable habit against an accidental leak. Install
+screenshotted, or posted publicly. `.env` holds real values locally, which a loader or other tooling can supply to a program as
+environment variables so secrets never live in source code; `.env.example` shares the required variable *names* safely.
+`.gitignore` helps prevent accidental tracking of `.env`, but only if it's in place *before* the file is ever
+committed — once committed, the fix is rotation, not deletion. Checking `git status`, `git diff`, and `git diff --cached`
+before every commit is a simple, strong habit against an accidental leak. Install
 extensions and packages only from trusted sources, and keep your system updated. If a secret is
-ever exposed, revoke or rotate it immediately — that is the actual fix; everything else is cleanup
-afterward.
+ever exposed, revoke or rotate it immediately — that is the immediate credential fix; repository cleanup and,
+depending on the exposure, investigation follow.
 
 ## Completion Checklist
 
@@ -253,7 +281,7 @@ afterward.
 - [ ] I confirmed `.gitignore` correctly kept `.env` out of `git status`, having set it up before
       creating the file.
 - [ ] I can explain why `.gitignore` alone does not fix an already-committed secret.
-- [ ] I practiced checking `git status` and `git diff` specifically to catch a fake secret before
+- [ ] I practiced checking `git status`, `git diff`, and `git diff --cached` specifically to catch a fake secret before
       committing.
 - [ ] I can explain what "trusted extensions and packages" means and why it matters.
 - [ ] I can state, correctly ordered and from memory, what to do if a secret is exposed.
