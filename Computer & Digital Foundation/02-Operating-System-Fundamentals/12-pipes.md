@@ -70,7 +70,7 @@ Process B
 
 **A simple analogy first: a conveyor belt between two workstations.** Imagine two workers at adjacent stations in a factory, connected by a short conveyor belt. Worker A places finished items on the belt; Worker B picks items off the belt as they arrive and continues working with them. Neither worker needs to understand the other's job — Worker A just needs to know "place things on the belt when ready," and Worker B just needs to know "take things off the belt when they arrive." The belt itself is the connecting mechanism — not a warehouse where items are permanently stored, just a channel moving things from one place to another.
 
-**Now the real technical model, replacing the analogy.** A **pipe** is an OS-managed communication channel that lets bytes written by one process become available for another process to read, in the order they were written — a **unidirectional**, **stream-oriented** channel (data flows one way, as an ongoing sequence of bytes, not as discrete, addressable "records").
+**Now the real technical model, replacing the analogy.** A **pipe** is an OS-managed communication channel that lets bytes written by one process become available for another process to read, as an ordered byte stream — a **unidirectional**, **stream-oriented** channel (data flows one way, as an ongoing sequence of bytes, not as discrete, addressable "records").
 
 **Three required, precise clarifications:**
 
@@ -181,7 +181,7 @@ Writer Process
 Reader Process
 ```
 
-**This is a conceptual model, not a claim about kernel implementation details.** The pipe buffer is a real, kernel-managed piece of memory with a finite capacity (Section 6) — this lesson does not describe its exact internal data structures, does not claim the pipe is "always a permanent file" (a direct contradiction of Section 2), and does not go into kernel source code. What matters here is the shape of the flow: bytes go in one end, are held briefly by the OS, and come out the other end, in the order they were written.
+**This is a conceptual model, not a claim about kernel implementation details.** The pipe buffer is a real, kernel-managed piece of memory with a finite capacity (Section 6) — this lesson does not describe its exact internal data structures, does not claim the pipe is "always a permanent file" (a direct contradiction of Section 2), and does not go into kernel source code. What matters here is the shape of the flow: bytes go in one end, are held briefly by the OS, and come out the other end, as an ordered byte stream.
 
 ---
 
@@ -203,7 +203,9 @@ Producer
 Consumer
 ```
 
-**Producer** — whichever process is writing into the pipe. **Consumer** — whichever process is reading from it. **Buffering** — the OS temporarily holding written data until it's read. **Backpressure** — the natural consequence of a full buffer: the producer cannot write any more data until the consumer has read enough to free up space, effectively slowing the producer down to match the consumer's actual pace. This lesson introduces backpressure only at this conceptual level — it does not teach advanced asynchronous I/O techniques (`select`/`poll`/`epoll`, Section 31) for managing it.
+**Producer** — whichever process is writing into the pipe. **Consumer** — whichever process is reading from it. **Buffering** — the OS temporarily holding written data until it's read. **Backpressure** — the natural consequence of a full buffer: the producer cannot write any more data until the consumer has read enough to free up space, effectively slowing the producer down to match the consumer's actual pace. The discussion here assumes normal blocking I/O; nonblocking mode changes the behavior. This lesson introduces backpressure only at this conceptual level — it does not teach advanced asynchronous I/O techniques (`select`/`poll`/`epoll`, Section 31) for managing it.
+
+**Multiple writers and `PIPE_BUF` (a short qualification).** A pipe is a byte stream, and the simplest mental model is one writer and one reader. In real systems a pipe can have multiple references to either end, including multiple writers. POSIX/Linux guarantee that a write of up to `PIPE_BUF` bytes is atomic (it will not be interleaved with other writers' data), while larger writes can be interleaved when multiple writers are involved. This lesson does not go further into concurrent writers.
 
 ---
 
@@ -222,7 +224,7 @@ Consumer
 
 **EOF (end-of-file), in this context:** a signal to a reader that no more data will ever arrive on this stream — not merely "no data right now," but "there will never be any more."
 
-**The relationship between closing the write end and EOF:** a reader sees EOF specifically once **every** writer's copy of the write end has been closed. As long as *any* process still holds the write end open, the reader has no way to know whether more data is still coming — so it will keep waiting (blocking, Section 7) instead of concluding EOF has been reached.
+**The relationship between closing the write end and EOF:** a reader sees EOF specifically once **every** writer's copy of the write end has been closed. As long as *any* process still holds the write end open, the reader has no way to know whether more data is still coming — so it will keep waiting (blocking, Section 7) instead of concluding EOF has been reached. (The one-writer/one-reader diagram is the simplest teaching model; in real systems, multiple processes can hold references to either end, and EOF occurs only after all write-end references are closed.)
 
 ```text
 Writer
@@ -249,7 +251,7 @@ Reader
 
 **The relationship to `SIGPIPE`, connecting directly to [Signals](10-signals.md):** on Unix-like systems, a process that writes to a pipe whose reader has gone away typically receives a `SIGPIPE` signal (Concept 10) — whose default action is to terminate the writing process. **This lesson does not re-teach signal mechanics** — only that this specific interaction exists: a pipe-related event (the reader disappearing) can trigger signal delivery (Concept 10's entire subject) to the writer.
 
-**Python's corresponding behavior:** depending on how the write happens, Python code may instead observe a `BrokenPipeError` — Python's own exception representing exactly this same underlying condition, when the interpreter's own I/O layer catches it before (or instead of) the raw signal terminating the process outright.
+**Python's corresponding behavior:** on Unix-like systems, writing after the pipe's read end has closed can result in `SIGPIPE` / the `EPIPE` error. Python commonly exposes this underlying broken-pipe condition to your code as a `BrokenPipeError` exception, which your code can catch.
 
 **Why this matters practically:** a program that writes output through a pipe (for example, into a shell pipeline, Section 13) needs to be prepared for the possibility that whatever is downstream has already stopped reading — an entirely normal, expected event in pipeline usage, not a sign of corruption.
 
@@ -262,7 +264,7 @@ Reader
 | **Storage** | No persistent storage — data exists only transiently, in a kernel-managed buffer | Persistent storage on a filesystem (Concept 07) |
 | **Persistence** | Data is gone once read; nothing remains afterward | Data remains until explicitly deleted |
 | **Producer/consumer relationship** | Directly connects a specific writer to a specific reader (or set of readers) | No inherent producer/consumer relationship — any process with permission (Concept 08) can open it independently, at any time |
-| **Sequential streaming** | Fundamentally sequential — bytes are read in the order they were written, once, and then gone | Also supports sequential access, but is not inherently "consumed" by reading |
+| **Sequential streaming** | Fundamentally sequential — an ordered byte stream, read once and then gone (with multiple writers, see Section 6's `PIPE_BUF` note) | Also supports sequential access, but is not inherently "consumed" by reading |
 | **Random access** | Not supported — you cannot "seek" backward in a pipe | Fully supported — you can read or write at arbitrary positions (Concept 07's filesystem model) |
 | **Lifetime** | Exists only as long as it's needed by the processes using it (Section 11) | Exists independently of any process, until deleted |
 | **Buffering** | A small, finite, kernel-managed buffer, central to how the pipe behaves (Section 6) | Not "buffered" in the same real-time-flow-control sense — writes are simply stored, generally without one process's write blocking on another process's read |
@@ -276,13 +278,13 @@ Reader
 
 **Why they're called "anonymous":** an anonymous pipe has **no name and no visible presence in the filesystem** at all (unlike the named pipes/FIFOs in Section 12) — it exists purely as a pair of file descriptors, known only to the specific processes that were given them.
 
-**Typical usage: parent/child or otherwise related processes.** Because an anonymous pipe has no filesystem name, the *only* way another process can get access to either end is by **inheriting it** — receiving a copy of that file descriptor when it's created as a child of a process that already has it (Concept 03's process-inheritance model, Concept 09's parallel for environment variables). This is exactly why shell pipelines (Section 13) work the way they do: the shell creates the pipe and arranges for each side of a pipeline to inherit the correct end.
+**Typical usage: parent/child or otherwise related processes.** Because an anonymous pipe has no filesystem pathname through which an unrelated process can simply open it, the common Unix way another process gets access to either end is by **inheriting it** — receiving a copy of that file descriptor when it's created as a child of a process that already has it (Concept 03's process-inheritance model). File descriptors can also be explicitly transferred between processes using appropriate OS mechanisms, but that is outside this lesson's scope. This is exactly why shell pipelines (Section 13) work the way they do: the shell creates the pipe and arranges for each side of a pipeline to inherit the correct end.
 
 **Lifetime.** An anonymous pipe exists only as long as at least one process still holds one of its ends open — once every reference to both ends is closed, the kernel reclaims it. There's no separate "delete the pipe" step, unlike a regular file (Concept 07).
 
 **Why subprocess-launching mechanisms commonly use anonymous pipes:** when one program needs to capture another's output (Section 18's `subprocess.Popen` example), an anonymous pipe is the natural mechanism — it requires no filesystem name, is automatically cleaned up once both processes are done with it, and is inherited naturally through the parent/child relationship that launching a subprocess already creates.
 
-**This lesson does not teach `fork()`/`exec()` internals** — the precise mechanics of how a new process actually comes into existence and inherits file descriptors belongs to more advanced systems-programming material and, at a higher level, to [Process Lifecycle](14-process-lifecycle.md), still ahead. Here, it's enough to know that inheritance through process creation is *how* an anonymous pipe's ends reach the processes that use them.
+**This lesson does not teach `fork()`/`exec()` internals** — the precise mechanics of how a new process actually comes into existence and inherits file descriptors belongs to more advanced systems-programming material and, at a higher level, to [Process Lifecycle](14-process-lifecycle.md), still ahead. Here, it's enough to know that inheritance through process creation is *how* an anonymous pipe's ends commonly reach the processes that use them.
 
 ---
 
@@ -410,7 +412,7 @@ apricot
 avocado
 ```
 
-**What happened, stage by stage:** `printf` produced four lines; `grep '^a'` (connected via `PIPE 1`) filtered them down to the three starting with `a` (all of them, in this case, since every word here starts with `a` — `banana` was the only one filtered out); `sort` (connected via `PIPE 2`) then alphabetized the surviving three lines. **Three separate processes, two separate pipes, each stage doing exactly one focused job** — a direct, concrete instance of Section 3's "Unix philosophy" benefit.
+**What happened, stage by stage:** `printf` produced four lines; `grep '^a'` (connected via `PIPE 1`) filtered them down to the three starting with `a` (all of them, in this case, since every word here starts with `a` — `banana` was the only one filtered out); `sort` (connected via `PIPE 2`) then alphabetized the surviving three lines. **Three stages (in a typical Unix shell, each in its own process), two separate pipes, each stage doing exactly one focused job** — a direct, concrete instance of Section 3's "Unix philosophy" benefit.
 
 **This lesson does not teach a full shell implementation** — precisely *how* the shell parses `A | B | C`, creates each process, and wires up the pipes belongs to [Shell](13-shell.md), still ahead. Here, the objective is understanding what the pipes themselves are actually doing, once they exist.
 
@@ -418,26 +420,26 @@ avocado
 
 ## 15. Pipeline Exit Status
 
-**Every process in a pipeline has its own exit code** (Concept 03) — a pipeline of three commands really does involve three separate processes, each finishing with its own status, independently of the others.
+**Each stage of a pipeline finishes with its own exit code** (Concept 03). Typical Unix shell pipelines run each stage in a separate execution context, commonly a separate process (the exact process behavior depends on the shell, the kind of command, and shell options), so a three-command pipeline normally produces three separate statuses, independent of one another.
 
-**A genuinely observed illustration**, using this lesson's own mini-project pipeline (Section 25 shows the complete script):
+**Bash-specific behavior:** by default, a pipeline's overall status (`$?`) is the status of the **last** command. With `set -o pipefail`, the pipeline's status is instead the status of the rightmost command that exited non-zero, or zero if every command succeeded. Bash also records every stage's individual status in the `PIPESTATUS` array.
+
+**An illustration**, using this lesson's own mini-project pipeline (Section 25 shows the complete script). `$?` and `PIPESTATUS` both describe the *most recent pipeline* — but running any other command (including a separate `echo`) resets them, so both must be read in the **same** command, immediately after the pipeline:
 
 ```bash
 python3 producer.py | python3 processor.py | python3 consumer.py
-echo "PIPESTATUS: ${PIPESTATUS[@]}"
-echo "\$? (only the LAST stage): $?"
+echo "PIPESTATUS: ${PIPESTATUS[@]} | \$?: $?"
 ```
 
-**Observed in this environment:**
+**Recorded output** (from the documented environment used when this lesson was prepared; the status values `0 2 0` / `0` were recorded for this pipeline, and the single-command form above was additionally checked in Bash with a stand-in pipeline of the same shape):
 
 ```text
 warning: skipping invalid value: 'abc'
 received 3 values, total=30.0
-PIPESTATUS: 0 2 0
-$? (only the LAST stage): 0
+PIPESTATUS: 0 2 0 | $?: 0
 ```
 
-**What this demonstrates directly:** Bash's `$?` reflects only the **last** command in the pipeline — here, `consumer.py`'s exit status (`0`), even though the *middle* stage, `processor.py`, actually exited with `2` (this lesson's mini-project convention for "succeeded, but had to skip something," Concept 03's exit-code discussion). Bash's `PIPESTATUS` array reveals every stage's individual exit code (`0 2 0`) — information `$?` alone completely hides.
+**What this demonstrates:** without `pipefail`, Bash's `$?` is the **last** command's status — here `consumer.py`'s `0` — even though the *middle* stage, `processor.py`, actually exited with `2` (this lesson's mini-project convention for "succeeded, but had to skip something," Concept 03's exit-code discussion). `PIPESTATUS` reveals every stage's individual exit code (`0 2 0`) — information `$?` alone hides. With `set -o pipefail` set first, the same pipeline would report `$?` as `2` (the rightmost non-zero status), while `PIPESTATUS` would still be `0 2 0`.
 
 **This lesson deliberately does not make shell-specific pipeline-status semantics its central topic**, and does not claim every shell behaves identically here — `PIPESTATUS` specifically is a Bash feature; other shells provide their own, sometimes differently-named mechanisms for the same underlying need. **Detailed, shell-specific pipeline-status behavior belongs to [Shell](13-shell.md), still ahead.** What matters here is the underlying fact this example demonstrates concretely: a pipeline's "overall success," in the naive sense of checking `$?` alone, can silently hide a real problem in an earlier stage.
 
@@ -492,7 +494,7 @@ With stderr redirected away entirely (Concept 11's `2>` syntax), only the two ma
 
 ## 17. Python Pipes
 
-Python's standard library exposes the raw OS pipe mechanism directly through `os.pipe()`.
+On Unix/Linux, Python's standard library exposes the raw OS pipe mechanism directly through `os.pipe()` (Python also provides `os.pipe()` on Windows, although the surrounding platform semantics differ; this lesson stays Unix/Linux-focused).
 
 ```python
 import os
@@ -556,7 +558,7 @@ child exit status: 0
 
 **Explaining the concepts, not just the syntax:** `subprocess.Popen(...)` starts `grep` as a **child process** of this Python script (the **parent**). `stdin=subprocess.PIPE`, `stdout=subprocess.PIPE`, and `stderr=subprocess.PIPE` each tell Python to create a real anonymous pipe (Section 11) — exactly like the `os.pipe()` example above, just set up automatically — connecting this parent process to the corresponding standard stream of the *child* process, instead of leaving it connected to the parent's own terminal or file descriptors. `proc.communicate(input="...")` writes the given text to the child's stdin pipe, then reads everything the child writes to its stdout and stderr pipes, and **waits for the child process to finish** — a single, convenient call handling exactly the write/read/close/wait sequence Section 5's general pipe lifecycle described. `proc.returncode` afterward holds the child's exit status (Concept 03), here confirmed as `0`.
 
-**This lesson does not teach advanced asynchronous subprocess handling** (streaming output while it's still being produced, managing several subprocesses concurrently, and more) — `communicate()` is the simple, correct, beginner-appropriate pattern this lesson focuses on.
+**This lesson does not teach advanced asynchronous subprocess handling** (streaming output while it's still being produced, managing several subprocesses concurrently, and more) — `communicate()` is the recommended high-level approach for ordinary subprocess pipe communication because it coordinates input/output handling and avoids common pipe-buffer deadlocks (it does not, of course, prevent every possible application-level deadlock), and it is the simple pattern this lesson focuses on.
 
 ---
 
@@ -579,7 +581,7 @@ Child is not reading
 
 **The opposite direction is equally possible:** if a parent tries to read a child's entire output before it has written *any* input to the child's stdin, and the child is meanwhile waiting for that input before it can produce any output at all, the same mutual standstill occurs, just with the roles reversed.
 
-**How engineers reason about this kind of failure:** recognize that "the program hangs" with no error message, no crash, and no CPU usage (Concept 05's related debugging pattern) is a strong signal that something is blocked waiting on I/O rather than stuck in a computational loop — and specifically, when subprocesses and pipes are involved, ask: *is one side waiting for the other to do something it's also waiting on in return?* Common, safer patterns include using `communicate()` (Section 17), which is specifically designed to avoid this exact trap by managing the read/write ordering correctly, or restructuring the exchange so that reading and writing between the two sides can happen concurrently rather than in a strict, mutually-dependent sequence.
+**How engineers reason about this kind of failure:** recognize that "the program hangs" with no error message, no crash, and no CPU usage (Concept 05's related debugging pattern) is a strong signal that something is blocked waiting on I/O rather than stuck in a computational loop — and specifically, when subprocesses and pipes are involved, ask: *is one side waiting for the other to do something it's also waiting on in return?* Common, safer patterns include using `communicate()` (Section 17), which is designed to avoid this common trap by coordinating the read/write handling, or restructuring the exchange so that reading and writing between the two sides can happen concurrently rather than in a strict, mutually-dependent sequence.
 
 **This lesson does not teach advanced concurrency theory** (formal deadlock conditions, prevention algorithms, and more — Section 31's scope boundaries) — only the specific, highly practical shape this particular failure takes with pipes and subprocesses, which is common enough in real engineering work to deserve this foundational treatment now.
 
@@ -782,7 +784,7 @@ For every scenario: symptom, likely cause, what the OS/processes are actually do
 
 **5. "FIFO appears stuck."** *Likely cause:* one side (writer or reader) opened the FIFO and is waiting for the other side to also open it (Section 12) — this is expected FIFO-opening behavior, not necessarily a bug. *Inspect:* confirm both a writer and a reader process actually exist and are both attempting to use the same FIFO path. *Reasoning:* a FIFO opened by only one side, with no corresponding process on the other side, will simply wait indefinitely — by design. *Fix:* ensure both a writer and a reader are actually running and targeting the same FIFO.
 
-**6. "Python subprocess hangs."** *Likely cause:* exactly Section 18's deadlock pattern — writing too much to a subprocess's stdin before reading any of its stdout, while the subprocess is itself waiting to write its own output before reading more input. *Inspect:* check whether the code uses raw `Popen` with manual `.stdin.write()`/`.stdout.read()` calls in a strict sequence, rather than `communicate()`. *Reasoning:* `communicate()` exists specifically to avoid this trap by managing both directions correctly; manual read/write sequencing is where this failure most commonly appears. *Fix:* use `communicate()` for simple cases (Section 17), or restructure I/O to avoid a strict, mutually blocking sequence.
+**6. "Python subprocess hangs."** *Likely cause:* exactly Section 18's deadlock pattern — writing too much to a subprocess's stdin before reading any of its stdout, while the subprocess is itself waiting to write its own output before reading more input. *Inspect:* check whether the code uses raw `Popen` with manual `.stdin.write()`/`.stdout.read()` calls in a strict sequence, rather than `communicate()`. *Reasoning:* `communicate()` is designed to avoid this common trap by coordinating both directions; manual read/write sequencing is where this failure most commonly appears. *Fix:* use `communicate()` for simple cases (Section 17), or restructure I/O to avoid a strict, mutually blocking sequence.
 
 **7. "Parent process waits forever."** *Likely cause:* the parent is waiting (via `communicate()`, `wait()`, or similar) for a child process that itself never terminates — possibly because the child is waiting on input the parent never provided, or a pipe end the parent forgot to close (Section 8). *Inspect:* check the child process's own state directly, and confirm the parent actually sent everything the child is waiting for. *Reasoning:* "the parent hangs" is often really "the child hangs, and the parent is correctly waiting for it." *Fix:* diagnose the child's actual blocking condition first, using this same debugging method recursively.
 
@@ -810,7 +812,7 @@ For every scenario: symptom, likely cause, what the OS/processes are actually do
 | "stderr automatically flows through `|`." | Directly contradicted by Section 16's genuinely observed demonstration — stderr bypassed the pipe entirely and appeared separately. |
 | "A pipe can hold unlimited data." | A pipe's buffer has a finite capacity (Section 6) — this finite limit is exactly what causes blocking (Section 7) and deadlock risk (Section 18). |
 | "The reader can always read immediately." | A reader blocks if no data is currently available and the write end remains open (Section 7) — reading is not guaranteed to complete instantly. |
-| "A pipeline is one process." | A shell pipeline of N commands is N separate processes (Concept 03), each with its own exit code (Section 15's genuinely observed `PIPESTATUS` example). |
+| "A pipeline is one process." | A typical Unix shell pipeline runs each stage in its own execution context, commonly a separate process (Concept 03), each with its own exit code (Section 15's `PIPESTATUS` example); the exact process behavior depends on the shell, the command type, and shell options. |
 | "A FIFO is just an ordinary file." | A FIFO is marked with a distinct `p` file type (Section 12's genuinely observed `ls -l` output) and behaves fundamentally differently — it's a communication channel with no persistent content, not ordinary file storage. |
 | "Pipes are only useful for shell commands." | `os.pipe()` and `subprocess.Popen` (Section 17) use the exact same OS pipe mechanism entirely from within Python code, with no shell involved at all. |
 | "Pipes are the same as sockets." | Sockets support network communication (potentially between different machines) and have their own distinct API and semantics — mentioned here only by name, as an explicitly out-of-scope, related mechanism (Section 31). |
@@ -916,18 +918,18 @@ received 3 values, total=30.0
 
 ```bash
 python3 producer.py | python3 processor.py | python3 consumer.py
-echo "PIPESTATUS: ${PIPESTATUS[@]}"
-echo "\$?: $?"
+echo "PIPESTATUS: ${PIPESTATUS[@]} | \$?: $?"
 ```
 
-**Observed in this environment:**
+(Read both in the same command, right after the pipeline — any intervening command resets them, as Section 15 explained.)
+
+**Recorded in the documented environment used when this lesson was prepared (status values only):**
 
 ```text
-PIPESTATUS: 0 2 0
-$?: 0
+PIPESTATUS: 0 2 0 | $?: 0
 ```
 
-**Exactly Section 15's point, now demonstrated by this project's own pipeline:** `processor.py` genuinely exited with `2` (it had to skip `'abc'`), but plain `$?` shows only `consumer.py`'s exit code (`0`) — checking `PIPESTATUS` is what actually reveals that the middle stage encountered (and correctly reported) a problem.
+**Exactly Section 15's point, now demonstrated by this project's own pipeline:** `processor.py` genuinely exited with `2` (it had to skip `'abc'`), but without `pipefail` Bash's `$?` shows only `consumer.py`'s exit code (`0`) — checking `PIPESTATUS` is what actually reveals that the middle stage encountered (and correctly reported) a problem. (With `set -o pipefail` in Bash, `$?` would instead be `2`.)
 
 **Failure modes to expect and test yourself:** feed `processor.py` input containing *only* invalid values, and confirm it exits with `1` and prints its `"error: no valid values to process"` message to stderr; try piping a much larger volume of input through and confirm the pipeline still completes (a basic, informal check against Section 18's deadlock risk, since this simple line-by-line streaming pattern reads and writes incrementally, rather than trying to hold everything in memory before passing it along).
 

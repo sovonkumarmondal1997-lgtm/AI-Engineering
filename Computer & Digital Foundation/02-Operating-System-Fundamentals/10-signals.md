@@ -31,11 +31,11 @@ The process responds                        (terminates, cleans up and exits, ig
 
 **Why a separate mechanism is needed at all, previewed here and expanded in Section 2:** a process cannot practically check, every microsecond, "has someone asked me to stop yet?" — signals exist specifically so that this kind of event can be delivered *to* a process, rather than requiring the process to constantly watch for it.
 
-**How a signal differs from ordinary application data — required, and easy to get wrong.** A signal is **not** the same thing as sending a process a text message through its standard input, and it is **not** the same thing as a network request arriving at a service. Those are both examples of **data** flowing to a process through a defined channel it actively reads from. A signal is fundamentally different: it's a small, standardized, out-of-band **notification** — it doesn't carry an arbitrary payload of information, and the process doesn't "read" it the way it reads a line of input; the operating system delivers it, and the process's response is governed either by a fixed default action or by a handler the process has specifically registered (Section 5, Section 6).
+**How a signal differs from ordinary application data — required, and easy to get wrong.** A signal is **not** the same thing as sending a process a text message through its standard input, and it is **not** the same thing as a network request arriving at a service. Those are both examples of **data** flowing to a process through a defined channel it actively reads from. A signal is fundamentally different: it's a small, standardized, out-of-band **notification** — it is not a general-purpose way to send data (standard signals such as those normally sent with `kill` are primarily control/notification mechanisms; POSIX/Linux real-time signals can carry a small accompanying value, but signals are still not a general-purpose data-transport mechanism), and the process doesn't "read" it the way it reads a line of input; the operating system delivers it, and the process's response is governed either by a fixed default action or by a handler the process has specifically registered (Section 5, Section 6).
 
 ```text
 Data channels (later lessons):    stdin / stdout / stderr / pipes  — carry arbitrary content
-Control channel (this lesson):    signals                          — carry only a specific,
+Control channel (this lesson):    signals                          — primarily a specific,
                                                                        predefined notification
 ```
 
@@ -56,7 +56,7 @@ Control channel (this lesson):    signals                          — carry onl
 - **Graceful shutdown.** A structured way to ask an application to wind down cleanly, rather than simply vanishing (Section 6's dedicated subsection).
 - **Operational control.** In production, operators and deployment systems routinely use signals to manage running services (Section 15).
 
-**What signals are *not* a general-purpose replacement for.** Signals are deliberately narrow: they carry a specific, predefined notification (identified by name/number, Section 5) — **not** an arbitrary payload of application data. If two processes need to exchange real information, they use the data channels this module will cover later (standard I/O, pipes) — not signals. This lesson insists on this distinction repeatedly, because conflating "signal" with "message" is one of the most common beginner misunderstandings (Section 10).
+**What signals are *not* a general-purpose replacement for.** Signals are deliberately narrow: they are primarily a specific, predefined notification (identified by name/number, Section 5) — **not** a channel for arbitrary application data (POSIX/Linux real-time signals can carry a small accompanying value, but that does not make signals a general data-transport mechanism). If two processes need to exchange real information, they use the data channels this module will cover later (standard I/O, pipes) — not signals. This lesson insists on this distinction repeatedly, because conflating "signal" with "message" is one of the most common beginner misunderstandings (Section 10).
 
 ---
 
@@ -118,7 +118,7 @@ Imagine a worker at their desk, and a small set of standardized notifications th
 **Where this analogy must not replace technical accuracy, and breaks down:**
 
 - A human worker can always, in principle, choose to ignore or negotiate around an instruction; a real process **cannot** ignore every signal — some (SIGKILL, SIGSTOP) are enforced unconditionally by the operating system, with no way for the process to refuse or even notice in advance (Section 5, Section 12).
-- "Please stop" from a human manager might come with a detailed conversation about *why* or *what to prioritize*; a real signal carries no such payload — it is only ever the fixed, predefined notification itself, nothing more (Section 1).
+- "Please stop" from a human manager might come with a detailed conversation about *why* or *what to prioritize*; a standard signal carries no such explanation — it is essentially the fixed, predefined notification itself (Section 1).
 - A worker's response to "please stop" is entirely up to their own judgment; a process's response to SIGTERM is entirely up to whether — and how — its own code has been written to handle it (Section 6, Section 13) — with no code written for it, a fixed, OS-defined default action happens instead.
 
 The rest of this lesson moves from this everyday intuition into the exact, technical model — the analogy is a way in, not a substitute for it.
@@ -129,11 +129,11 @@ The rest of this lesson moves from this everyday intuition into the exact, techn
 
 ### Important signals, explained precisely
 
-**SIGINT** — *interrupt*. Generated by the terminal, most commonly when a user presses **Ctrl+C** on a running foreground process. **It is a request to interrupt — not universally equivalent to immediate termination.** Its default action (Section 5's table) is to terminate the process, but a process can register its own handler (Section 6) to respond differently — for example, prompting "are you sure?" before actually stopping.
+**SIGINT** — *interrupt*. Generated by the terminal, most commonly when a user presses **Ctrl+C**: the terminal driver normally sends `SIGINT` to the foreground process group. **It is a request to interrupt — not universally equivalent to immediate termination.** Its default action (Section 5's table) is to terminate the process, but a process can register its own handler (Section 6) to respond differently — for example, prompting "are you sure?" before actually stopping.
 
 **SIGTERM** — *terminate*. A termination **request**, and the conventional, polite way to ask a process to shut down. **The process can handle it** — registering a handler (Section 6) that performs cleanup (closing files, finishing in-flight work, releasing resources) **before** actually exiting. This is the signal graceful shutdown (Section 6's dedicated subsection) is built around.
 
-**SIGKILL** — *kill, unconditionally*. An immediate termination request **enforced directly by the operating system**. **It cannot be caught, handled, or ignored by the target process — no exceptions.** Because the process is forcibly terminated by the kernel itself, **any cleanup code the process might have written for other signals simply never runs** when SIGKILL is what actually ends it.
+**SIGKILL** — *kill, unconditionally*. An immediate termination request **enforced directly by the operating system**. **It cannot be caught, handled, or ignored by the target process — no exceptions.** Because the process is forcibly terminated by the kernel itself, **any application-level cleanup code the process might have written for other signals (shutdown handlers, graceful cleanup) simply never runs** when SIGKILL is what actually ends it. (The operating system still performs its normal kernel-level cleanup for a terminated process, such as closing its file descriptors — what is lost is the *application's* chance to shut down gracefully.)
 
 **SIGHUP** — *hangup*. Traditionally generated when a controlling terminal was closed (the process's terminal connection was lost). In modern usage, many long-running services repurpose SIGHUP for other operational purposes (such as a request to reload configuration) — **this lesson does not claim SIGHUP always means one universal thing across every application; its traditional meaning is the terminal-hangup notification, and any further reuse is entirely application-specific.**
 
@@ -297,6 +297,8 @@ application-defined response        (print a message, clean up, then exit)
 
 **A required, precise statement: not every signal can be handled this way.** `signal.signal(signal.SIGKILL, ...)` and `signal.signal(signal.SIGSTOP, ...)` cannot override those signals' behavior — **`SIGKILL` cannot be caught, and `SIGSTOP` cannot be caught**, in Python or in any other language, because the operating system enforces both of them unconditionally, before any application code ever gets a chance to run (Section 5). Attempting to register a handler for either of these will fail or be rejected, depending on the platform — this lesson does not go further into Python's specific error behavior here, only the underlying, universal fact that both signals are simply not interceptable by any application.
 
+**In Python, signal handlers are executed in the main thread of the main interpreter.** The handler is therefore not an arbitrary callback that can execute concurrently on whichever Python thread happens to receive the signal.
+
 **This lesson does not teach advanced Python signal-handling internals** (interaction with threads, signal-safe operations inside a handler, and more) — Section 9's practical demonstration shows the simple, correct pattern above, which is sufficient for this foundational lesson.
 
 ### Graceful shutdown vs. abrupt termination
@@ -305,7 +307,8 @@ application-defined response        (print a message, clean up, then exit)
 
 ```text
 Abrupt termination:
-signal → process disappears                    (no cleanup logic runs at all)
+signal → process disappears                    (no application cleanup logic runs;
+                                                the OS still does its normal termination cleanup)
 
 Graceful shutdown:
 signal
@@ -355,15 +358,15 @@ close connections/files
 exit
 ```
 
-**Why `SIGTERM` is generally preferable to `SIGKILL` for shutting down a service:** `SIGTERM` gives the application a *chance* — via a registered handler (Section 6) — to shut down thoughtfully; `SIGKILL` gives it none at all. A well-operated production system escalates deliberately, `SIGTERM` first, `SIGKILL` only if the process fails to actually stop within a reasonable window (Section 11's escalation workflow) — never the reverse.
+**Why `SIGTERM` is generally preferable to `SIGKILL` for shutting down a service:** `SIGTERM` gives the application a *chance* — via a registered handler (Section 6) — to shut down thoughtfully; `SIGKILL` gives it none at all. A common operational strategy is to request graceful shutdown with `SIGTERM` first and use `SIGKILL` only as a last resort if the process fails to stop within an appropriate time window (Section 11's escalation workflow).
 
 **Why application code must explicitly implement appropriate shutdown behavior:** as Section 6 stressed, nothing about sending `SIGTERM` automatically produces graceful behavior — a service with no registered handler shuts down exactly as abruptly under `SIGTERM`'s default action as it would under `SIGKILL`. The *only* difference `SIGTERM` provides is the *opportunity* to do better, which the application must actually take.
 
 **Why long-running model inference may require a careful shutdown policy:** if a single inference request can take several seconds (or longer), a naive shutdown that terminates mid-request either wastes that work or, worse, could return a corrupted or partial result to a caller expecting a complete one — a thoughtful shutdown policy has to decide, deliberately, whether to finish in-flight inference, cancel it safely, or something in between, rather than leaving that outcome to chance.
 
-**Why forced termination can leave work incomplete:** `SIGKILL` (or any abrupt termination) stops a process at whatever instruction it happened to be executing — a half-written file, a half-completed database transaction, or a dropped in-flight request are all realistic, direct consequences of forced termination with no opportunity for cleanup.
+**Why forced termination can leave work incomplete:** `SIGKILL` (or any abrupt termination) stops a process at whatever instruction it happened to be executing — a half-written file, a half-completed database transaction, or a dropped in-flight request are all realistic, direct consequences of forced termination with no opportunity for application-level cleanup (the OS still closes the process's file descriptors and reclaims its resources, but it cannot complete the application's own half-finished work).
 
-**Why operational control is part of production reliability:** a service that can be stopped predictably — cleanly finishing or safely abandoning its current work, every time — is measurably more reliable to operate than one whose shutdown behavior is a gamble. This is not a cosmetic concern; it is a direct, practical reliability property, and it rests entirely on the signal-handling foundation this lesson teaches.
+**Why operational control is part of production reliability:** a service that can be stopped predictably — cleanly finishing or safely abandoning its current work, every time — is measurably more reliable to operate than one whose shutdown behavior is a gamble. This is not a cosmetic concern; it is a direct, practical reliability property, and it rests heavily on the signal-handling foundation this lesson teaches.
 
 | Real-world scenario | Signal typically used | What "graceful" means here |
 |---|---|---|
@@ -372,7 +375,7 @@ exit
 | Worker process shutdown | `SIGTERM` | Finishes or safely abandons its current job |
 | Model-serving process shutdown | `SIGTERM` | Completes or safely cancels in-flight inference before exiting |
 | Batch job interruption | `SIGINT` or `SIGTERM` | Depends on whether partial batch progress is safe to abandon |
-| Unresponsive process, last resort | `SIGKILL` | No cleanup occurs — accepted only when graceful shutdown has failed |
+| Unresponsive process, last resort | `SIGKILL` | No application cleanup occurs — accepted only when graceful shutdown has failed |
 
 ---
 
@@ -473,7 +476,12 @@ Created PID2: 6921
     PID TTY          TIME CMD
 ```
 
-**The difference between this and pressing Ctrl+C interactively, stated precisely:** pressing Ctrl+C in an interactive terminal generates `SIGINT` and delivers it to whatever process is currently the terminal's *foreground* process — a mechanism tied to your terminal session itself. `kill -INT <PID>` sends the exact same signal, programmatically, to any specific target PID you choose, regardless of whether it's a foreground terminal process at all. **The signal delivered, and its default action, are identical either way** — only the *triggering mechanism* differs (a keypress in your terminal, versus an explicit command targeting a specific PID).
+**The difference between this and pressing Ctrl+C interactively, stated precisely:** pressing Ctrl+C in an interactive terminal causes the terminal driver to send `SIGINT` to the terminal's *foreground process group* — a mechanism tied to your terminal session itself, which can reach more than one process. `kill -INT <PID>` sends the exact same signal, programmatically, to the one specific target PID you choose, regardless of whether it's a foreground terminal process at all. **The signal delivered, and its default action, are identical either way** — only the *triggering mechanism and targeting* differ:
+
+```text
+Ctrl+C  →  terminal driver  →  SIGINT  →  foreground process group
+kill -INT PID  →  SIGINT  →  the specified process
+```
 
 ### Demonstration 3 — SIGKILL
 
@@ -496,7 +504,7 @@ Created PID3: 6926
     PID TTY          TIME CMD
 ```
 
-**Notice Bash itself reported `Killed`** — a direct, visible signal (no pun intended) that this termination happened differently from Demonstration 1's `SIGTERM` case, which produced no such message. `SIGKILL` is enforced unconditionally by the kernel (Section 5) — there was no opportunity for this process to run any cleanup code, even if it had been written to try.
+**Notice Bash itself reported `Killed`** — a direct, visible signal (no pun intended) that this termination happened differently from Demonstration 1's `SIGTERM` case, which produced no such message. `SIGKILL` is enforced unconditionally by the kernel (Section 5) — there was no opportunity for this process to run any application cleanup code, even if it had been written to try.
 
 ### Demonstration 4 — SIGSTOP / SIGCONT
 
@@ -596,10 +604,10 @@ All temporary files (`handler_demo.py`, `output.log`) and their containing direc
 | "`SIGTERM` and `SIGKILL` are the same." | `SIGTERM` can be caught and handled (Demonstration 5); `SIGKILL` cannot be caught under any circumstances and always terminates immediately (Section 5, Demonstration 3). |
 | "Every signal can be caught." | `SIGKILL` and `SIGSTOP` specifically cannot be caught, handled, or ignored by any process (Section 5, Section 6). |
 | "SIGTERM guarantees that cleanup will happen." | Cleanup only happens if the application explicitly registered a handler that performs it (Section 6) — Demonstration 1's process had no handler and terminated exactly as abruptly as `SIGKILL` would have. |
-| "SIGKILL lets the application clean up before termination." | The opposite is true by design — `SIGKILL` is enforced by the kernel with no opportunity for any application code to run at all (Section 5, Demonstration 3). |
+| "SIGKILL lets the application clean up before termination." | The opposite is true by design — `SIGKILL` is enforced by the kernel with no opportunity for any application code to run (no shutdown handlers or graceful cleanup), although the OS still performs its normal process-termination cleanup, such as closing file descriptors (Section 5, Demonstration 3). |
 | "Ctrl+C directly kills the process." | Ctrl+C generates `SIGINT` (Section 5, Demonstration 2), which is a request whose default action is to terminate — but, like `SIGTERM`, it can be caught and handled differently. |
 | "Signals are the same as stdin." | Signals are a control/notification mechanism; stdin is a data channel a process actively reads from — Section 1's and Section 8's core distinction. |
-| "Signals are a general-purpose messaging system for arbitrary data." | A signal carries only a fixed, predefined notification (its name/number) — never an arbitrary payload (Section 1). |
+| "Signals are a general-purpose messaging system for arbitrary data." | A signal is primarily a fixed, predefined notification (its name/number); real-time signals can carry a small accompanying value, but signals are not a general-purpose data-transport mechanism (Section 1). |
 | "Only Linux uses signals." | Signals are a general Unix/POSIX concept, used across Unix-like systems generally — this lesson focuses on Linux specifically because that's this roadmap's practical environment, not because the concept is Linux-exclusive. |
 | "A signal is delivered directly from one application to another without OS involvement." | The kernel is always the intermediary — it generates or receives the request, checks authorization (Section 6), and delivers the signal; there is no direct application-to-application channel (Concept 01's kernel-mediation principle, applied here). |
 | "A process can always ignore any signal." | `SIGKILL` and `SIGSTOP` cannot be ignored, set to a custom handler, or blocked by any process (Section 5, Section 6). |
@@ -607,7 +615,7 @@ All temporary files (`handler_demo.py`, `output.log`) and their containing direc
 | "SIGKILL can be handled by Python." | `signal.signal(signal.SIGKILL, ...)` cannot override its behavior — Python cannot make `SIGKILL` catchable, because the underlying OS guarantee applies regardless of language (Section 6). |
 | "Sending a signal to any PID is safe." | This lesson's own safety rule (Section 5, Section 9) exists precisely because signaling the wrong process — especially an unrelated system or user process — can have real, unwanted consequences; always verify a PID belongs to a process you created before signaling it. |
 | "Graceful shutdown is guaranteed just because SIGTERM was sent." | Section 6's central point, restated: `SIGTERM` only creates the *opportunity* for graceful shutdown — whether it actually happens depends entirely on whether the application registered appropriate handling logic. |
-| "Signal handling is only useful for command-line programs." | Every long-running service — web APIs, background workers, model-serving processes (Section 3, Section 7) — depends on correct signal handling for reliable operation, not just interactive command-line tools. |
+| "Signal handling is only useful for command-line programs." | Long-running services — web APIs, background workers, model-serving processes (Section 3, Section 7) — commonly depend on correct signal handling for reliable operation, not just interactive command-line tools. |
 | "Signals replace proper service APIs or health checks." | Signals are one specific, low-level control mechanism among several a production system uses — they do not substitute for application-level health checks, readiness signaling, or service APIs, which operate at a different layer entirely. |
 
 ---
@@ -638,7 +646,7 @@ Verify process state/exit
 Escalate only if necessary
 ```
 
-**The escalation concept, stated precisely — never recommend arbitrary repeated killing:**
+**The escalation concept, stated precisely — never recommend arbitrary repeated killing.** A common operational strategy is to request graceful shutdown with `SIGTERM` first and use `SIGKILL` only as a last resort if the process fails to stop within an appropriate time window:
 
 ```text
 SIGTERM
@@ -677,7 +685,7 @@ SIGKILL                          (last resort, only after SIGTERM has genuinely 
 
 1. *Problem:* a service stopped with `SIGKILL` left behind an incomplete file, an unclosed connection, or similar.
 2. *Beginner's likely assumption:* "The application's cleanup code must have a bug."
-3. *Correct mental model:* this is Section 5's and Demonstration 3's central point directly — `SIGKILL` gives *no* opportunity for any application code to run, ever, regardless of how well-written the cleanup logic is.
+3. *Correct mental model:* this is Section 5's and Demonstration 3's central point directly — `SIGKILL` gives *no* opportunity for any application code to run, ever, regardless of how well-written the cleanup logic is (the OS still closes the process's file descriptors, but application-level cleanup does not happen).
 4. *Investigation approach:* confirm which signal actually stopped the process (`SIGKILL` specifically, versus `SIGTERM`) — if it was `SIGKILL`, the missing cleanup is expected, not a code defect.
 5. *Expected conclusion:* incomplete cleanup after `SIGKILL` is the signal's defining, unavoidable characteristic — the fix is avoiding `SIGKILL` except as a genuine last resort (Section 11's escalation workflow), not debugging the application's cleanup code.
 
@@ -711,7 +719,7 @@ SIGKILL                          (last resort, only after SIGTERM has genuinely 
 2. *Beginner's likely assumption:* "It doesn't matter how I stop it, as long as it stops."
 3. *Correct mental model:* this is Section 7's production example directly — `SIGKILL` would abandon in-flight requests with no opportunity to complete or safely reject them; `SIGTERM`, paired with appropriate application-level handling, gives the process a chance to finish or safely cancel that work first.
 4. *Investigation approach:* send `SIGTERM` first, and only escalate to `SIGKILL` (Section 11's escalation workflow) if the process genuinely fails to stop within a reasonable window — not as a routine first choice.
-5. *Expected conclusion:* for any process with active, meaningful in-flight work, `SIGTERM`-first, `SIGKILL`-only-as-last-resort is the correct operational default — a direct, practical instance of this lesson's central production lesson.
+5. *Expected conclusion:* for any process with active, meaningful in-flight work, `SIGTERM`-first, `SIGKILL`-only-as-last-resort is the common, sensible operational default — a direct, practical instance of this lesson's central production lesson.
 
 ---
 
@@ -794,7 +802,7 @@ Work through these in your own words. No answer key exists for this lesson — t
 
 - The exact PIDs you observe will differ entirely from this lesson's actual observed values (`6916`, `6921`, `6926`, `6944`, `6968`) — never predictable or reproducible across runs or machines.
 - `kill -l`'s exact numbered listing may differ slightly between Linux distributions and versions — this lesson's genuinely observed listing reflects this specific environment; **rely on signal names, never on specific numbers, for exactly this reason.**
-- The exact shell message shown for a `SIGKILL`-terminated background job may differ in wording between shells, though the underlying distinction (a forced, unconditional termination with no cleanup) is universal.
+- The exact shell message shown for a `SIGKILL`-terminated background job may differ in wording between shells, though the underlying distinction (a forced, unconditional termination with no application-level cleanup) is universal.
 
 ---
 
@@ -848,7 +856,7 @@ At this point, you understand what a signal is, why signals exist, the meaning a
 
 For a production Applied AI Engineer, this lesson's mental model shows up constantly:
 
-- **Graceful service shutdown.** Every reliable production service depends on correctly handling `SIGTERM` — this lesson's Demonstration 5 is a directly observed, minimal working example of exactly that pattern.
+- **Graceful service shutdown.** Many production services use `SIGTERM` as their conventional graceful-shutdown request, so handling it correctly matters — this lesson's Demonstration 5 is a directly observed, minimal working example of exactly that pattern.
 - **Worker management.** Background workers and task-queue consumers need the same `SIGTERM`-first discipline (Section 11, Scenario 7) to avoid corrupting in-progress jobs.
 - **Batch-job interruption.** Whether interrupting a batch job cleanly is even possible — and safe — depends entirely on whether that job's own code was written to respond to a signal thoughtfully.
 - **Service restart and deployment behavior.** Redeploying a service commonly means stopping the old process with `SIGTERM` before starting the new one — understanding this is essential for reasoning about deployment reliability and downtime.

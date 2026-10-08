@@ -75,7 +75,7 @@ Resources Reclaimed
 
 **What problem `fork()` solves:** it is the traditional Unix/Linux mechanism for creating a new process by **duplicating an already-running one**.
 
-**Conceptually, what happens:** `fork()` creates a new process (the child) that is, at the moment of creation, essentially a copy of the calling process (the parent) — same code, same variables' values, same open files — but from that moment forward, **the two run as completely independent, separate processes** (Concept 03's process-isolation model, applied directly at the instant of creation).
+**Conceptually, what happens:** `fork()` creates a new process (the child) that is, at the moment of creation, essentially a copy of the calling process (the parent) — same code, same variables' values, and copies of the parent's open file descriptors — but from that moment forward, **the two run as completely independent, separate processes** (Concept 03's process-isolation model, applied directly at the instant of creation). One detail worth knowing: the child's copied file descriptors refer to the *same underlying open file descriptions* as the parent's, so some file state — such as the current file offset — is shared between them.
 
 **The distinctive, defining detail: `fork()` returns *differently* in the parent and the child.** In the parent, it returns the new child's PID; in the child, it returns `0`. This is exactly how code written to run "after `fork()`" can tell which of the two processes it's currently executing in, and behave differently accordingly.
 
@@ -97,7 +97,7 @@ else:
 
 **What problem `exec()` solves:** it lets an **already-existing process** replace its own currently running program with a **different** one entirely.
 
-**A required, precise distinction — do not confuse this with creating a process:** `exec()` does **not** create a new process. It takes the process that calls it and **replaces that process's own program/image** — the process keeps its same PID and identity, but the code it's now running, and its memory, are entirely those of the newly loaded program.
+**A required, precise distinction — do not confuse this with creating a process:** `exec()` does **not** create a new process. It takes the process that calls it and **replaces that process's own program/image** — the process keeps its same PID, but its program image and address space are replaced by those of the newly loaded program. Many other process attributes remain associated with the process, and file descriptors that are not marked close-on-exec stay open across the `exec()`.
 
 ```text
 fork() → creates a new process
@@ -149,7 +149,10 @@ Building on Module 0.1's basic introduction and Concept 05's scheduling-focused 
 | **Running** | Currently executing on a CPU |
 | **Waiting/blocked/sleeping** | Not currently executing, because it's waiting for something (I/O, an event, a timer) |
 | **Stopped** | Execution paused, typically by a signal (`SIGSTOP`/`SIGTSTP`, Section 13) |
-| **Terminated/zombie** | Execution has ended; exit information is retained until collected (Section 10) |
+| **Terminated** | Execution has ended; the kernel releases most of the process's resources (Section 8) |
+| **Zombie** (Linux `Z`) | The post-termination state in which the process's exit information remains available until its parent reaps it (Section 10); once reaped, the entry is removed |
+
+In sequence: running → terminated → zombie (until reaped) → reaped → removed. "Terminated" and "zombie" are therefore not synonyms: a zombie is a terminated process whose exit status has not yet been collected. (Linux `ps` also reports `D`, uninterruptible sleep — typically a process waiting on certain I/O, which cannot be interrupted by signals while it waits.)
 
 **A required, precise distinction: process lifecycle is not the same thing as CPU scheduling.**
 
@@ -240,7 +243,7 @@ ps --forest -o pid,ppid,stat,cmd
 
 **Why a parent may deliberately wait for a child.** Often, a parent process needs to know *when* a child finishes, and *how* it finished (its exit status, Section 9) — for example, a shell running a foreground command (Concept 13) needs to know when that command is done before showing you another prompt.
 
-**`wait()` / `waitpid()`, conceptually:** these are the mechanisms a parent uses to **collect** a child's final exit status once it has terminated. `wait()` waits for *any* child to finish; `waitpid()` lets the parent specify *which* particular child it's interested in.
+**`wait()` / `waitpid()`, conceptually:** these are the mechanisms a parent uses to **collect** a child's final exit status once it has terminated. `wait()` waits for *any* child to finish; `waitpid()` lets the parent specify *which* particular child it's interested in. (At the low level, `waitpid()` returns *wait status* information, not simply the application's exit code: a normal exit status can be extracted from it, and termination by a signal is represented differently.)
 
 **Why exit status needs to be explicitly collected, rather than simply vanishing:** the OS needs *some* way to let a parent learn how its child finished, potentially even a while after the child actually stopped running — so the kernel keeps a small amount of information (the child's exit status) available until the parent explicitly retrieves it. **This is exactly what a zombie process is** (Section 10) — a child that has finished, but whose exit information the parent hasn't collected yet.
 
@@ -280,7 +283,7 @@ parent reaped child, wait status=0
 (no matching row — the process is now completely gone)
 ```
 
-**How waiting prevents lifecycle problems, stated precisely:** if a parent process never calls `wait()`/`waitpid()` at all, every child it creates that finishes before the parent does will remain a zombie **indefinitely** (Section 10, Section 21's production failure mode) — the kernel has no other trigger for cleaning up that final bit of bookkeeping. **This lesson does not go deeply into advanced process synchronization** — only this specific, essential relationship between waiting and cleanup.
+**How waiting prevents lifecycle problems, stated precisely:** if a parent process never calls `wait()`/`waitpid()` at all, every child it creates that finishes before the parent does becomes a zombie and **stays one while that parent is alive and has not collected it** (Section 10, Section 21's production failure mode). If the parent itself terminates first, the zombie is reparented to `init` (or an appropriate child subreaper), and that new reaper can then collect it. Either way, the final bookkeeping is only cleaned up when some process actually reaps the child. **This lesson does not go deeply into advanced process synchronization** — only this specific, essential relationship between waiting and cleanup.
 
 ---
 
@@ -327,7 +330,7 @@ sys.exit(0)     # success
 sys.exit(1)     # failure/problem, by convention
 ```
 
-`sys.exit(n)` is Python's direct way of ending the current process with a specific exit status — exactly the value a parent (or the shell, via `$?`) will observe once it collects this process's final status (Section 7). A Python script that simply reaches its end without calling `sys.exit()` at all exits with status `0` by default, provided no unhandled exception occurred (an unhandled exception instead produces a non-zero status, conventionally `1`, reflecting Section 8's "abnormal termination" category).
+`sys.exit(n)` is Python's direct way of ending the current process with a specific exit status — exactly the value a parent (or the shell, via `$?`) will observe once it collects this process's final status (Section 7). A Python script that simply reaches its end without calling `sys.exit()` at all exits with status `0` by default, provided no unhandled exception occurred (an unhandled exception instead produces a non-zero exit status — in Python this is typically `1`, a Python behavior rather than a universal OS rule — reflecting Section 8's "abnormal termination" category).
 
 **Exit status is part of process coordination, not just a curiosity:** exactly Concept 12's and Concept 13's own genuinely observed examples (a pipeline's `PIPESTATUS`, a mini-project's deliberately meaningful `0`/`1`/`2` exit codes) — this lesson's contribution is placing that behavior in its correct position within the overall lifecycle: exit status is produced at **termination** and consumed during the parent's **collection** step (Section 7).
 
@@ -395,7 +398,7 @@ parent reaped child, wait status=0
 
 **How it occurs:** a parent process exits (Section 8) before one of its children has finished — the child does not terminate along with it; it simply continues running, now without its original parent.
 
-**Reparenting, conceptually.** Once a process's original parent is gone, the OS assigns it a **new** parent — commonly a special, long-running system process specifically responsible for "adopting" orphans and (importantly) still calling `wait()` on them once they eventually finish, so they don't become permanent zombies (Section 10) themselves.
+**Reparenting, conceptually.** Once a process's original parent is gone, the OS assigns it a **new** parent — commonly a special, long-running system process specifically responsible for "adopting" orphans and (importantly) still calling `wait()` on them once they eventually finish, so they don't linger as zombies (Section 10) themselves. On Linux this may be `init` or a child subreaper.
 
 **A genuinely observed illustration:**
 
@@ -441,7 +444,7 @@ ps -p 7678
 
 ```text
     PID TTY          TIME CMD
-(no matching row — the orphan exited on its own and was automatically reaped by its new parent)
+(no matching row — the orphan exited on its own and its new parent/reaper subsequently collected its termination status)
 ```
 
 **Why orphan does NOT mean zombie — a required, precise distinction:**
@@ -534,7 +537,7 @@ Shell observes exit status ($? — Section 9)
 Shell shows another prompt
 ```
 
-**A pipeline (Concept 12, Concept 13) produces *multiple* related child processes at once** — each stage a separate child of the same shell, each with its own eventual exit status (exactly Concept 12's `PIPESTATUS` demonstration), and the shell is responsible for eventually collecting *every* one of them.
+**A pipeline (Concept 12, Concept 13) produces *multiple* related child processes at once** — typical Unix shells run the stages in separate processes or execution environments (the exact behavior depends on the shell and configuration — for example, Bash can run the last stage in the current shell under `lastpipe`), each with its own eventual exit status (exactly Concept 12's `PIPESTATUS` demonstration), and the shell is responsible for eventually collecting every stage it launched.
 
 **What happens when a command terminates, traced through this lesson's own vocabulary:** the child process moves through Section 4's states (running → terminated), the shell (its parent) eventually calls the equivalent of `wait()`/`waitpid()` (Section 7) to collect its exit status, and only then does the shell present you with a fresh prompt for a foreground command — or, for a background job (Concept 13), report the job's completion via `jobs` whenever you next check.
 
@@ -562,7 +565,7 @@ pid: 7589 ppid: 7586
 
 **Python can create child processes using standard-library facilities appropriate to this lesson's level:**
 
-- **`os.fork()`** — the direct, low-level mechanism this lesson's own genuinely observed zombie and orphan demonstrations used (Section 2, Section 10, Section 11) — available on Linux/Unix systems, giving the closest possible view of the raw `fork()`/`wait()` model this entire lesson is built around.
+- **`os.fork()`** — the direct, low-level mechanism this lesson's own genuinely observed zombie and orphan demonstrations used (Section 2, Section 10, Section 11) — available on Linux/Unix systems, giving the closest possible view of the raw `fork()`/`wait()` model this entire lesson is built around. Note that `os.fork()` is used here to demonstrate Unix/Linux process semantics; forking a multithreaded Python process has important caveats, so real applications should choose their process-creation mechanism carefully.
 - **`subprocess`** — the higher-level, more commonly used facility (already introduced in Concept 12 for connecting a child's stdin/stdout/stderr via pipes) for launching an entirely different program as a child process.
 - **`multiprocessing`** — a higher-level facility for running Python code itself in parallel across multiple processes — **mentioned here only by name.**
 
@@ -680,6 +683,8 @@ echo $?
 rm -rf /tmp/process-lifecycle-demo
 ```
 
+Only use this exact disposable path; never substitute `/`, `$HOME`, a project directory, or an unverified variable.
+
 **Observed in this environment:** every temporary script and log file used throughout this lab was created in an isolated directory and fully removed afterward, with removal verified — no project file, system file, or unrelated process was ever touched, and the one orphaned demonstration process was allowed to finish and be reaped naturally rather than requiring any manual termination.
 
 ### WSL2 considerations
@@ -741,7 +746,7 @@ For every scenario: symptom, possible cause, observation, diagnosis, safe fix, a
 | "`kill` always means 'kill the process.'" | `kill` sends a signal (Concept 10) — by default `SIGTERM`, a request, not an unconditional, instant kill. |
 | "SIGKILL allows the application to perform graceful cleanup." | `SIGKILL` is enforced unconditionally by the kernel, with zero opportunity for any application code to run (Concept 10, Section 8's "forced termination"). |
 | "The shell itself is the process being executed for every command." | The shell typically creates a separate child process for each command (Section 3, Concept 13) — the shell remains its own, distinct, continuously running process throughout. |
-| "A background process is independent of all shell/job-control relationships." | A background process (Concept 13) is still a child of the shell, still tracked as a job, and still subject to process-group/session behavior (Section 12) — it isn't fully detached just because it doesn't currently block the prompt. |
+| "A background process is independent of all shell/job-control relationships." | A background process (Concept 13) starts as a child of the shell (relationships can later change through reparenting), is still tracked as a job, and still subject to process-group/session behavior (Section 12) — it isn't fully detached just because it doesn't currently block the prompt. |
 | "Waiting means consuming CPU continuously." | A waiting/blocked process (Section 4, Section 5) uses essentially no CPU while it waits — this is precisely why waiting is efficient rather than wasteful. |
 | "More processes automatically means better performance." | More runnable processes than available CPU capacity leads to contention, not automatic improvement (Concept 05's own core lesson, directly relevant to process-lifecycle-heavy designs like worker pools). |
 
@@ -830,7 +835,7 @@ restart/recovery                         (a future, more advanced topic — see 
 
 ## 22. Mini-Project: Python Process Lifecycle Observer
 
-**Requirements.** Create a small, disposable Python program (only inside a temporary directory such as `/tmp/process-lifecycle-demo/` — this lesson does not create it for you automatically) that:
+**Requirements.** Create a small, disposable Python program (only inside a temporary directory such as `/tmp/process-lifecycle-demo/` — create it yourself with `mkdir -p /tmp/process-lifecycle-demo`) that:
 
 - reports its own **PID** and **PPID** at startup
 - performs some visible work
@@ -861,23 +866,23 @@ sys.exit(0)
 
 **Steps:**
 
-1. Create the script at `/tmp/process-lifecycle-demo/lifecycle_observer.py`.
-2. Run it in the background, capturing its PID: `python3 /tmp/process-lifecycle-demo/lifecycle_observer.py & echo "PID: $!"`.
+1. Create the directory with `mkdir -p /tmp/process-lifecycle-demo`, then create the script at `/tmp/process-lifecycle-demo/lifecycle_observer.py`.
+2. Run it in the background, capturing its PID: `python3 /tmp/process-lifecycle-demo/lifecycle_observer.py & PID=$!; echo "PID: $PID"`.
 3. **While it's sleeping** (within the 5-second window), inspect it:
    - `ps -o pid,ppid,stat,cmd -p <PID>` — expect `STAT` to show a sleeping state (`S`), consistent with Section 4/5.
-   - `cat /proc/<PID>/status | head -5` — expect `State: S (sleeping)` among the reported fields, and `PPid:` matching your shell's own PID.
+   - `grep -E '^(State|Pid|PPid):' /proc/<PID>/status` — expect `State: S (sleeping)`, the process's own `Pid:`, and `PPid:` matching your shell's own PID.
    - `top -b -n 1 | grep <PID>` (or your own terminal's `top` interactively) — expect near-`0%` CPU usage while it's sleeping, exactly as Section 5 predicts for waiting processes.
 4. Let it finish naturally (do not terminate it — this mini-project's process is designed to exit on its own).
-5. Immediately after, check `echo $?` — expect `0`, matching the script's own `sys.exit(0)`.
+5. Collect its status with `wait "$PID"` and then inspect `$?` immediately: `wait "$PID"; echo $?` — expect `0`, matching the script's own `sys.exit(0)`. (`wait "$PID"` waits for that specific background child and reaps it; `$?` then holds the status `wait` returned. Plain `$?` alone does not report a background process's status — it reflects the most recently completed foreground command.)
 6. Confirm it's gone: `ps -p <PID>` should report no matching process.
 
 **Optional extension, demonstrating parent/child behavior safely:** adapt the script to use `subprocess.run(["python3", "-c", "print('child ran')"])` partway through, and observe (via `ps --forest`, Section 6) that a genuine child process briefly appears and disappears as part of this script's own execution.
 
-**Debugging checklist, if something doesn't behave as expected:** confirm you captured the correct PID (`$!` immediately after backgrounding it, Section 6's PID-verification habit); confirm you're checking its state *during* the 5-second sleep window, not after it's already exited; confirm `echo $?` is checked *immediately* after the script finishes, since `$?` reflects only the *most recently* completed command (Concept 13).
+**Debugging checklist, if something doesn't behave as expected:** confirm you captured the correct PID (`$!` immediately after backgrounding it, Section 6's PID-verification habit); confirm you're checking its state *during* the 5-second sleep window, not after it's already exited; confirm you run `wait "$PID"` and then check `$?` *immediately*, since `$?` reflects only the *most recently* completed foreground command (Concept 13).
 
 **Cleanup and verification.** No files need cleanup beyond removing your own script directory (`rm -rf /tmp/process-lifecycle-demo`) once you're done — this mini-project's process is designed to terminate on its own, requiring no manual `kill` at all.
 
-**What you should be able to explain afterward:** why the process showed a sleeping state specifically during the `time.sleep(5)` call and not before or after it; why its PPID matched your shell; why `echo $?` correctly reported `0`; and why, once it exited and you (as its direct parent shell) implicitly "collected" its status by checking `$?`, it left behind no zombie entry at all.
+**What you should be able to explain afterward:** why the process showed a sleeping state specifically during the `time.sleep(5)` call and not before or after it; why its PPID matched your shell; why `wait "$PID"` followed by `echo $?` correctly reported `0`; and why, once it exited and you (as its direct parent shell) collected its status with `wait`, it left behind no zombie entry at all.
 
 ---
 

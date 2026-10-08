@@ -26,13 +26,13 @@ This is one environment variable, and it has exactly two parts:
 
 **Why it's called an "environment" variable.** Just as a person's physical environment (the room they're in, the tools available to them) shapes how they act without being part of *them*, a process's environment is information surrounding it, supplied from outside, that shapes how it behaves without being part of its own source code. This lesson's whole job is making that everyday word precise.
 
-**Where an environment variable "exists," conceptually.** It is not a file, not a database entry, and not a language-level variable inside your Python source code — it's a small piece of data attached directly to a specific running **process** (Concept 03), living alongside that process's other OS-managed state for as long as that process exists.
+**Where an environment variable "exists," conceptually.** It is not a file, not a database entry, and not a language-level variable inside your Python source code — it's a small piece of data attached directly to a specific running **process** (Concept 03), associated with that process for as long as it exists (the exact representation is operating-system dependent).
 
 **Why applications can read it.** A running process can query its own environment because the operating system hands each process its own copy of this name/value data when the process is created (Section 5's inheritance model) — reading it is simply asking "what values do I have in my own environment?"
 
 **Why environment variables are useful for configuration.** They let a program's *behavior* be adjusted without touching its *code* — the same application, unmodified, can be told to behave differently depending on what values it finds in its environment when it starts (Section 2 explains this in depth).
 
-**One precise, easily-missed technical detail:** from the process environment's point of view, **every value is fundamentally text (a string)** — `APP_ENV=development` and, hypothetically, `PORT=8080` are both stored as plain text. If an application needs `PORT` to behave like a number, converting that text into a number is something the *application* must do — the environment itself has no concept of "this one is text, this one is a number." This detail matters directly for Section 11's Scenario 6.
+**One precise, easily-missed technical detail:** in the common OS/application interfaces used in this lesson, **environment values are represented as strings or string-like byte sequences** — `APP_ENV=development` and, hypothetically, `PORT=8080` are both stored as plain text. Applications interpret those values as integers, booleans, paths, URLs, and so on. If an application needs `PORT` to behave like a number, converting that text into a number is something the *application* must do — the environment itself has no concept of "this one is text, this one is a number." This detail matters directly for Section 11's Scenario 6.
 
 ---
 
@@ -132,7 +132,7 @@ An **environment variable** is exactly one of these labeled pieces of informatio
 
 - A person can *choose* to ignore the information card; a process either reads its environment correctly (using the mechanisms Section 6 and Section 9 demonstrate) or it doesn't — there's no equivalent of a "process's judgment" involved.
 - A person entering a room gets one card, once; a process's environment can be inherited, modified, and passed along to *further* processes it starts (Section 5's inheritance model) — a chain this simple analogy doesn't capture.
-- The values on a real information card could be anything (numbers, categories, free text); a process's environment values are, precisely and always, plain text (Section 1) — even a "number" like a port is really just digits stored as a string until the application itself decides to interpret it otherwise.
+- The values on a real information card could be anything (numbers, categories, free text); a process's environment values are, in the interfaces this lesson uses, plain text (Section 1) — even a "number" like a port is really just digits stored as a string until the application itself decides to interpret it otherwise.
 
 The rest of this lesson moves from this everyday intuition into the precise, technical model — the analogy is a starting point, not a substitute for it.
 
@@ -174,7 +174,7 @@ Child Process                 (e.g., a Python script you run)
 - This is a general relationship, not specific to any one kind of process: **shell → Python**, **shell → any subprocess**, and **parent process → child process** generally all work this exact same way.
 - **Why child processes can receive configuration from their parent, then:** because they inherit a copy of the parent's environment at creation, a parent can prepare specific values in its own environment beforehand, and every child it subsequently starts will automatically receive them — this is *precisely* how a shell hands configuration to a program you run from it (Section 6, Section 9 demonstrate this directly).
 
-**This lesson does not teach the detailed internal mechanics of process creation** (the exact system calls involved, memory setup, and more) — Concept 03 and the upcoming Process Lifecycle lesson cover process creation itself; this lesson's concern is only what happens to the *environment* specifically as part of that process.
+**The exact mechanics of process creation and environment inheritance are OS/API dependent.** On Unix/Linux, `fork()` creates a child that inherits a copy of the environment, and `execve()` supplies an environment to the new program image. **This lesson does not teach the detailed internal mechanics of process creation** (the exact system calls involved, memory setup, and more) — Concept 03 and the upcoming Process Lifecycle lesson cover process creation itself; this lesson's concern is only what happens to the *environment* specifically as part of that process.
 
 ### Shell variables vs. environment variables
 
@@ -250,7 +250,7 @@ os.environ.get("NAME")    # returns the value, or None if the name doesn't exist
 os.environ["NAME"]         # returns the value, or raises a KeyError if the name doesn't exist
 ```
 
-**A genuinely observed illustration**, captured directly in this environment:
+**An illustration recorded in the documented environment used when this lesson was prepared:**
 
 ```python
 import os
@@ -261,7 +261,7 @@ except KeyError as e:
     print('using []: raised KeyError:', e)
 ```
 
-**Observed in this environment:**
+**Observed in the documented environment used when this lesson was prepared:**
 
 ```text
 using .get(): None
@@ -279,7 +279,7 @@ $env:APP_ENV = "development"
 $env:APP_ENV
 ```
 
-**A genuinely observed illustration**, captured directly via this environment's WSL2-to-Windows interop:
+**An illustration recorded in the documented environment used when this lesson was prepared** (via its WSL2-to-Windows interop):
 
 ```text
 $ powershell.exe -NoProfile -Command "$env:APP_ENV_DEMO = 'learning'; Write-Output $env:APP_ENV_DEMO"
@@ -303,7 +303,7 @@ PowerShell:   $env:APP_ENV = "development"
 
 ### Connecting to the kernel and system calls, precisely
 
-The process environment is **process state that the kernel maintains and makes available to that process** — it is part of what Concept 03 already described a process as having. **It is not "stored inside the kernel" as some separate, kernel-owned database** — it is data associated with, and readable by, the specific process it belongs to, set up at that process's creation (Concept 02's system-call model governs process creation itself, but this lesson does not claim environment variables are, by themselves, a single distinct system call — reading `os.environ` in Python is a library-level convenience built on top of how the process's environment was already made available to it at startup, not a fresh request to the kernel every time you read a value).
+The process has an environment supplied at program startup; the exact representation and management mechanism are operating-system dependent. It is associated with the process and available to its user-space code — it is part of what Concept 03 already described a process as having. **It is not "stored inside the kernel" as some separate, kernel-owned database** — it is data associated with, and readable by, the specific process it belongs to, set up at that process's creation (Concept 02's system-call model governs process creation itself, but this lesson does not claim environment variables are, by themselves, a single distinct system call — reading `os.environ` in Python is a library-level convenience built on top of how the process's environment was already made available to it at startup, not a fresh request to the kernel every time you read a value).
 
 ---
 
@@ -360,7 +360,7 @@ Environment Variables
 
 | Concept | Relationship to environment variables | Prerequisite or later? | Full treatment |
 |---|---|---|---|
-| Kernel and User Space | The environment is process state the kernel sets up and makes available; user-space code reads it, it is not itself "kernel-internal" data (Section 6) | Prerequisite (Concept 01) | Already covered |
+| Kernel and User Space | The environment is supplied to a process at startup (the mechanism is OS dependent); user-space code reads it, it is not itself "kernel-internal" data (Section 6) | Prerequisite (Concept 01) | Already covered |
 | System Calls | Process creation (which establishes a new process's environment) is a kernel-mediated operation, though reading `os.environ` is not a fresh system call each time (Section 6) | Prerequisite (Concept 02) | Already covered |
 | Processes | A process owns and receives its environment at creation, and can pass it to any child it starts (Section 5) | Prerequisite (Concept 03) | Already covered |
 | Threads | Threads within a process share that process's single environment, since they share the process's resources generally (Concept 04) | Prerequisite (Concept 04) | Already covered |
@@ -380,7 +380,7 @@ Environment Variables
 
 You are working in Ubuntu inside WSL2. All commands below are safe, session-local (affecting only the current shell and processes it starts), and require no `sudo`. No system-wide or persistent configuration is changed anywhere in this lesson. All values used are harmless placeholders (`learning`, `demo-model`, and similar) — never real credentials.
 
-### The full practical lab, with genuinely observed output
+### The full practical lab, with recorded output
 
 **Step 1 — set a plain shell variable (not yet exported):**
 
@@ -389,7 +389,7 @@ APP_ENV=learning
 echo "$APP_ENV"
 ```
 
-**Observed in this environment:**
+**Observed in the documented environment used when this lesson was prepared:**
 
 ```text
 learning
@@ -401,7 +401,7 @@ learning
 python3 -c "import os; print('APP_ENV in child (before export):', os.environ.get('APP_ENV'))"
 ```
 
-**Observed in this environment:**
+**Observed in the documented environment used when this lesson was prepared:**
 
 ```text
 APP_ENV in child (before export): None
@@ -421,7 +421,7 @@ export APP_ENV
 python3 -c "import os; print('APP_ENV in child (after export):', os.environ.get('APP_ENV'))"
 ```
 
-**Observed in this environment:**
+**Observed in the documented environment used when this lesson was prepared:**
 
 ```text
 APP_ENV in child (after export): learning
@@ -434,7 +434,7 @@ printenv APP_ENV
 env | grep '^APP_ENV='
 ```
 
-**Observed in this environment:**
+**Observed in the documented environment used when this lesson was prepared:**
 
 ```text
 learning
@@ -450,7 +450,7 @@ APP_ENV=one_shot_override python3 -c "import os; print('one-shot override in chi
 echo "shell's own APP_ENV unchanged after that: $APP_ENV"
 ```
 
-**Observed in this environment:**
+**Observed in the documented environment used when this lesson was prepared:**
 
 ```text
 one-shot override in child: one_shot_override
@@ -468,7 +468,7 @@ printenv APP_ENV
 echo "printenv exit code: $?"
 ```
 
-**Observed in this environment:**
+**Observed in the documented environment used when this lesson was prepared:**
 
 ```text
 APP_ENV in child (after unset): None
@@ -486,27 +486,27 @@ print(os.environ.get("DEFINITELY_MISSING_VAR"))   # None — no error
 os.environ["DEFINITELY_MISSING_VAR"]               # raises KeyError
 ```
 
-**Observed in this environment:**
+**Observed in the documented environment used when this lesson was prepared:**
 
 ```text
 using .get(): None
 using []: raised KeyError: 'DEFINITELY_MISSING_VAR'
 ```
 
-### PowerShell, genuinely observed via WSL2 interop
+### PowerShell, recorded via WSL2 interop
 
 ```powershell
 $env:APP_ENV_DEMO = "learning"
 Write-Output $env:APP_ENV_DEMO
 ```
 
-**Observed in this environment** (run via WSL2's interoperability bridge to the Windows host's `powershell.exe`):
+**Observed in the documented environment used when this lesson was prepared** (run via WSL2's interoperability bridge to the Windows host's `powershell.exe`):
 
 ```text
 learning
 ```
 
-This confirms Section 6's Bash/PowerShell equivalence directly, with genuinely observed output from both shells in this same environment. (This lesson does not print a full `Get-ChildItem Env:` listing here, for the same reason as the Bash `env` command above — avoiding exposing this specific machine's unrelated environment values; the single-variable demonstration above is sufficient to confirm the concept.)
+This confirms Section 6's Bash/PowerShell equivalence directly, with recorded output from both shells in the documented environment. (This lesson does not print a full `Get-ChildItem Env:` listing here, for the same reason as the Bash `env` command above — avoiding exposing this specific machine's unrelated environment values; the single-variable demonstration above is sufficient to confirm the concept.)
 
 ### Cleanup
 
@@ -519,7 +519,7 @@ Every variable set during this lab (`APP_ENV`, the one-shot `APP_ENV` override, 
 | Misconception | Why it's wrong |
 |---|---|
 | "Environment variables are global variables shared by the entire computer." | Every process has its *own* environment (Section 5) — there is no single, machine-wide pool every process automatically shares. |
-| "Every process automatically sees every shell variable." | Only **exported** shell variables become part of a child process's environment (Section 5, Section 9's genuinely observed "before export: None" result) — plain shell variables stay local to the shell. |
+| "Every process automatically sees every shell variable." | Only **exported** shell variables become part of a child process's environment (Section 5, Section 9's recorded "before export: None" result) — plain shell variables stay local to the shell. |
 | "Setting a shell variable automatically makes it available to child processes." | It must be explicitly exported first (Section 5) — Section 9's lab demonstrated this exact distinction directly. |
 | "Environment variables are always persistent." | A plain or exported variable lasts only as long as the current shell session, unless separately configured in a shell startup mechanism (Section 5's lifetime table) — most of this lesson's examples were deliberately session-local and temporary. |
 | "Environment variables are always secret." | They are plain-text configuration data (Section 1) with no inherent protection — Section 3 and Section 12 explain exactly why "environment variable" and "secret" are not the same thing. |
@@ -527,9 +527,9 @@ Every variable set during this lab (`APP_ENV`, the one-shot `APP_ENV` override, 
 | "Python environment variables are Python variables." | `os.environ` entries come from the *process's* environment (inherited at creation, Section 5) — they are not Python-language variables defined in your source code. |
 | "Changing an environment variable automatically changes an already-running unrelated process." | A process's environment is a *copy*, taken at creation (Section 5) — changing a value afterward, in a different process, does not retroactively reach into an already-running process's own copy. |
 | "Environment variables are stored in the filesystem like normal files." | They are process state (Section 5, Section 6) — Concept 07's filesystem model and this lesson's process-environment model are genuinely different things, even though a variable's *value* can be a filesystem path. |
-| "The OS magically knows what `MODEL_NAME` means." | The OS treats every environment variable as an opaque name/value pair of text (Section 1) — giving it meaning is entirely up to whatever application chooses to read and interpret it. |
-| "Environment variables can only contain numbers or predefined values." | Every value is arbitrary text (Section 1) — there is no built-in restriction on what an environment variable's value may contain. |
-| "If a variable is missing, Python always returns an empty string." | `os.environ.get(...)` returns `None` (Python's own "nothing here" value) for a missing variable, not an empty string, and `os.environ[...]` raises a `KeyError` instead of returning anything at all (Section 6, Section 9's genuinely observed output). |
+| "The OS magically knows what `MODEL_NAME` means." | The OS treats an environment variable as an opaque name/value pair of string data (Section 1) — giving it meaning is entirely up to whatever application chooses to read and interpret it. |
+| "Environment variables can only contain numbers or predefined values." | Values are arbitrary string data in the interfaces this lesson uses (Section 1) — there is no built-in restriction to numbers or predefined values. |
+| "If a variable is missing, Python always returns an empty string." | `os.environ.get(...)` returns `None` (Python's own "nothing here" value) for a missing variable, not an empty string, and `os.environ[...]` raises a `KeyError` instead of returning anything at all (Section 6, Section 9's recorded output). |
 | "Environment variables eliminate the need for configuration validation." | A missing or malformed value (Section 11's Scenario 6) can still cause real problems — reading an environment variable does not, by itself, guarantee the value is present, well-formed, or usable. |
 | "Using an environment variable automatically makes an application production-ready." | Environment-based configuration is one foundational building block among many (validation, secret management, deployment tooling, and more — Section 3, Section 15's scope boundaries) — it does not, by itself, constitute a complete production configuration strategy. |
 
@@ -556,7 +556,7 @@ Check value                                     (is it actually what you expect?
    ↓
 Check application access                          (is the app reading the right name?)
    ↓
-Check parsing/type conversion                       (Section 1's "everything is text" caveat)
+Check parsing/type conversion                       (Section 1's "values arrive as strings" caveat)
    ↓
 Form hypothesis
    ↓
@@ -595,7 +595,7 @@ Verify
 
 1. *Problem:* the application reports a missing variable, but the developer is confident they set it.
 2. *Beginner's likely assumption:* "Something deeper must be wrong with how environment variables work."
-3. *Correct mental model:* environment-variable names are matched exactly, character for character (including case — `APP_ENV` and `App_Env` are different names) — a mismatched name is functionally identical to a missing one.
+3. *Correct mental model:* environment-variable name matching depends on the operating system. On Unix/Linux, names are case-sensitive (so `APP_ENV` and `App_Env` are different names), while on Windows, environment-variable names are case-insensitive. Either way, a name that doesn't match is functionally identical to a missing one.
 4. *Investigation approach:* compare the exact name used when *setting* the variable against the exact name used when *reading* it in the application code, character by character.
 5. *Expected conclusion:* a silent typo in either location produces exactly the same symptom as the variable never having been set at all — always verify the literal name first.
 
@@ -611,9 +611,9 @@ Verify
 
 1. *Problem:* a variable like `PORT=8080` is set correctly, but the application crashes trying to use it as a number.
 2. *Beginner's likely assumption:* "The environment variable system must not support numbers."
-3. *Correct mental model:* this is Section 1's precise caveat directly: **every environment variable value is text**, always — `"8080"` is a string of four characters, not the number `8080`, until the application explicitly converts it (for example, with Python's `int(...)`).
+3. *Correct mental model:* this is Section 1's precise caveat directly: **environment variable values arrive as strings** in the interfaces this lesson uses — `"8080"` is a string of four characters, not the number `8080`, until the application explicitly converts it (for example, with Python's `int(...)`).
 4. *Investigation approach:* check whether the application code actually converts the string value to the expected type before using it numerically.
-5. *Expected conclusion:* this is not a limitation of environment variables — it's a direct, expected consequence of them always being text, and the fix belongs in the application's own parsing/conversion logic, not in "fixing" the environment variable itself.
+5. *Expected conclusion:* this is not a limitation of environment variables — it's a direct, expected consequence of values arriving as text, and the fix belongs in the application's own parsing/conversion logic, not in "fixing" the environment variable itself.
 
 **Scenario 7 — A child process does not receive an expected variable.**
 
@@ -656,7 +656,7 @@ Work through these in your own words. No answer key exists for this lesson — t
 12. Explain why environment variables are not automatically secrets.
 13. Explain why changing a variable in one process does not affect an already-running, unrelated process.
 14. Explain the difference between configuration and a secret, using your own example.
-15. Explain why every environment variable value is fundamentally text, even when it "looks like" a number.
+15. Explain why environment variable values arrive as strings (in the interfaces this lesson uses), even when they "look like" numbers.
 16. Explain why inheritance is described as a snapshot taken at process-creation time, not a live connection.
 
 ### Level 3 — Application
@@ -698,7 +698,7 @@ Work through these in your own words. No answer key exists for this lesson — t
 - Correctly distinguish a shell variable from an exported environment variable, in your own words.
 - Correctly predict whether a child process will see a given variable, based on whether it was exported and when the child was started.
 - Correctly explain the difference between `os.environ.get(...)` and `os.environ[...]` for a missing key.
-- Explain why every environment variable's value is text, and why that matters for numeric configuration.
+- Explain why environment variable values arrive as strings (in the interfaces this lesson uses), and why that matters for numeric configuration.
 - Correctly identify, for several of this lesson's fourteen misconceptions, why each is wrong and what the accurate idea is instead.
 
 **What the practical observations should generally demonstrate, regardless of the exact values:**
@@ -711,7 +711,7 @@ Work through these in your own words. No answer key exists for this lesson — t
 **Possible environment-dependent results — these will vary by machine and are expected to vary:**
 
 - The full contents of `env`/`printenv` (beyond the specific demonstration variable) will differ entirely between machines and sessions — this lesson deliberately filtered its own `env` output rather than showing this specific environment's full, unrelated variable set.
-- Whether `powershell.exe` is reachable via WSL2 interop (as it genuinely was in this lesson's environment) depends on your specific WSL2/Windows configuration — this lesson's PowerShell example is genuinely observed here, but your own environment may or may not have this interop path available.
+- Whether `powershell.exe` is reachable via WSL2 interop (as it was in this lesson's documented environment) depends on your specific WSL2/Windows configuration — this lesson's PowerShell example was recorded in the documented environment, but your own environment may or may not have this interop path available.
 - Exact process IDs, timing, and shell session details will differ across runs and machines.
 
 ---
@@ -730,7 +730,7 @@ Answers are intentionally not provided directly below these questions.
 ### Reasoning
 
 - Why isn't a plain shell variable automatically visible to a child process?
-- Why is a variable's value always text, even when it represents a number?
+- Why does a variable's value arrive as a string, even when it represents a number?
 - Why doesn't changing a variable in one process affect an already-running, different process?
 - Why is an environment variable not, by itself, a secret?
 

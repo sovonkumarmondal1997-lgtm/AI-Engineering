@@ -76,16 +76,23 @@ This lesson does not repeat [Standard Input/Output](11-standard-input-output.md)
 This distinction is mandatory, and beginners very commonly conflate all four.
 
 ```text
-User
-  ↓
 Terminal Emulator
-  ↓
-Shell
-  ↓
-Operating System
-  ↓
-Process
+       │
+       │ terminal / PTY I/O
+       ▼
+Shell Process
+       │
+       │ system calls
+       ▼
+Kernel
+       │
+       ├── process management
+       ├── filesystems
+       ├── networking
+       └── devices
 ```
+
+This is a relationship diagram, not a simple parent-child software hierarchy: the terminal emulator and the shell are separate programs that exchange input/output through the operating system's terminal (PTY) facility, and the shell is itself an ordinary process that asks the kernel to do work (including creating the other processes you run) through system calls. (Terminal/PTY internals are outside this lesson.)
 
 **Terminal.** Historically, a physical device for text input/output; today, the concept of "a text-based interface through which input/output is presented" — the thing that displays what you type and shows a program's output.
 
@@ -105,7 +112,7 @@ Process
 
 ## 3. Bash and PowerShell
 
-**Bash.** The common default Linux shell — the one this lesson's practical work uses throughout (Section 23). Bash provides a Unix-style command environment, and its pipelines (Section 12) are fundamentally **text/byte-oriented** — one command's stdout, as a stream of bytes/text, becomes the next command's stdin (Concept 11, Concept 12), exactly as those two lessons already established in full.
+**Bash.** A very common shell on Linux and Unix-like systems — the one this lesson's practical work uses throughout (Section 23). Bash provides a Unix-style command environment, and its pipelines (Section 12) are fundamentally **text/byte-oriented** — one command's stdout, as a stream of bytes/text, becomes the next command's stdin (Concept 11, Concept 12), exactly as those two lessons already established in full.
 
 **PowerShell.** A Windows-oriented shell and automation environment (also available cross-platform), with a genuinely different pipeline model: PowerShell's pipeline passes **structured objects** between commands, not raw text — a topic this lesson touches only at the conceptual comparison level (Section 24), and does not teach in depth.
 
@@ -232,7 +239,7 @@ command -v python3
 /usr/bin/python3
 ```
 
-**How this works, precisely:** `PATH` is a single string, with directories separated by `:` on Linux. When you type `python3`, the shell checks each directory in `PATH`, **in order**, for a file named `python3` that it's allowed to execute (Concept 08's permission model applies directly here — an unreadable or non-executable file is simply skipped over). **Order matters**: if more than one directory in `PATH` contains a program with the same name, the **first** match found (searching in `PATH`'s listed order) is generally the one that gets run.
+**How this works, precisely:** `PATH` is a single string, with directories separated by `:` on Linux. When you type `python3`, the shell checks each directory in `PATH`, **in order**, for a file named `python3` that it's allowed to execute (Concept 08's permission model applies directly here — an unreadable or non-executable file is simply skipped over). **Order matters**: if more than one directory in `PATH` contains a program with the same name, the **first** match found (searching in `PATH`'s listed order) is generally the one that gets run. (This is a simplification of Bash command resolution: Bash also considers shell functions and builtins before searching `PATH`, and may remember previously located commands in a command hash table.)
 
 **Common, realistic debugging cases this directly explains:**
 
@@ -342,6 +349,15 @@ export APP_ENV="development"
 2>&1
 ```
 
+**Redirections are processed from left to right.** Order therefore matters:
+
+```bash
+command >out 2>&1     # stdout goes to out, then stderr is duplicated to where stdout now points (also out)
+command 2>&1 >out     # stderr is duplicated to the ORIGINAL stdout (e.g. the terminal), then stdout goes to out
+```
+
+These are not equivalent: in the second form, stderr still goes to the original stdout destination.
+
 ```text
 Shell
   |
@@ -385,7 +401,7 @@ A | B
 A | B | C
 ```
 
-**The shell's specific role, stated precisely:** the shell **creates and configures the pipe connections** — it's the shell that arranges for `A`'s stdout to be connected to a pipe whose read end becomes `B`'s stdin, and so on for each additional stage. **Each command in a pipeline generally corresponds to a separate process** (Concept 03, Concept 12), all launched by this same shell.
+**The shell's specific role, stated precisely:** the shell **creates and configures the pipe connections** — it's the shell that arranges for `A`'s stdout to be connected to a pipe whose read end becomes `B`'s stdin, and so on for each additional stage. A pipeline normally runs its commands in separate execution contexts (Concept 03, Concept 12), but the exact process structure depends on the shell and configuration. In Bash, under specific conditions (the `lastpipe` option enabled and job control disabled), the last pipeline element can execute in the current shell.
 
 **A genuinely observed illustration:**
 
@@ -447,7 +463,7 @@ A pipe connects two processes' streams directly, while they run; command substit
 *.py
 ```
 
-**What happens, precisely:** the shell replaces a pattern like `*.txt` with the list of **actual, currently-existing filenames** in the relevant directory that match it — this expansion happens **before** the command receives its arguments at all (Section 9).
+**What happens, precisely:** the shell replaces a pattern like `*.txt` with the list of **actual, currently-existing filenames** in the relevant directory that match it — this expansion happens **before** the command receives its arguments at all (Section 9). When a glob pattern matches files, Bash expands it into the matching pathnames; by default, if there are no matches, Bash normally leaves the pattern unchanged, and shell options can change this behavior.
 
 **A genuinely observed illustration**, in a directory containing `a.txt`, `b.txt`, `output.txt`, and `c.py`:
 
@@ -494,6 +510,18 @@ stdout/stderr → process output     (data/messages — Concept 11)
 exit code       → process status    (a separate, single numeric result — this section)
 ```
 
+**Pipelines and `$?` (Bash).** For a pipeline, `$?` normally gives the pipeline's resulting status; without `pipefail` (which is not enabled by default), that is the status of the **last** command. Bash's `PIPESTATUS` array holds the individual status of **every** stage, including earlier ones. For example, if `producer.py` exits `0` and `processor.py` (the last stage) exits `2`:
+
+```text
+producer.py  →  0
+processor.py →  2
+
+$?          →  2
+PIPESTATUS  →  [0 2]
+```
+
+`PIPESTATUS` becomes essential when an *earlier* stage fails but the last stage succeeds, because `$?` alone would then report success. Read `$?` or `PIPESTATUS` immediately after the pipeline — any later command resets them.
+
 **This lesson does not teach [Process Lifecycle](14-process-lifecycle.md) in depth** — only establishes that the shell's own `$?` mechanism is how you, as the shell's user, actually observe a process's final status from the command line.
 
 ---
@@ -507,7 +535,7 @@ command &
 
 **Foreground process.** A command run normally — the shell **waits** for it to finish before showing you another prompt; you cannot type another command until it completes.
 
-**Background process.** A command run with a trailing `&` — the shell starts it and **immediately returns control to you**, without waiting for it to finish; you get your prompt back right away, and the command continues running independently.
+**Background process.** A command run with a trailing `&` — the shell starts it and **immediately returns control to you**, without waiting for it to finish; you get your prompt back right away, and the command continues running. It is not completely independent of the terminal/session, though: background jobs still participate in shell job control and can be affected by terminal/session lifecycle events (for example, closing the terminal).
 
 **A genuinely observed illustration**, using a disposable, harmless background process created specifically for this lab:
 
@@ -547,13 +575,18 @@ jobs
 
 **Directly connecting to [Signals](10-signals.md), without repeating that lesson.**
 
-- **Ctrl+C**, pressed in an interactive terminal, generates `SIGINT` (Concept 10), delivered to whichever process is currently the shell's **foreground** job.
-- **Ctrl+Z** generates `SIGTSTP`, a request to **stop** (pause) the current foreground job — conceptually similar to `SIGSTOP` (Concept 10), but catchable, unlike `SIGSTOP` itself; a stopped job can later be resumed in the foreground (`fg`) or background (`bg`, Section 16).
+- **Ctrl+C**, pressed in an interactive terminal, causes the terminal driver to generate `SIGINT` (Concept 10), delivered to the terminal's **foreground process group**.
+- **Ctrl+Z** causes the terminal driver to generate `SIGTSTP` for the foreground process group, a request to **stop** (pause) the current foreground job — conceptually similar to `SIGSTOP` (Concept 10), but catchable, unlike `SIGSTOP` itself; a stopped job can later be resumed in the foreground (`fg`) or background (`bg`, Section 16).
 - **`kill`** (Concept 10) can target any process by PID, including one currently running as a shell job, entirely independent of whether it's currently in the foreground or background.
 
-**The shell's specific role in this interaction:** the shell tracks **which job is currently the foreground job**, and it's specifically *that* job that receives a terminal-generated signal like `SIGINT` (Ctrl+C) or `SIGTSTP` (Ctrl+Z) — a background job is unaffected by keypresses in the terminal, precisely because it isn't the one currently "in the foreground."
+```text
+Ctrl+C  →  terminal driver  →  SIGINT   →  foreground process group
+Ctrl+Z  →  terminal driver  →  SIGTSTP  →  foreground process group
+```
 
-**This lesson does not repeat Concept 10's full signal treatment, and does not teach process-group/session internals** — only this specific, practical connection: the shell decides which process a terminal-generated signal actually reaches, based on its own foreground/background bookkeeping (Section 16).
+**The shell's specific role in this interaction:** Bash manages jobs and their foreground/background state (which job currently owns the terminal), but the terminal-generated signal itself is sent by the terminal driver to the foreground **process group** — not chosen individually by the shell. A background job is unaffected by keypresses in the terminal, precisely because it isn't part of the current foreground process group.
+
+**This lesson does not repeat Concept 10's full signal treatment, and does not teach process-group/session internals** — only this specific, practical connection: terminal-generated signals go to the foreground process group, and the shell's job control determines which job that is (Section 16).
 
 ---
 
@@ -894,7 +927,7 @@ A concise, deliberately limited comparison:
 | **Scripting** | `.sh` scripts, shebang-based interpreter selection (Section 22) | `.ps1` scripts, its own execution-policy and invocation model |
 | **Process management** | `ps`, `kill`, `jobs`, `fg`/`bg` (Section 16–18, Concept 03/05/10) | Its own cmdlets (`Get-Process`, `Stop-Process`, and more) |
 
-**The single most important conceptual difference, worth restating plainly:** a Bash pipeline connects **streams of bytes/text**; a PowerShell pipeline connects **structured objects**. **This lesson does not claim every PowerShell behavior mirrors Bash's** — they are related in spirit (both let you compose commands together) but genuinely different in mechanism. **This lesson does not teach PowerShell scripting in depth** — the purpose here is solely to prevent assuming Bash's specific, byte-stream-oriented model applies universally to every shell.
+**The single most important conceptual difference, worth restating plainly:** a Bash pipeline connects **streams of bytes/text**; a PowerShell pipeline primarily passes **structured PowerShell/.NET objects** between PowerShell commands (native commands introduce additional stream/serialization behavior). **This lesson does not claim every PowerShell behavior mirrors Bash's** — they are related in spirit (both let you compose commands together) but genuinely different in mechanism. **This lesson does not teach PowerShell scripting in depth** — the purpose here is solely to prevent assuming Bash's specific, byte-stream-oriented model applies universally to every shell.
 
 ---
 
@@ -945,7 +978,7 @@ For every scenario: symptom, likely cause, what the shell is doing, what the OS 
 
 **14. Background job behaves unexpectedly.** *Cause:* a background job (Section 16) doesn't automatically receive terminal-generated signals like Ctrl+C (Section 17), since it isn't the current foreground job — behavior that can surprise a learner expecting Ctrl+C to affect *everything* currently running. *Diagnostic:* `jobs`, to confirm which job is actually in the foreground versus background. *Fix:* use `fg` to bring the intended job to the foreground first, or `kill` it directly by PID (Concept 10).
 
-**15. `$?` doesn't show the status the learner expected.** *Cause:* exactly Concept 12's own genuinely observed pipeline-exit-status point — `$?` in a pipeline reflects only the **last** stage's exit code, which can silently hide an earlier stage's failure (Concept 12's own `PIPESTATUS` demonstration). *Diagnostic:* check `PIPESTATUS` (Bash-specific) for each stage's individual result. *Fix:* check every stage's status explicitly when overall pipeline correctness genuinely matters.
+**15. `$?` doesn't show the status the learner expected.** *Cause:* exactly Concept 12's own pipeline-exit-status point — without `pipefail`, `$?` in a Bash pipeline reflects only the **last** stage's exit code, which can silently hide an *earlier* stage's failure (Concept 12's own `PIPESTATUS` demonstration). *Diagnostic:* check `PIPESTATUS` (Bash-specific) for each stage's individual result. *Fix:* check every stage's status explicitly when overall pipeline correctness genuinely matters.
 
 **16. Current directory causes a relative-path failure.** *Cause:* exactly Section 8's point — a relative path (`python app.py`) resolves differently depending on the shell's current working directory at the moment the command runs. *Diagnostic:* `pwd`, immediately before running the failing command. *Fix:* either `cd` to the correct directory first, or use an absolute path instead.
 
@@ -968,7 +1001,7 @@ For every scenario: symptom, likely cause, what the shell is doing, what the OS 
 | "stdout always means the screen." | Exactly Concept 11's point, restated here: stdout is whatever FD 1 is currently connected to — a file, a pipe, or the terminal, depending entirely on redirection (Section 11). |
 | "stderr always means exceptions." | stderr is a destination for diagnostics generally, not exclusively for exceptions (Concept 11's own misconception, applying identically here). |
 | "A pipe is the same thing as a shell." | A pipe is an OS-managed communication channel (Concept 12); the shell is the program that *sets up* pipes among other things (Section 12) — not the same thing at all. |
-| "A pipeline is one process." | A pipeline of N commands is N separate processes (Concept 03, Concept 12), each with its own exit code (Section 15's `PIPESTATUS` demonstration). |
+| "A pipeline is one process." | A pipeline normally runs its commands in separate execution contexts (Concept 03, Concept 12), each with its own exit code (Section 15's `PIPESTATUS` note); the exact process structure depends on the shell and configuration (in Bash, the last element can run in the current shell under `lastpipe`). |
 | "The shell is always Bash." | Bash is one common shell; PowerShell (Section 24) and others exist, each with genuinely different behavior. |
 | "PowerShell is just Bash on Windows." | PowerShell's pipeline passes structured objects, not raw text (Section 24) — a fundamentally different underlying model, not merely a Windows-flavored Bash. |
 | "A shell variable is automatically an environment variable." | Only an *exported* shell variable becomes part of a child process's environment (Section 10, Concept 09) — plain shell variables stay local to the shell. |
@@ -1089,7 +1122,7 @@ diagnostics.txt:     info: 6.0 below threshold 8.0, dropped
 
 **Now the threshold genuinely applied to `processor.py`** — `6.0` (from `3`) was correctly dropped, with an explanatory `info` line on stderr, and only `10.0` and `14.0` (from `5` and `7`) remained in the actual results.
 
-**How to run, test, and debug it:** run both versions above yourself, and confirm you observe the same difference; check `PIPESTATUS` after every run (Section 15) rather than trusting `$?` alone, since `processor.py` genuinely exits with `2` whenever it has to skip an invalid value, information plain `$?` would hide entirely.
+**How to run, test, and debug it:** run both versions above yourself, and confirm you observe the same difference; check `PIPESTATUS` after every run (Section 15) — here `processor.py` is the last stage, so `$?` would also report its `2`, but `PIPESTATUS` additionally shows `producer.py`'s status, and is what you need whenever an earlier stage might fail while a later one succeeds.
 
 **Failure modes to expect:** an all-invalid input (every line unparseable) causes `processor.py` to exit `1` with an `"error: no values passed the threshold"` message; forgetting to `export` a needed variable (exactly as demonstrated above) silently changes behavior, without any error message at all — the single most important, genuinely observed lesson this mini-project teaches.
 
@@ -1276,15 +1309,20 @@ Each of these is mentioned only where it directly clarifies a boundary of what t
 ## 35. Final Mental Model
 
 ```text
-User
-  ↓
-Terminal (Emulator)
-  ↓
-Shell                    (parses, expands, prepares I/O, launches, waits, reports)
-  ↓
-OS / Kernel               (actually creates processes, opens files, enforces permissions)
-  ↓
-Process
+Terminal Emulator
+       │
+       │ terminal / PTY I/O
+       ▼
+Shell Process            (parses, expands, prepares I/O, launches, waits, reports)
+       │
+       │ system calls
+       ▼
+Kernel                   (actually creates processes, opens files, enforces permissions)
+       │
+       ├── process management
+       ├── filesystems
+       ├── networking
+       └── devices
 ```
 
 **Hold onto this above everything else in this lesson:** the shell is a real, ordinary, user-space **program** — not a mysterious command interpreter magically built into the computer, and not the operating system itself. Every time you type a command, the shell does genuine, traceable work — parsing your text, expanding quotes and globs and substitutions, resolving `PATH`, preparing file descriptors, and finally asking the kernel to actually create and run a process — and then it reports back exactly what happened, through the program's output and its exit code. **`python app.py` is not one atomic, magical action — it is this entire chain, every single time**, and this lesson's job was making that chain fully visible.

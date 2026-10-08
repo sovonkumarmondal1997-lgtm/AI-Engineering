@@ -4,7 +4,7 @@
 **Roadmap reference:** Stage 0 — Computer, Linux, and Developer Foundations, Gap 0C — "Local
 networking needed for development" (extends Module 0.2 — Operating System Fundamentals)
 **Concept(s) covered:** client-server communication, `localhost`, `127.0.0.1`, private/public IP
-addresses, ports, DNS, URLs, the one-process-per-port rule, "process running" vs. "service
+addresses, ports, DNS, URLs, the one-listener-per-binding rule, "process running" vs. "service
 reachable," `curl`, `ss -ltnp`, `Get-NetTCPConnection`
 **Status:** Not Started
 
@@ -192,19 +192,26 @@ send data.
 which machine you're on. A request sent to `127.0.0.1` never leaves your computer; it's handled
 entirely inside your own machine's networking stack.
 
-**`localhost`.** A human-friendly name that means the same thing as `127.0.0.1`. Your computer
-already knows, without asking any external service, that `localhost` means "me." `curl
-http://localhost:8000/` and `curl http://127.0.0.1:8000/` reach the exact same place.
+**`::1`.** The IPv6 loopback address — the IPv6 counterpart of `127.0.0.1`, also meaning "this same
+machine." (This lesson does not teach IPv6 beyond this.)
 
-**Why this matters for development:** running a service on `localhost`/`127.0.0.1` means it's only
+**`localhost`.** A hostname commonly associated with loopback. Depending on the system and address
+family, `localhost` may resolve to `127.0.0.1`, to `::1`, or to both. Your computer normally
+resolves it through local name-resolution mechanisms, without asking any external service.
+`curl http://localhost:8000/` and `curl http://127.0.0.1:8000/` commonly refer to the same local
+machine, but they are not necessarily the same IP address or address family — which matters if a
+server is listening on only one of them.
+
+**Why this matters for development:** running a service on loopback (`localhost`/`127.0.0.1`/`::1`) means it's only
 reachable from your own machine — nobody else on your network, let alone the internet, can reach
 it. This is exactly what you want while developing and testing.
 
 ### Private and public IP addresses
 
 **Private IP address.** An address only meaningful *within* a local network (like your home
-Wi-Fi) — for example, `192.168.1.42`. Other devices on the same Wi-Fi can reach it; the wider
-internet cannot, directly.
+Wi-Fi) — for example, `192.168.1.42`. A private address is intended for use within private networks; whether other devices on the same
+Wi-Fi can actually reach it depends on routing, firewall rules, network isolation, and whether the
+service is bound to that address. The wider internet cannot reach it directly.
 
 **Public IP address.** An address that identifies your network (often your home router) to the
 wider internet.
@@ -217,16 +224,19 @@ your own machine to complete it.
 ### Ports, and why only one process normally listens on a port
 
 **Port.** Simple meaning: a numbered "channel" on a machine that a specific program is listening
-on. Technical meaning: a 16-bit number (0–65535) that, combined with an IP address, identifies a
-specific communication endpoint on a machine, allowing the operating system to route incoming data
-to the correct listening process.
+on. Technical meaning: a 16-bit number (0–65535) that, combined with an IP address and a transport
+protocol (such as TCP), forms a network endpoint. A port does not by itself identify a process: a
+process asks the operating system to create a socket bound to an endpoint, the OS records that
+binding, and it uses it to deliver incoming data to the process that owns the socket.
 
-**Why only one process can normally listen on a given port at a time:** when a process asks the
-operating system to listen on a port, the OS reserves that exact (address, port) combination for
-that process alone — this is precisely so that incoming data has one, unambiguous destination. If a
-second process tries to listen on the same port, the OS refuses ("port already in use," Section
-11) — not as an arbitrary restriction, but because allowing two listeners would make it impossible
-to know which process should receive an incoming request.
+**Why two processes normally cannot listen on the same port in the same way:** when a process asks
+the operating system to listen, the OS binds a socket to a specific local address, transport
+protocol, and port, so that incoming data has one, unambiguous destination. If a second process
+tries to bind the same local address, protocol, and port in the same way, the OS normally refuses
+("port already in use," Section 11), because it would not know which process should receive an
+incoming request. The exact binding rules depend on the local address, the transport protocol,
+socket options, and operating-system behavior — so "one numeric port = globally one process" is a
+simplification, not a law. (This lesson does not go further into socket options.)
 
 **Common port numbers you'll see in development** (conventions, not hard rules): `8000` and `8080`
 are common defaults for local development web servers; `5432` is PostgreSQL's conventional default;
@@ -238,9 +248,11 @@ widely-followed conventions so developers don't have to guess.
 **DNS (Domain Name System).** Simple meaning: the system that turns human-readable names (like
 `example.com`) into IP addresses. Technical meaning: DNS is a distributed lookup system that
 resolves a domain name to the IP address a client should actually connect to. **This lesson's
-practical work never needs DNS** — `localhost` is resolved locally, without any lookup — but
-understanding DNS's job matters because it's the same step every real networked request performs
-before a client-server exchange (Section 1) can even begin.
+practical work never needs DNS** — `localhost` is normally handled through local name-resolution
+mechanisms, not a public DNS lookup — but understanding DNS's job matters because name resolution
+is the step a client performs when it only has a host *name*. A client that already has an IP
+address doesn't need a lookup, and local configuration or caches can also avoid an external DNS
+query.
 
 **URL (Uniform Resource Locator).** A structured way of writing "how to reach a specific thing on a
 specific server." Breaking down `http://localhost:8000/status`:
@@ -307,13 +319,18 @@ installation required), and talk to it with `curl`.
 ```bash
 cd ~/practice-shell/networking-demo   # a dedicated practice folder — see Concept 08, Permissions,
                                         # and this module's Project 0.3 guide for why this matters
-python3 -m http.server 8000
+python3 -m http.server 8000 --bind 127.0.0.1
 ```
 
 This starts a process that serves the files in the current directory over HTTP, listening on port
-`8000`, on all local interfaces (including `127.0.0.1`). It will keep running, printing a line for
+`8000`. The explicit `--bind 127.0.0.1` keeps this practice server reachable through the IPv4
+loopback interface only, rather than exposing it on the machine's other network interfaces. It will keep running, printing a line for
 every request, until you stop it (Concept 10 — [Signals](10-signals.md) — Ctrl+C sends it
 `SIGINT`).
+
+**Warning:** Python's `http.server` is for development and testing, not a production web server.
+Without an explicit bind address it can listen on all interfaces, and it exposes the files in the
+current directory — so use `--bind 127.0.0.1` and a dedicated practice directory, as above.
 
 In a **second** terminal window, while that's still running:
 
@@ -475,16 +492,18 @@ No output means nothing is listening on port 8000 anymore — the port is free.
   distinction. A process can be alive (visible in `ps`) while having crashed before binding its
   port, or while listening on a different port than you expect.
 - **"`localhost` and my machine's real IP address are different things I need to manage
-  separately."** For local development, they behave the same for reaching your own machine.
-  `127.0.0.1`/`localhost` is simply the most restrictive, always-correct way to say "this machine."
+  separately."** They are different
+  things. `127.0.0.1` / `::1` are loopback addresses (this local machine only), while your private/LAN IP is a
+  network interface address, potentially reachable by other devices subject to routing, firewall, binding,
+  and network policy. Loopback is the most restrictive way to say "this machine."
 - **"Any two programs can share a port if they're both mine."** No — see Section 5. Ownership
-  doesn't matter; the operating system enforces one listener per (address, port) combination,
-  regardless of who started which process.
+  doesn't matter; the operating system normally enforces one listener per binding (address, protocol, port; exact
+  rules depend on socket options and OS behavior), regardless of who started which process.
 - **"A port number tells you what kind of service is running."** No — port `8000` doesn't
   *require* an HTTP server; it's convention only. The only way to know what's really listening is
   to check, using Section 9's commands, not to assume from the number.
-- **"DNS is required to reach `localhost`."** No — Section 5 explained `localhost` resolves locally,
-  with no DNS lookup at all. DNS matters for real domain names, not for talking to your own
+- **"DNS is required to reach `localhost`."** No — Section 5 explained `localhost` is normally resolved through local
+  name-resolution mechanisms, with no public DNS lookup. DNS matters for real domain names, not for talking to your own
   machine.
 
 ---
@@ -504,12 +523,14 @@ curl http://localhost:8000/
 curl: (7) Failed to connect to localhost port 8000: Connection refused
 ```
 
-**What it means:** your client reached your machine's networking stack just fine, but **nothing is
-listening** on port 8000 right now. This is not a network problem — it's confirmation that step 3
-in Section 6's internal flow never happened (or happened and then stopped).
+**What it means:** "connection refused" commonly indicates that no service is accepting connections
+at the target address and port (it can also reflect operating-system, network-stack, or firewall
+behavior). For this local exercise, the most likely explanation is that **nothing is listening**
+on port 8000 right now — meaning step 3 in Section 6's internal flow never happened (or happened and
+then stopped) — and checking the listening sockets is the right next step.
 
 **How to confirm:** run `ss -ltnp | grep 8000` (or `Get-NetTCPConnection -State Listen` and look
-for port 8000). No matching row confirms nothing is listening.
+for port 8000). No matching row shows that nothing is listening on that port locally.
 
 **Safe next step:** start (or restart) the server you intended to reach, watch its own terminal
 output for a startup error, and re-check with `ss -ltnp` before trying `curl` again.
@@ -571,15 +592,15 @@ Work through these in your dedicated practice directory (see Section 7 and this 
 0.3 guide). Use the workflow from Concept 14 and Stage 0 Gap 0F: state what you expect before you
 run anything.
 
-1. Start `python3 -m http.server 8000` in your practice folder. In a second terminal, use `curl -i`
+1. Start `python3 -m http.server 8000 --bind 127.0.0.1` in your practice folder. In a second terminal, use `curl -i`
    to confirm it's reachable, then use `ss -ltnp` (or `Get-NetTCPConnection`) to find its PID
    independently. Confirm both PIDs match.
-2. Try starting a **second** `python3 -m http.server 8000` while the first is still running, in a
+2. Try starting a **second** `python3 -m http.server 8000 --bind 127.0.0.1` while the first is still running, in a
    third terminal. Read the exact error. Explain, in your own words, why it happened, using Section
-   5's one-listener rule.
+   5's binding rule.
 3. Stop the first server with Ctrl+C. Immediately try `curl` again and read the exact error message
    you get. Then run `ss -ltnp` again and confirm the port no longer appears.
-4. Start the server on a different port, e.g. `python3 -m http.server 8080`, and deliberately
+4. Start the server on a different port, e.g. `python3 -m http.server 8080 --bind 127.0.0.1`, and deliberately
    `curl http://localhost:8000/` (the wrong port). Read the error, then fix your `curl` command
    using only what `ss -ltnp` tells you — not memory.
 5. In one or two sentences each, write your own plain-language definitions of: client, server,
@@ -592,7 +613,7 @@ run anything.
   for the `python3 -m http.server` process via `ps`/`Get-Process`, confirming Section 5's technical
   explanation.
 - **Exercise 2:** an `OSError: [Errno 98] Address already in use` (or the OS-equivalent message) —
-  direct, hands-on evidence of Section 5's one-listener-per-port rule.
+  direct, hands-on evidence of Section 5's binding rule: both processes attempt the same local TCP binding, so the second is normally rejected under this exercise's conditions.
 - **Exercise 3:** `curl` reports `Connection refused` — the port is confirmed genuinely free by
   `ss -ltnp` showing no matching row.
 - **Exercise 4:** the first `curl` fails with `Connection refused` (Scenario 2); after correcting
@@ -664,11 +685,12 @@ larger roadmap you are building, one concept at a time.
 - **Server** — a process that listens on a port and responds to incoming requests.
 - **IP address** — a numeric address identifying a machine on a network.
 - **`127.0.0.1`** — the reserved IP address that always means "this same machine."
-- **`localhost`** — a human-friendly name for `127.0.0.1`.
+- **`::1`** — the IPv6 loopback address.
+- **`localhost`** — a hostname commonly associated with loopback; it may resolve to IPv4 `127.0.0.1` and/or IPv6 `::1`.
 - **Private IP address** — an address meaningful only within a local network (e.g., home Wi-Fi).
 - **Public IP address** — an address that identifies a network to the wider internet.
-- **Port** — a numbered endpoint (0–65535) that, with an IP address, identifies exactly which
-  listening process on a machine should receive incoming data.
+- **Port** — a number (0–65535) that, with an IP address and transport protocol, forms a network
+  endpoint; the OS binds sockets to endpoints and uses those bindings to deliver data to the owning process.
 - **DNS (Domain Name System)** — the system that resolves human-readable domain names into IP
   addresses.
 - **URL (Uniform Resource Locator)** — a structured address combining a scheme, host, port, and
@@ -676,7 +698,8 @@ larger roadmap you are building, one concept at a time.
 - **Listening** — the state of a process that has successfully bound to a port and is waiting for
   incoming connections on it.
 - **Reachable** — a service is reachable when a client can successfully connect to the port it is
-  listening on; distinct from the underlying process simply being alive.
+  listening on; distinct from the underlying process simply being alive (a listener can also exist
+  and still fail to give a successful application-level response).
 - **`curl`** — a command-line client tool used to send a network request and print the response.
 - **`ss -ltnp`** — a Linux command that lists listening TCP sockets along with the PID of the
   process holding each one.
@@ -685,10 +708,10 @@ larger roadmap you are building, one concept at a time.
 
 ## Summary
 
-A client sends a request; a server listens on a port and responds. `localhost`/`127.0.0.1` always
-means "this machine," which is why local development never needs DNS or a public IP address. Only
-one process can listen on a given port at a time — this is enforced by the operating system, not by
-convention. A process being *alive* and a service being *reachable* are two different facts, and
+A client sends a request; a server listens on a port and responds. `localhost` is a hostname commonly associated with the loopback addresses `127.0.0.1` and `::1`, which
+mean "this machine" — which is why local development never needs a public DNS lookup or a public IP
+address. Two processes normally cannot bind the same address, protocol, and port in the same way —
+this is enforced by the operating system, not by convention. A process being *alive* and a service being *reachable* are two different facts, and
 almost every local networking problem you'll hit ("connection refused," a wrong port, a port
 already in use) comes down to confusing the two. `curl` lets you act as a client to test
 reachability directly; `ss -ltnp` (or `Get-NetTCPConnection` on PowerShell) lets you see, with
@@ -700,7 +723,7 @@ as Stage 0's engineering-thinking practices require.
 - [ ] I can explain, without notes, what a client and a server are and how they exchange a request
       and a response.
 - [ ] I can explain why `curl http://localhost:8000/` never leaves my own machine.
-- [ ] I can explain, in my own words, why only one process can listen on a given port at a time.
+- [ ] I can explain, in my own words, why two processes normally cannot bind the same address, protocol, and port in the same way.
 - [ ] I can explain the difference between a process running and a service being reachable, with an
       example of each going wrong independently.
 - [ ] I ran a local HTTP server, reached it with `curl`, and found its PID and port using

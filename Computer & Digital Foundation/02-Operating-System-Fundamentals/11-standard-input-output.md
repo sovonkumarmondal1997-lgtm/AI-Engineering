@@ -12,7 +12,7 @@
 By the end of this lesson you should be able to explain, in your own words:
 
 - what standard input, standard output, and standard error are
-- why operating systems provide these as *standard* streams, established for every process
+- why Unix/POSIX systems conventionally provide these as *standard* streams, normally established when a process starts
 - how file descriptors represent these streams on Unix/Linux, and why file descriptors `0`, `1`, and `2` are conventional rather than arbitrary
 - how a process receives input and produces output, and why "input" doesn't inherently mean "keyboard" and "output" doesn't inherently mean "screen"
 - how shell redirection (`>`, `>>`, `<`, `2>`, `2>&1`) works at both a conceptual and practical level
@@ -26,7 +26,7 @@ By the end of this lesson you should be able to explain, in your own words:
 This lesson builds directly on:
 
 - [Kernel and User Space](01-kernel-and-user-space.md) and [System Calls](02-system-calls.md) — a process interacts with I/O resources through the same kernel-mediated system-call mechanism already introduced.
-- [Processes](03-processes.md) — standard streams are part of a process's resources, established at creation and inherited exactly like the environment (Concept 09).
+- [Processes](03-processes.md) — standard streams are part of a process's resources, normally established at creation and inherited from the parent (a separate mechanism from the environment variables of Concept 09, with its own inheritance rules).
 - [Permissions](08-permissions.md) — accessing a file a stream is redirected to is still subject to the permission rules already covered.
 - [Environment Variables](09-environment-variables.md) and [Signals](10-signals.md) — both are referenced directly (Sections 15–16) as *different* process-communication mechanisms from standard I/O.
 
@@ -60,9 +60,9 @@ None of these lessons are repeated here — only the specific pieces this lesson
 
 **The problem.** Every single program that needs input or output could, in principle, invent its own private way of receiving and producing data — but if every program did this differently, no two programs could easily work together, and the operating system would have no consistent way to connect a program to a terminal, a file, or another program.
 
-**Standard streams** are the operating system's and process model's answer: **every process is automatically given three predictable, always-present communication channels the moment it starts** — one for receiving input, and two for producing output (Section 3 explains why there are two, not one).
+**Standard streams** are the operating system's and process model's answer: in Unix/POSIX environments, processes conventionally use file descriptors 0, 1, and 2 as standard input, standard output, and standard error. In normal command-line environments these are usually set up when a process starts, but they can be redirected, replaced, duplicated, or closed. Together they give a process one channel for receiving input and two for producing output (Section 3 explains why there are two, not one).
 
-**Why they're called "standard.":** they are *standardized* — every process, regardless of what programming language it's written in or what it actually does, has exactly these same three channels, always identified the same way (Section 4). A program doesn't need to ask "does this environment even have a way for me to receive input?" — the answer is always yes, and it always works the same way.
+**Why they're called "standard.":** they are *standardized by convention* — a typical Unix/POSIX process, regardless of what programming language it's written in or what it actually does, is conventionally given these same three channels, identified the same way (Section 4). A program doesn't normally need to ask "does this environment even have a way for me to receive input?" — in ordinary command-line use the answer is yes, and it works the same way.
 
 **Why this makes programs composable.** Because every program reads from the same kind of input channel and writes to the same kind of output channel, one program's output can become another program's input (Section 13's pipe foundation) — without either program needing to know anything special about the other. This uniformity is precisely what makes chains of small, independent programs able to work together, a foundational Unix design idea this lesson is building toward.
 
@@ -70,7 +70,7 @@ None of these lessons are repeated here — only the specific pieces this lesson
 
 ## 3. stdin, stdout, stderr
 
-There are exactly three standard streams:
+Unix/POSIX conventionally defines three standard streams, associated with descriptors `0`, `1`, and `2` (a process is not guaranteed to have all three open at every moment):
 
 - **stdin** (standard input) — where a process reads input *from*.
 - **stdout** (standard output) — where a process writes its normal, expected output *to*.
@@ -84,7 +84,7 @@ There are exactly three standard streams:
 2 → stderr
 ```
 
-**Do not just memorize these three numbers — understand why they exist as numbers at all.** A process needs *some* consistent way to refer to "my input channel" or "my output channel" when asking the operating system to read or write. Rather than every program needing special, named handles, the operating system model uses small integers (file descriptors), and reserves the first three — `0`, `1`, and `2` — by convention, for exactly these three standard streams, for every single process, without exception. Section 4 explains the full concept these numbers belong to.
+**Do not just memorize these three numbers — understand why they exist as numbers at all.** A process needs *some* consistent way to refer to "my input channel" or "my output channel" when asking the operating system to read or write. Rather than every program needing special, named handles, the operating system model uses small integers (file descriptors), and reserves the first three — `0`, `1`, and `2` — by convention, for these three standard streams. They are normally established for processes launched in ordinary command-line environments; their underlying destinations can change, and the descriptors can also be closed or otherwise reconfigured. Section 4 explains the full concept these numbers belong to.
 
 ---
 
@@ -94,7 +94,7 @@ There are exactly three standard streams:
 
 **Why the name contains "file," even though it can mean much more than a disk file.** Historically, and still today in the underlying Unix model, *almost anything* a process reads from or writes to — a real disk file, a terminal, a pipe, a network socket — is represented through this same uniform "file descriptor" abstraction. The name reflects that everything is accessed through the same kind of handle and the same basic operations (Section 7), **not** that every file descriptor literally refers to a file sitting on a disk.
 
-**The relationship between a process and its file descriptor table.** Every process has its own private table mapping small integers to actual, currently-open I/O resources. `0`, `1`, and `2` are simply the first three entries every process starts with, pre-filled in with its standard streams — a process can also open additional files (getting descriptor `3`, `4`, and so on) as it runs, exactly as Section 17's practical lab demonstrates directly.
+**The relationship between a process and its file descriptor table.** Every process has its own private table mapping small integers to actual, currently-open I/O resources. `0`, `1`, and `2` are simply the first three entries a typical process starts with, pre-filled in with its standard streams — a process can also open additional files (getting descriptor `3`, `4`, and so on) as it runs, exactly as Section 17's practical lab demonstrates directly.
 
 **A file descriptor can refer to many different kinds of underlying object:**
 
@@ -114,7 +114,7 @@ Process
   +-- FD 2 → stderr
 ```
 
-**The single most important idea in this section: the exact underlying object connected to a given descriptor can change, while the descriptor number itself stays the same.** FD `1` is *always* "this process's stdout" from the process's own point of view — but what stdout is actually *connected to* (a terminal screen, a file, a pipe) can be different every time the process is started. Section 11 and Section 12 build directly on this exact point.
+**The single most important idea in this section: the exact underlying object connected to a given descriptor can change, while the descriptor number itself stays the same.** FD `1` is the conventional file descriptor used for standard output. In a normal POSIX process it is associated with stdout, but its underlying destination can be changed, and the descriptor can also be closed or reused. What stdout is actually *connected to* (a terminal screen, a file, a pipe) can be different every time the process is started — the descriptor number is not a permanent label for one underlying resource. Section 11 and Section 12 build directly on this exact point.
 
 ---
 
@@ -154,7 +154,7 @@ Screen                (by default, also visible on screen — but through a sepa
 
 **Three required clarifications, correcting common beginner assumptions:**
 
-- **Keyboard input is not magically delivered directly to Python.** It passes through the terminal, which is itself a piece of OS-managed infrastructure participating in this flow — not a direct, invisible wire straight into your program.
+- **Keyboard input is not magically delivered directly to Python.** It passes through the terminal, which is itself a piece of OS-managed infrastructure participating in this flow — not a direct, invisible wire straight into your program. In an interactive session, a terminal emulator typically communicates with the operating system's terminal/PTY subsystem, which provides the process with file descriptors connected to that terminal session (the details of TTY/PTY internals are outside this lesson).
 - **stdout does not inherently mean "screen."** It is simply "this process's designated output channel" — which *happens*, by default, in an interactive terminal session, to be connected to the screen. Section 11 shows directly how this same stdout can just as easily be connected to a file instead, with the process never needing to know the difference.
 - **stdin does not inherently mean "keyboard."** Just like stdout, it's simply "this process's designated input channel" — which *happens*, by default, in an interactive session, to be connected to the keyboard (via the terminal). It can just as easily be connected to a file (Section 11) or another program's output (Section 13).
 
@@ -227,7 +227,7 @@ I/O resource                  (a terminal, a file, a pipe — whatever this desc
 
 **Four operations worth naming, at a beginner-appropriate level, without turning this into a kernel-programming lesson:**
 
-- **`open`** — conceptually, establishing a new file descriptor connected to some I/O resource (Concept 07 already covered files specifically; this is the general pattern, applied to any I/O resource).
+- **`open`** — `open()` opens a named file or supported filesystem object and returns a file descriptor referring to it (Concept 07 already covered files specifically). Other I/O objects, such as pipes and sockets, have their own creation APIs.
 - **`read`** — retrieving data from a file descriptor.
 - **`write`** — sending data to a file descriptor.
 - **`close`** — releasing a file descriptor when a process is done using it.
@@ -417,7 +417,7 @@ stdin
 Process B
 ```
 
-**Why this is powerful:** because every process already reads from stdin and writes to stdout in exactly the same, standardized way (Section 3), *any* two programs can be connected this way — Process A never needs to know its output is going to another program instead of a file or a screen, and Process B never needs to know its input is coming from another program instead of a file or a keyboard. This is Section 12's abstraction, extended one step further: the *thing* on the other end of a stream can be a file, a terminal, or an entirely different running process.
+**Why this is powerful:** because typical command-line processes already read from stdin and write to stdout in the same, conventional way (Section 3), *any* two programs can be connected this way — Process A never needs to know its output is going to another program instead of a file or a screen, and Process B never needs to know its input is coming from another program instead of a file or a keyboard. This is Section 12's abstraction, extended one step further: the *thing* on the other end of a stream can be a file, a terminal, or an entirely different running process.
 
 A brief, illustrative shell pipeline (not a full teaching example — `12-pipes.md` covers this properly):
 
@@ -462,7 +462,7 @@ configuration supplied at process startup     (covered in Section 16 below)
 
 - **Environment variables** configure a process — they answer "how should this process behave?" (Concept 09).
 - **Standard streams** communicate data and diagnostics *with* a process while it runs — they answer "what information is flowing in and out of this process, right now?"
-- Both are established as part of a process's execution environment at startup, and both are inherited from a parent process in a broadly similar way (Concept 09's inheritance model applies conceptually here too) — **but they solve genuinely different problems**, and this lesson does not conflate them.
+- Both can be supplied as part of a process's execution environment, but environment variables and file descriptors are separate mechanisms with different inheritance and lifecycle rules — **and they solve genuinely different problems**, so this lesson does not conflate them.
 
 ---
 
@@ -708,7 +708,7 @@ For every scenario: symptom, likely cause, how to inspect, a safe diagnostic ste
 | "stdout always means screen." | stdout is whatever this process's output channel is currently connected to — the screen by default in an interactive terminal, but just as easily a file or another program's input (Section 5, Section 11). |
 | "stderr means exceptions." | stderr is a destination for *diagnostic* messages generally — warnings, progress information, and errors alike — not exclusively a channel for exceptions (Section 6). |
 | "File descriptor means disk file." | A file descriptor can refer to a terminal, a pipe, a socket, or a regular file — "file" in the name reflects a uniform handle model, not a guarantee of an actual disk file (Section 4). |
-| "FD 0/1/2 are arbitrary numbers." | They are a deliberate, universal convention every process receives, precisely so no program ever has to guess which number means which stream (Section 3). |
+| "FD 0/1/2 are arbitrary numbers." | They are a deliberate Unix/POSIX convention that processes in ordinary command-line environments receive, precisely so no program ever has to guess which number means which stream (Section 3). |
 | "stdout and stderr are the same stream." | They are two independent file descriptors (`1` and `2`) that happen to both default to the terminal in an interactive session — genuinely separate, as Section 11's `ls out.txt missing.txt` demonstration showed directly. |
 | "Redirecting stdout also redirects stderr automatically." | Each stream must be redirected independently unless you explicitly combine them with something like `2>&1` (Section 11, Debugging Scenario 5). |
 | "Python's `print()` directly talks to the terminal." | `print()` writes to `sys.stdout` (FD 1), whatever that currently happens to be connected to (Section 8) — it has no inherent, direct relationship to a terminal specifically. |
@@ -927,7 +927,7 @@ Standard I/O shows up directly in real production engineering:
 
 - **CLI automation and batch processing.** Section 22's mini-project pattern — results on stdout, diagnostics on stderr, meaningful exit codes — is exactly the shape a production-quality batch tool should take.
 - **Worker processes and subprocess execution.** A parent process launching workers or subprocesses commonly needs to capture their stdout/stderr separately (Debugging Scenario 10) to reason correctly about what each did.
-- **AI evaluation jobs and model inference scripts.** Their actual results (predictions, scores) belong on stdout; their progress and warnings belong on stderr — mixing the two makes automated consumption of results unreliable.
+- **AI evaluation jobs and model inference scripts.** A common and recommended CLI engineering convention is to put machine-consumable results (predictions, scores) on stdout and diagnostics (progress, warnings) on stderr — mixing the two makes automated consumption of results unreliable.
 - **Service diagnostics and log collection.** A production service's stdout/stderr output is very commonly what an operational logging system actually collects — understanding this OS-level foundation is the prerequisite for understanding how any such logging system works at all.
 - **Automation pipelines.** Chains of tools connected via pipes (Section 13) depend entirely on each tool correctly separating real output from diagnostic noise.
 - **Container processes, as a future connection.** Containerized applications' stdout/stderr are commonly what a container runtime captures as "the container's logs" — **this lesson does not teach container logging in depth** (Section 28), but everything such a system does rests directly on this lesson's foundation.
@@ -1018,7 +1018,7 @@ Process
   +-- FD 2 → stderr     (wherever diagnostics currently go — usually the screen, or a file)
 ```
 
-**Hold onto this one idea above all others from this lesson:** a process always has exactly these three standard streams, always numbered the same way — but *what each one is actually connected to* can change freely, without the process's own code ever needing to know or care. That single fact is what makes redirection (Section 11–12), pipes (Section 13), and reliable production logging (Section 26) all possible, using the exact same, unmodified program every time.
+**Hold onto this one idea above all others from this lesson:** a typical Unix/POSIX process is conventionally given these three standard descriptors, numbered the same way — but *what each one is actually connected to* can change freely, without the process's own code ever needing to know or care. That single fact is what makes redirection (Section 11–12), pipes (Section 13), and reliable production logging (Section 26) all possible, using the exact same, unmodified program every time.
 
 ---
 
