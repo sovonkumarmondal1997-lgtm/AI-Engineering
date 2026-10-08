@@ -273,10 +273,12 @@ safe = defaultdict(list)
 safe["missing"]             # [] — created automatically, no error
 ```
 
-A `defaultdict` behaves exactly like a normal `dict` in every other way
-(iteration, `.items()`, `.keys()`, `.values()`, membership with `in`) —
-the *only* difference is what happens when you access a key that is not
-there yet.
+For ordinary dictionary operations, a `defaultdict` behaves like a normal
+`dict` (iteration, `.items()`, `.keys()`, `.values()`, membership with
+`in`). Its important additional behavior is that `__getitem__()` (the
+`d[key]` lookup) can create and return a value for a missing key using
+`default_factory` — that is what happens when you access a key that is
+not there yet.
 
 ### 6.3 `defaultdict(int)` for counting
 
@@ -545,7 +547,8 @@ groups because the second `"A"` record was not adjacent to the first.
 has no memory of keys it has already seen; it only notices when the
 *current* key differs from the *previous* key. To get one group per
 distinct key (the SQL `GROUP BY`-style result most people actually
-want), the data must be sorted by the grouping key first:
+want), the input must already be grouped consecutively by that key,
+which is commonly achieved by sorting by the grouping key first:
 
 ```python
 sorted_records = sorted(unsorted_records, key=lambda r: r[0])
@@ -562,7 +565,7 @@ B [('B', 30)]
 
 | | Dictionary / `defaultdict` grouping | `itertools.groupby` |
 |---|---|---|
-| Order requirement | none — works on data in any order | data must be pre-sorted by the grouping key |
+| Order requirement | none — works on data in any order | equal keys must be consecutive (commonly achieved by sorting by the grouping key) |
 | Result shape | one dictionary, all groups available at once | a one-pass iterator; groups are consumed as you go |
 | Ease of understanding | very direct: "look up this key" | more subtle: "consecutive matching keys only" |
 | Typical use | general-purpose grouping — the default choice | large sorted or streaming data, where building a full dictionary is undesirable |
@@ -886,7 +889,7 @@ if a new variable is genuinely wanted.
 | Mutates original? | No | Yes, in place |
 | Works on | any iterable | lists only |
 | Typical use | when the original order must be preserved, or the input is not already a list | when the original list does not need to be kept, and in-place sorting saves memory |
-| Memory | allocates a new list | no extra list allocated (sorts existing storage) |
+| Memory | allocates a new list | modifies the existing list rather than allocating a separate output list (it may still use temporary memory internally) |
 
 ## 19. Ascending and Descending Order
 
@@ -1489,8 +1492,10 @@ position) is the single most consequential `groupby` mistake — see §10.2
 for the concrete example.
 
 7. *Using `groupby` without sorting first.* Following directly from #6 —
-always sort by the same key you pass to `groupby` unless the input is
-already known to be grouped consecutively (e.g., already sorted upstream).
+`groupby()` groups consecutive equal keys, so to get one group per
+distinct key, sort by the same key you pass to `groupby` unless the
+input is already known to be grouped consecutively (e.g., already
+sorted upstream).
 
 **Deduplication**
 
@@ -1587,7 +1592,7 @@ wastes time for no benefit.
 | Negative numbers / zero | group and sum normally — no special handling needed | `0` and `-0` behave as equal (`0 == -0.0` is `True` for numeric comparisons) — rarely an issue in practice, but worth knowing | sort normally; no special handling needed |
 | Duplicate IDs | grouping by an ID naturally handles repeats — every matching record joins the same group | the exact scenario deduplication is designed for (§14) | if two records share a sort key, stability (§24) determines their relative order in the output |
 | Empty groups | a group key is never created unless at least one item has that key — there is no such thing as an "empty group" appearing on its own | not applicable | not applicable |
-| Already-sorted input | `sorted()`/`.sort()` still run in O(n log n) — Python's Timsort (§35) can be notably faster in practice on already-sorted or partially-sorted data, but it does not skip the comparison-based guarantee | not applicable | as above |
+| Already-sorted input | `sorted()`/`.sort()` have O(n log n) worst-case complexity, but Python's Timsort (§35) is adaptive and can run in O(n) comparisons on already-sorted or reverse-sorted input | not applicable | as above |
 | Reverse-sorted input | sorts normally; Timsort recognizes descending runs efficiently as well | not applicable | as above |
 | Large datasets | dictionary-based grouping stays roughly linear; watch memory if every group holds large lists | set-based approaches stay roughly linear; watch memory for very large seen-sets | sorting cost grows as O(n log n) — noticeably slower than a single grouping/deduplication pass at large scale (§34) |
 
@@ -1618,9 +1623,9 @@ and §29), rather than sorting the full raw dataset before grouping it.
   smaller than n if there are many duplicates.
 - `sorted()` allocates an entirely new list — O(n) additional space on
   top of the original.
-- `list.sort()` sorts in place — no additional O(n) list is allocated
-  for the result itself (though the algorithm may use a small amount of
-  temporary working space internally).
+- `list.sort()` modifies the existing list rather than allocating a
+  separate output list, but the sorting implementation may still use
+  auxiliary temporary memory internally.
 
 Being aware of these trade-offs matters most at real production scale —
 for a few hundred records none of this is perceptible, but for millions
@@ -1686,8 +1691,12 @@ cannot offer that same guarantee, because determining an item's position
 in sorted order — or confirming that no earlier duplicate exists —
 inherently requires knowledge of (at least a large part of) the whole
 collection. Keep this distinction in mind when the input is very large:
-grouping, deduplication, and sorting are inherently more memory-hungry
-than filtering or mapping.
+grouping, deduplication, and sorting often require additional state or
+materialized collections, but their memory usage depends on the chosen
+algorithm and accumulator. Sorting generally requires the data to be
+materialized for ordering; grouping and deduplication can often be
+performed incrementally with memory proportional to the number of
+groups or unique keys.
 
 ## 37. Debugging
 
@@ -1931,7 +1940,7 @@ Reuse the transaction dataset from §29. Report total spending per
 category.
 
 **19. Produce a ranked customer report.**
-Reuse the transaction dataset from §29 or §14. Report each customer's
+Reuse the transaction dataset from §29. Report each customer's
 total spend, sorted highest to lowest, formatted as a list of
 `{"customer": ..., "total": ...}` dictionaries.
 
@@ -2065,6 +2074,8 @@ def build_summary(transactions):
     ranking = rank_customers(totals)
 
     return {
+        "deduplicated_transactions": deduplicated,
+        "completed_transactions": completed,
         "customer_totals": totals,
         "customer_counts": counts,
         "category_totals": totals_by_category(completed),
@@ -2086,7 +2097,14 @@ print(summary)
 ```
 
 ```text
-{'customer_totals': {'C1': 150, 'C2': 200},
+{'deduplicated_transactions': [
+   {'transaction_id': 'T1', 'customer_id': 'C1', 'category': 'food', 'amount': 150, 'status': 'completed', 'timestamp': '2026-01-02'},
+   {'transaction_id': 'T2', 'customer_id': 'C1', 'category': 'travel', 'amount': 500, 'status': 'failed', 'timestamp': '2026-01-01'},
+   {'transaction_id': 'T3', 'customer_id': 'C2', 'category': 'food', 'amount': 200, 'status': 'completed', 'timestamp': '2026-01-01'}],
+ 'completed_transactions': [
+   {'transaction_id': 'T1', 'customer_id': 'C1', 'category': 'food', 'amount': 150, 'status': 'completed', 'timestamp': '2026-01-02'},
+   {'transaction_id': 'T3', 'customer_id': 'C2', 'category': 'food', 'amount': 200, 'status': 'completed', 'timestamp': '2026-01-01'}],
+ 'customer_totals': {'C1': 150, 'C2': 200},
  'customer_counts': {'C1': 1, 'C2': 1},
  'category_totals': {'food': 350},
  'ranking': [('C2', 200), ('C1', 150)],
@@ -2113,8 +2131,8 @@ transaction always exists.
 - What is `setdefault()`, and how does it differ from `defaultdict`?
 - Why does `defaultdict(int)` work for counting, but `defaultdict(list)`
   would not?
-- Why does `itertools.groupby` require the input to be sorted by the
-  grouping key first? What happens if it is not?
+- Why is the input to `itertools.groupby` commonly sorted by the
+  grouping key first? What happens if equal keys are not consecutive?
 
 **Deduplication**
 
@@ -2205,7 +2223,8 @@ composed in different orders depending on what a given task needs.
   (`defaultdict(int)` for sums/counts, `defaultdict(list)` for
   collecting values, `defaultdict(set)` for unique values per group).
 - `itertools.groupby` groups only **consecutive** matching keys and
-  requires pre-sorted input — it is not a drop-in replacement for
+  needs equal keys to be consecutive (commonly achieved by sorting
+  first) — it is not a drop-in replacement for
   dictionary-based grouping.
 - **Deduplication** requires explicitly choosing an **identity** — the
   whole value, one field, or a composite tuple key — and deciding
@@ -2340,8 +2359,10 @@ entries for the same key, from §14.3.
 by_id = {}
 for r in records:
     by_id[r["id"]] = r
-print(list(by_id.values()))   # [..., {'id': 1, 'v': 'z'}]  (order may show id 2 first, then updated id 1)
+print(list(by_id.values()))   # [{'id': 1, 'v': 'z'}, {'id': 2, 'v': 'y'}]
 ```
+Updating an existing key does not move it: key `1` keeps its original
+insertion position and just takes the new value `"z"`.
 
 **13.** Grouping by `"country"`, collecting `"id"` values — note this
 collects into a list (duplicates within a country would be kept),
@@ -2410,7 +2431,7 @@ print({service: dict(counts) for service, counts in groups.items()})
 **18.** Reusing §29's `by_category_total` construction directly.
 ```python
 totals = defaultdict(int)
-for t in transactions:   # the deduplicated, completed set from §29
+for t in transactions:   # the deduplicated set from §29
     totals[t["category"]] += t["amount"]
 print(dict(totals))
 ```
@@ -2449,7 +2470,13 @@ def pipeline(transactions):
     totals = {customer: sum(amounts) for customer, amounts in grouped.items()}
     return sorted(totals.items(), key=lambda item: item[1], reverse=True)
 
-print(pipeline(transactions))
+transactions = [
+    {"transaction_id": "T1", "customer_id": "C1", "category": "food", "amount": 100, "status": "completed"},
+    {"transaction_id": "T1", "customer_id": "C1", "category": "food", "amount": 150, "status": "completed"},
+    {"transaction_id": "T2", "customer_id": "C2", "category": "travel", "amount": 300, "status": "failed"},
+]
+
+print(pipeline(transactions))   # [('C1', 150)]
 ```
 
 Each stage is small and independently testable — this is itself a

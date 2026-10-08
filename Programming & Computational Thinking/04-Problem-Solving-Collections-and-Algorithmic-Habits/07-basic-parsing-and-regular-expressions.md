@@ -788,16 +788,21 @@ saving you from writing `[0-9]` by hand every time:
 
 | Shorthand | Meaning | Equivalent to |
 |---|---|---|
-| `\d` | any digit | `[0-9]` |
-| `\D` | any non-digit | `[^0-9]` |
-| `\w` | any "word" character (letters, digits, underscore) | `[a-zA-Z0-9_]` |
-| `\W` | any non-word character | `[^a-zA-Z0-9_]` |
+| `\d` | any Unicode decimal digit (for normal `str` patterns) | `[0-9]` matches ASCII digits only |
+| `\D` | any non-digit | the negation of `\d` (`[^0-9]` in ASCII terms) |
+| `\w` | any "word" character (Unicode letters, digits, underscore) | `[a-zA-Z0-9_]` is the ASCII-only subset |
+| `\W` | any non-word character | the negation of `\w` (`[^a-zA-Z0-9_]` in ASCII terms) |
 | `\s` | any whitespace character (space, tab, newline) | roughly `[ \t\n\r\f\v]` |
 | `\S` | any non-whitespace character | the negation of `\s` |
 
 ```python
 re.search(r"\d", "abc123")   # matches "1"
 ```
+
+In Python `str` patterns, `\d` and `\w` are Unicode-aware by default (for
+example, `\d` also matches Arabic-Indic digits such as `٣`). When you
+need ASCII-only behavior, use an explicit class such as `[0-9]`, or pass
+`re.ASCII` (`re.A`) as a flag.
 
 (The `r` prefix before the pattern string is a **raw string** — this is
 explained fully and carefully in §34; every regex example from this
@@ -845,8 +850,11 @@ re.search(r"world$", "Hello world")    # matches — $ anchors to the END of the
 re.search(r"^Hello world$", "Hello world")   # matches the ENTIRE string, start to end
 ```
 
-`^` anchors to the beginning; `$` anchors to the end. Combined, `^...$`
-requires the *entire* string to match the pattern — this distinction
+`^` anchors to the beginning; `$` anchors to the end (in Python, `$`
+can also match immediately before a final newline, so `^...$` is not
+strictly identical to whole-string validation — `"abc\n"` still matches
+`^abc$`). When the requirement is that the *entire* supplied string must
+match, `re.fullmatch()` is the clearer tool. This distinction
 (matching *somewhere within* the text, versus matching the *entire*
 text) becomes directly important when choosing between `re.search()`
 and `re.fullmatch()` in §35 and §37.
@@ -1048,8 +1056,11 @@ re.fullmatch(r"\d+", "12345 items")   # None — extra text after the digits mea
 ```
 
 `re.fullmatch()` requires the pattern to match the **entire** string,
-start to end — equivalent to wrapping the pattern in `^...$` (§28) and
-using `re.match()`. **This is the correct tool for validation** (§48):
+start to end. It is similar in spirit to wrapping the pattern in
+`^...$` (§28), but not strictly interchangeable: `$` can also match
+before a final newline and behaves differently under flags like
+`re.MULTILINE`, whereas `fullmatch()` always requires the complete input
+string to match. **This is the correct tool for validation** (§48):
 checking whether an *entire* piece of input conforms to an expected
 shape (a valid phone number, a valid ID format), rather than merely
 containing a matching substring somewhere within a larger, possibly
@@ -1195,12 +1206,14 @@ pattern object**, which exposes the same methods (`.search()`,
 `.match()`, `.findall()`, `.sub()`, and so on) directly, without needing
 to pass the pattern string again each time. **When to compile:**
 whenever the *same* pattern will be used **repeatedly** — for example,
-checking every line of a large log file against the same pattern — this
-avoids Python re-parsing the pattern string on every single call, a
-direct application of the "preprocess once, reuse many times" trade-off
-already established in the Big-O chapter's §24 for dictionary indexes.
-For a pattern used only once or twice, compiling adds no meaningful
-benefit and is purely optional style.
+checking every line of a large log file against the same pattern — or
+when you want a named, reusable pattern object. It is a reasonable
+application of the "preprocess once, reuse many times" idea from the
+Big-O chapter's §24, but not an unconditional performance requirement:
+Python also caches recently used compiled patterns for module-level
+calls like `re.search()`, and compiling does not change the algorithmic
+complexity of matching. For a pattern used only once or twice, compiling
+adds no meaningful benefit and is purely optional style.
 
 ## 44. Regex Flags
 
@@ -1222,7 +1235,9 @@ re.search(r"hello", "HELLO world")                     # None — case-sensitive
 ```python
 text = "Line one\nLine two\nLine three"
 re.findall(r"^Line \w+$", text, re.MULTILINE)
-# ['Line one', 'Line two', 'Line three'] — without MULTILINE, only the first line would match ^...$
+# ['Line one', 'Line two', 'Line three'] — with MULTILINE, ^ and $ match at each line boundary.
+# Without MULTILINE, ^ and $ refer to the whole string, so this three-line text
+# produces [] rather than the three individual matches above.
 ```
 
 Multiple flags can be combined with `|`: `re.IGNORECASE | re.MULTILINE`.
@@ -1308,8 +1323,9 @@ re.findall(r"\d+(?=px)", "width: 100px, height: 50em")
 
 # Negative lookahead — match a number only if NOT followed by "px":
 re.findall(r"\d+(?!px)", "width: 100px, height: 50em")
-# ['10', '50'] — note: "100" partially matches as "10" before hitting "0px"; a stricter
-# pattern (e.g., adding a word boundary) would be needed for fully correct results here
+# ['10', '50'] — "100" partially matches as "10" (deliberately shown here): the lookahead only
+# rejects a match directly followed by "px", and the pattern does not enforce a complete-number
+# boundary. To match whole numbers, add a boundary constraint, e.g. r"\b\d+(?!\d|px)" (gives ['50'])
 ```
 
 ```python
@@ -1748,9 +1764,13 @@ vulnerability, not a theoretical curiosity.
   ones — often the safer pattern is also the more readable one, a
   genuinely convenient alignment between this chapter's readability
   guidance (§57, §61) and its security guidance.
-- **Consider setting an explicit timeout or input-length limit** when
-  applying regex to untrusted input in a production system, as a
-  defensive measure independent of the pattern's own design.
+- **Bound input size and test against adversarial inputs** when applying
+  regex to untrusted input in a production system, as a defensive
+  measure independent of the pattern's own design. Python's standard-
+  library `re` functions do not take a timeout argument, so if a hard
+  matching-time limit is an explicit requirement, use a regex engine or
+  library that supports one (or run the matching in a separately
+  time-limited process).
 - **This is not a reason to avoid regex entirely** — it is a reason to
   understand pattern shape well enough (§27–§29) to recognize the
   specific, well-documented danger shape, and to treat regex applied to
@@ -1781,7 +1801,7 @@ vulnerability, not a theoretical curiosity.
   and `json` modules, or a real parser, instead.
 - **Treat regex applied to untrusted input with real security
   awareness** (§60) — check for dangerous nested-quantifier shapes, and
-  consider input-length limits or timeouts for genuinely
+  consider input-length limits and adversarial testing for genuinely
   externally-supplied patterns or text.
 - **Test regex against both matching and non-matching examples
   explicitly** (§58) — a pattern that "works" on the one example you
@@ -2106,7 +2126,9 @@ Given a block of raw, multi-line server log text, build a pipeline that:
 - **Edge cases** — an entirely empty input; a block where every line is
   malformed; an error message containing more than one `T\d+`-shaped
   substring (decide explicitly: this project takes the *first* match
-  per line); a log level in unexpected casing.
+  per line); a log level in unexpected casing (this project is deliberately
+  case-sensitive: `error` is still parsed, since `\w+` accepts it, but it
+  is counted under its own `"error"` key and is not treated as serious).
 - **Pseudocode:**
   ```
   lines = split raw text into lines
@@ -2127,10 +2149,14 @@ Given a block of raw, multi-line server log text, build a pipeline that:
 
   summary = combine unparseable, severity_counts, errors_by_transaction
   ```
-- **Complexity** — every stage is a single O(n) pass over the lines
-  (Big-O chapter's §27), where `n` is the number of lines; the regex
-  pattern is compiled once and reused, per §43 and §61's guidance for
-  code applying the same pattern repeatedly.
+- **Complexity** — let `N` be the total number of input characters and
+  `r` the number of parsed records. Splitting and matching each line
+  with these (non-nested) patterns is linear in the amount of text
+  processed, O(N); the later filtering, counting, and grouping passes are
+  each linear in the number of parsed records, O(r) — so the whole
+  pipeline is O(N) overall, though it is several passes, not one. The
+  regex patterns are compiled once and reused, per §43 and §61's
+  guidance for code applying the same pattern repeatedly.
 
 ### Reference Implementation
 
@@ -2143,7 +2169,7 @@ LOG_PATTERN = re.compile(
     r"(?P<date>\d{4}-\d{2}-\d{2}) (?P<time>\d{2}:\d{2}:\d{2}) "
     r"(?P<level>\w+): (?P<message>.+)"
 )
-TRANSACTION_PATTERN = re.compile(r"T\d+")
+TRANSACTION_PATTERN = re.compile(r"(?P<transaction_id>T\d+)")
 
 
 def parse_log_text(text):
@@ -2170,12 +2196,13 @@ def build_report(text):
     errors_by_transaction = defaultdict(list)
     for record in serious:
         match = TRANSACTION_PATTERN.search(record["message"])
-        key = match.group() if match else "none"
+        key = match.group("transaction_id") if match else "none"
         errors_by_transaction[key].append(record)
 
     return {
         "unparseable_lines": unparseable,
         "severity_counts": dict(severity_counts),
+        "serious_records": serious,
         "errors_by_transaction": dict(errors_by_transaction),
         "total_serious": len(serious),
     }
@@ -2452,11 +2479,11 @@ log_pattern = re.compile(
 )
 
 def error_message_counts(log_text):
-    records = [
-        log_pattern.search(line).groupdict()
-        for line in log_text.splitlines()
-        if log_pattern.search(line)
-    ]
+    records = []
+    for line in log_text.splitlines():
+        match = log_pattern.fullmatch(line)   # evaluate the regex once per line
+        if match:
+            records.append(match.groupdict())
     errors = [r for r in records if r["level"] == "ERROR"]
     return Counter(r["message"] for r in errors)
 ```

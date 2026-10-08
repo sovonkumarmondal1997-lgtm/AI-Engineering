@@ -723,14 +723,18 @@ contiguous memory.
 | `del users[user_id]` (deletion) | O(1) average-case | Same mechanism. |
 | `user_id in users` (membership) | O(1) average-case | Checks keys, as covered in the previous chapter's §4.7. |
 
+(These claims assume the keys are hashable, as `str`, `int`, and `tuple`
+of those are.)
+
 **Hash-table intuition, without the internals:** a dictionary computes a
 number (a "hash") from a key and uses that number to jump almost
 directly to where the corresponding value is stored — this is why
 lookup does not typically require scanning every key, unlike list
 membership. **Worst-case caveat, stated plainly:** in rare pathological
 situations (for example, deliberately crafted keys designed to collide,
-or certain adversarial inputs), dictionary operations can degrade well
-below O(1) — this is a real, documented possibility, not just a
+or certain adversarial inputs), dictionary operations can degrade from
+O(1) average-case to O(n) worst-case when severe hash collisions occur —
+this is a real, documented possibility, not just a
 theoretical footnote, which is exactly why this chapter says
 **"typically O(1) average-case under normal assumptions"** rather than
 an unconditional "dictionary lookup is O(1)."
@@ -787,18 +791,21 @@ sorted_list = sorted(numbers)     # returns a NEW list
 numbers.sort()                    # sorts IN PLACE
 ```
 
-Both `sorted()` and `list.sort()` cost **O(n log n)** typical time —
-this is the well-known lower bound for general comparison-based sorting
+Both `sorted()` and `list.sort()` have **O(n log n)** worst-case time —
+the standard classification for Python sorting, and the well-known
+bound for general comparison-based sorting on arbitrary input
 (briefly touched on conceptually in the previous chapter's §35, and
 revisited only as needed here; the algorithmic internals of sorting are
-not this chapter's focus).
+not this chapter's focus). Python's sort is also **adaptive**: already-
+sorted or reverse-sorted input can need only O(n) comparisons, so not
+every input requires the full O(n log n) work.
 
 - `sorted()` additionally uses **O(n)** space, because it builds an
   entirely new list.
 - `list.sort()` sorts the existing list's storage directly, so it does
-  not need a full second O(n) list for the result (though the
-  underlying algorithm may use a small amount of extra working space
-  internally).
+  not create a second full result list the way `sorted()` does (though
+  the implementation may still use auxiliary working memory internally,
+  so do not assume strictly O(1) auxiliary space).
 - Python's sort is **stable** (previous chapter, §24) — this does not
   change its Big-O classification, but it does affect the *result* when
   multiple items share a sort key.
@@ -956,9 +963,10 @@ a quadratic comparison.
 PROBLEM: rank millions of transactions by amount. NAIVE: sort the *raw*
 dataset first, then group/aggregate. BETTER: aggregate/group first
 (shrinking to one row per customer or category), then sort the much
-smaller aggregated result (previous chapter, §34). TRADE-OFF: none,
-really — this reordering of steps typically costs nothing and saves
-real time, since sorting (O(n log n)) is more expensive than a single
+smaller aggregated result (previous chapter, §34). TRADE-OFF: when
+the requirement is specifically to aggregate/group and then rank the
+aggregated result, there is no meaningful semantic trade-off — this
+reordering of steps typically costs nothing and saves real time, since sorting (O(n log n)) is more expensive than a single
 grouping pass (O(n)).
 
 **6. Data-quality validation.**
@@ -972,8 +980,10 @@ exchange for turning a quadratic-feeling check into a linear one.
 **7. ETL processing.**
 PROBLEM: a nightly job joins two large tables by a shared key. NAIVE:
 for every row in table A, scan all of table B looking for a match —
-O(n × m). BETTER: index table B by the join key in a dictionary first,
-then look up each row of A against it — O(n + m). TRADE-OFF: memory to
+O(n × m). BETTER: for a many-to-one lookup where the join key is unique in
+table B, index table B by that key in a dictionary first, then look up
+each row of A against it — O(n + m). (This is a dictionary-index lookup
+pattern, not a universal implementation of arbitrary relational joins.) TRADE-OFF: memory to
 hold the index, in exchange for turning the join from quadratic to
 linear.
 
@@ -1081,7 +1091,9 @@ def countdown(n):
 ```
 
 **Counting the work:** `countdown` calls itself once per decrement,
-from `n` down to `0` — that is `n` calls total, so **time is O(n)**.
+from `n` down to `0` — that is `n + 1` invocations in total
+(`countdown(5)` invokes `countdown(5)` through `countdown(0)`, 6 calls),
+which is proportional to `n`, so **time is O(n)**.
 Each of those calls, though, does not finish and disappear before the
 next one starts — a recursive call is placed on the **call stack**,
 waiting for the call it made to return, and the calls stack up: calling
@@ -1162,8 +1174,9 @@ Using linear search as the running example:
   amount of work, on average, across many runs.
 
 **Engineers typically emphasize worst-case guarantees** because they
-represent a reliable upper bound — a promise that performance will
-never be *worse* than this, no matter how unlucky the input is. This
+represent an asymptotic upper bound on growth — the rate at which cost
+grows will not be *worse* than this, no matter how unlucky the input is
+(it is not an exact runtime guarantee or a fixed numeric ceiling). This
 matters enormously for reliability: a system whose worst case is
 acceptable will not have unpredictable performance cliffs in
 production, even under adversarial or unusual input.
@@ -1224,8 +1237,8 @@ Briefly, at a conceptual level, without formal proofs:
   algorithm's cost grows *no slower than* this rate."
 - **Θ (Big-Theta)** — describes a **tight bound**: growth that is
   *both* upper- and lower-bounded by the same rate — the algorithm's
-  cost genuinely grows *exactly* at this rate, not merely "at most" or
-  "at least."
+  cost grows asymptotically at the same rate, not merely "at most" or
+  "at least" (this is about growth rate, not exact operation counts).
 
 For example, linear search's worst case is both O(n) (it never does
 *more* than n comparisons) and Ω(1) (in the best case, it might do as
@@ -1248,8 +1261,9 @@ place the new item into that already-reserved space — genuinely O(1).
 Occasionally, though, the reserved space runs out, and the list must
 allocate a *larger* block of memory and copy every existing item into
 it — an O(n) operation, but one that happens only rarely, and each time
-it happens, it roughly doubles the available capacity, making the next
-resize much further away.
+it happens, it grows the reserved capacity by a proportional amount (in CPython,
+a roughly constant factor — an implementation detail, not a language
+guarantee), making the next resize much further away.
 
 **Amortized analysis** spreads that occasional expensive resize evenly
 across the many cheap appends that led up to it — averaged over a long
@@ -1423,7 +1437,7 @@ def keep_known(items, known_set):
     return [item for item in items if item in known_set]
 ```
 One pass over `items` (length `n`); each `in known_set` check costs
-O(1) average-case (§21), regardless of `known_set`'s own size. **Time:
+O(1) average-case (§21, assuming hashable items), regardless of `known_set`'s own size. **Time:
 O(n) average-case. Space: O(n)** in the worst case (if every item is
 kept).
 
@@ -1882,10 +1896,11 @@ def naive_pipeline(transactions, lookup_ids):
 
     found = [find_transaction(tid) for tid in lookup_ids]
 
-    # 2. Deduplicate transaction IDs (accidentally O(n²) here).
+    # 2. Deduplicate by transaction ID, keeping the first record
+    #    (accidentally O(n²) here).
     unique = []
     for t in transactions:
-        if t not in unique:          # `in` on a growing LIST of dicts!
+        if not any(u["id"] == t["id"] for u in unique):   # linear scan of a growing LIST!
             unique.append(t)
 
     # 3. Group transactions by customer.
@@ -1914,11 +1929,11 @@ def naive_pipeline(transactions, lookup_ids):
 
 - **Step 1 (repeated search):** `find_transaction` is O(n) per call; it
   is called once per ID in `lookup_ids` (size `m`). Total: **O(m × n)**.
-- **Step 2 (deduplication):** `t not in unique` scans the *entire*,
-  growing `unique` list for every single transaction — this is a
+- **Step 2 (deduplication):** the `any(u["id"] == t["id"] for u in unique)` check scans the
+  *entire*, growing `unique` list for every single transaction — this is a
   disguised **O(n²)** operation, even though it does not look like a
   nested loop at first glance (each `.append` grows `unique`, and the
-  `in` check itself is a hidden linear scan performed once per outer
+  membership check itself is a hidden linear scan performed once per outer
   transaction).
 - **Steps 3–4 (grouping and totals):** each is a single pass, O(n)
   overall.
@@ -1930,7 +1945,7 @@ def naive_pipeline(transactions, lookup_ids):
 
 ### B. Identify bottlenecks
 
-- **Time bottleneck:** step 2's `t not in unique` is the worst offender
+- **Time bottleneck:** step 2's linear scan of `unique` is the worst offender
   — it silently reintroduces O(n²) behavior into what should have been
   an O(n) deduplication pass (exactly the kind of hidden-quadratic-cost
   mistake this chapter has emphasized spotting).
@@ -1947,7 +1962,10 @@ from collections import defaultdict
 
 def improved_pipeline(transactions, lookup_ids):
     # 1. Build an index ONCE for repeated lookups — O(n) average-case.
-    by_id = {t["id"]: t for t in transactions}
+    #    Keep the FIRST record per ID, matching the deduplication below.
+    by_id = {}
+    for t in transactions:
+        by_id.setdefault(t["id"], t)
     found = [by_id.get(tid) for tid in lookup_ids]           # O(m) average-case
 
     # 2. Deduplicate with a set-backed seen-check — O(n) average-case.
@@ -2036,11 +2054,10 @@ comfortably.
 - What is the difference between Big-O, Big-Omega, and Big-Theta?
 - Why doesn't a nested loop automatically imply O(n²)? Give an example
   where it does not.
-- A recursive function makes `n` calls total, but its call stack only
-  ever holds a constant number of pending calls at once (because it
-  processes results iteratively via an internal loop, not by chaining
-  recursive calls deeply) — what would you expect for its time versus
-  space complexity, and why might they differ?
+- Compare `countdown(n)` (which calls itself once with `n - 1`) with a
+  loop that counts from `n` down to `0`. Both do O(n) work in total, but
+  how do their recursion depth / call-stack space differ, and why does
+  the number of total calls not by itself determine space complexity?
 - Why can an O(n) algorithm with a large constant factor be slower, in
   practice, than an O(n log n) algorithm for realistic input sizes? What
   does this imply about relying on Big-O alone when choosing between two
@@ -2174,7 +2191,7 @@ re-measure afterward to confirm the change actually helped.
 
 ### §39 — Testing Complexity Reasoning
 
-**Q1.** `n = len(numbers)`. One loop, one addition and one comparison
+**Q1.** `n = len(numbers)`. One loop, one addition
 per item, no nesting, no early termination. **Time: O(n). Space: O(1)**
 — `result` is a single accumulating number, not a growing collection.
 
@@ -2319,7 +2336,7 @@ transactions retained.
 nested `defaultdict` structure is O(1) average-case. **Time: O(n)
 average-case. Space: O(s × v)**, where `s` is the number of distinct
 services and `v` the number of distinct severities per service — in
-practice small and bounded, far smaller than `n`.
+practice bounded by O(n) for `n` input records (and often much smaller).
 
 **18.** Setup: build a `customer_id → customer` dictionary once, O(n)
 average-case, paid a single time (or refreshed periodically if the
@@ -2338,7 +2355,8 @@ exist, `seen` and `result` both grow to size `n`).
 uses a proper set (`seen_texts`), each check O(1) average-case, giving
 O(n) average-case for that stage too — assuming string normalization
 (`.strip().lower()`) itself is treated as O(length of that string),
-which is a small, bounded cost per item, not tied to `n`. The final
+which depends on the length of each individual string — typically short
+and not tied to `n`, so it does not change the high-level conclusion. The final
 `sorted(..., key=...)` costs O(u log u), where `u` is the number of
 unique, cleaned examples. **Overall time: O(n + u log u) average-case**
 (commonly simplified to O(n log n), since `u ≤ n`). **Space: O(n)** for

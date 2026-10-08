@@ -439,8 +439,8 @@ The only syntactic difference is `[]` versus `()` — but the behavior
 differs meaningfully: a list comprehension **creates a list immediately**,
 computing and storing every value up front; a generator expression
 **produces values lazily**, computing each one only when something
-actually asks for the next value, and never holding the whole sequence
-in memory at once. This is exactly the distinction the previous
+actually asks for the next value, and never materializing the generated
+result values into a new collection all at once. This is exactly the distinction the previous
 chapters already relied on (grouping chapter §36; Big-O chapter §17) —
 this section is where it is formally introduced as its own named
 feature.
@@ -1194,7 +1194,8 @@ Connecting directly, and precisely, to
   the generator's *consumer* itself decides to store (if you build a
   list from the generator, e.g., `list(x * 2 for x in numbers)`, that
   final list is still O(n) — the O(1) claim is specifically about the
-  generator machinery itself, not about however its output is
+  generator machinery itself (the input iterable, e.g. an existing
+  `numbers` list, may already be in memory), not about however its output is
   ultimately used).
 
 **The precise, important point:** lazy evaluation does not make the
@@ -1261,10 +1262,9 @@ built-in reference.
 ```python
 [x for x in range(10)]
 ```
-`range(10)` produces `0` through `9` — a common, memory-efficient
-source of numbers to iterate over, itself lazy in the same spirit as a
-generator expression (it does not build a list of ten numbers up
-front).
+`range(10)` represents the values `0` through `9` without materializing
+them as a list up front, making it an efficient iterable for numeric
+iteration (it is a `range` object, not a generator expression).
 
 ```python
 [name for name in names if len(name) > 3]
@@ -1326,7 +1326,8 @@ list(filter(lambda x: x > 10, numbers))
 
 ```python
 {user["id"]: user for user in users}.items()
-{user["id"] for user in users}.keys() if isinstance({}, dict) else None  # (illustrative only)
+{user["id"]: user for user in users}.keys()
+{user["id"]: user for user in users}.values()
 ```
 `dict.items()`, `dict.keys()`, `dict.values()` — from §11, used
 whenever a comprehension needs to iterate over an *existing*
@@ -1951,7 +1952,7 @@ def filter_completed(transactions):
 
 
 def normalize_descriptions(transactions):
-    return [t["description"].strip().lower() for t in transactions]
+    return [(t.get("description") or "").strip().lower() for t in transactions]
 
 
 def count_by_customer(transactions):
@@ -1965,8 +1966,12 @@ def unique_categories(transactions):
     return {t["category"] for t in transactions}
 
 
+def positive_amounts(transactions):
+    return (t["amount"] for t in transactions if t["amount"] > 0)
+
+
 def total_positive_amount(transactions):
-    return sum(t["amount"] for t in transactions if t["amount"] > 0)
+    return sum(positive_amounts(transactions))
 
 
 def rank_customers_by_count(customer_counts):
@@ -1978,9 +1983,11 @@ def build_summary(transactions):
 
     return {
         "all_ids": extract_ids(transactions),
+        "completed_transactions": completed,
         "normalized_descriptions": normalize_descriptions(completed),
         "customer_counts": count_by_customer(completed),
         "categories": unique_categories(completed),
+        "positive_amounts": positive_amounts(completed),   # generator — consume once
         "total_positive_amount": total_positive_amount(completed),
         "ranked_customers": rank_customers_by_count(count_by_customer(completed)),
     }

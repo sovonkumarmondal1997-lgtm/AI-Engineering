@@ -450,12 +450,14 @@ factorial_recursive(3) resumes, computes 3 * 2 = 6, returns 6  → its frame is 
 By the time `factorial_recursive(3)` finally returns `6` to whoever
 called it, the call stack is back to empty — every frame added during
 the "going down" phase has been removed, one at a time, during
-unwinding. **Nothing is computed until the base case is reached; then
-everything is computed, one paused frame at a time, on the way back
-out.** This two-phase mental model — first fully descend to the base
-case, then fully unwind back out, computing as you go — is the single
-most useful way to reason correctly about any recursive function's
-behavior.
+unwinding. **In this factorial example, the multiplications cannot be
+completed until the base case is reached; then each is completed, one
+paused frame at a time, on the way back out.** (Recursive functions can
+also do useful work *before* making the recursive call — factorial's
+multiplication just happens to depend on the returned value.) This
+two-phase mental model — first descend toward the base case, then unwind
+back out, finishing the pending work as you go — is the single most
+useful way to reason correctly about a recursive function's behavior.
 
 ## 10. Tracing a Recursive Function
 
@@ -924,27 +926,29 @@ function — §23 and §24 work through concrete cases where they diverge.
 ### 23.1 Linear recursion — one call per invocation
 
 ```python
-def sum_list(numbers):
-    if not numbers:
+def sum_list(numbers, index=0):
+    if index == len(numbers):
         return 0
-    return numbers[0] + sum_list(numbers[1:])
+    return numbers[index] + sum_list(numbers, index + 1)
 ```
 
 Counting the work: one call is made per item in `numbers`, plus one
-final call for the empty-list base case — `n + 1` calls total, each
-doing a small, constant amount of work (one addition). **Time: O(n)** —
-directly analogous to a single loop over `n` items.
+final call for the base case (`index == len(numbers)`) — `n + 1` calls
+total, each doing a small, constant amount of work (one addition).
+**Time: O(n)** — directly analogous to a single loop over `n` items,
+with **O(n) recursion-stack space** (§24.2).
 
-**A caveat worth flagging explicitly:** `numbers[1:]` itself creates a
-*new list* (a slice, list chapter's §6), which costs O(k) where `k` is
-the remaining list's length — this means `sum_list` as written is
-actually doing more work than a plain loop would, because of the
-repeated slicing, not because of the recursion itself. This is worth
-noticing precisely because it demonstrates that a recursive function's
-complexity depends on *everything* inside its body, not merely on how
-many times it calls itself — a lesson directly consistent with the
-Big-O chapter's own repeated warning (§37 there) against classifying
-code by its "shape" alone.
+**A caveat worth flagging explicitly:** the slicing version from §11
+(`numbers[0] + sum_list(numbers[1:])`) creates a *new list* at every
+level (a slice, list chapter's §6), which costs O(k) where `k` is the
+remaining list's length — repeated slicing makes that version do O(n²)
+total copying work, not because of the recursion itself. The
+index-based version above avoids creating a new list at every recursive
+level. This is worth noticing precisely because it demonstrates that a
+recursive function's complexity depends on *everything* inside its body,
+not merely on how many times it calls itself — a lesson directly
+consistent with the Big-O chapter's own repeated warning (§37 there)
+against classifying code by its "shape" alone.
 
 ### 23.2 Branching recursion — naive Fibonacci
 
@@ -989,8 +993,11 @@ depth** — not to its total number of calls.
 
 `sum_list([1, 2, 3, 4])` reaches a depth of 5 (one call per item, plus
 the base case) before any unwinding begins — all 5 frames exist
-simultaneously at that deepest point. **Space: O(n)**, directly
-matching the Big-O chapter's `countdown` example (§29 there).
+simultaneously at that deepest point. **Space: O(n)** of recursion-stack
+space for the index-based `sum_list` of §23.1 — and, because it passes
+the same list plus an index, no progressively smaller list slices are
+created as additional data. (This is directly matching the Big-O
+chapter's `countdown` example, §29 there.)
 
 ### 24.3 Branching recursion's space cost — a genuine surprise
 
@@ -1343,8 +1350,9 @@ def process(data):
     return transform_leaf(data)   # base case: a plain, non-nested value
 ```
 
-This single function correctly handles **arbitrarily deep** mixtures of
-lists, dictionaries, and plain values, because it checks, at every
+This single function correctly handles **arbitrarily nested** mixtures
+of lists, dictionaries, and plain values (conceptually; in practice the
+nesting it can process is bounded by Python's recursion depth, §26), because it checks, at every
 level, "is this itself a nested structure, or is it a leaf value?" — and
 recurses only in the first case. This directly reuses comprehensions
 (comprehensions chapter's §8, §10) *inside* a recursive function — the
@@ -1484,11 +1492,14 @@ print(all_subsets([1, 2]))
 
 At each step, this explores **both** choices for the first item —
 *exclude* it (`subsets_without_first`) or *include* it
-(`subsets_with_first`) — and combines the results. This is a clean,
-teaching-scale example of backtracking's essence ("try each choice, and
-explore what follows from it") without needing an explicit "undo" step,
-because each branch naturally builds its own independent result rather
-than mutating shared state. This directly connects to §2.1's "exploring
+(`subsets_with_first`) — and combines the results. This is a
+branching-recursion example that illustrates the core idea behind
+backtracking ("try each choice, and explore what follows from it"), but
+it does not use the classic choose / recurse / undo pattern — no
+explicit "undo" step is needed, because each branch naturally builds its
+own independent result rather than mutating shared state. Note that `n`
+items have 2ⁿ subsets, so the output itself is exponentially large and
+the total work is at least O(2ⁿ), however simple the recursion looks. This directly connects to §2.1's "exploring
 combinations" use case, and demonstrates branching recursion (§19–§20)
 applied to a genuinely different kind of problem than Fibonacci's pure
 number computation. A full treatment of backtracking (with pruning,
@@ -1602,10 +1613,11 @@ further here).
 
 ### 39.2 When to reach for `lru_cache` vs. a manual cache
 
-`@lru_cache` is the right default choice for any recursive function
+`@lru_cache` is a strong default choice for a recursive function
 whose arguments are **hashable** (the same requirement introduced for
 dictionary keys and set elements in the data-structures chapter's §9,
-§13) and whose subproblems genuinely overlap (§37.1) — it is simpler,
+§13) whose subproblems genuinely overlap (§37.1), and whose results are safe
+to cache (it is not appropriate for every recursive function) — it is simpler,
 less error-prone, and more idiomatic than threading a manual cache
 dictionary through every call, as §38.1 did purely for teaching
 transparency. A manual cache remains useful specifically when the cache
@@ -1664,9 +1676,10 @@ one half is exhausted, then appends whatever remains of the other —
 this is the step that does genuine, non-trivial combining work, unlike
 binary search's trivial pass-through combine step. This connects
 directly to the previous chapters' own treatment of sorting (grouping
-chapter's §22, Big-O chapter's §22): merge sort is precisely how
-Python's own highly optimized Timsort (Big-O chapter's §35) achieves
-its O(n log n) guarantee — **unlike** binary search, this recursion
+chapter's §22, Big-O chapter's §22): merge sort is taught
+here as a divide-and-conquer algorithm; Python's built-in sorting uses
+Timsort (Big-O chapter's §35), a separate hybrid, adaptive sorting
+algorithm — **unlike** binary search, this recursion
 must conquer **both** halves (not just one), which is exactly why merge
 sort costs O(n log n) rather than binary search's O(log n): at every
 one of the O(log n) levels of recursion, `merge()` does O(n) total work
@@ -1851,10 +1864,10 @@ explicitly (§4–§6), then confirm genuine progress toward the base case
 number from `n` down to `1`.
 
 **2.** Write a recursive function `sum_to_n(n)` that returns the sum of
-every integer from `1` to `n`.
+every integer from `1` to `n`. Assume `n` is a non-negative integer.
 
 **3.** Write a recursive function `power_of_two(n)` that returns `2`
-raised to the power `n`.
+raised to the power `n`. Assume `n` is a non-negative integer.
 
 **4.** Write a recursive function `count_items(items)` that returns how
 many items are in a list, without using `len()`.
@@ -1900,6 +1913,8 @@ identical output to the recursive version for a deeply nested input.
 **15.** Write a recursive function `all_permutations(items)` that
 returns every possible ordering of a small list (hint: for each item,
 consider it as the "first" item, and recursively permute the rest).
+Assume all input elements are distinct. (Note that `n` items have `n!`
+permutations, so the output size alone grows factorially.)
 
 ### Level 4 — Production-Oriented
 
@@ -1915,8 +1930,9 @@ total number of files in a nested folder structure represented as
 
 **18.** Using `@lru_cache`, write a memoized recursive function that
 computes the `n`th value of a different simple recurrence of your
-choice (not Fibonacci), and explain, in a sentence, why memoization
-helps for that specific recurrence.
+choice (not Fibonacci) — choose one with overlapping subproblems, so
+that memoization gives a meaningful speedup — and explain, in a
+sentence, why memoization helps for that specific recurrence.
 
 **19.** Write a recursive function that safely traverses a graph
 represented as an adjacency dictionary (following §35's pattern),
@@ -1963,7 +1979,9 @@ shape), build a small tool that:
   finite (no cycles — unlike §35's graph case, a JSON-like config
   structure is guaranteed to be a tree, not a graph).
 - **Edge cases** — an empty dictionary or list at any level; a
-  completely flat (non-nested) structure (depth of 1); a `None` value
+  completely flat (non-nested) structure (depth of 2 under this
+  project's definition: a container counts as one level and its leaves
+  as one more; a bare leaf value has depth 1); a `None` value
   as a leaf (decide explicitly whether `None` counts as valid — this
   project treats it as invalid, since it is not in the allowed type
   set).
@@ -1994,9 +2012,15 @@ shape), build a small tool that:
   nested-structure template, specialized four different ways (flatten,
   count, depth, validate) — each a small variation on the same
   underlying recursive shape.
-- **Complexity** — every operation visits each leaf and each nesting
-  level exactly once: **O(n)** time, where `n` is the total number of
-  values (leaf and container) in the structure; **space** proportional
+- **Complexity** — each individual operation (`flatten_config`,
+  `count_leaves`, `max_depth`, `find_invalid_paths`) is a single
+  traversal visiting each leaf and each nesting level once: **O(n)**
+  time, where `n` is the total number of values (leaf and container) in
+  the structure (treating path-string building as constant per value;
+  `flatten_config` writes into one shared result dictionary rather than
+  merging intermediate ones). `validate_and_report` calls several of
+  these, so it performs a small, constant number of O(n) traversals —
+  still O(n) overall, but not a single pass. **Space** proportional
   to the structure's **maximum depth** for the call stack (§24), plus
   O(n) for the flattened output dictionary itself.
 
@@ -2006,17 +2030,18 @@ shape), build a small tool that:
 ALLOWED_TYPES = (str, int, float, bool)
 
 
-def flatten_config(data, path=""):
-    result = {}
+def flatten_config(data, path="", result=None):
+    if result is None:
+        result = {}
 
     if isinstance(data, dict):
         for key, value in data.items():
             new_path = f"{path}.{key}" if path else key
-            result.update(flatten_config(value, new_path))
+            flatten_config(value, new_path, result)
     elif isinstance(data, list):
         for index, value in enumerate(data):
             new_path = f"{path}[{index}]"
-            result.update(flatten_config(value, new_path))
+            flatten_config(value, new_path, result)
     else:
         result[path] = data   # base case: a leaf value
 
@@ -2065,7 +2090,7 @@ config = {
 }
 
 report = validate_and_report(config)
-print(report["leaf_count"])       # 5
+print(report["leaf_count"])       # 6
 print(report["max_depth"])         # 4
 print(report["invalid_paths"])     # ['settings.limits.timeout']
 print(report["flattened"])

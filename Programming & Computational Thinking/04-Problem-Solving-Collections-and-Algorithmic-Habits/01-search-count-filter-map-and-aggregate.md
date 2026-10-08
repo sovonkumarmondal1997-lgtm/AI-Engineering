@@ -902,8 +902,9 @@ print(list(result))    # [2, 4, 6, 8]
 
 Just like `filter()`, `map()` returns an iterator, so wrap it in
 `list(...)` when you need an actual list. One input item always produces
-one output item — `map()` cannot drop or duplicate items, only transform
-them.
+one output item — with a single input iterable, `map()` cannot drop or
+duplicate items, only transform them. (With several iterables, `map()`
+stops when the shortest one runs out.)
 
 `map()` also works with a real, named function, which often reads more
 clearly than a `lambda`, especially when the transformation has a
@@ -1198,10 +1199,10 @@ it against a plain loop before committing to it.
 
 | Pattern | Question it answers | Shape of output | Typical Python tools |
 |---|---|---|---|
-| **Search** | Does X exist / what is the first X? | A single item, or `True`/`False` | `in`, `not in`, `any()`, `all()`, `next()`, loop + `break` |
+| **Search** | Does X exist / what is the first X? | A single item, or `True`/`False` | `in`, `not in`, `any()` (existence check), `next()`, loop + `break`; `all()` is the related universal check ("does every item satisfy it?") |
 | **Count** | How many satisfy a condition? | A single integer | `len()`, `.count()`, `sum(condition for ...)`, `Counter` |
 | **Filter** | Which items should I keep? | A smaller (or equal-sized) collection | list comprehension with `if`, `filter()` |
-| **Map** | What does each item become? | A same-sized collection, transformed | list comprehension, `map()` |
+| **Map** | What does each item become? | A transformed collection (one output per input item, for a single iterable) | list comprehension, `map()` |
 | **Aggregate** | What single result summarizes all items? | A single value | `sum()`, `min()`, `max()`, `math.prod()`, `statistics.mean()`, `reduce()` |
 
 ### One dataset, five questions
@@ -1523,9 +1524,9 @@ records = [
 - *Keep only valid (non-null-email) records.* → **FILTER**
   `[r for r in records if r["email"] is not None]`
 - *Normalize emails to lowercase (skipping missing ones).* → **MAP**
-  `[(r["email"] or "").lower() for r in records]`
+  `[r["email"].lower() for r in records if r.get("email") is not None]`
 - *Percentage of records that are valid.* → **FILTER → COUNT → AGGREGATE**
-  `sum(r["email"] is not None for r in records) / len(records)`
+  `sum(r["email"] is not None for r in records) / len(records) if records else 0`
 
 ### 14.5 AI/ML preprocessing
 
@@ -1820,12 +1821,14 @@ records = [{"amount": 100}, {"status": "ok"}]   # second record has no "amount"
 
 ## 17. Performance and Big-O
 
-Every pattern in this chapter, in its general form, must at least glance
-at each item once, so all five share the same baseline cost:
+Count, filter, map, and full aggregation must visit every item once, so
+they share the same baseline cost. Search is different: its cost depends
+on the data structure being searched (list/tuple membership, `any()`, and
+`next()` scan up to n items, while set/dict membership is expected O(1)):
 
 | Pattern | Typical time complexity | Notes |
 |---|---|---|
-| Search | O(n) worst case | but often stops early — best case O(1), average depends on where the match is |
+| Search | O(n) worst case for lists/tuples, `any()`, `next()`; expected O(1) for set/dict membership | scans often stop early — best case O(1), average depends on where the match is |
 | Count | O(n) | must inspect every item — no early termination for an exact count |
 | Filter | O(n) | visits every item once |
 | Map | O(n) | visits every item once |
@@ -1835,7 +1838,7 @@ Here, **n** is the number of items in the collection, and O(n) means the
 work grows proportionally with the size of the input — twice the data,
 roughly twice the time.
 
-**Early termination matters for search.** `in`, `any()`, and `next()`
+**Early termination matters for search.** `in` on a list or tuple, `any()`, and `next()`
 all stop the moment they find a match, so while the *worst case* (item
 is last, or absent) is O(n), a match near the start of a large
 collection can be found almost instantly. Count and full aggregation
@@ -2203,7 +2206,7 @@ Input:
 examples = ["Great!", "   ", "Terrible.", ""]
 ```
 Expected output: cleaned list `["great!", "terrible."]`, average length
-`7.0`
+`7.5`
 
 ## 22. Mini Project — Transaction Analysis Engine
 
@@ -2264,7 +2267,7 @@ def average_completed_amount(transactions):
 def has_transaction_above(transactions, threshold):
     ...
 
-def build_summary(transactions, threshold):
+def build_summary(transactions, target_id, threshold):
     ...
 ```
 
@@ -2354,13 +2357,15 @@ FILTER → MAP → AGGREGATE  (the most common real-world pipeline shape)
   is just a different combination of a condition, an accumulator or
   result collection, and (sometimes) early termination.
 - **Search** finds an item or a yes/no answer and stops as soon as it
-  can — `in`, `any()`, `all()`, `next()`.
+  can — `in`, `next()`, and `any()` as an existence check. `all()` is
+  the related universal predicate check ("does every item satisfy the
+  condition?").
 - **Count** always visits everything and answers "how many" — `len()`,
   `.count()`, `sum(condition for ...)`, `Counter`.
 - **Filter** keeps a subset of items unchanged — comprehension with
   `if`, `filter()`.
-- **Map** transforms every item, keeping the same count — comprehension,
-  `map()`.
+- **Map** transforms every item; with one input iterable it produces one
+  output per input item — comprehension, `map()`.
 - **Aggregate** combines everything into one value — `sum()`, `min()`,
   `max()`, `math.prod()`, `statistics.mean()`, `reduce()`.
 - Every compact tool in this chapter is a stand-in for a loop you could
@@ -2549,7 +2554,7 @@ cleaned = [text.lower() for text in examples if text.strip()]
 average_length = sum(len(t) for t in cleaned) / len(cleaned) if cleaned else 0
 
 print(cleaned)          # ['great!', 'terrible.']
-print(average_length)   # 7.0
+print(average_length)   # 7.5
 ```
 
 ### Mini Project — Reference Solution
@@ -2577,8 +2582,9 @@ def average_completed_amount(transactions):
 def has_transaction_above(transactions, threshold):
     return any(t["amount"] > threshold for t in transactions)
 
-def build_summary(transactions, threshold):
+def build_summary(transactions, target_id, threshold):
     return {
+        "found_transaction": find_transaction_by_id(transactions, target_id),
         "failed_count": count_failed(transactions),
         "completed_count": len(filter_completed(transactions)),
         "total_completed_amount": total_completed_amount(transactions),
@@ -2615,7 +2621,8 @@ transactions = [
 print(find_transaction_by_id(transactions, "T2"))
 # {'id': 'T2', 'amount': 250, 'status': 'failed'}
 
-print(build_summary(transactions, threshold=300))
-# {'failed_count': 1, 'completed_count': 2, 'total_completed_amount': 500,
+print(build_summary(transactions, target_id="T2", threshold=300))
+# {'found_transaction': {'id': 'T2', 'amount': 250, 'status': 'failed'},
+#  'failed_count': 1, 'completed_count': 2, 'total_completed_amount': 500,
 #  'average_completed_amount': 250.0, 'has_large_transaction': True}
 ```

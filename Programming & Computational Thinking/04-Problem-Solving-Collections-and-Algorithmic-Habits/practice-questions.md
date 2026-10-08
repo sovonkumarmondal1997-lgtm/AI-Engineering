@@ -1018,8 +1018,10 @@ second chapter.
 
 - **Time:** O(n) — where `n` is the total number of lines; each line is
   matched against the compiled pattern once.
-- **Space:** O(s) — where `s` is the number of distinct services,
-  bounded by `n`.
+- **Space:** O(n) auxiliary — `parsed` can hold up to `n` records and
+  `errors` can also hold up to `n` records. The final `Counter` itself
+  holds only O(s) entries, where `s` is the number of distinct services
+  (`s <= n`).
 
 ## Edge Cases
 
@@ -1045,53 +1047,64 @@ skipping entries that cannot.
 
 ### Step 1 — Decide what "cleanable" means
 
-Strip every character that is not a digit or a decimal point, then
-attempt a numeric conversion; if that conversion fails or produces an
-empty result, skip the entry.
+Work in three stages: **normalize** known formatting (surrounding
+whitespace, thousands commas, a leading currency symbol among `$`, `€`,
+`£`), **validate** the result against a simple numeric grammar (an
+optional sign, then digits with an optional decimal part), and only then
+**convert** to `float`. Anything that does not fit the grammar is
+skipped — arbitrary characters are never blindly deleted.
 
 ### Step 2 — Implement
 
 ```python
 import re
 
+AMOUNT_PATTERN = re.compile(r"[+-]?(?:\d+(?:\.\d+)?|\.\d+)")
+
 def clean_amounts(raw_values):
     cleaned = []
+
     for value in raw_values:
-        digits_only = re.sub(r"[^\d.]", "", value)
-        if not digits_only:
+        normalized = value.strip().replace(",", "")
+        normalized = normalized.lstrip("$€£").strip()
+
+        if not AMOUNT_PATTERN.fullmatch(normalized):
             continue
-        try:
-            cleaned.append(float(digits_only))
-        except ValueError:
-            continue
+
+        cleaned.append(float(normalized))
+
     return cleaned
 ```
 
 ## Explanation
 
-`re.sub(r"[^\d.]", "", value)` removes every character that is not a
-digit or a period in one call — a negated character class — correctly
-stripping currency symbols, commas, whitespace, and any other
-punctuation regardless of which specific symbols appear. The `try`/
-`except` guards against edge cases the regex alone cannot fully rule
-out (for example, a string like `"1.2.3"` that survives the character
-filter but still fails `float()` conversion).
+Normalization removes only the known formatting characters (outer
+whitespace, commas, a leading currency symbol). Validation is then a
+separate step: `AMOUNT_PATTERN.fullmatch()` checks that what remains is
+genuinely a number, so malformed values like `"1.2.3"` or `"abc123"`
+are rejected instead of being "repaired" into a different number.
+Because the pattern has already guaranteed a valid numeric shape,
+`float()` cannot fail, so no `try`/`except` is needed. The exercise
+asks for `float`; in production financial code, `Decimal` is usually
+preferred when exact decimal monetary representation is required.
 
 ## Complexity
 
 - **Time:** O(n × m) — where `n` is the number of raw values and `m` is
-  the average string length; each value undergoes one regex
-  substitution pass.
+  the average string length; each value undergoes a constant number of
+  linear passes (strip, replace, validate).
 - **Space:** O(n) — the cleaned list holds at most one entry per input
   value.
 
 ## Edge Cases
 
-- `"$1,200.50"` → cleaned to `"1200.50"`, converts to `1200.5`.
-- `"invalid"` → cleaned to `""` (no digits or periods present), skipped
-  before even attempting conversion.
-- `"1.2.3"` → cleaned to `"1.2.3"`, which still fails `float()` and is
-  correctly skipped via the `try`/`except`.
+- `"$1,200.50"` → normalized to `"1200.50"`, converts to `1200.5`.
+- `"  980.00  "` → `980.0`; `"€500"` → `500.0`.
+- `"-100"` → a leading sign is part of the grammar, so the value is
+  preserved as `-100.0` (it is not turned into `100`).
+- `"invalid"` and `"abc123"` → fail validation (alphabetic content), so
+  they are skipped.
+- `"1.2.3"` → fails validation (malformed number), so it is skipped.
 - An empty list of raw values → returns `[]`.
 
 ---
@@ -1244,9 +1257,10 @@ def parse_transaction_line(line):
     transaction_id, customer, items_raw, status = line.split("|")
 
     items = {}
-    for item in items_raw.split(","):
-        name, _, quantity = item.partition(":")
-        items[name] = int(quantity)
+    if items_raw:   # an empty items field means "no items", not one blank item
+        for item in items_raw.split(","):
+            name, _, quantity = item.partition(":")
+            items[name] = int(quantity)
 
     return {
         "id": transaction_id,
@@ -1276,9 +1290,8 @@ complex parsing expression.
 ## Edge Cases
 
 - A transaction with no items (`items_raw` is an empty string) →
-  `"".split(",")` produces `[""]`, and partitioning `""` on `:`
-  produces `("", "", "")`; this simple version would need an explicit
-  empty-string check to handle a genuinely empty items field cleanly.
+  `"".split(",")` would produce `[""]` (and `int("")` would fail), so
+  the `if items_raw:` check skips parsing and returns `"items": {}`.
 - A quantity that is not a valid integer → raises `ValueError` from
   `int(quantity)`.
 - Extra `|` characters inside the customer name → would incorrectly
@@ -1504,9 +1517,9 @@ role.
 
 ### Step 1 — Identify the distinct requirements
 
-Three separate requirements: duplicate rejection (membership),
-FIFO processing order, and (implicitly) a way to look up a stored
-transaction later.
+Two separate requirements: duplicate rejection (membership) and FIFO
+processing order. (No lookup-by-ID requirement is stated, so none is
+added.)
 
 ### Step 2 — Assign one structure per responsibility
 
@@ -1514,23 +1527,20 @@ transaction later.
 from collections import deque
 
 seen_ids = set()                  # membership: reject duplicates
-pending_queue = deque()            # FIFO: process in arrival order
-transactions_by_id = {}            # lookup: retrieve a transaction by ID
+pending_queue = deque()            # FIFO: process in arrival order (stores the transactions)
 
 def receive_transaction(transaction):
     tid = transaction["id"]
     if tid in seen_ids:
         return False
     seen_ids.add(tid)
-    transactions_by_id[tid] = transaction
-    pending_queue.append(tid)
+    pending_queue.append(transaction)
     return True
 
 def process_next():
     if not pending_queue:
         return None
-    tid = pending_queue.popleft()
-    return transactions_by_id[tid]
+    return pending_queue.popleft()
 ```
 
 ## Explanation
@@ -1539,23 +1549,23 @@ A `set` is used purely for the yes/no "is this ID new?" question — no
 associated data needs to travel with that check. A `deque` is used for
 FIFO ordering specifically because `.popleft()` is O(1), unlike a plain
 list's `.pop(0)`, which would require shifting every remaining element
-and cost O(n) per removal. A `dict` is used for O(1) average-case
-lookup of a transaction's full data by ID. No single structure could
-satisfy all three requirements as efficiently on its own.
+and cost O(n) per removal. The queue stores the transaction itself, so no separate lookup
+structure is needed. No single structure satisfies both requirements as
+efficiently on its own: a set has no order, and a deque cannot test
+membership in O(1).
 
 ## Complexity
 
 - **`receive_transaction`:** O(1) average-case — one set check, one set
-  insertion, one dictionary insertion, one deque append.
-- **`process_next`:** O(1) — one deque `popleft()`, one dictionary
-  lookup.
-- **Space:** O(n) across all three structures combined, where `n` is
-  the number of accepted transactions.
+  insertion, one deque append.
+- **`process_next`:** O(1) — one deque `popleft()`.
+- **Space:** O(n) across both structures combined, where `n` is the
+  number of accepted transactions.
 
 ## Edge Cases
 
 - A duplicate transaction ID submitted → `receive_transaction` returns
-  `False` immediately, and the queue/dictionary remain unchanged.
+  `False` immediately, and the set/queue remain unchanged.
 - `process_next()` called with no pending transactions → returns
   `None` safely, rather than raising an error.
 - The same transaction ID resubmitted after having already been fully
@@ -1652,10 +1662,16 @@ and sorting follow the now-familiar pattern from Questions 7 and 16.
 
 ## Complexity
 
-- **Time:** O(n + k log k) — O(n) for parsing, deduplication, filtering,
-  and grouping (each a single pass over at most `n` lines), O(k log k)
-  for the final sort, where `k` is the number of distinct customers
-  among completed, deduplicated transactions.
+- **Time:** O(C + n + k log k) — let `n` be the number of lines and
+  `C` the total number of characters across all lines. Splitting and
+  regex-matching the raw text is proportional to `C` (matching is not
+  O(1) per line when line length varies, assuming this pattern stays
+  linear on accepted input); deduplication, filtering, and grouping are
+  O(n) passes over records with O(1) average-case set/dictionary
+  operations; the final sort is O(k log k), where `k` is the number of
+  distinct customers among completed, deduplicated transactions. Since
+  every line has at least one character, `n <= C`, so this is
+  O(C + k log k).
 - **Space:** O(n) — the parsed, deduplicated, and filtered intermediate
   collections are each bounded by the original line count.
 
@@ -1827,6 +1843,9 @@ choice against the specific access pattern it serves.
 
 ### Step 1 — Map each access pattern to its natural structure
 
+Assumption: session IDs are unique for the lifetime of the system (an
+ID is never re-created while, or after, it has been tracked).
+
 (a) is pure membership → a **set**. (b) is lookup by key → a
 **dictionary**. (c) is FIFO removal → a **deque**. (d) is ordered
 iteration, matching creation order → the deque already provides this
@@ -1937,7 +1956,9 @@ cost from repeated linear search, even though early termination
 
 ```python
 def enrich_orders_optimized(orders, customers):
-    customers_by_id = {c["id"]: c["name"] for c in customers}
+    customers_by_id = {}
+    for c in customers:
+        customers_by_id.setdefault(c["id"], c["name"])   # first match wins, like the naive version
     return [
         {**order, "customer_name": customers_by_id.get(order["customer_id"])}
         for order in orders
@@ -1969,11 +1990,11 @@ for eliminating a repeated linear scan.
   the naive version leaves `customer_name` as `None` after exhausting
   the inner loop; the optimized version's `.get()` produces the same
   `None` result, preserving identical behavior.
-- Duplicate customer IDs in `customers` → the optimized version's
-  dictionary comprehension keeps whichever customer is processed
-  *last* for a given ID (a subtle behavior difference worth noting
-  explicitly, since the naive version would have matched whichever
-  came *first* due to its `break`).
+- Duplicate customer IDs in `customers` → the naive version matches
+  whichever customer comes *first* (due to its `break`); the optimized
+  version uses `setdefault()` so the first customer for an ID is kept
+  and later duplicates are ignored, preserving identical behavior. (A
+  plain dictionary comprehension would keep the *last* one instead.)
 - Empty `orders` list → both versions return `[]`.
 
 ---
@@ -2253,9 +2274,11 @@ than left as an unlabeled, inline expression.
 
 ## Complexity
 
-- **Time:** O(m) for both versions, where `m` is the total number of
-  items across all groups — refactoring here is a readability
-  improvement, not a complexity change.
+- **Time:** assuming `process(x)` performs O(1) work, both versions are
+  O(m), where `m` is the total number of items across all groups. More
+  generally, if processing one item costs `C`, the transformation
+  contributes O(m·C). Refactoring here is a readability improvement, not
+  a complexity change.
 - **Space:** the refactored version adds one O(m) intermediate list
   (`all_items`) that the original, single combined comprehension did
   not require — a deliberate, small trade-off in favor of clarity.
@@ -2363,6 +2386,13 @@ def build_full_report(raw_text):
 
 ## Explanation
 
+The report contract: `total_lines`, `parsed_count`, `unparseable_count`
+and `deduplicated_count` cover "total records processed, successfully
+parsed, deduplicated"; `severity_counts` is the requested severity
+grouping/counting output; and `errors_by_transaction` is the additional
+grouping of error records by transaction reference required by
+requirement (4).
+
 Every tool was chosen to match exactly one requirement, following the
 module's operation-driven selection principle throughout: `splitlines()`
 handles line boundaries because that structure is fixed and known;
@@ -2381,13 +2411,17 @@ itself grounds for treating two records as duplicates of each other.
 
 ## Complexity
 
-- **Time:** O(n) — where `n` is the number of lines; parsing,
-  deduplication, severity counting, and grouping are each a single
-  pass, with all regex operations and dictionary/set operations O(1)
-  average-case per line (aside from the length of each individual line
-  itself, which is bounded independently of `n`).
-- **Space:** O(n) — the parsed, deduplicated, and grouped structures
-  are each bounded by the original line count.
+- **Time:** O(C) — let `n` be the number of lines and `C` the total
+  number of characters in the input. `splitlines()` processes the input
+  text; the log regex inspects each line's characters; the transaction-
+  reference regex inspects each message's characters; set and dictionary
+  operations are O(1) average-case per record; and deduplication,
+  severity counting, and grouping are linear in the records processed
+  (`n <= C`). This assumes both regex patterns stay linear on accepted
+  input, and there is no sorting stage, so no `log` term applies.
+- **Space:** O(n) records — the parsed, deduplicated, and grouped
+  structures are each bounded by the number of lines (plus the stored
+  line text itself, O(C) overall).
 
 ## Edge Cases
 

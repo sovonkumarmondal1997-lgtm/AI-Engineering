@@ -366,9 +366,12 @@ user = {
 A **dictionary** stores data as **key → value** pairs: `"id"` is a
 **key**, `101` is its associated **value**; together, `"id": 101` is one
 **key-value pair**. Unlike a list, items are not found by position —
-they are found by their key, directly. `user.keys()` would give
-`["id", "name", "email"]`; `user.values()` would give `[101, "Alice",
-"alice@example.com"]`.
+they are found by their key, directly. `user.keys()` returns a
+dictionary keys view (`dict_keys(['id', 'name', 'email'])`);
+`user.values()` returns a values view (`dict_values([101, 'Alice',
+'alice@example.com'])`); `user.items()` returns an items view. These are
+views, not lists — wrap one in `list(...)` to create a list, e.g.
+`list(user.keys())` is `['id', 'name', 'email']`.
 
 ### 9.2 Why dictionaries exist
 
@@ -551,7 +554,7 @@ typically in O(1) average-case (§16).
 tags = {"python", "ai"}
 tags.add("data")
 tags.add("python")   # already present — no change, no error
-print(tags)           # {'python', 'ai', 'data'}  (order not guaranteed)
+print(tags)           # contains 'python', 'ai', and 'data'; order is not guaranteed
 ```
 
 **`remove(x)`** — removes an element; **raises `KeyError` if absent.**
@@ -1379,7 +1382,7 @@ treated as an unconditional guarantee independent of these assumptions.
 
 | Situation | List | Dict | Set | Stack (list) | Queue (deque) |
 |---|---|---|---|---|---|
-| Empty | `[]` — iterates zero times, `pop()`/`pop(0)` raise `IndexError` | `{}` — lookups raise `KeyError`, `.get()` returns default safely | `set()` — `.pop()` raises `KeyError` | `pop()`/`[-1]` raise `IndexError` — always check `is_empty` first (§18) | `popleft()`/`[0]` raise `IndexError`/similar — always check `is_empty` first (§23) |
+| Empty | `[]` — iterates zero times, `pop()`/`pop(0)` raise `IndexError` | `{}` — lookups raise `KeyError`, `.get()` returns default safely | `set()` — `.pop()` raises `KeyError` | `pop()`/`[-1]` raise `IndexError` — always check `is_empty` first (§18) | `popleft()`/`[0]` raise `IndexError` — always check `is_empty` first (§23) |
 | One item | Works normally; `items[0]` and `items[-1]` are the same item | One key-value pair; behaves normally | One element; behaves normally | Push/pop that one item behaves normally | Enqueue/dequeue that one item behaves normally |
 | Duplicate values | Fully supported and preserved | Duplicate **keys** are impossible — a repeated key simply overwrites the previous value (§11); duplicate **values** are fine | Impossible by definition — duplicates silently collapse (§15, mistake #11) | Duplicates fully supported (it is just a list) | Duplicates fully supported (it is just a deque) |
 | Missing dictionary keys | N/A | `dict[key]` raises `KeyError`; `dict.get(key)` returns `None`/default safely (§10) | N/A | N/A | N/A |
@@ -1565,7 +1568,8 @@ The system receives transaction records and must:
 - **Complexity** — ingestion: O(1) average-case per transaction (one set
   check, one dict insert, one list append, one deque append); processing:
   O(1) amortized per transaction (one deque popleft, one dict lookup, one
-  stack push); undo: O(1) (one stack pop).
+  stack push); undo: O(1) (one pop from the stack and one pop from
+  the end of `final_result`).
 - **Edge cases** — a duplicate transaction ID on arrival (reject); an
   undo request when nothing has been processed yet (return `None`
   safely); processing when the queue is empty (return `None` safely).
@@ -1635,7 +1639,7 @@ class TransactionEngine:
         if not self.processed_stack:
             return None
         transaction = self.processed_stack.pop()
-        self.final_result.remove(transaction)
+        self.final_result.pop()
         return transaction
 
     def lookup(self, transaction_id):
@@ -1845,7 +1849,7 @@ chapter's §12.
 ```python
 numbers = [4, 2, 4, 1, 2, 3]
 unique = set(numbers)
-print(unique)   # {1, 2, 3, 4}
+print(unique)   # contains 1, 2, 3, and 4; order is not guaranteed
 ```
 Requirement: uniqueness, order irrelevant. Edge case: if order mattered,
 this would be the wrong tool (previous chapter's §12.2) — the seen-set
