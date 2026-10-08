@@ -34,8 +34,8 @@ By the end of this lesson, you will be able to:
 - Explain why a global **list** or **dictionary** can be mutated inside a
   function *without* `global`, why this is risky, and how to avoid it
   using parameters and return values instead.
-- Explain a local variable's **lifetime**: when it starts existing, and
-  when it stops.
+- Explain the difference between a local name's **scope** and the
+  **lifetime** of the value it refers to.
 - List the safe engineering habits that avoid most scope-related bugs
   entirely.
 
@@ -67,18 +67,22 @@ By the end of this lesson, you will be able to:
 | **`UnboundLocalError`** | The error Python raises when code tries to *read* a local name before that name has been assigned a value inside the current function. |
 | **`global` keyword** | A statement inside a function that tells Python "the name that follows refers to the global variable, not a new local one." |
 | **Mutable global state** | A mutable object (such as a list or dictionary) stored in global scope, which can be changed from inside a function without ever reassigning its name. |
-| **Lifetime** | How long a variable's value continues to exist and be usable, from creation to the point nothing needs it anymore. |
+| **Lifetime** | How long an object or value remains alive, which lasts as long as it is still referenced somewhere. This is separate from a name's scope, which is only where that name can be used. |
 
 ## Step-by-step explanation
 
 ### 1. What scope means
 
 **Scope** is simply the answer to "where in the program can this name be
-used?" Python has several scopes, but this lesson focuses on the two
-that matter for everyday functions:
+used?" Python commonly describes name lookup with the **LEGB** model:
+**L**ocal, **E**nclosing, **G**lobal, and **B**uilt-in. This lesson
+focuses on the two that matter for everyday functions, Local and Global;
+enclosing scopes (functions nested inside functions) can be covered
+later:
 
-- **Local scope**: the names created **inside** one function call. They
-  exist only for that function, and only while it is running.
+- **Local scope**: the names created **inside** one function call. Those
+  names are available only inside that function, and only while that call
+  is running.
 - **Global scope** (also called **module scope**): the names created
   **outside** every function, directly in the file. They exist for as
   long as the program keeps running, and can be *read* from almost
@@ -119,9 +123,9 @@ NameError: name 'order_total' is not defined
 ```
 
 Python raises `NameError` because, by the time that `print(order_total)`
-line runs, `order_total` no longer exists anywhere Python can see — it
-only ever existed inside `calculate_total`'s own local scope, which
-ended the moment the function finished running. This is not a bug; it is
+line runs, the name `order_total` is no longer available anywhere Python can see —
+it only ever belonged to `calculate_total`'s own local scope, which ended
+the moment the function finished running. This is not a bug; it is
 exactly what local scope means: a function's own working variables stay
 private to that function.
 
@@ -149,8 +153,11 @@ print(tax_rate)
 `calculate_total_with_tax` never receives `tax_rate` as a parameter, yet
 it reads it directly — Python looks for `tax_rate` inside the function
 first, does not find it there, and then automatically checks the global
-scope, where it does find it. **Reading is completely safe and common.**
-What is *not* the same thing, covered next, is **assigning** to a global
+scope, where it does find it. **Reading a global does not require the
+`global` statement, and it is common.** It is still a dependency on
+module-level state that is not visible in the function's parameters, so
+use it deliberately (for example, for a configuration value). What is
+*not* the same thing, covered next, is **assigning** to a global
 name from inside a function — that behaves very differently, and is the
 source of nearly every scope-related bug in this lesson.
 
@@ -179,7 +186,8 @@ Outside function: 0.08
 `tax_rate = 0.0` inside `use_special_rate` does **not** touch the global
 `tax_rate` at all — it creates a brand-new *local* variable that just
 happens to share the same name, visible only inside this one function.
-Once the function ends, that local `tax_rate` disappears completely, and
+Once the function ends, that local name `tax_rate` is no longer
+available, and
 the global `tax_rate`, printed afterward, is exactly as it always was:
 `0.08`. This is a common source of beginner confusion — two variables
 with an identical name, coexisting safely in two different scopes,
@@ -208,8 +216,8 @@ UnboundLocalError: cannot access local variable 'score' where it is not associat
 
 This looks like it should simply read the global `score`, add `1`, and
 print the result — but it does not. Because `add_point` contains
-`score = score + 1`, Python decides, before the function even runs, that
-`score` is a **local** name for this whole function. That means the
+`score = score + 1`, Python decides, from the function's code, before it runs the function
+body, that `score` is a **local** name for this whole function. That means the
 right-hand side, `score + 1`, tries to **read** the local `score` —
 before it has ever been assigned anything — which is exactly what
 `UnboundLocalError` reports. This is a different error from `NameError`
@@ -348,10 +356,12 @@ inspected just to understand what this function touches.
 
 ### 8. Variable lifetime
 
-A local variable's **lifetime** is straightforward: it starts existing
-the moment its assignment line actually runs, and it stops being usable
-once its function call finishes — this is exactly why Section 2's
-`order_total` could not be read afterward.
+**Scope** and **lifetime** are related but not identical. Scope is where
+a *name* can be used; lifetime is how long the *object or value* that the
+name referred to stays alive. A local name is created when its assignment
+line runs and is no longer available once its function call finishes —
+this is why Section 2's `order_total` could not be used afterward. What
+happens to the value it referred to is a separate question.
 
 ```python
 def build_profile(name):
@@ -366,17 +376,16 @@ print(message)
 Welcome, Ada!
 ```
 
-`greeting` is created fresh every time `build_profile` is called, and
-its life inside that function call ends the instant the function
-returns. But its **value** — the text `"Welcome, Ada!"` — does not
-disappear, because `return greeting` hands that value out, and `message`
-now refers to it. A value continues to exist for as long as *some* name,
-anywhere, still refers to it — it does not matter that the original
-local name (`greeting`) is gone; the value itself outlives that one
-local variable. (Exactly how Python eventually cleans up values nobody
-refers to anymore is a separate topic you do not need for this lesson —
-for now, the only rule that matters is: **a value survives as long as at
-least one variable still points to it.**)
+`greeting` is a local name created fresh every time `build_profile` is
+called. After the function returns, that local name is no longer
+available through the function's local scope. But the **value** — the
+text `"Welcome, Ada!"` — is still available, because `return greeting`
+hands it to the caller, and `message` now refers to it. The local name is
+gone, yet the value remains in use, which is why scope and lifetime should
+not be treated as the same thing. (How Python eventually cleans up values
+that nothing refers to is a separate topic you do not need for this
+lesson. The useful beginner model is: **a value stays alive while it is
+still referenced, or reachable, from somewhere in the program.**)
 
 ### 9. Safe engineering habits
 
@@ -454,7 +463,7 @@ print("Real high score is still:", high_score)
 - Inside `show_practice_score`, `high_score = 0` creates a **local**
   variable that shadows the global one, only for the duration of this
   function call — exactly the pattern from Section 4.
-- After the function returns, its local `high_score` is gone entirely;
+- After the function returns, its local name `high_score` is no longer available;
   the global `high_score`, printed on the last line, is still `100`,
   completely unaffected by anything that happened inside the function.
 
@@ -636,7 +645,7 @@ one.
 
 1. Write a function that creates a local variable, prints it inside the
    function, and then try to print that same variable name outside the
-   function. Write down the exact error you get.
+   function. Write down the type of error Python raises and why.
 2. Create a global variable `discount_rate` and a function that reads it
    (without a parameter) to calculate a discounted price. Confirm the
    function works correctly, then confirm `discount_rate` is unchanged
@@ -681,9 +690,10 @@ one.
   with no `global` statement at all, because mutating an object is not
   the same as reassigning its name; this is risky for the same reason
   `global` is, and the same parameter-and-return-value fix applies.
-- A local variable's **lifetime** ends when its function call finishes,
-  but its *value* survives for as long as some other variable, such as a
-  `return`ed result, still refers to it.
+- A local **name** stops being available when its function call
+  finishes, but the **value** it referred to can stay alive for as long
+  as something else, such as a `return`ed result, still refers to it —
+  scope and lifetime are related but not identical.
 
 ## Completion checklist
 
@@ -703,8 +713,9 @@ one.
 - [ ] I can explain why a global list or dictionary can be mutated
       without `global`, and rewrite such a function to use a parameter
       and a return value instead.
-- [ ] I can explain a local variable's lifetime, and why a returned value
-      can outlive the local variable that first held it.
+- [ ] I can explain the difference between a local name's scope and a
+      value's lifetime, and why a returned value can outlive the local
+      name that first held it.
 - [ ] I have completed the "try it yourself" exercises above.
 
 ## Connection to later Applied AI and Agentic AI engineering work

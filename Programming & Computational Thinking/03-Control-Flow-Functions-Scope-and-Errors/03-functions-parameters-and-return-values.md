@@ -62,9 +62,9 @@ By the end of this lesson, you will be able to:
 | Term | Plain-English definition |
 |---|---|
 | **Function** | A named, reusable group of instructions that can be run whenever it is needed. |
-| **Function definition** | The `def` block that creates a function and describes what it does; writing it does not run it. |
+| **Function definition** | The `def` block that creates a function and describes what it does; running the `def` statement creates the function but does not run its body. |
 | **Function call** | The line that actually runs a function's instructions, written as the function's name followed by parentheses. |
-| **Parameter** | A named placeholder for a value a function needs, listed inside the parentheses in the function's definition. |
+| **Parameter** | A name listed inside the parentheses in the function's definition; during a call, the supplied argument is bound to it. |
 | **Argument** | The actual value supplied for a parameter when a function is called. |
 | **`return`** | A statement that ends a function immediately and sends a value back to whatever called it. |
 | **`None`** | The value a function gives back automatically if it has no `return` statement, or a plain `return` with nothing after it. |
@@ -94,8 +94,9 @@ happen again. This matters for three concrete reasons:
 
 There are two completely separate steps involved: **defining** a function
 (writing down its instructions and giving them a name) and **calling** it
-(actually running those instructions). Defining a function does not run
-anything by itself — Python just remembers the recipe until it is called.
+(actually running those instructions). Running a `def` statement creates
+the function and gives it its name, but it does not run the function's
+body — the body runs only when the function is called.
 
 ### 2. Basic function syntax
 
@@ -118,8 +119,8 @@ Hello! Welcome to the program.
 ```
 
 `def greet_user():` defines a function named `greet_user` that takes no
-input. Nothing is printed yet at this point — Python only stores the
-function's recipe. `greet_user()` — the name followed by parentheses — is
+input. Nothing is printed yet at this point — running the `def` creates
+the function, but its body has not run. `greet_user()` — the name followed by parentheses — is
 the **function call**: it actually runs the indented block. Calling it
 twice runs the same instructions twice, printing the same message each
 time, without the message ever being retyped.
@@ -134,9 +135,10 @@ applied to actions instead of values.
 
 ### 3. Parameters and arguments
 
-A **parameter** is a named placeholder listed inside a function's
-parentheses when it is *defined*. An **argument** is the actual value
-supplied for that placeholder when the function is *called*. The words
+A **parameter** is a name listed inside a function's parentheses when it
+is *defined*. An **argument** is the actual value supplied for that
+parameter when the function is *called*; during the call, the argument is
+bound to the parameter's name. The words
 are easy to mix up, but the distinction matters: a parameter is part of
 the *recipe*; an argument is a real ingredient you hand over when you
 actually cook it.
@@ -154,9 +156,10 @@ Hello, Ada!
 Hello, Grace!
 ```
 
-`name` is the parameter — it exists only inside the function's
-definition, as a placeholder. `"Ada"` and `"Grace"` are arguments — the
-real values plugged into that placeholder on each separate call. A
+`name` is the parameter — a name written in the function's definition
+that becomes a local name inside the function while a call runs.
+`"Ada"` and `"Grace"` are arguments — the real values bound to `name` on
+each separate call. A
 function can take more than one parameter, separated by commas:
 
 ```python
@@ -308,9 +311,9 @@ argument (`"Ada"`) with a keyword argument (`score=92`) — this is
 allowed, as long as every positional argument comes *before* every
 keyword argument.
 
-**Positional arguments cannot follow keyword arguments.** Once a call
-starts using a keyword argument, every argument after it must also be a
-keyword argument:
+**Ordinary positional arguments cannot follow keyword arguments.** Once a
+call has supplied a keyword argument, another ordinary positional
+argument cannot come after it:
 
 ```text
 describe_student(name="Ada", 92)
@@ -320,9 +323,10 @@ describe_student(name="Ada", 92)
 SyntaxError: positional argument follows keyword argument
 ```
 
-Python refuses to guess which parameter a "bare" positional value should
-fill in once a keyword argument has already appeared, so it raises this
-error immediately, rather than risking a silent mismatch.
+This call raises a `SyntaxError` because an ordinary positional argument
+cannot follow a keyword argument. The exact wording of the message can
+vary between Python versions; the exception type and the rule are what
+matter.
 
 ### 7. Default arguments
 
@@ -357,8 +361,9 @@ always takes priority over the default.
 **Keep defaults to safe, immutable values.** A default of a `str`, a
 number, a `bool`, or `None` — all immutable, as you learned in
 [Mutability and Immutability](../02-Python-Core-Language-and-Data-Types/10-mutability-and-immutability.md) —
-is always safe, because that same default value can never be
-accidentally changed. Section 8 shows exactly what goes wrong when a
+does not have the mutation-sharing problem that mutable defaults have,
+because that default value cannot be changed in place. (Defaults are still
+evaluated once, when the function is defined.) Section 8 shows exactly what goes wrong when a
 default value is *mutable* instead.
 
 ### 8. The mutable default argument warning
@@ -464,10 +469,12 @@ print(format_report("monthly summary", True))
 TypeError: format_report() takes 1 positional argument but 2 were given
 ```
 
-Without the keyword name, a reader (and Python itself) has no way to
-know what a bare `True` means in this call — `uppercase=True` states its
-purpose directly, which is exactly why keyword-only parameters are worth
-using for options like this.
+Here `True` is supplied positionally, but `uppercase` is keyword-only, so
+Python rejects the call with a `TypeError`: `uppercase` must be supplied
+by name. (The exact message text can vary between Python versions.) A
+bare `True` is also unclear to a human reader, while `uppercase=True`
+states its purpose directly, which is exactly why keyword-only parameters
+are worth using for options like this.
 
 ### 10. Returning multiple values
 
@@ -827,15 +834,15 @@ MONTHLY SUMMARY
   nonsensical but non-crashing result, as in
   `describe_student(92, "Ada")` from Section 5.
 - **Placing a positional argument after a keyword argument**, which
-  raises `SyntaxError: positional argument follows keyword argument`.
+  raises a `SyntaxError`.
 - **Using a mutable value like `[]` or `{}` directly as a default
   argument.** As Section 8 showed in detail, this creates exactly one
   shared object reused across every call that relies on the default —
   always use `None` and build the real value inside the function body
   instead.
 - **Trying to pass a keyword-only parameter positionally**, which raises
-  a `TypeError` naming exactly how many positional arguments the function
-  actually accepts.
+  a `TypeError`, because the function does not accept that argument
+  positionally.
 - **Writing a docstring that just repeats the function's name** (for
   example, `"""Calculates a total."""` for a function called
   `calculate_total`) instead of explaining what the parameters mean and
@@ -861,7 +868,8 @@ one.
    it using the `None` pattern from Section 8.
 5. Write a function `summarize_numbers(numbers)` that returns three
    values — the total, the count, and the average — packed together, and
-   unpack all three into separate variables at the call site.
+   unpack all three into separate variables at the call site. Assume the
+   input collection is non-empty.
 6. Write a function `make_label(text, *, bold=False)` with one
    keyword-only parameter, and a short docstring explaining what it
    does. Call it twice: once with the default, and once overriding
@@ -879,9 +887,9 @@ one.
   reused; `print()` only displays a value and hands nothing back. A
   function with no `return` gives back `None`.
 - **Positional arguments** are matched by order; **keyword arguments**
-  are matched by name and can appear in any order, but every positional
-  argument must come before every keyword argument in a call.
-- A **default value** lets a parameter be skipped entirely; always use an
+  are matched by name and can appear in any order, but ordinary
+  positional arguments must come before keyword arguments in a call.
+- A **default value** lets a parameter be skipped entirely; prefer an
   immutable default (`None`, a number, a string, a `bool`), never a
   mutable one like `[]`, which would be silently shared across every
   call that relies on it.
@@ -914,10 +922,10 @@ one.
 
 ## Connection to later Applied AI and Agentic AI engineering work
 
-Functions are exactly how you will later define the individual "tools" an
-AI agent can call: each tool is a function with clearly named parameters,
-sensible defaults, and a well-defined return value the rest of the system
-can depend on. The `print()` versus `return` distinction becomes even
+Python functions are one common way you will later implement the
+individual "tools" an AI agent can call: each tool can be a function with
+clearly named parameters, sensible defaults, and a well-defined return
+value the rest of the system can depend on. The `print()` versus `return` distinction becomes even
 more important there — an agent's tools need to *return* structured
 results the calling code can act on, not merely print something a human
 happens to be watching. The mutable-default-argument warning from Section
@@ -925,6 +933,7 @@ happens to be watching. The mutable-default-argument warning from Section
 code: a tool function that accidentally shares one mutable list or
 dictionary across unrelated calls can silently corrupt an agent's state
 in ways that are very difficult to trace back to their cause. Clear
-docstrings, in turn, are exactly what later becomes a tool's description
+docstrings, in turn, are often used as a source for a tool's description
 — the text an AI model itself reads to decide when and how to call that
-tool correctly.
+tool correctly. Which parts of a function a framework uses (docstrings,
+annotations, or other metadata) depends on the framework.

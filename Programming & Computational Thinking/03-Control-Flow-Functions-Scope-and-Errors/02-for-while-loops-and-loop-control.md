@@ -55,11 +55,11 @@ By the end of this lesson, you will be able to:
 | Term | Plain-English definition |
 |---|---|
 | **Iteration** | Repeating a block of statements, either once per item in a collection or until a condition becomes false. |
-| **`for` loop** | A loop that runs its block once for each item in a collection, in order. |
+| **`for` loop** | A loop that runs its block once for each item in an iterable, in order. |
 | **`while` loop** | A loop that keeps running its block for as long as a condition stays `True`. |
 | **Loop variable** | The name a `for` loop assigns each item to, one at a time, as it repeats. |
 | **Iterable** | Anything a `for` loop can step through one item at a time — a string, list, tuple, dictionary, or set are all examples. |
-| **`range()`** | A built-in function that produces a sequence of whole numbers, useful for counting a fixed number of times. |
+| **`range()`** | A built-in function that produces a sequence of integers, useful for counting a fixed number of times. |
 | **Step** | How much a `range()` (or a slice) moves forward — or backward — between one value and the next. |
 | **Loop body** | The indented block of statements that a loop repeats. |
 | **Infinite loop** | A loop whose condition never becomes false, so it never stops on its own. |
@@ -107,7 +107,9 @@ Section 3.
 
 A **`for` loop** repeats its block once for each item in an **iterable**
 — anything Python can step through one item at a time — assigning each
-item, in turn, to a **loop variable**.
+item, in turn, to a **loop variable**. A collection such as a list or a
+dictionary is one common kind of iterable, but a `for` loop works with
+any iterable, including a string or a `range()`.
 
 #### Looping through a string
 
@@ -210,7 +212,7 @@ red
 
 ### 3. `range()`
 
-**`range()`** produces a sequence of whole numbers, most often used to
+**`range()`** produces a sequence of integers, most often used to
 repeat a block a fixed number of times, or to count through numbers
 directly.
 
@@ -269,6 +271,17 @@ for number in range(5, 0, -1):
 stopping before it would reach `0` — notice `0` itself is never printed,
 for the same "stop is excluded" reason as always.
 
+A range can also be empty. When the start and stop are equal, there is
+nothing to produce, so the loop body never runs:
+
+```python
+for number in range(5, 5):
+    print(number)
+```
+
+This prints nothing. A range is empty in the same way when the step moves
+away from the stop, such as `range(5, 0)` (the default step is `+1`).
+
 ### 4. `while` loops
 
 A **`while` loop** repeats its block for as long as its condition stays
@@ -292,11 +305,14 @@ print("Liftoff!")
 Liftoff!
 ```
 
-Every `while` loop needs two things: a condition to check, and something
-inside the loop body that **updates the state** the condition depends on
-— here, `countdown = countdown - 1`. Once `countdown` reaches `0`, the
-condition `countdown > 0` becomes `False`, and the loop stops on its own,
-moving on to `print("Liftoff!")`.
+A `while` loop that is meant to finish needs some way to stop: either its
+condition eventually becomes `False`, or a `break` exits it. A very common
+way to make the condition become `False` is to **update the state** the
+condition depends on inside the loop body — here,
+`countdown = countdown - 1`. Once `countdown` reaches `0`, the condition
+`countdown > 0` becomes `False`, and the loop stops on its own, moving on
+to `print("Liftoff!")`. Updating a variable is a common pattern, not a
+requirement of every `while` loop.
 
 **When `while` beats `for`:** a `for` loop is the right choice when you
 already know exactly what you are iterating over — a specific list, a
@@ -310,7 +326,7 @@ daily_sales = [120, 95, 140, 80, 200, 60]
 total_so_far = 0
 day_index = 0
 
-while total_so_far < 300:
+while total_so_far < 300 and day_index < len(daily_sales):
     total_so_far = total_so_far + daily_sales[day_index]
     day_index = day_index + 1
 
@@ -325,15 +341,19 @@ Total after those days: 355
 
 Here, nobody can say in advance exactly how many days it will take to
 reach `$300` in total sales — it depends entirely on the data itself.
-`while total_so_far < 300:` naturally expresses "keep going until this
-becomes true," which a `for` loop over a fixed `range()` cannot express
-nearly as directly.
+`while total_so_far < 300 and ...` naturally expresses "keep going until
+this becomes true," which a `for` loop over a fixed `range()` cannot
+express nearly as directly. The extra `day_index < len(daily_sales)` check
+means the loop stops when either the target is reached or there are no
+more days available, so it can never run past the end of the list.
 
 ### 5. Infinite loops
 
 An **infinite loop** is a `while` loop whose condition never becomes
-`False`, so it never stops on its own. This almost always happens by
-accident, by forgetting to update the variable the condition depends on:
+`False`, so it never stops on its own. Infinite loops
+can be written on purpose in some programs, but at this stage the concern
+is the accidental kind, usually caused by forgetting to update the
+variable the condition depends on:
 
 ```text
 count = 0
@@ -435,6 +455,12 @@ get added to the running total, while every other value does:
 
 ### 8. `enumerate()`: getting both a position and a value
 
+When you do not need the position, loop directly over the items:
+`for item in items:` is generally clearer than
+`for i in range(len(items)): print(items[i])`. A manual index is
+appropriate only when the index itself is actually needed, and
+`enumerate()` is the tidy way to get it.
+
 **`enumerate()`** wraps an iterable so that a `for` loop receives both the
 **position** and the **value** together, on every pass:
 
@@ -492,7 +518,7 @@ Alan scored 79
 `zip(names, scores)` pairs `names[0]` with `scores[0]`, `names[1]` with
 `scores[1]`, and so on, which `for name, score in ...:` unpacks directly.
 
-**`zip()` stops at the shortest collection:** if the two collections do
+**`zip()` stops at the shortest input:** if the two collections do
 not have the same length, `zip()` simply stops once the *shorter* one
 runs out, silently ignoring any leftover items in the longer one:
 
@@ -515,6 +541,10 @@ Even though `names_extra` has four names, `scores` only has three, so
 at all — no error occurs, so it is worth double-checking that two
 collections are genuinely meant to be the same length before relying on
 `zip()`.
+
+When equal lengths are required, modern Python (3.10 or newer) offers
+`zip(names, scores, strict=True)`, which raises a `ValueError` if the
+lengths differ instead of silently stopping at the shorter one.
 
 ### 10. Choosing between `for`, `while`, `break`, and `continue`
 
@@ -741,7 +771,8 @@ one.
    many weeks it took.
 4. Write a `for` loop over a list of ten numbers that uses `continue` to
    skip any number greater than `100`, and `break` to stop entirely once
-   five valid numbers (`100` or below) have been printed.
+   five valid numbers have been printed. Here a number is valid when
+   `number <= 100` (negative numbers count as valid).
 5. Given two lists, `product_names` and `product_prices`, of possibly
    different lengths, use `zip()` and `enumerate()` together to print a
    numbered list of `"1. apple - $0.50"`-style lines, and explain, in a
@@ -755,11 +786,11 @@ one.
 - `for` loops work the same way over strings, lists, tuples, dictionaries
   (visiting keys by default, or key-value pairs with `.items()`), and
   sets.
-- `range(start, stop, step)` produces whole numbers, always excluding the
+- `range(start, stop, step)` produces integers, always excluding the
   stop value, and can count upward or, with a negative step, downward.
-- A `while` loop needs a condition **and** something inside its body that
-  updates the state the condition depends on, or it becomes an
-  **infinite loop** — press `Ctrl-C` to safely stop one by hand if it
+- A `while` loop that is meant to finish needs its condition to
+  eventually become `False` (commonly by updating state inside the body)
+  or a `break`; otherwise it becomes an **infinite loop** — press `Ctrl-C` to safely stop one by hand if it
   ever happens accidentally.
 - **`break`** exits a loop immediately; **`continue`** skips just the
   current pass and moves on to the next one.

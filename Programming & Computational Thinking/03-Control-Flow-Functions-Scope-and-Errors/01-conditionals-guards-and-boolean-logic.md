@@ -99,6 +99,47 @@ expressions — Python evaluates each one down to exactly `True` or
 top of this one idea: "evaluate this expression, then act differently
 depending on whether it came out `True` or `False`."
 
+The expression `item in collection` tests **membership**: it is `True`
+when `item` is found inside `collection` (a substring of a string, or an
+element of a list, set, or similar collection), and `False` otherwise:
+
+```python
+role = "admin"
+
+if role in {"admin", "editor"}:
+    print("Access allowed")
+```
+
+```text
+Access allowed
+```
+
+#### Truth-value testing
+
+An `if` condition does not have to be the Boolean object `True` or
+`False` itself. Python evaluates the expression and then **truth-tests**
+the result: every value counts as either "truthy" (treated like `True`)
+or "falsey" (treated like `False`).
+
+```python
+if "hello":
+    print("runs")
+
+if []:
+    print("does not run")
+
+if 0:
+    print("does not run")
+```
+
+```text
+runs
+```
+
+Common falsey values are `False`, `None`, `0`, `""` (the empty string),
+and empty collections such as `[]`. Almost everything else is truthy,
+including non-empty strings like `"hello"`.
+
 ### 3. `if` statements
 
 An **`if` statement** runs an indented block of code only when its
@@ -175,7 +216,55 @@ of `95` would incorrectly stop at the very first, too-broad condition.
 The final `else` always catches everything not matched by any condition
 above it — here, any score below `70`.
 
+Branches can also overlap in a way that makes a later one unreachable:
+
+```python
+score = 95
+
+if score >= 70:
+    print("C or better")
+elif score >= 90:
+    print("A")
+```
+
+```text
+C or better
+```
+
+Every score of `90` or more is already caught by `score >= 70`, so the
+`elif score >= 90:` branch can never run.
+
 ### 6. Comparisons and Boolean operators
+
+#### Chained comparisons
+
+Python lets you chain comparisons to test a range directly:
+
+```python
+age = 25
+
+if 18 <= age < 65:
+    print("Working-age range")
+```
+
+```text
+Working-age range
+```
+
+`18 <= age < 65` means `18 <= age` **and** `age < 65`, and it is clearer
+than writing `age >= 18 and age < 65`.
+
+#### Equality vs identity
+
+```text
+==   # equality: values compare equal
+is   # identity: the two references refer to the same object
+```
+
+`None` is a single, unique object, so the conventional way to check for
+it is `value is None`, which asks "is this the `None` object?" You do
+not switch to `is` for ordinary value comparisons; keep using `==` for
+those.
 
 #### `and`, `or`, and `not`
 
@@ -257,6 +346,32 @@ opposite way: if the left side is already `True`, Python never bothers
 checking the right side, since the whole expression is already known to
 be `True`.
 
+Short-circuiting has a second consequence: `and` and `or` do not
+necessarily return `True` or `False`. They return one of their
+**operands**:
+
+```python
+print(False and "hello")
+print(True and "hello")
+print("" or "fallback")
+print("Python" or "fallback")
+```
+
+```text
+False
+hello
+fallback
+Python
+```
+
+- `x and y` returns `x` if `x` is falsey; otherwise it evaluates and
+  returns `y`.
+- `x or y` returns `x` if `x` is truthy; otherwise it evaluates and
+  returns `y`.
+
+This is the same short-circuit rule as above: Python stops at `x` when
+`x` already decides the result, and that operand is what you get back.
+
 ### 7. Guard conditions
 
 A **guard condition** checks for invalid, missing, or special-case input
@@ -290,7 +405,14 @@ indentation deep, buried behind three separate conditions, each one
 undone by its own `else`. As more checks are added, this shape only gets
 worse. The **guard-style** rewrite checks the bad cases first, one after
 another with `elif`, so the successful case stays at the *top level*,
-easy to find at the very bottom:
+easy to find at the very bottom.
+
+A quick terminology note: **guard-style branching** means checking an
+invalid, exceptional, or special case early. A **guard clause** is a
+guard that also exits the current control-flow path early, for example
+with `return`, `raise`, `continue`, or `break` where appropriate. The
+`elif` chain below is guard-style branching; true guard clauses appear
+once you have functions and loops.
 
 ```python
 username = "ab"
@@ -401,7 +523,10 @@ Weekday
 ```
 
 `forecast` is decided with `if`/`elif`, because it depends on *ranges* of
-temperature — `match` has no clean way to express "greater than 20."
+temperature — the simple literal patterns taught in this lesson cannot
+directly express "greater than 20," so `if`/`elif` is clearer here
+(Python's full pattern-matching system has more features, which this
+lesson intentionally defers).
 `schedule`, by contrast, only ever depends on an *exact* day name, so
 `match` reads clearly — and this example also shows that a single `case`
 can list more than one literal option, separated by `|` (read as "or"),
@@ -602,7 +727,8 @@ one.
 
 1. Write an `if`/`elif`/`else` chain that takes a body temperature (in
    Celsius) and prints `"Fever"` if it is `38.0` or above, `"Normal"` if
-   it is between `36.0` and `38.0`, and `"Low"` otherwise.
+   it satisfies `36.0 <= temperature < 38.0`, and `"Low"` otherwise
+   (below `36.0`).
 2. Using `and`, `or`, and parentheses, write one condition that checks
    whether a customer qualifies for free shipping: either their order
    total is `50` or more, **or** they are a "member" **and** their order

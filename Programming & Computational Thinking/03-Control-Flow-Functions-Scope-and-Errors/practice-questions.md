@@ -1700,8 +1700,9 @@ if len(names) != len(scores):
 - The `zip()` loop processes exactly three matched pairs (`"Marie"` has
   no score to pair with, so `zip()` leaves her out entirely).
 - `len(names) != len(scores)` is `True` (`4 != 3`), so the leftover
-  check runs, correctly identifying `"Marie"` at position `3` (the only
-  index from `range(3, 4)`).
+  check runs, correctly identifying `"Marie"` at zero-based index `3`,
+  which is the fourth position in the list (the only index from
+  `range(3, 4)`).
 
 #### Example output
 
@@ -1879,9 +1880,8 @@ any price and quantity.
 
 #### Common beginner mistakes
 
-- Calling `calculate_total(9.99)` with only one argument, raising
-  `TypeError: calculate_total() missing 1 required positional argument:
-  'quantity'`.
+- Calling `calculate_total(9.99)` with only one argument, which raises
+  a `TypeError` because a required argument (`quantity`) is missing.
 - Swapping the argument order, `calculate_total(3, 9.99)`, which still
   runs (both are numbers) but changes what the numbers are assumed to
   mean.
@@ -2265,8 +2265,9 @@ default would not offer this same guarantee (see Question B12).
 #### Common beginner mistakes
 
 - Assuming a default parameter must always come *before* a required one
-  in the definition — it is actually the reverse: required parameters
-  come first, defaults come after.
+  in the definition — it is actually the reverse: for ordinary
+  positional-or-keyword parameters, required parameters must come
+  before parameters with defaults.
 - Forgetting that overriding a default positionally requires it to be
   the correct position — using a keyword argument, `currency="€"`, is
   usually clearer.
@@ -2343,8 +2344,9 @@ it to state its purpose directly.
 
 #### Common beginner mistakes
 
-- Trying `calculate_total(10, 2, True)`, which raises `TypeError:
-  calculate_total() takes 2 positional arguments but 3 were given`.
+- Trying `calculate_total(10, 2, True)`, which raises a `TypeError`
+  because `include_tax` is keyword-only and cannot be bound to a
+  positional argument.
 - Forgetting the `*` entirely, which would make `include_tax` an
   ordinary parameter, losing the "must be named" guarantee.
 
@@ -2468,7 +2470,9 @@ Local versus global variables, shadowing (Topic 05).
 
 - Assigning `tax_rate = 0.0` inside `show_local_rate` must **not**
   affect the global `tax_rate` at all — this is shadowing, not
-  mutation.
+  mutation. An assignment such as `tax_rate = 0.0` inside a function
+  creates or rebinds a local name unless `global` is used, so it does
+  not rebind the global `tax_rate`.
 
 #### Solution approach
 
@@ -2514,9 +2518,10 @@ Outside function: 0.08
 
 #### Why this solution works
 
-A local assignment inside a function only ever creates a local name;
-it can never change a global variable of the same name unless the
-`global` keyword is explicitly used.
+A local assignment inside a function creates (or rebinds) a local name;
+it does not rebind a global name unless the `global` keyword is
+explicitly used. (Mutating an existing object, such as appending to a
+global list, is a different action from rebinding a name.)
 
 #### Common beginner mistakes
 
@@ -2604,8 +2609,9 @@ print(apply_discount_pure(100, 0.10))
 #### Why this solution works
 
 Both give the same answer *right now*, but only `apply_discount_pure`'s
-result is guaranteed to be reproducible no matter what else the program
-does — exactly the predictability pure functions offer.
+result depends only on its arguments: for the same arguments it
+produces the same result, without depending on mutable external state —
+exactly the predictability pure functions offer.
 
 #### Common beginner mistakes
 
@@ -3209,6 +3215,10 @@ errors (Topic 07).
 
 #### Edge cases to consider
 
+- For this exercise, assume `data["age"]`, if present, is a string
+  representation of a whole number or another value accepted by
+  `int()`. (Other values, such as `None`, would raise `TypeError`
+  instead of `ValueError`, which this exercise does not handle.)
 - A missing `"age"` key and an unparseable `"age"` value are two
   different problems and must be checked separately: first whether the
   key exists at all, then whether its value can be parsed.

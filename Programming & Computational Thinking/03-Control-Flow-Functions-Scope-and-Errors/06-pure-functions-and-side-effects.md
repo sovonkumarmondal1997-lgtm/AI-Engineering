@@ -18,7 +18,7 @@ functions apart, and to default to the safer one whenever you can.
 
 By the end of this lesson, you will be able to:
 
-- Explain what a **pure function** is, using all four of its defining
+- Explain what a **pure function** is, using its defining
   properties.
 - Explain what a **side effect** is, list several common kinds, and
   explain why a side effect is not automatically bad.
@@ -27,8 +27,8 @@ By the end of this lesson, you will be able to:
 - Explain why mutating a list, dictionary, or set passed into a function
   is a side effect, and write a safer function that returns a new
   collection instead.
-- Explain why a function that only `print()`s its result is harder to
-  reuse than one that `return`s it.
+- Explain why a function that only `print()`s its result gives the caller
+  less to work with than one that `return`s it.
 - Separate a pure calculation from the `print()` statements that display
   its result.
 - Find a function with a hidden dependency on a global value, and
@@ -52,11 +52,11 @@ By the end of this lesson, you will be able to:
 
 | Term | Plain-English definition |
 |---|---|
-| **Pure function** | A function that always gives the same output for the same input, changes nothing outside itself, and hands its result back with `return`. |
-| **Side effect** | Anything a function does besides computing and returning a value — such as printing, changing a collection it was given, or changing global state. |
-| **Impure function** | A function that has at least one side effect, or whose result can depend on something other than its own arguments. |
+| **Pure function** | A function whose result is determined only by its explicit inputs and which has no observable side effects. Returning the result is how a pure calculation normally makes it available to the caller. |
+| **Side effect** | An observable interaction or change beyond producing the function's result — such as printing, changing a collection it was given, changing global state, or writing to a file. |
+| **Impure function** | A function that has at least one side effect, or whose result can depend on something other than its own arguments (such as a global variable, the current time, or a random value). |
 | **Mutation** | Changing a mutable object (a list, dictionary, or set) in place, rather than building a new one. |
-| **Hidden dependency** | A value a function relies on that does not appear anywhere in its parameter list, such as a global variable. |
+| **Hidden dependency** | A value a function relies on that does not appear anywhere in its parameter list, such as a global variable. Reading it is not a state change, but it can make the function impure. |
 | **Business logic** | The part of a program that performs calculations and decisions, independent of how results are eventually shown to a user. |
 | **Presentation** | The part of a program responsible for displaying or formatting results, such as `print()` statements. |
 
@@ -64,7 +64,8 @@ By the end of this lesson, you will be able to:
 
 ### 1. What a pure function is
 
-A **pure function** has four properties, all at once:
+A **pure function** is one whose behavior is determined entirely by its
+explicit inputs, with no observable side effects. In practice:
 
 - **The same input always produces the same output.** Call it twice with
   the same arguments, and you always get the identical result back.
@@ -74,8 +75,13 @@ A **pure function** has four properties, all at once:
 - **It does not depend on hidden state.** Its result is computed
   entirely from its parameters — never from a global variable, and never
   from anything that might be different the next time it runs.
-- **It returns a result, rather than only printing it,** so the rest of
-  the program can actually use that result.
+
+**Returning a result** is how a pure calculation makes its answer
+available to the caller, so the rest of the program can use it. Returning
+a value is not itself what makes a function pure — purity is about
+depending only on explicit inputs and having no side effects. Because the
+same inputs always give the same result with no hidden state involved,
+you can reason about a pure call just by looking at its arguments.
 
 ```python
 def calculate_discounted_price(price, discount_rate):
@@ -99,8 +105,8 @@ use however it likes.
 
 ### 2. What a side effect is
 
-A **side effect** is anything a function does besides computing and
-returning a value. Common side effects include:
+A **side effect** is an observable interaction or change beyond producing
+the function's result. Common side effects include:
 
 - **Printing text.** `print(...)` shows something on the screen — a real
   effect on the outside world, separate from any value the function
@@ -112,12 +118,17 @@ returning a value. Common side effects include:
   as covered in
   [Scope, Lifetime, and Global State](05-scope-lifetime-and-global-state.md))
   changes something visible to the rest of the program.
-- **Reading input, or changing something outside the program**, such as
-  asking the user to type something, or writing to a file. This lesson
-  only covers this conceptually — real file and input/output handling
-  comes in a later module — but it is worth knowing now that these also
-  count as side effects, for exactly the same reason: they reach outside
-  the function.
+- **Changing something outside the program**, such as writing to a file
+  or sending data elsewhere. This lesson only covers this conceptually —
+  real file and input/output handling comes in a later module — but it is
+  worth knowing now that these also count as side effects, because they
+  reach outside the function.
+
+**Reading** outside state is a slightly different idea. Reading the
+current time, a random value, an environment variable, a database, or a
+global variable is not a state-changing side effect, but it is an
+**external dependency**: the result is not determined solely by the
+function's explicit arguments, which can make the function impure.
 
 ```python
 def report_discounted_price(price, discount_rate):
@@ -169,8 +180,9 @@ print(add_tax_pure(100, 0.08))
 ```
 
 Both give the identical answer here — but they are not equally
-trustworthy. `add_tax_impure` silently reads the *global* `tax_rate`; its
-result depends on something that is not visible anywhere in its call,
+trustworthy. `add_tax_impure` silently reads the *global* `tax_rate`, a hidden
+dependency; its result depends on something that is not visible anywhere
+in its call,
 `add_tax_impure(100)`. `add_tax_pure` takes `tax_rate` as a parameter, so
 every value it depends on is right there in the call itself.
 
@@ -240,14 +252,17 @@ effect worth naming clearly, since a caller could easily forget that
 
 **A safer alternative builds and returns a new collection**, using
 `.copy()` (also from Module 1.2) so the original is never touched at
-all — Section 8's Example 5 shows this pattern applied to a real
+all. (`.copy()` makes a new outer list. For the simple flat lists in
+these examples, that is enough to keep the original separate; if a list
+contains nested mutable objects, those nested objects can still be
+shared.) Section 8's Example 5 shows this pattern applied to a real
 shopping cart in full.
 
 ### 5. Printing versus returning
 
-A function that only `print()`s its result cannot be reused by the rest
-of the program, because nothing was ever handed back for other code to
-work with:
+A function that only `print()`s its result can still be reused for
+displaying output, but it does not hand the computed value to the caller,
+so other code cannot work with that value:
 
 ```python
 def calculate_total_prints(price, quantity):
@@ -269,9 +284,9 @@ print(f"Final amount: ${final_amount:.2f}")
 Final amount: $34.97
 ```
 
-`calculate_total_prints` only ever displays its answer — there is no way
-to add shipping to it afterward, because its result was never captured
-anywhere; it simply appeared on the screen and was gone.
+`calculate_total_prints` only ever displays its answer and returns
+`None`, so the caller cannot directly use the computed value to add
+shipping — the number simply appeared on the screen and was gone.
 `calculate_total_returns` hands its answer back as a real value, which
 `order_total` stores, letting the rest of the program decide what to do
 with it next — here, adding `shipping` and printing a different, final
@@ -404,9 +419,9 @@ print(f"Discounted: ${result:.2f}")
 
 **Plain-English explanation:**
 
-- `calculate_discount_impure` **has two side effects**: it reads the
+- `calculate_discount_impure` **is impure for two reasons**: it reads the
   global `discount_rate` (a hidden dependency) and it prints its result
-  instead of returning it. Its signature, `calculate_discount_impure(price)`,
+  (a side effect) instead of returning it. Its signature, `calculate_discount_impure(price)`,
   gives no hint of either.
 - `calculate_discount_pure` **is pure**: `discount_rate` is an explicit
   parameter, and the function only computes and returns a value — the
@@ -677,7 +692,7 @@ Final amount: $78.89
   pick one clear behavior per function.
 - **Assuming a function is pure just because it has a `return`
   statement.** A function can `return` a value *and* still print, mutate
-  an argument, or read a global variable — check all four properties
+  an argument, or read a global variable — check the properties
   from Section 1, not just whether `return` appears.
 - **Forgetting that mutating a list changes it for every name that
   refers to it**, not just inside the function — this is the aliasing
@@ -701,7 +716,8 @@ one.
    observe how its result silently changes.
 2. Write a function `remove_duplicates_unsafe(numbers)` that mutates its
    input list in place to remove duplicates (hint: you may need to build
-   a new list internally and then copy the values back), and a pure
+   a new list internally and then copy the values back), preserving the
+   original order and keeping the first occurrence of each value, and a pure
    version, `remove_duplicates_safe(numbers)`, that returns a brand-new
    list instead. Confirm, by printing the original list afterward, which
    version leaves the caller's data untouched.
@@ -716,15 +732,19 @@ one.
 5. Find (or write) a function that mutates a dictionary it was given,
    name it clearly to reflect that (for example, `apply_discount_to_profile`),
    and then write a second, pure version that returns a new dictionary
-   instead, using `.copy()` from Module 1.2.
+   instead, using `.copy()` from Module 1.2. Use a flat dictionary (top-level
+   values that are not nested lists or dictionaries), since `.copy()` does
+   not copy nested mutable objects.
 
 ## Summary
 
-- A **pure function** always gives the same output for the same input,
-  changes nothing outside itself, depends on nothing hidden, and returns
-  its result.
-- A **side effect** is anything else a function does — printing,
-  mutating a collection it was given, or changing global state; side
+- A **pure function** has behavior determined by its explicit inputs,
+  gives the same output for the same input, and has no observable side
+  effects or hidden dependencies; returning its result is how a pure
+  calculation makes it available to the caller.
+- A **side effect** is an observable interaction or change beyond the
+  result — printing, mutating a collection it was given, or changing
+  global state; side
   effects are necessary in real programs, but should be intentional and
   isolated, not scattered through calculation code.
 - Comparing a pure and an impure version of the same calculation shows
@@ -734,8 +754,8 @@ one.
   side effect; building and returning a new collection instead — often
   using `.copy()` — avoids surprising the caller, exactly as Module 1.2's
   aliasing lesson would predict.
-- A function that only `print()`s its result cannot be reused; a function
-  that `return`s its result lets the caller decide whether to print,
+- A function that only `print()`s its result gives the caller no value to
+  reuse; a function that `return`s its result lets the caller decide whether to print,
   store, or reuse it.
 - Separating **business logic** (pure calculation) from **presentation**
   (`print()` statements) keeps a program's calculation code reusable and
@@ -749,7 +769,7 @@ one.
 
 ## Completion checklist
 
-- [ ] I can list all four properties of a pure function.
+- [ ] I can list the defining properties of a pure function.
 - [ ] I can list several kinds of side effects and explain why a side
       effect is not automatically a mistake.
 - [ ] I can compare a pure and an impure version of the same calculation
@@ -757,8 +777,8 @@ one.
 - [ ] I can explain why mutating a collection passed into a function is a
       side effect, and write a pure alternative that returns a new
       collection instead.
-- [ ] I can explain why a function that only prints its result is harder
-      to reuse than one that returns it.
+- [ ] I can explain why a function that only prints its result gives the
+      caller no value to reuse, unlike one that returns it.
 - [ ] I can separate a pure calculation function from the `print()`
       statements that display its result.
 - [ ] I can find a hidden dependency on a global value and refactor it

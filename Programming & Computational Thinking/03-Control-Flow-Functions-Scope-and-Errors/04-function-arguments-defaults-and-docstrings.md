@@ -30,7 +30,8 @@ By the end of this lesson, you will be able to:
 - Use **keyword arguments** to make a call self-explanatory, and state
   the rule for mixing positional and keyword arguments in one call.
 - Give a parameter a safe **default value**, override it, and explain why
-  defaults must be immutable.
+  immutable defaults are the safe choice when each call should start
+  fresh.
 - Explain, in your own words, exactly why `items=[]` as a default is
   dangerous, and apply the safe `None`-based replacement pattern.
 - Define and correctly call a function with **keyword-only** parameters,
@@ -57,10 +58,10 @@ By the end of this lesson, you will be able to:
 
 | Term | Plain-English definition |
 |---|---|
-| **Function signature** | The `def` line of a function: its name and its parameter list, describing what it needs and (by convention) what kind of result to expect. |
+| **Function signature** | The function's name together with its parameter list — including which parameters are required, which have defaults, and which must be passed by name — describing what the caller needs to supply. |
 | **Interface / contract** | The agreement a function makes with its caller: "give me these inputs, in this shape, and I will hand back this kind of result." |
 | **Required parameter** | A parameter with no default value; the caller must supply a matching argument, or Python raises an error. |
-| **`TypeError`** | The error Python raises when a function call does not match its signature — for example, a missing required argument, or too many arguments. |
+| **`TypeError`** | A general Python exception raised when an operation or function receives an inappropriate type or an otherwise invalid form of input. In this lesson it commonly appears when a function call does not satisfy the function's parameter requirements, such as a missing required argument or too many positional arguments. |
 | **Positional argument** | An argument matched to a parameter purely by its position/order in the call. |
 | **Keyword argument** | An argument passed by explicitly naming the parameter it belongs to. |
 | **Default value** | A value a parameter uses automatically when the caller does not supply an argument for it. |
@@ -132,8 +133,8 @@ print(calculate_total(9.99, 3))
 `quantity` — both must be supplied, in some form, or the call fails.
 
 **The `TypeError` for a missing required argument:** if a caller forgets
-one, Python does not guess or silently substitute anything — it stops
-the program immediately, naming exactly which parameter was missing:
+one, Python does not guess or silently substitute anything — it raises a
+`TypeError`, naming which parameter was missing:
 
 ```text
 print(calculate_total(9.99))
@@ -154,8 +155,9 @@ print(calculate_total())
 TypeError: calculate_total() missing 2 required positional arguments: 'price' and 'quantity'
 ```
 
-This is a genuinely useful error, not just a crash: it tells you the
-exact function, and the exact parameter name(s), that need attention —
+This is a genuinely useful error, not just a crash: the `TypeError` and
+its message point to the function and the parameter name(s) that need
+attention (the exact wording can vary between Python versions) —
 read it as Python enforcing its half of the "contract" from Section 1.
 
 ### 3. Positional arguments
@@ -191,7 +193,8 @@ for a long time, since nothing crashes to reveal it.
 ### 4. Keyword arguments
 
 A **keyword argument** names its parameter directly, using
-`parameter_name=value`, removing any dependence on order:
+`parameter_name=value`, which removes the need to remember parameter order for the arguments
+supplied by name:
 
 ```python
 def calculate_total(price, quantity):
@@ -221,9 +224,9 @@ with `calculate_total(price=9.99, quantity=3)` — the second version tells
 a reader exactly what each number means, without them needing to recall
 the function's parameter order from memory.
 
-**Positional arguments cannot come after keyword arguments.** Once a call
-uses a keyword argument, every argument after it must also be a keyword
-argument:
+**Ordinary positional arguments must come before ordinary keyword
+arguments** in a function call. A positional argument cannot follow a
+keyword argument:
 
 ```text
 print(calculate_total(quantity=3, 9.99))
@@ -233,9 +236,11 @@ print(calculate_total(quantity=3, 9.99))
 SyntaxError: positional argument follows keyword argument
 ```
 
-Python raises this error immediately, before the program even starts
-running, rather than risk guessing which parameter a stray positional
-value was meant to fill.
+This call has invalid syntax, so Python reports a `SyntaxError` and the
+statement cannot execute as written, rather than guessing which parameter
+a stray positional value was meant to fill. (The exact message text can
+vary between Python versions; the exception type and the rule are what
+matter.)
 
 ### 5. Default arguments
 
@@ -263,9 +268,9 @@ The second and third calls both **override** the default, once
 positionally and once by keyword, proving a default is only ever used
 when the caller stays completely silent about that parameter.
 
-**Always keep defaults immutable:** a default of a `str`, a number, a
-`bool`, or `None` is always safe — none of these can be silently changed
-after the fact. Section 6 shows, in detail, exactly what goes wrong with
+**Prefer immutable defaults:** a default of a `str`, a number, a `bool`,
+or `None` avoids the shared-state problem — none of these can be changed
+in place after the fact. Section 6 shows, in detail, exactly what goes wrong with
 a *mutable* default instead.
 
 ### 6. The mutable default argument danger
@@ -327,9 +332,11 @@ print(todo_list_b)
 
 Now every call that omits `tasks` gets a fresh, independent list, because
 `tasks = []` runs again, from scratch, inside the function body, on every
-single call — not once, at definition time. **The rule to remember: never
-write `def f(x=[]):`, `def f(x={}):`, or `def f(x=set()):`. Use `None`,
-and build the real, empty collection inside the function instead.**
+single call — not once, at definition time. **The rule to remember: avoid
+mutable defaults such as `def f(x=[]):`, `def f(x={}):`, or
+`def f(x=set()):` whenever you intend each call to get fresh mutable
+state. Use `None`, and build the real, empty collection inside the
+function instead.**
 
 ### 7. Keyword-only arguments
 
@@ -427,10 +434,10 @@ signature has five qualities:
 - **Clear parameter meaning** — a reader can guess what to pass in from
   the names alone, without reading the function's body.
 - **Sensible defaults** — optional settings default to whatever most
-  callers actually want, using only immutable default values.
-- **Predictable return values** — the function always returns the same
-  *kind* of thing (always a number, always a formatted string), rather
-  than sometimes returning a real result and sometimes `None`.
+  callers actually want, preferring immutable default values.
+- **Predictable return values** — prefer a function that returns the
+  same *kind* of thing (always a number, always a formatted string),
+  rather than sometimes returning a real result and sometimes `None`.
 - **Clear errors for invalid calls** — missing a required argument
   produces a specific, readable `TypeError`, naming exactly what went
   wrong, rather than the program continuing with a nonsensical result.
@@ -709,15 +716,15 @@ Notebook x4: €15.12
   never raise an error — they simply produce a wrong, but "valid-looking,"
   result.
 - **Placing a positional argument after a keyword argument**, raising
-  `SyntaxError: positional argument follows keyword argument`.
+  a `SyntaxError`.
 - **Using a mutable value like `[]`, `{}`, or `set()` directly as a
   default argument.** As Section 6 demonstrated in full, this creates
   exactly one shared object reused across every call that relies on the
-  default — always use `None`, and build the real value fresh inside the
-  function body.
+  default — when you want fresh state per call, use `None` and build the
+  real value inside the function body.
 - **Trying to pass a keyword-only argument positionally**, which raises a
-  `TypeError` naming exactly how many positional arguments the function
-  actually accepts.
+  `TypeError`, because the function does not accept that argument
+  positionally.
 - **Writing a docstring that only restates the function's name** instead
   of explaining what each parameter means and what is actually returned.
 - **Forgetting that Python still cannot check argument *types* for you.**
@@ -764,12 +771,14 @@ one.
 - **Positional arguments** are matched by order, which can silently
   produce a wrong-but-valid result if the order is mistaken; **keyword
   arguments** name their parameter directly and can appear in any order,
-  but must come after every positional argument in the same call.
-- A **default value** lets a parameter be skipped; always use an
+  but ordinary positional arguments must come before them in the same
+  call.
+- A **default value** lets a parameter be skipped; prefer an
   immutable default (`None`, a number, a string, a `bool`).
 - A **mutable default argument**, such as `[]`, is created only once and
-  silently shared across every call that relies on it — always use
-  `None`, and build the real value inside the function body instead.
+  silently shared across every call that relies on it — when you want
+  fresh state per call, use `None` and build the real value inside the
+  function body instead.
 - A **`*`** in the parameter list makes every parameter after it
   **keyword-only**, preventing it from ever being passed positionally by
   mistake.

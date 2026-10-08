@@ -70,8 +70,8 @@ By the end of this lesson, you will be able to:
 | **Raise** | To cause an exception to happen on purpose, using the `raise` statement. |
 | **`try` block** | A block of code Python attempts to run, watching for a specific kind of exception. |
 | **`except` block** | A block that runs only if the matching exception happened inside the `try` block. |
-| **`else` block** (in a `try` statement) | A block that runs only if the `try` block completed with no exception at all. |
-| **`finally` block** | A block that always runs after a `try` statement, whether an exception happened or not. |
+| **`else` block** (in a `try` statement) | A block that runs only if the `try` block completed normally, with no exception. |
+| **`finally` block** | A block that runs when control leaves the `try` statement, whether it finished normally, an exception happened, or it exited with something like `return`. |
 | **Validation** | Checking that data meets the rules a program needs, before using that data for real work. |
 | **Boundary** | The point where data first enters a program or a function, and where it should be validated. |
 | **Custom exception** | A new exception type you define yourself, for a specific rule in your own program. |
@@ -150,8 +150,8 @@ int("abc")
 ValueError: invalid literal for int() with base 10: 'abc'
 ```
 
-**`TypeError`** — an operation given a value of the *wrong type*
-entirely:
+**`TypeError`** — an operation or function was given a value of an
+inappropriate type, or the operation is not supported for that type:
 
 ```text
 "5" + 3
@@ -207,6 +207,25 @@ Recognizing these six by name, and knowing roughly what causes each one,
 lets you understand a traceback's final line at a glance, before reading
 anything else.
 
+These exception types form an **inheritance hierarchy**: some are more
+specific kinds of broader ones. A small part of it looks like this:
+
+```text
+BaseException
+└── Exception
+    ├── ValueError
+    ├── TypeError
+    ├── LookupError
+    │   ├── KeyError
+    │   └── IndexError
+    └── ...
+```
+
+`KeyError` and `IndexError` are more specific subclasses of
+`LookupError`, and `Exception` is much broader than any of them. This is
+why `except Exception:` catches so many different exception types at
+once, including ones you never intended to handle.
+
 ### 3. Expected invalid input versus programmer bugs
 
 Not every exception deserves the same response. It helps to sort them
@@ -245,13 +264,21 @@ what is wrong. Instead, the bare `except:` silently swallows **every**
 possible exception — including this real bug — and returns `0`, a
 plausible-looking but completely wrong answer. Nobody would ever notice
 this bug from the output alone; it would need to be found by luck or by
-painstaking testing. **Always catch a specific, expected exception type**
-(`except ValueError:`, `except KeyError:`), never a bare `except:` or
-`except Exception:` — a specific `except` only ever catches what you
-actually expected, and lets a genuine bug surface immediately, exactly
-as it should.
+painstaking testing. **Prefer catching a specific, expected exception type**
+(`except ValueError:`, `except KeyError:`) over a bare `except:` or
+`except Exception:`. A specific `except` is clearer and safer, because it
+catches only that exception type and lets other kinds of bug surface
+immediately. It is not a guarantee, though: an unrelated bug can still
+raise the same exception type, which is why the `try` block should also
+stay narrow (Section 5).
 
 ### 4. Input validation
+
+**Validation** and **exception handling** are related but not identical.
+Validation checks whether data satisfies the rules a program requires,
+which can stop invalid data before it reaches later logic. Exception
+handling decides how the program responds when an exception is actually
+raised. They often work together, but one does not replace the other.
 
 **Validation** means checking that data meets the rules your program
 needs, at the **boundary** — the point where the data first arrives —
@@ -350,10 +377,11 @@ None
 have appeared in a traceback — useful here, since `int()`'s own message
 already clearly names the invalid text.
 
-**What should stay outside the `try` block:** only the code that can
-actually raise the exception you are handling belongs inside `try` —
-everything else should sit outside it, so a bug elsewhere cannot be
-silently caught by an `except` meant for something completely different:
+**What should stay outside the `try` block:** keep the `try` block as
+narrow as practical around the operation(s) whose expected exception you
+intend to handle. Unrelated code inside `try` means an unrelated bug of
+the same exception type can be caught by accident, and a narrow `try`
+makes the handler's intent clear:
 
 ```python
 def build_receipt_line(item_name, unit_price, quantity):
@@ -407,10 +435,12 @@ unrelated `except`.
 ### 6. `else` and `finally`
 
 A `try` statement can add two more optional blocks. **`else` runs only
-if the `try` block completed with no exception at all.** **`finally`
-runs every time, whether an exception happened or not** — it is the
-right place for a step that must always happen regardless of the
-outcome:
+if the `try` block completes normally, without an exception** (if the
+`try` block exits early with `return`, `break`, or `continue`, `else`
+does not run). **`finally` runs whenever control leaves the `try`
+statement** — after normal completion, after an exception, or when
+leaving by something like `return` — so it is the right place for a step
+that should happen regardless of the outcome:
 
 ```python
 def parse_age(raw_age):
@@ -513,6 +543,46 @@ The function's job is only to refuse invalid input clearly; the caller
 decides what to actually do about it — here, skip that one request and
 continue processing the rest, instead of stopping entirely.
 
+An exception also does not have to be handled in the function where it
+happens. If no handler exists there, it **propagates** up to the caller:
+
+```python
+def parse_number(text):
+    return int(text)
+
+
+def process_value(text):
+    return parse_number(text)
+
+
+try:
+    process_value("abc")
+except ValueError:
+    print("The caller handled the invalid input.")
+```
+
+```text
+The caller handled the invalid input.
+```
+
+```text
+process_value()
+    ↓
+parse_number()
+    ↓
+ValueError
+    ↓
+no handler here
+    ↓
+exception propagates to caller
+    ↓
+caller handles it
+```
+
+`int("abc")` raises `ValueError` inside `parse_number`; neither function
+catches it, so it passes back up through each caller until the `try`
+at the top handles it.
+
 ### 8. Small custom exceptions
 
 Sometimes the built-in exception types (`ValueError`, `TypeError`, and
@@ -589,7 +659,7 @@ def validate_age_bad(age):
         raise ValueError("Invalid input.")
 
 def validate_age_good(age):
-    if age < 0 or age > 120:
+    if isinstance(age, bool) or not isinstance(age, int) or age < 0 or age > 120:
         raise ValueError(
             f"Invalid age: {age}. Age must be a whole number between 0 and 120."
         )
@@ -925,6 +995,9 @@ for submission in submissions:
   value**, an **invalid type/format** (caught with `try`/`except
   ValueError` around `int(...)`), and an **out-of-range value** — all at
   the boundary, before any registration is actually accepted.
+- The example assumes `data` is a dictionary, `data["age"]` is a value
+  that `int(...)` can try to convert (such as text like `"30"`), and
+  `data["email"]` is a string.
 - Rather than raising on the first problem found, it **collects every
   error into a list** and keeps checking the remaining fields — this
   reports all of a submission's problems in one pass, instead of forcing
@@ -957,7 +1030,8 @@ Registration rejected:
   that should only run after a *guaranteed success* belongs in `else`,
   not appended to the end of `try`, where it would itself be watched for
   the same exception.
-- **Forgetting that `finally` always runs**, and duplicating the same
+- **Forgetting that `finally` runs whenever control leaves the `try`
+  statement**, and duplicating the same
   cleanup or logging step in both `try` and `except` instead of writing
   it once in `finally`.
 - **Returning a silent, incorrect placeholder value** (like `0`, `-1`,
@@ -990,7 +1064,8 @@ one.
    moving the unrelated line outside `try`.
 4. Write a function `validate_username(username)` that raises `ValueError`
    with a clear message if the username is empty, contains a space, or
-   is longer than 20 characters. Write a caller that tries several
+   is longer than 20 characters. Assume `username` is a string (or decide
+   how non-string input should be handled). Write a caller that tries several
    usernames and reports which ones were rejected and why.
 5. Write one small custom exception, `EmptyCartError`, and a function
    `checkout(cart)` that raises it if `cart` is an empty list. Handle it
@@ -1015,9 +1090,10 @@ one.
   emptiness, required keys — before the main work begins, with error
   messages that explain what went wrong and how to fix it.
 - `try` attempts risky code; `except` catches a **specific**, expected
-  exception; only the genuinely risky line belongs inside `try`.
-- `else` runs only when `try` succeeds completely; `finally` always
-  runs, success or failure.
+  exception; keep the `try` block as narrow as practical around the
+  risky operation.
+- `else` runs only when `try` completes normally; `finally` runs
+  whenever control leaves the `try` statement, success or failure.
 - `raise` rejects invalid input immediately and clearly; silently
   returning a wrong value instead lets bad data spread unnoticed.
 - A **custom exception**, using the minimal `class Name(Exception):
