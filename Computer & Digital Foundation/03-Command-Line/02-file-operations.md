@@ -175,7 +175,7 @@ A **parent directory** is simply the directory that directly contains another �
 
 ## 6. The `cp` Command
 
-`cp` ("copy") duplicates a file or directory. The original (source) is left completely untouched; a new, independent copy is created at the destination.
+`cp` ("copy") duplicates a file or directory. The original (source) is left unchanged; a new, separate copy is created at the destination. (This is the beginner model for ordinary files — exact behavior can depend on options and file types, especially symbolic links and special files.)
 
 ### Copying a file
 
@@ -204,7 +204,7 @@ cp data backup
 
 This is deliberate. A directory can contain an unknown number of files and subdirectories — copying "all of that" is a fundamentally bigger, more consequential operation than copying one file, so `cp` requires you to say so explicitly.
 
-**Recursive** means "repeat this operation on every item inside, and every item inside those, and so on, until there's nothing left to descend into." The `-r` (or `-R`) flag tells `cp` to do exactly that:
+**Recursive** means "repeat this operation on every item inside, and every item inside those, and so on, until there's nothing left to descend into." The `-r` (or `-R`) flag tells `cp` to do exactly that. (`-R` is the POSIX-standard recursive option; `-r` is widely supported, including on GNU/Linux. Implementations can differ in advanced cases involving symbolic links and special file types — those differences are outside the scope of this beginner lesson.)
 
 ```bash
 cp -r data backup
@@ -218,7 +218,7 @@ This copies `data` and everything inside it — files and subdirectories, at any
 |---|---|---|
 | `-r` / `-R` | Recursive — required to copy a directory | Without it, `cp` refuses to copy directories at all |
 | `-i` | Interactive — asks for confirmation before overwriting an existing destination file | Protects against silently destroying an existing file |
-| `-n` | No-clobber — never overwrites an existing destination file | An even stronger, non-interactive guard than `-i` |
+| `-n` | No-clobber — never overwrites an existing destination file (GNU/implementation-specific, not POSIX; available in GNU Coreutils and some other implementations) | A non-interactive guard, but don't assume it exists everywhere — `-i` is the more portable beginner concept |
 
 This lesson intentionally does not cover every `cp` flag that exists — only the ones that matter for building a correct, safe mental model as a beginner.
 
@@ -261,9 +261,9 @@ There's no `-r` requirement here because `mv` isn't duplicating the directory's 
 
 ### Why renaming doesn't require copying file contents
 
-When a move happens **within the same filesystem** (in practice: usually within the same disk/partition), the operating system does not need to read and rewrite the file's actual data at all. It only needs to update where that file is *recorded* as living — essentially relabeling an entry in the directory structure. This is why renaming or moving a huge file within the same disk is nearly instant, regardless of the file's size.
+When a move happens **within the same filesystem** (a rename within one filesystem), `mv` does not need to read and rewrite the file's actual data at all. It only needs to update where that file is *recorded* as living — essentially relabeling an entry in the directory structure. This is why renaming or moving a huge file within the same filesystem is nearly instant, regardless of the file's size.
 
-**This is a high-level model, not a universal guarantee.** When source and destination are on *different filesystems* — for example, moving a file from your main disk to a USB drive, or across certain network/cloud-mounted storage — there is no shared directory structure to simply relabel. In that case, `mv` has no choice but to read the entire file's data, write a full copy at the new location, and then delete the original — behaving, internally, much more like a `cp` followed by an `rm`. The *command* you type doesn't change; the *work involved* does, depending on where source and destination physically live.
+**This is a high-level model, not a universal guarantee.** When source and destination are on *different filesystems* — for example, moving a file from your main disk to a USB drive, or across certain network/cloud-mounted storage — a rename cannot directly move an item across that boundary. In that case, the `mv` utility can fall back to copying the item to the destination and then removing the source — behaving much more like a `cp` followed by an `rm`. The exact implementation details depend on the utility and platform. The *command* you type doesn't change; the *work involved* does, depending on where source and destination physically live.
 
 ---
 
@@ -291,7 +291,7 @@ rm -i old-notes.txt
 
 ### Deleting directories — recursion
 
-Just like `cp`, `rm` refuses to delete a directory unless told to act recursively:
+Just like `cp`, `rm` by default refuses to delete a directory unless told to act recursively (some implementations also offer a separate option for removing empty directories, which this lesson does not cover):
 
 ```bash
 rm project
@@ -353,15 +353,15 @@ mv notes.txt /home/learner/documents/
 cp report.txt ../
 ```
 
-**Bash/Linux/WSL2/Git Bash** all use forward slashes (`/`) and the commands shown throughout this lesson.
+**Bash on Linux and WSL2** use forward slashes (`/`) and the commands shown throughout this lesson. Git Bash is a Unix-like environment on Windows that also uses `/` paths (see Section 15 for its caveats).
 
-**PowerShell** uses different command names entirely for the same concepts (introduced fully in Section 15) and traditionally uses backslashes (`\`), though it also accepts forward slashes in most cases:
+**PowerShell**'s native commands are cmdlets with different names for the same concepts (introduced fully in Section 15), and it traditionally uses backslashes (`\`), though it also accepts forward slashes in most cases:
 
 ```powershell
 Copy-Item .\config.yaml ..\backups\config.yaml
 ```
 
-The underlying mental model — source, destination, absolute vs. relative — is identical across all of these environments. Only the command names and path separator conventions differ.
+The underlying mental model — source, destination, absolute vs. relative — is identical across all of these environments. Only the command names and path separator conventions differ. (Same goal does not mean identical behavior — PowerShell is not a Bash/GNU-utility clone.)
 
 ---
 
@@ -385,7 +385,7 @@ the shell first looks at the current directory, finds every matching filename, a
 
 This matters enormously for safety: **a wildcard can match far more than you expect**, especially in a directory you haven't checked with `ls` first. This lesson does not cover advanced pattern-matching (character classes, multiple wildcards, brace expansion, etc.) — only this one essential concept, because it's a prerequisite for using `cp`, `mv`, and `rm` safely with more than one file at a time.
 
-> **Safety rule:** before running any destructive command with a wildcard, run the equivalent `ls` first (e.g. `ls *.txt`) to see exactly what would be affected — *then* substitute in `rm`, `mv`, or `cp` once you've confirmed the match is what you intended.
+> **Safety rule:** before running any destructive command with a wildcard, run the equivalent `ls` first (e.g. `ls *.txt`) to preview the match set — *then* substitute in `rm`, `mv`, or `cp` once you've confirmed the match is what you intended. This is a useful beginner safety habit, not an absolute guarantee: it previews what matches at that moment.
 
 ---
 
@@ -426,7 +426,7 @@ Terminal → Shell → command (mkdir/cp/mv/rm) → operating system → filesys
 5. The operating system carries out the change: creating a directory entry (`mkdir`), duplicating file contents (`cp`), relabeling or duplicating-then-removing (`mv` — see below), or removing a directory entry and freeing the associated storage (`rm`).
 6. The filesystem's internal record of what exists, and where, is updated to reflect the change.
 
-**For `mv` specifically:** as explained in Section 7, when source and destination are on the *same* filesystem, the operating system typically just updates the directory entry — no file content is read or rewritten. When they're on *different* filesystems, there is no shared entry to relabel, so the operating system falls back to copying the data to the new location and then removing the original. Same command, different amount of underlying work, depending entirely on where the source and destination physically live.
+**For `mv` specifically:** as explained in Section 7, when source and destination are on the *same* filesystem, the operating system typically just updates the directory entry — no file content is read or rewritten. When they're on *different* filesystems, a rename cannot cross the boundary, so the `mv` utility can fall back to copying the data to the new location and then removing the original (exact details depend on the utility/platform). Same command, different amount of underlying work, depending entirely on where the source and destination physically live.
 
 This lesson deliberately stops at this level of detail. Deeper filesystem implementation topics — inodes, journaling, the virtual filesystem layer, ext4-specific behavior, overlay filesystems, distributed filesystems — are out of scope here and belong to later, dedicated material.
 
@@ -465,9 +465,9 @@ Realistically, over the life of such a project, you'd expect to: `mkdir` new sub
 
 ## 15. Bash / Linux / WSL2 / Git Bash / PowerShell
 
-This lesson's primary teaching environment is **Bash on Linux** (which is also what WSL2 and Git Bash provide) — all four commands (`mkdir`, `cp`, `mv`, `rm`) behave identically across Bash, WSL2, and Git Bash.
+This lesson's primary teaching environment is **Bash on Linux**. **WSL2** provides a Linux environment, so the four commands (`mkdir`, `cp`, `mv`, `rm`) behave similarly to native Linux. **Git Bash** is a Unix-like environment on Windows, *not* Linux — it provides similar commands, but can differ in filesystem behavior, permissions, paths, symbolic links, and utility implementations.
 
-**PowerShell** (native Windows) provides the same *capabilities* through different command names:
+**PowerShell** (native Windows) provides the same *capabilities* through native cmdlets (`New-Item`, `Copy-Item`, `Move-Item`, `Remove-Item`). PowerShell can also provide aliases such as `mkdir`, `cp`, `mv`, and `rm`, but those aliases do not mean PowerShell behaves identically to Bash/GNU utilities:
 
 | Bash/Linux | PowerShell equivalent | Notes |
 |---|---|---|
@@ -476,7 +476,7 @@ This lesson's primary teaching environment is **Bash on Linux** (which is also w
 | `mv source dest` | `Move-Item source dest` | Also used for renaming, same as `mv` |
 | `rm file` | `Remove-Item file` | `-Recurse` replaces `-r`; there is no `-f` equivalent by that name, but `-Force` exists and is similarly dangerous |
 
-This lesson is not a PowerShell course — this table exists only so that if you're working on native Windows, you know the underlying goal is identical even though the exact command differs. **WSL2** consideration worth knowing: it runs a real Linux filesystem, so commands behave exactly as in native Linux Bash — but be aware that WSL2's Linux filesystem and Windows' native filesystem are distinct, and moving files between them (e.g. `/mnt/c/...` paths) is exactly the "different filesystem" case discussed in Section 7 and 13, where `mv` cannot simply relabel an entry and must fall back to copy-then-delete.
+This lesson is not a PowerShell course — this table exists only so that if you're working on native Windows, you know the underlying goal is identical even though the exact command differs. **WSL2** consideration worth knowing: it runs a real Linux filesystem, so commands behave similarly to native Linux Bash — but be aware that WSL2's Linux filesystem and Windows' native filesystem are distinct, and moving files between them (e.g. `/mnt/c/...` paths) is exactly the "different filesystem" case discussed in Section 7 and 13, where `mv` cannot simply relabel an entry and must fall back to copy-then-delete.
 
 ---
 
@@ -688,7 +688,7 @@ That final error is the *expected, correct* result — it confirms cleanup succe
 - *Symptom:* No error at all — the existing file is silently overwritten.
 - *Likely cause:* `cp` overwrites by default; it does not warn unless told to.
 - *Investigate:* Check timestamps/contents of the destination before running, if preserving the old version matters.
-- *Safe fix:* Use `cp -i` to be prompted before overwriting, or `cp -n` to skip the copy entirely if the destination exists.
+- *Safe fix:* Use `cp -i` to be prompted before overwriting, or (on GNU/Linux implementations) `cp -n` to skip the copy entirely if the destination exists.
 - *Lesson learned:* "The command ran successfully" is not the same as "the command did what I intended" — see Section 19.
 
 **11. Moving across filesystem boundaries**
@@ -788,7 +788,7 @@ All practical work in Levels 3–5 must be done inside a disposable directory �
 2. Explain, in your own words, why `mv` can be used both to relocate a file and to rename it.
 3. If your current working directory is `/home/learner/project`, what does `cp notes.txt ../notes-backup.txt` actually do?
 4. Why does `rm project/` fail with an "Is a directory" error, and what fixes it?
-5. Why is `mv` usually much faster than `cp` for a large file, when both are moving/copying within the same disk?
+5. Why is `mv` usually much faster than `cp` for a large file, when both are moving/copying within the same filesystem?
 6. What does it mean for an operation to be "recursive," using a directory tree as your example?
 7. Why does `cp` require `-r` for directories, but `mv` does not?
 8. If `*.csv` matches three files you expected and one you didn't, what should you do before running `rm *.csv`?
@@ -888,7 +888,7 @@ Compact command reference:
 | Command | Minimal form | Directory form | Key safety option |
 |---|---|---|---|
 | `mkdir` | `mkdir name` | `mkdir -p a/b/c` (creates missing parents) | — |
-| `cp` | `cp src dest` | `cp -r src dest` | `-i` (confirm overwrite), `-n` (never overwrite) |
+| `cp` | `cp src dest` | `cp -r src dest` | `-i` (confirm overwrite), `-n` (never overwrite; GNU/non-POSIX) |
 | `mv` | `mv src dest` | `mv src dest` (no `-r` needed) | `-i` (confirm overwrite) |
 | `rm` | `rm file` | `rm -r dir` | `-i` (confirm each deletion) |
 

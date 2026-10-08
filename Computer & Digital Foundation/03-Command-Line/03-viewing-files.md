@@ -143,7 +143,7 @@ This reads `file.txt` from start to finish and writes its entire contents to sta
 
 If a file is large — thousands of lines, or more — `cat` will flood your terminal with output that scrolls past faster than you can read it, leaving only the very end visible on screen. `cat` has no concept of "too much" — it will do exactly what it's told regardless of size. For anything beyond a small file, `less` (next section) is almost always the better choice.
 
-`cat` sends its output to standard output, exactly like every command in this lesson (Section 11 expands on this briefly). You may see `cat` used together with other symbols like `>` or `|` in tutorials — those are **redirection** and **pipes**, which are separate Module 0.3 lessons covered later. This lesson does not teach how they work; only be aware that `cat`'s output, like any command's, can eventually be sent elsewhere instead of just the screen.
+`cat` sends its output to standard output, like `head` and `tail` (Section 11 expands on this briefly, including how `less` differs). You may see `cat` used together with other symbols like `>` or `|` in tutorials — those are **redirection** and **pipes**, which are separate Module 0.3 lessons covered later. This lesson does not teach how they work; only be aware that `cat`'s output, like any command's, can eventually be sent elsewhere instead of just the screen.
 
 ---
 
@@ -180,7 +180,7 @@ This is intentionally a short, practical list — `less` supports many more keys
 
 ### `less` does not modify the file
 
-Opening a file in `less` — no matter how you scroll or search inside it — never changes the file on disk. `less` only reads; there is no save action, no edit mode, and no way to accidentally alter the file's contents through normal navigation. This is worth stating explicitly because the word "editor" is sometimes loosely (and incorrectly) applied to it — `less` is a **viewer**, not an editor.
+Opening a file in `less` — no matter how you scroll or search inside it — does not modify the file on disk. Normal navigation and searching in `less` do not modify the viewed file; there is no save action and no edit mode in ordinary use. This is worth stating explicitly because the word "editor" is sometimes loosely (and incorrectly) applied to it — `less` is a **viewer**, not an editor.
 
 ### `cat file.txt` vs `less file.txt`
 
@@ -268,7 +268,9 @@ Some files — most notably active log files — keep growing while a program ru
 tail -f application.log
 ```
 
-Conceptually: `tail -f` first shows you the existing end of the file (like a normal `tail`), and then stays active, watching the file for anything newly written to it, printing each new line the moment it appears. This is how engineers watch a running service's behavior in real time, directly from its log file, without repeatedly re-running `tail` by hand.
+Conceptually: `tail -f` first shows you the existing end of the file (like a normal `tail`), and then stays active, watching the file for anything newly written to it, continuing to monitor the file and outputting newly available content as it detects it. This is how engineers watch a running service's behavior in real time, directly from its log file, without repeatedly re-running `tail` by hand.
+
+**Production note:** When logs are rotated, `tail -f` may continue following the original file rather than the newly created file with the same name. GNU/Linux users commonly use `tail -F` when they need to follow a rotating log.
 
 **Exiting `tail -f` safely:** because it keeps running indefinitely by design, it does not stop on its own. Press `Ctrl+C` to stop it and return to your normal shell prompt — this only stops the *viewing*; it has no effect whatsoever on the program that's actually writing to the log file.
 
@@ -313,10 +315,10 @@ At a conceptual level, running any of these four commands follows the same shape
    - `cat` reads and prints everything, start to finish, with no selection logic.
    - `head` reads only as far as it needs to satisfy the requested line count, then stops early.
    - `tail` locates the end of the file's content and works backward to gather the requested number of lines.
-   - `less` reads only enough to fill the current screen, requesting more from the file only as you scroll further — it does not need to have "the whole file" in hand to start showing you something.
+   - `less` can begin displaying a file without reading the entire file first. It reads and seeks through the input as needed for navigation, searching, and display, and may read ahead or cache data.
 6. **Output is presented through the terminal** — for `cat`, `head`, and `tail`, this is a normal, one-time print to standard output; for `less`, it's an interactive display that stays under your control until you press `q`.
 
-For **`tail -f`** specifically: after printing the current end of the file, the process does not exit the way `head` or a plain `tail` does. It remains running, periodically checking whether new content has been appended to the file, and immediately prints anything new it finds — which is why it keeps running until you deliberately stop it with `Ctrl+C`.
+For **`tail -f`** specifically: after printing the current end of the file, the process does not exit the way `head` or a plain `tail` does. It remains running, periodically checking whether new content has been appended to the file, and prints anything new it finds — which is why it keeps running until you deliberately stop it with `Ctrl+C`.
 
 This lesson deliberately stops at this level. It does not explain buffering strategies, kernel-level read mechanisms, filesystem implementation details, or terminal-driver internals — those are out of scope here.
 
@@ -324,9 +326,9 @@ This lesson deliberately stops at this level. It does not explain buffering stra
 
 ## 11. Standard Output Connection
 
-Every command in this lesson produces its result by writing to **standard output** — the default channel a running program uses to send text output, which your terminal displays for you. This is the same concept briefly introduced in Module 0.2 and referenced conceptually in Lesson 02.
+`cat`, `head`, and `tail` normally produce their results by writing text to **standard output** — the default channel a running program uses to send text output, which your terminal displays for you. This is the same concept briefly introduced in Module 0.2 and referenced conceptually in Lesson 02.
 
-For now, the only thing to internalize is: **when `cat`, `head`, or `tail` print something, they are writing to standard output, and your terminal is simply showing you what arrived there.** `less` is a bit different — because it's interactive, it manages the terminal display directly rather than simply streaming to standard output the way the others do, but it's still fundamentally about text content flowing from the file to something you can read.
+For now, the only thing to internalize is: **when `cat`, `head`, or `tail` print something, they are writing to standard output, and your terminal is simply showing you what arrived there.** `less` is different: it is an interactive terminal pager. It reads the input and manages an interactive display rather than behaving like a simple stdout-to-terminal stream, though it's still fundamentally about text content flowing from the file to something you can read.
 
 This lesson does not teach what you can *do* with standard output beyond viewing it directly — specifically, it does not cover file descriptors, output redirection (`>`, `>>`), error-stream redirection (`2>`, `2>&1`), or pipes (`|`). Those are separate, dedicated Module 0.3 lessons. The only goal here is the mental connection: **these commands produce output; that output normally goes to your screen; later lessons will show you how to send it elsewhere instead.**
 
@@ -389,7 +391,7 @@ None of this requires any AI/ML framework knowledge — it's the same four comma
 
 ## 14. Bash / Linux / WSL2 / Git Bash / PowerShell
 
-This lesson's primary teaching environment is **Bash on Linux**, which behaves identically under **WSL2** and **Git Bash** for all four commands.
+This lesson's primary teaching environment is **Bash on Linux**. The same commands are also commonly available in **WSL2** and **Git Bash**, but those environments are not identical to native Linux and may differ in filesystem behavior, utility versions, paths, and terminal behavior.
 
 **PowerShell** (native Windows) provides overlapping capability through a different command:
 
@@ -398,7 +400,7 @@ This lesson's primary teaching environment is **Bash on Linux**, which behaves i
 | `cat file.txt` | `Get-Content file.txt` | Displays the whole file, similar to `cat` |
 | `head -n 10 file.txt` | `Get-Content file.txt -Head 10` | `-Head` selects the first N lines |
 | `tail -n 10 file.txt` | `Get-Content file.txt -Tail 10` | `-Tail` selects the last N lines |
-| `less file.txt` | *(no exact equivalent by default)* | PowerShell has no built-in interactive pager identical to `less`; long output is typically piped through another tool instead |
+| `less file.txt` | *(no exact equivalent by default)* | PowerShell does not provide an interactive pager identical to Unix `less`, but `Out-Host -Paging` provides built-in paged output |
 
 This table exists only to orient you if you're working on native Windows — it is not a PowerShell course, and this lesson does not teach PowerShell's broader command model. **WSL2** consideration worth repeating from the previous lesson: it runs a genuine Linux filesystem and shell, so `cat`, `less`, `head`, and `tail` behave exactly as described throughout this lesson when used inside a WSL2 session.
 
@@ -584,7 +586,7 @@ ls: cannot access '/tmp/command-line-viewing-demo': No such file or directory
 **10. Binary/non-text file produces confusing output**
 - *Situation:* `cat image.png` or `cat model-weights.bin`.
 - *Symptom:* A burst of strange symbols, garbled characters, or a terminal that visually looks "broken" afterward (colors or characters displaying oddly even after the command finishes).
-- *Likely cause:* The file is **binary** — data meant for a specific program to interpret, not human-readable text — and `cat` printed its raw bytes directly to your terminal, which tried (and failed) to interpret them as text/display codes.
+- *Likely cause:* The file is **binary** — data meant for a specific program to interpret, not human-readable text — and `cat` printed its raw bytes directly to your terminal, which tried (and failed) to interpret them as text/display codes The file itself is not damaged; it is the terminal display that can be affected.
 - *Investigate:* Recognize the file type from its purpose or extension before viewing it as text.
 - *Safe fix:* Don't `cat` binary files. If your terminal looks visually corrupted afterward, closing and reopening the terminal window (or, in some terminals, typing `reset` and pressing Enter) restores it.
 - *Lesson learned:* Not every file is safe to display as text — see Section 18.
@@ -610,7 +612,7 @@ ls: cannot access '/tmp/command-line-viewing-demo': No such file or directory
 ## 17. Common Misconceptions
 
 - **"`cat` is only for tiny files."** — There's no hard size limit; `cat` works on files of any size. The issue is *practicality*, not a restriction — it becomes an unpleasant, hard-to-read choice as files grow, but it isn't disabled or unsafe on larger files, just inconvenient.
-- **"`less` modifies the file."** — It does not. `less` is a read-only viewer; nothing about scrolling, searching, or exiting changes the file's contents.
+- **"`less` modifies the file."** — It does not. `less` is a viewer; normal scrolling, searching, and exiting do not modify the file's contents.
 - **"`head` understands the structure of CSV files."** — It doesn't. `head` only knows about lines of text; it has no concept of columns, headers, or CSV syntax specifically (Section 7).
 - **"`tail` always shows only the final line."** — By default it shows the last 10 lines; use `tail -n 1` if you specifically want just one.
 - **"`tail -f` is frozen when no new data appears."** — It's working correctly; it's simply waiting for new content, exactly as designed (Section 16, mistake #8).

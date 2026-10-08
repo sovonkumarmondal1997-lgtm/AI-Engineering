@@ -84,7 +84,7 @@ Together, they're the foundation of a core Unix/Linux design idea: build small, 
 
 ## 5. The Command-Line Data Flow Mental Model
 
-Before any syntax, build this mental model. Every command you run is a small process that can receive input, do some work, and produce output:
+Before any syntax, build this mental model. A command is something the shell can execute — a shell builtin, a shell function, or an external program (which normally runs as a process). Either way, a command can receive input, do some work, and produce output:
 
 ```text
 INPUT
@@ -169,7 +169,7 @@ What this means:
 - `command1` runs and produces output on its stdout.
 - The shell connects that stdout directly to `command2`'s stdin — no file is created or involved.
 - `command2` reads that data as if it had been typed at its stdin.
-- **`command1` and `command2` are separate processes**, running (conceptually) around the same time, with the pipe acting as the communication channel between them.
+- **`command1` and `command2` execute independently**, running (conceptually) around the same time, with the pipe acting as the communication channel between them. For ordinary external commands, this normally involves separate processes or subshell environments; the exact process behavior depends on the shell.
 
 This last point matters: a pipe is not "one command with a weird syntax" — it's two independent programs, each doing its own job, connected by the shell.
 
@@ -304,7 +304,7 @@ This means: **stdout is redirected to `file.txt`** instead of appearing on your 
 - If `file.txt` doesn't exist, it is created.
 - If `file.txt` already exists, **its previous contents are completely overwritten** — replaced entirely by the command's new output.
 
-> **This overwrite behavior is worth emphasizing directly: `>` does not warn you, does not ask for confirmation, and does not preserve anything that was in the file before. If you redirect into a file that already held something important, that content is gone the instant the command runs.** This mirrors the exact same category of risk you learned about `cp`/`mv` overwriting a destination in Lesson 02 — redirection is simply another way the same kind of accidental data loss can happen.
+> **This overwrite behavior is worth emphasizing directly: By default, `>` truncates an existing destination file without prompting — it does not warn you, does not ask for confirmation, and does not preserve anything that was in the file before. If you redirect into a file that already held something important, that content is gone the instant the command runs.** This mirrors the exact same category of risk you learned about `cp`/`mv` overwriting a destination in Lesson 02 — redirection is simply another way the same kind of accidental data loss can happen.
 
 Safe example:
 
@@ -471,7 +471,7 @@ grep "error" app.log | sort > sorted-errors.txt
 1. The shell **parses** the full command line.
 2. The shell recognizes the `|` and understands this involves two connected commands.
 3. The shell recognizes the `>` and understands the second command's stdout must be redirected to a file.
-4. The shell **starts** `grep` as a process, and `sort` as a separate process (Module 2's process concept).
+4. The shell **starts** `grep` as a process, and `sort` as a separate process (Module 2's process concept; for ordinary external commands like these).
 5. The shell connects `grep`'s stdout to the pipe.
 6. The shell connects `sort`'s stdin to the same pipe (so it receives whatever `grep` writes).
 7. The shell connects `sort`'s stdout to `sorted-errors.txt`, instead of the terminal.
@@ -580,8 +580,8 @@ Work through each scenario's reasoning *before* reading the corrected command an
 **Scenario 3 — Accidental overwrite**
 - *Broken command:* `sort names.txt > names.txt`
 - *Expected intention:* Save the sorted version of `names.txt` back into the same file.
-- *What is wrong:* This is unreliable and can produce an empty or corrupted file, because the shell may truncate (empty out) `names.txt` as part of setting up the redirection **before** `sort` has actually finished reading it.
-- *Why it is wrong:* Redirection targets are typically opened (and, for `>`, truncated) before the command even starts running — so `sort` may end up trying to read from a file that's already been emptied out.
+- *What is wrong:* The shell sets up redirections before executing the command. Because `>` normally opens the destination for writing and truncates an existing file during redirection setup, `sort names.txt > names.txt` can truncate `names.txt` before `sort` reads it. The command therefore normally reads an empty file and produces an empty result.
+- *Why it is wrong:* Redirection targets are typically opened (and, for `>`, truncated) before the command even starts running — so `sort` normally ends up reading a file that's already been emptied out.
 - *Reasoning process:* Ask "is my destination file the same as one of my inputs?"
 - *Corrected command:* `sort names.txt > sorted-names.txt` (a different destination file).
 - *General lesson:* Never redirect a command's output back into one of its own input files directly.
@@ -628,8 +628,8 @@ Work through each scenario's reasoning *before* reading the corrected command an
 - *What is wrong:* Not every command is written to accept a filename as a direct argument — some only ever read from stdin.
 - *Why it is wrong:* Whether a command accepts a filename argument at all is a property of *that specific command's design*, not a universal guarantee (Section 15).
 - *Reasoning process:* Check, for the specific command in question, whether it documents accepting a filename argument, or only reads stdin.
-- *Corrected command:* Use `<` redirection as the reliable, general-purpose fallback whenever unsure.
-- *General lesson:* `<` works for any command that reads stdin; a filename argument only works if that specific command supports it.
+- *Corrected command:* If a command is designed to read from standard input, `< file` can provide the file's contents as stdin. Whether this works depends on the command's documented input behavior.
+- *General lesson:* `<` works for commands that read stdin; a filename argument only works if that specific command supports it.
 
 ---
 
@@ -693,7 +693,7 @@ This lesson does not teach ML frameworks, LLM tooling, RAG, agents, Docker, Kube
 
 ## 26. Bash / Linux / WSL2 / Git Bash / PowerShell
 
-This lesson's primary and reference environment is **Bash on Linux**, identically available under **WSL2** and **Git Bash** — every operator covered here (`|`, `>`, `>>`, `<`, `2>`, `2>>`, `2>&1`) behaves the same way across all three.
+This lesson's primary and reference environment is **Bash on Linux**. The same Bash-style operators (`|`, `>`, `>>`, `<`, `2>`, `2>>`, `2>&1`) are also available in Bash environments such as **WSL2** and **Git Bash**, although the underlying operating-system and compatibility environment differs.
 
 **PowerShell** deserves an honest, high-level note rather than a false equivalence: Bash's pipelines are fundamentally **text-stream**-oriented — one command's text output becomes another's text input, exactly as taught throughout this lesson. PowerShell, by contrast, has an **object-oriented pipeline** model in addition to text-oriented behavior — commands can pass structured objects (with named properties) to each other, not just plain text. This is a genuinely different design, not just different syntax. This lesson does not teach PowerShell's pipeline model in depth — only flags that the underlying semantics differ, so you don't carry a false assumption of exact equivalence into a PowerShell environment later. All primary syntax and examples in this lesson are Bash-compatible.
 
@@ -945,12 +945,12 @@ Perform each of these inside a disposable directory you create for this purpose.
 
 For each scenario, state the likely cause and the safe fix — explain your reasoning, don't just guess a command.
 
-1. `command1 | command2` reports an error that `command2` isn't recognized as a command, even though you're sure it exists. What might actually be on the left side of the pipe that's causing confusion?
+1. `command1 | command2` reports an error that `command2` isn't recognized as a command, even though you're sure it exists. What might actually be wrong on the right side of the pipe, where the unrecognized command sits?
 2. You redirected into a file you meant to only add to, and now your earlier content is gone. What operator mistake likely caused this?
 3. You expected an error message to appear in your redirected output file, but the file is empty and the message appeared on screen instead. What kind of message is this likely to be?
 4. `command > file.txt 2>&1` behaves as expected, but a colleague's `command 2>&1 > file.txt` doesn't capture stderr. What's the difference?
 5. A three-stage pipeline produces no output at all, with no visible error. What's your first debugging step?
-6. You ran `sort somefile.txt > somefile.txt` and the result is empty or corrupted. What happened?
+6. You ran `sort somefile.txt > somefile.txt` and the result is empty. What happened? (The shell truncates `somefile.txt` during redirection setup, before `sort` reads it.)
 7. A command that you expected to accept a filename directly doesn't seem to be reading the file at all. What alternative approach, using redirection, would you try?
 8. You built a five-stage pipeline and can't tell which stage is producing unexpected results. What systematic approach would you use to isolate the problem?
 
@@ -1068,7 +1068,7 @@ You should now be able to explain, without memorizing definitions, why a pipe is
 8. **What does `2>` do?** It redirects stderr specifically to a file, leaving stdout unaffected.
 9. **What does `2>&1` mean?** It redirects stderr to wherever file descriptor 1 (stdout) currently points — commonly used, after first redirecting stdout to a file, to capture both streams together.
 10. **Why does redirection order matter?** Because the shell processes redirections left to right, and `2>&1` captures stdout's *current* destination at that point in the command — reversing the order changes what "current" means, and thus the result.
-11. **What happens internally when `A | B` runs?** The shell starts both `A` and `B` as separate processes, connects `A`'s stdout to a pipe, connects `B`'s stdin to that same pipe, and lets both processes run concurrently, communicating through it.
+11. **What happens internally when `A | B` runs?** For ordinary external commands, the shell starts both `A` and `B` as separate processes (exact process behavior depends on the shell), connects `A`'s stdout to a pipe, connects `B`'s stdin to that same pipe, and lets both processes run concurrently, communicating through it.
 12. **Why might a pipeline be harder to debug?** Because a failure in an early stage may not produce a visible error at the end — later stages can quietly process empty or wrong input without crashing, masking the real problem.
 13. **What happens if an intermediate command fails?** The pipeline as a whole doesn't automatically stop or flag this by default — later stages still run on whatever (possibly empty or wrong) input they receive, and the commonly reported exit status reflects only the last command unless something like `pipefail` is explicitly used.
 14. **Why separate stdout and stderr?** So normal results and error/diagnostic messages can be redirected, saved, or displayed independently — essential for both automation and clear manual debugging.

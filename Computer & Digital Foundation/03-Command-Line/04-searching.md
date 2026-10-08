@@ -168,7 +168,7 @@ grep -rl "timeout" logs/
 grep -c "timeout" server.log
 ```
 
-`-c` ("count") prints a single number: how many lines in the file matched — without showing the lines themselves.
+`-c` ("count") prints a single number: how many *lines* in the file matched (not the total number of occurrences of the pattern) — without showing the lines themselves.
 
 ### Putting the pieces together
 
@@ -187,7 +187,7 @@ This lesson covers only the options above (`-n`, `-i`, `-r`, `-l`, `-c`) — the
 
 ## 5. `grep` Patterns
 
-A **pattern** is the text `grep` looks for on each line. So far, every example has used a **literal** pattern — exact text, matched exactly as written (subject to case-sensitivity, per `-i` above).
+A **pattern** is the text `grep` looks for on each line. By default, `grep` interprets its pattern as a **basic regular expression**. The simple patterns used so far, such as `error`, behave like literal text because they contain no special characters (subject to case-sensitivity, per `-i` above).
 
 ```bash
 grep "error" app.log        # case-sensitive: matches "error", not "Error" or "ERROR"
@@ -196,7 +196,7 @@ grep "python" requirements.txt
 grep "timeout" server.log
 ```
 
-`grep`'s real power comes from also supporting **regular expressions** — a small pattern language for describing text more flexibly than an exact literal string (for example, "any line starting with a digit," rather than one specific word). Regular expressions are a substantial topic on their own, and this lesson deliberately does not teach them — only literal-text matching, which is enough to use `grep` productively and safely as a beginner. A dedicated, deeper treatment of pattern matching belongs to a later stage of this roadmap, not this lesson.
+Characters such as `.`, `*`, `^`, and `$` can have special meaning in a pattern (for example, `foo.bar` does not mean only the literal text `foo.bar`, because `.` matches any single character). Regular expressions — a small pattern language for describing text more flexibly than an exact string — are a substantial topic on their own, and this lesson deliberately does not teach them; sticking to simple word-like patterns is enough to use `grep` productively and safely as a beginner. A dedicated, deeper treatment of pattern matching belongs to a later stage of this roadmap, not this lesson.
 
 ### Why quote your pattern
 
@@ -204,13 +204,13 @@ grep "timeout" server.log
 grep "error message" app.log
 ```
 
-Quoting matters because the shell (Lesson 01, Section 9's path-resolution discussion, and Lesson 02's wildcard-expansion discussion) processes what you type *before* `grep` ever sees it. Without quotes, a pattern containing spaces or certain special characters could be split apart or misinterpreted by the shell itself, and `grep` would receive something different from what you intended. Quoting your pattern tells the shell "treat this entire thing as one single piece of text" — a simple habit that prevents a whole category of confusing mistakes.
+Quoting matters because the shell (Lesson 01, Section 9's path-resolution discussion, and Lesson 02's wildcard-expansion discussion) processes what you type *before* `grep` ever sees it. Without quotes, a pattern containing spaces or certain special characters could be split apart or misinterpreted by the shell itself, and `grep` would receive something different from what you intended. Quoting your pattern keeps it together as one shell word and prevents pathname expansion (globbing) of characters like `*`. (Double quotes still allow some shell expansions, such as parameter expansion and command substitution; single quotes prevent those too.) It is a simple habit that prevents a whole category of confusing mistakes.
 
 ---
 
 ## 6. The `find` Command
 
-`find` searches the filesystem for files and directories matching given conditions, based on their name, type, or location — never their content.
+`find` searches the filesystem for files and directories matching given conditions, based on their name, type, or location (filesystem entries and their properties/conditions) — not their content.
 
 ### What `find` is for, and why it exists
 
@@ -295,7 +295,7 @@ The memorable core distinction:
 
 ```text
 grep → searches CONTENT (what's written inside files)
-find → searches FILESYSTEM OBJECTS/ATTRIBUTES (name, type, location)
+find → searches FILESYSTEM ENTRIES and their properties (name, type, location)
 ```
 
 **On combining them:** a question like "which Python files contain `async`?" genuinely needs both ideas — first locating the right files (`find`'s job), then checking their content (`grep`'s job). In later lessons, you'll learn **pipes** (`06-pipes-and-redirection.md`) and `xargs`, which let you connect commands like this together directly. This lesson does not teach that mechanism — for now, understand only that such a question is conceptually a two-step process, addressed by two separate commands, one at a time: first use `find` to get a list of Python files, then use `grep` on those specific files.
@@ -336,6 +336,18 @@ Concretely, a search can:
 - **Find one or more matches** — output is printed; the command is considered to have succeeded.
 - **Find no matches at all** — no output is printed, but this is not an error. `grep`/`find` did exactly what was asked; there simply was nothing to report. (Section 16 addresses this misconception directly.)
 - **Fail outright** — for example, due to a nonexistent path or a permissions problem (Section 14) — in which case an actual error message is printed, distinct from "no matches."
+
+In the Bash/Linux environment taught here, the two commands differ:
+
+```text
+grep:  0 → at least one match was found
+       1 → no match was found
+       2 → an error occurred
+find:  0 → traversal completed successfully — even if no entry matched the conditions
+       non-zero → an error/problem occurred
+```
+
+So `grep` producing no output is not the same as `grep` failing, and `find` does not signal "no match" through its exit status the way `grep` does.
 
 Command-line programs communicate this distinction through something called an **exit status** — a small signal a program sends when it finishes, indicating success or failure, separate from anything it printed. This lesson does not teach how to read or use exit status directly (that connects to shell scripting, a later lesson) — only that it exists, and that it's the reason "no output" and "the command is broken" are not the same thing.
 
@@ -416,16 +428,16 @@ This lesson stays at the level of the two foundational commands themselves — i
 
 ## 12. Bash / Linux / WSL2 / Git Bash / PowerShell
 
-This lesson's primary and reference environment is **Bash on Linux**, which is also what **WSL2** provides, and what **Git Bash** provides on Windows — `grep` and `find` behave identically across all three.
+This lesson's primary and reference environment is **Bash on Linux**, **WSL2** and **Git Bash** provide broadly similar command-line capabilities, and the basic `grep`/`find` examples here are written for Bash/Linux. These environments are not identical, though — implementations, versions, filesystem integration, and some behaviors can differ.
 
 **PowerShell** (native Windows) has different, though conceptually related, tools:
 
 | Bash/Linux | PowerShell equivalent | Notes |
 |---|---|---|
-| `grep "pattern" file` | `Select-String -Pattern "pattern" -Path file` | Similar purpose: searches content for a matching pattern |
-| `find . -name "file"` | `Get-ChildItem -Recurse -Filter "file"` | Similar purpose: searches the filesystem by name, recursively |
+| `grep "pattern" file` | `Select-String -Pattern "pattern" -Path file` | Roughly equivalent capability: searches content for a matching pattern |
+| `find . -name "file"` | `Get-ChildItem -Recurse -Filter "file"` | Roughly equivalent capability: searches the filesystem by name, recursively |
 
-This lesson is not a PowerShell course — this table exists only so that, if you're working on native Windows, you know equivalent capability exists under different command names. **WSL2** consideration: because it runs a genuine Linux filesystem and shell, `grep` and `find` behave exactly as taught in this lesson inside a WSL2 session — but remember from Lesson 02 that crossing between WSL2's Linux filesystem and Windows' native filesystem (`/mnt/c/...` paths) is where behavior and performance can differ; searching a very large tree across that boundary can be noticeably slower than searching entirely within one filesystem.
+This lesson is not a PowerShell course — this table exists only so that, if you're working on native Windows, you know roughly equivalent capability exists under different command names (these are conceptual equivalents, not implementation-level ones). **WSL2** consideration: searching inside WSL2's Linux filesystem is generally the cleanest practice environment, while Windows-mounted paths (`/mnt/c/...`, see Lesson 02) can have different performance and interoperability characteristics; searching a very large tree across that boundary can be noticeably slower than searching entirely within one filesystem.
 
 ---
 
@@ -591,7 +603,7 @@ Removing this directory afterward follows the same safe cleanup habit from Lesso
 - *Fix:* Always quote wildcard patterns given to `find`'s `-name` condition.
 
 **8. Searching binary files as though they were normal text**
-- *Symptom:* `grep` on a non-text file (an image, a compiled file) produces strange output or a "binary file matches" notice.
+- *Symptom:* `grep` on a non-text file (an image, a compiled file) produces strange output or a "binary file matches" notice. (`grep` is taught here with text files; binary files may produce binary-match behavior or output that isn't useful as normal text.)
 - *Likely cause:* The file isn't text at all — the same binary/text distinction from Lesson 03, Section 18.
 - *Diagnose:* Consider whether the file you're searching is actually meant to be read as text.
 - *Fix:* Restrict your search to text files you actually intend to inspect.
@@ -711,12 +723,12 @@ Work through each scenario's reasoning *before* reading the "Expected reasoning/
 ## 16. Common Misconceptions
 
 - **"`grep` finds files."** — It finds *lines of text inside files* that match a pattern; it never reports on filenames unless the filename text happens to appear as content somewhere.
-- **"`find` searches inside files."** — It does not read file content at all; it only examines filesystem attributes — name, type, location.
+- **"`find` searches inside files."** — It does not read file content at all; it only examines filesystem entries and their properties — name, type, location.
 - **"`grep` and `find` do the same thing."** — They answer fundamentally different questions: content vs. structure (Section 7).
 - **"No output means the command crashed."** — No output from `grep` or `find` most commonly means no matches were found — a valid, correct result, not a failure (Section 9, Section 15 Scenario 10).
 - **"`*` always means the same thing everywhere."** — Its behavior depends on whether the shell expands it first or a command like `find` interprets it directly, which in turn depends on quoting (Section 6, Section 14 mistake 7).
 - **"A search command automatically searches the entire computer."** — Both `grep -r` and `find` only search wherever you point them — starting from a specific path you provide, never the whole filesystem, unless you explicitly told them to start from the root.
-- **"Searching is harmless regardless of where I run it."** — Searching itself never modifies data, but running a broad recursive search from the wrong (e.g. far too large, or permission-restricted) location can be slow, noisy, or produce misleading partial results (Section 14, mistakes 1, 9, 11).
+- **"Searching is harmless regardless of where I run it."** — The searches taught in this lesson do not modify data, but running a broad recursive search from the wrong (e.g. far too large, or permission-restricted) location can be slow, noisy, or produce misleading partial results (Section 14, mistakes 1, 9, 11).
 - **"Recursive searching is always the best option."** — A narrower, targeted search is often faster and gives cleaner, more relevant results than blindly searching an entire large tree (Section 17).
 
 ---
@@ -862,7 +874,7 @@ Key terms and commands from this lesson:
 - **Pattern** — the text (or, later, regular expression) `grep` compares each line against; literal patterns were this lesson's focus.
 - **Recursion** (as applied to search) — descending into subdirectories automatically; `find` always does this; `grep` needs `-r` to do it.
 - **Standard output / exit status** — search results appear via standard output; success/failure is signaled separately via exit status; "no matches" is not the same as "command failed."
-- **Safety** — neither `grep` nor `find`, used as taught in this lesson, ever modifies or deletes anything; both are pure read/inspect operations.
+- **Safety** — the specific `grep` and `find` commands taught in this lesson perform read/inspection operations and do not modify or delete the searched files.
 - **AI Engineering relevance** — locating datasets, configs, model artifacts, and log errors in exactly the same way, applied to AI-specific project structures.
 
 Compact command reference:
@@ -890,7 +902,7 @@ search CONTENT
 
 find
   ↓
-search FILESYSTEM OBJECTS/ATTRIBUTES
+search FILESYSTEM ENTRIES and their properties
 "what files/directories exist, matching this description?"
 ```
 

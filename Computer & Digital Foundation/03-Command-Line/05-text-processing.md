@@ -117,7 +117,7 @@ This lesson deliberately prepares you for Lesson 06 without teaching it. You'll 
 
 Before learning the commands themselves, a few terms — used constantly from here on — need defining:
 
-- **Line** — one row of text, ending at a line break. Every command in this lesson operates line by line.
+- **Line** — one row of text, ending at a line break. `sort`, `uniq`, and `cut` are primarily line-oriented; `xargs` instead parses its input into command arguments.
 - **Record** — one complete unit of information, usually corresponding to one line (e.g. one person's data, one log entry, one filename).
 - **Field** — one specific piece of information *within* a line/record — for instance, just the name, or just the score, if a line contains several pieces of information together.
 - **Delimiter** — the character that separates one field from the next within a line — commas in CSV-like data, for example.
@@ -158,7 +158,7 @@ sort file.txt
 - **`sort`** — the command.
 - **`file.txt`** — the input file whose lines will be reordered.
 
-By default, `sort` orders lines **alphabetically** (more precisely, by comparing characters left to right).
+By default, `sort` orders lines according to its active comparison rules, comparing characters left to right. GNU `sort`'s default comparison is affected by the locale's collation rules; for simple English examples the result looks alphabetical.
 
 ### Reverse order
 
@@ -364,7 +364,7 @@ cut -c1-5 file.txt
 - **Quoted delimiters** — a CSV field like `"Smith, John"` contains a comma *inside* a quoted value, meant to be part of one field, not a separator; `cut` cannot tell the difference and will incorrectly treat that internal comma as a field boundary.
 - **Embedded commas or other delimiter characters within a field** — same issue: `cut` counts every occurrence of the delimiter character, with no concept of "this one doesn't count."
 - **Complex CSV syntax generally** — escaped characters, multi-line fields, and other real-world CSV complexity are entirely outside what `cut` understands.
-- **Irregular data** — rows with a different number of fields than expected will shift or break `cut -fN`'s results unpredictably.
+- **Irregular data** — if lines do not have the expected structure, the requested field may be missing or the extracted result may not represent the logical column you intended.
 
 `cut` is not, and should never be treated as, a CSV parser. For real, robust structured-data parsing, a dedicated tool or a programming language's proper parsing library is the correct approach — that capability is introduced at a later stage of this roadmap, once you reach programming. This lesson's scope stops at "extracting one field from clean, simple, predictable delimited text."
 
@@ -389,7 +389,7 @@ The key distinction to hold onto: `cut` **extracts**; it does not transform, reo
 
 ### The problem `xargs` solves
 
-Every command so far in this module has taken its target (a filename, a directory) as something you typed directly as an argument — e.g. `cat file.txt`, `find . -name "*.py"`. But sometimes you have a **list of items** — produced as plain lines of text (perhaps from `find`, or from a file, or typed directly) — and you want to run some command **once for each item in that list**, using each line as an argument.
+Every command so far in this module has taken its target (a filename, a directory) as something you typed directly as an argument — e.g. `cat file.txt`, `find . -name "*.py"`. But sometimes you have a **list of items** — produced as plain lines of text (perhaps from `find`, or from a file, or typed directly) — and you want to run some command using those items as arguments.
 
 ```text
 Without xargs:
@@ -400,14 +400,14 @@ Without xargs:
 With xargs:
    input text
       ↓
-   items (split by whitespace/newlines)
+   items (separated by whitespace/newlines, with xargs's own quote and backslash rules)
       ↓
-   command arguments
+   argument list / batch
       ↓
-   command execution
+   command execution (may repeat with another batch)
 ```
 
-`xargs` exists specifically to bridge that gap: it reads items from its input, and **builds** a command line using those items as arguments, then runs it.
+`xargs` exists specifically to bridge that gap: it reads items from its input, **builds** an argument list from those items, and runs the specified command with those arguments — possibly several times, in batches, if there are many items.
 
 ### A first example
 
@@ -433,8 +433,8 @@ alice bob carol
 
 ### What to take away
 
-- `xargs` reads **input items**, typically separated by whitespace or newlines.
-- It **builds arguments** for another command from those items.
+- `xargs` reads **input items**, separated by whitespace or newlines while also applying its own quote and backslash parsing rules.
+- It **builds argument lists** for another command from those items (it may run the command more than once, in batches).
 - It then **invokes that command** with the constructed arguments.
 - The command it invokes can be anything — this lesson deliberately sticks to harmless, read-only commands like `echo` for every example and exercise (Section 12 explains why).
 
@@ -446,7 +446,7 @@ This section is mandatory reading before using `xargs` for anything beyond this 
 
 ### Why `xargs` deserves special caution
 
-`xargs` builds a command and then **runs it**. That means whatever text it receives as input directly determines what command actually executes — and if that command happens to be something that modifies or deletes data (`rm`, `mv`, etc.), then bad or unexpected input can cause that command to run against files you never intended.
+`xargs` builds a command and then **runs it**. The command itself is specified separately by you; the input determines the *arguments* supplied to it. If that command happens to be something that modifies or deletes data (`rm`, `mv`, etc.), then bad or unexpected input can cause it to operate on files or resources you never intended.
 
 **This lesson does not demonstrate `xargs` combined with `rm` or any other destructive command, and you should not experiment with that combination casually either.** Every example and exercise in this lesson uses harmless, read-only commands — `echo`, `printf` — specifically so that even a mistake produces no real consequence.
 
@@ -462,11 +462,11 @@ Therefore input handling matters
 
 1. **Never assume input is safe** — text you didn't fully inspect could contain more, or different, items than you expect.
 2. **Inspect input before passing it to another command** — view it first (Lesson 03), especially before combining it with `xargs`.
-3. **Understand how arguments are constructed** — know that each line/whitespace-separated item becomes a separate argument to the target command.
-4. **Be especially careful with filenames containing spaces, newlines, or special characters** — a filename like `my report.txt` can be misread by `xargs` as two separate items (`my` and `report.txt`) unless handled carefully, potentially causing a command to act on the wrong thing entirely.
+3. **Understand how arguments are constructed** — know that each whitespace-separated item (subject to `xargs`'s quote and backslash handling) becomes a separate argument to the target command.
+4. **Be especially careful with filenames containing spaces, newlines, or special characters** — a filename like `my report.txt` can be misread by `xargs` as two separate items (`my` and `report.txt`) unless handled carefully, potentially causing a command to act on the wrong thing entirely. Basic whitespace-based `xargs` handling is not sufficient for arbitrary filenames (spaces, newlines, quotes, backslashes, or other unusual characters). Robust workflows commonly use NUL-delimited input, such as `find -print0` with `xargs -0`, or `find -exec ... +` — those techniques are out of scope here.
 5. **Avoid blindly executing commands generated from untrusted input** — if you didn't create or fully verify the input yourself, don't feed it into `xargs` paired with anything that changes data.
 
-This is also your first, gentle introduction to a much larger security concept you'll meet properly later in this roadmap: when text controls what a program executes, careless handling of that text becomes a genuine security risk (this general category is sometimes called **injection** in later, more advanced material). This lesson does not teach that topic in depth — only enough to instill caution now, before you have the tools to cause real damage with it.
+This is also your first, gentle introduction to a much larger security concept you'll meet properly later in this roadmap: when text controls what a program executes or what arguments it receives, careless handling of that text becomes a genuine security risk (this general category is sometimes called **injection** in later, more advanced material). This lesson does not teach that topic in depth — only enough to instill caution now, before you have the tools to cause real damage with it.
 
 ---
 
@@ -475,7 +475,7 @@ This is also your first, gentle introduction to a much larger security concept y
 Conceptually, when you run something like `... | xargs echo`:
 
 1. `xargs` reads its input (from wherever it's connected to receive it).
-2. It parses that input into individual **items**, splitting on whitespace/newlines by default.
+2. It parses that input into individual **items**, splitting on whitespace/newlines by default (while also applying its own quote and backslash parsing rules).
 3. It groups those items into one or more sets of arguments — because operating systems impose a practical limit on how long a single command invocation's arguments can be, `xargs` may need to invoke the target command **multiple times**, each with a batch of items, rather than always doing it in one single call.
 4. It invokes the specified command (e.g. `echo`), supplying the constructed arguments.
 5. For large amounts of input, this invoke-with-a-batch process may repeat several times until all items have been processed.
@@ -604,7 +604,7 @@ This lesson does not introduce any AI/ML framework — every example above uses 
 
 ## 18. Bash / Linux / WSL2 / Git Bash / PowerShell
 
-This lesson's primary and reference environment is **Bash on Linux**, identically available under **WSL2** and **Git Bash** — `sort`, `uniq`, `cut`, and `xargs` behave the same way across all three.
+This lesson's primary and reference environment is **Bash on Linux**, with **WSL2** providing a Linux environment, so the Linux examples apply directly. **Git Bash** provides broadly compatible Unix-style tools, but exact behavior and options can vary by implementation and tool version.
 
 **PowerShell** is meaningfully different here: rather than line-of-text-oriented commands, PowerShell has its own **object-oriented pipeline**, with roughly corresponding cmdlets such as `Sort-Object`, `Group-Object` (for a role similar to counting/grouping), and `Select-Object` (for extracting specific properties, filling a role similar to `cut`'s field extraction). This lesson does not teach PowerShell's pipeline model — only notes that equivalent *capability* exists under a different design. Bash/Linux remains the primary implementation environment for this entire module, and for the rest of this roadmap's early stages.
 
@@ -853,7 +853,7 @@ No destructive command, no `sudo`, and no modification of any real file occurs i
 
 **9. Whitespace changes how `xargs` parses arguments**
 - *Symptom:* An item you expected to be treated as one single argument gets split into multiple arguments.
-- *Likely cause:* `xargs` splits input on whitespace by default, including spaces inside what you intended as a single item (e.g. a filename with a space in it).
+- *Likely cause:* `xargs` splits input on whitespace by default (it also applies its own quote and backslash rules), including spaces inside what you intended as a single item (e.g. a filename with a space in it).
 - *Inspect:* Check whether any input item itself contains internal whitespace.
 - *Root cause:* Default whitespace-splitting behavior colliding with an item that isn't a simple, single "word."
 - *Correction:* Recognize this case explicitly rather than assuming `xargs` "knows" your intent (advanced handling of this case is out of scope for this lesson).

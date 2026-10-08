@@ -52,7 +52,7 @@ Complete beginners often use these words interchangeably. They are not the same 
 
 | Term | What it actually is | Analogy |
 |---|---|---|
-| **Terminal** | An application (a window) that displays text input/output. It is just a screen and a keyboard — it has no intelligence of its own. | The phone handset |
+| **Terminal** | An application (a window) that displays text input/output. It is like a screen and a keyboard: a terminal emulator provides the interactive text interface through which your input is sent to, and output is displayed from, a shell or other program. It does not interpret commands itself. | The phone handset |
 | **Shell** | A *program* that runs inside the terminal, reads what you type, interprets it, and asks the operating system to act on it. Bash, Git Bash, and PowerShell are all shells. | The person you're talking to on the phone |
 | **Command** | A single instruction you give the shell — e.g. `pwd`, `ls`, `cd projects` — which the shell parses and executes. | A sentence you speak into the phone |
 | **Filesystem** | The tree structure of directories and files stored on disk (Module 0.2). Navigation commands operate *on* this structure. | The city the person you're talking to can walk around in |
@@ -63,9 +63,14 @@ Concretely:
 - You open a **terminal** window.
 - Inside it, a **shell** (e.g. `bash`) starts running.
 - You type a **command** like `ls`.
-- The shell looks at the **filesystem**, starting from its **current working directory**, and prints the result back into the terminal window.
+- The shell parses the command and runs it — `ls` is an external program the shell starts, while `cd` and `pwd` are handled by the shell itself (builtins).
+- The program asks the operating system for access to the **filesystem**, starting from its **current working directory**, and its output is displayed in the terminal window.
 
-The terminal never changes location, never interprets commands, and never touches files — it only displays what the shell sends it. All the real work happens in the shell.
+```text
+Terminal → Shell (parses, expands) → builtin or external program → Operating system → Filesystem
+```
+
+The terminal never changes location, never interprets commands, and never touches files — it only passes your typing to the shell and displays what comes back. The shell interprets what you type and starts the right program; the operating system provides access to the filesystem.
 
 ### 4. Current Working Directory
 
@@ -76,7 +81,7 @@ One piece of state every process has is its **current working directory (CWD)** 
 Key facts:
 
 - The shell itself is a process. It has a CWD, just like any other process.
-- When you run a command that refers to a file *without* a full path (e.g. `cat notes.txt`), the shell resolves `notes.txt` **relative to its CWD** — it does not search the entire filesystem.
+- When you run a command that refers to a file *without* a full path (e.g. `cat notes.txt`), `notes.txt` is interpreted **relative to the process's CWD** — the system does not search the entire filesystem.
 - When the shell starts a new program (say, `python train.py`), that child process usually **inherits** the shell's current CWD as its own starting CWD. This is why "where you run a script from" can change how the script behaves — a script that opens `data/input.csv` will look for `data/` relative to wherever the process's CWD is.
 - Changing directory with `cd` does not move any files. It only updates the shell process's internal "I am currently here" pointer.
 
@@ -89,7 +94,7 @@ A **path** is a text description of a location in the filesystem tree.
 Vocabulary, building directly on the filesystem tree from Module 0.2:
 
 - **Directory** — a folder; a node in the tree that can contain other directories and files.
-- **Root directory** — the top of the entire tree, written `/` on Linux/macOS/WSL2/Git Bash. Everything else is nested under it.
+- **Root directory** — the top of the entire tree, written `/` on Linux/macOS/WSL2. Git Bash also presents a Unix-like `/` environment, although it is not the same filesystem environment as native Linux. Everything else is nested under it.
 - **Parent directory** — the directory one level *above* a given directory (its container).
 - **Child directory** — a directory nested *inside* a given directory.
 - **Home directory** — the directory assigned to your user account for personal files, written `~` as a shortcut (e.g. `/home/learner`).
@@ -123,7 +128,7 @@ An **absolute path** starts from the root (`/`) and spells out the *entire* loca
 /home/learner/projects/ai-project
 ```
 
-- Always starts with `/` (or, on native Windows PowerShell, a drive letter like `C:\`).
+- Always starts with `/` on Unix-like systems. On native Windows, common absolute paths use a drive-letter form such as `C:\...`; Windows also supports other absolute path forms.
 - Always points to the same place, no matter what your current directory is.
 - Slightly longer to type, but never ambiguous.
 
@@ -158,7 +163,7 @@ Mental model: `pwd` is you asking the shell process "where are you standing?" an
 
 ### 7. `ls` — List Directory Contents
 
-`ls` asks the shell: "What files and directories exist in [some location]?"
+`ls` is a program the shell starts. It asks the operating system what files and directories exist in [some location], then formats and prints the result.
 
 ```bash
 $ ls
@@ -180,7 +185,7 @@ Useful flags for a beginner to know now (you will use these constantly):
 | Flag | Meaning | Example |
 |---|---|---|
 | `-l` | "Long" format: shows permissions, owner, size, and modified date (connects directly to the permissions concept from Module 0.2) | `ls -l` |
-| `-a` | "All": shows hidden files/directories too (anything starting with `.`, like `.gitignore` or `.env`) | `ls -a` |
+| `-a` | "All": shows hidden files/directories too (on Unix-like systems, names beginning with `.` are conventionally treated as hidden by directory-listing tools such as `ls`, like `.gitignore` or `.env`) | `ls -a` |
 | `-la` (or `-al`) | Combine both: long format, including hidden entries | `ls -la` |
 | `-h` | "Human-readable" sizes (e.g. `2.1M` instead of `2201233`) — usually paired with `-l` | `ls -lh` |
 
@@ -222,19 +227,26 @@ Common forms:
 | `cd -` | Jump back to the *previous* directory you were in before your last `cd` |
 | `cd .` | "Move" to the current directory — effectively a no-op, but useful to understand `.` |
 
+For simplicity, this lesson assumes the Bash `CDPATH` variable is unset. In Bash/POSIX shells, `CDPATH` can affect how `cd` searches for relative directory names.
+
 Mental model: `cd` is the only one of the three core commands that **changes process state**. `pwd` and `ls` only *read* and report; `cd` *writes* a new value into the shell's CWD. This is why `cd` is the command most likely to "surprise" a beginner — always confirm with `pwd` (or check your terminal prompt, which usually shows the CWD) after a `cd` if you're unsure.
 
-### 9. How the Shell Resolves a Path (Internal Mechanics)
+### 9. How Shells and the Operating System Handle Paths (Internal Mechanics)
 
-When you type a command involving a path, the shell performs a predictable sequence of steps:
+Handling a path is split between the shell and the operating system:
 
-1. **Is the path absolute?** (Does it start with `/`?) If yes, the shell starts resolution from the root `/` and follows each segment exactly as written — the current CWD is irrelevant.
-2. **Is the path relative?** If it doesn't start with `/`, the shell takes its own current working directory and appends the path segments onto it, one at a time.
-3. **Special segments are resolved as it goes:** `.` resolves to "stay here," `..` resolves to "step up to the parent," and `~` is expanded by the shell *before* resolution even begins, into your home directory's absolute path.
-4. **Each segment is checked against the filesystem:** the shell (via the operating system, per Module 0.2's system-call concept) asks the filesystem "does a directory with this name exist inside the current segment?" If any segment along the way doesn't exist, or exists but isn't a directory, or you lack permission to enter it, resolution fails and you get an error — it does not silently guess or search elsewhere.
-5. **Once fully resolved, the OS returns a definitive filesystem location**, which `cd` then stores as the shell process's new CWD (or which `ls`/other commands read from directly, without changing the CWD).
+```text
+Shell-level processing → pathname passed to program → program requests filesystem access → OS/filesystem resolves pathname
+```
 
-This is why a single typo, an extra `/`, or being one directory off produces an immediate, exact error rather than "close enough" behavior — path resolution is mechanical and literal, not fuzzy.
+1. **Shell-level processing first:** the shell parses your command and performs shell expansions. For example, in Bash, `~` is expanded by the shell *before* the program runs, into your home directory's absolute path. `~` is shell expansion, not a universal filesystem pathname component.
+2. **The pathname is passed to the program:** for `ls projects`, the program `ls` receives the text `projects`. (`cd` is a shell builtin, so the shell itself uses the path.)
+3. **The program requests filesystem access:** when the program (or the shell, for `cd`) tries to use the path, the operating system performs the pathname lookup.
+4. **Absolute vs relative:** an absolute pathname (starting with `/`) is interpreted from the filesystem root — the CWD is irrelevant. A relative pathname is interpreted using the process's current working directory.
+5. **Segments are checked one at a time:** `.` means "stay here" and `..` means "step up to the parent." If any segment along the way doesn't exist, or exists but isn't a directory, or you lack permission to enter it, the lookup fails and you get an error — it does not silently guess or search elsewhere.
+6. **On success**, `cd` stores the resulting location as the shell process's new CWD (while `ls`/other commands just use it, without changing the CWD).
+
+This is why a wrong name, a typo, or being one directory off produces an immediate, exact error rather than "close enough" behavior — path resolution is mechanical and literal, not fuzzy. (Repeated `/` characters, such as `projects//ai-project`, may be accepted on Unix-like systems, but wrong names or wrong path components will cause an error.)
 
 ### 10. Real-World Use Cases
 
@@ -248,7 +260,7 @@ This is why a single typo, an extra `/`, or being one directory off produces an 
 
 | Choice | Benefit | Cost |
 |---|---|---|
-| Absolute paths | Unambiguous, safe in scripts, work regardless of CWD | Longer to type/read; less portable if the project moves to a different location on disk |
+| Absolute paths | Unambiguous and predictable within a given filesystem layout; work regardless of CWD, useful when a script needs a fixed location | Longer to type/read; less portable if the project moves to a different location on disk |
 | Relative paths | Short, portable (a whole project folder can be moved/renamed and relative paths inside it still work) | Meaning depends entirely on CWD — a script run from the wrong directory silently fails or, worse, touches the wrong files |
 | Frequent `cd` between locations | Convenient, less typing per command | Increases the chance you forget where you are and run a command "in the wrong place" |
 | Always confirming with `pwd`/`ls` before acting | Prevents mistakes, builds accurate mental model | Costs a few extra keystrokes each time |
@@ -303,7 +315,7 @@ $ pwd
 
 ### 13. Practical Exercises
 
-Work through these in an actual terminal (Bash, Git Bash, or WSL2 — all behave the same way for these commands).
+Work through these in an actual terminal. Primary environment: Bash on Linux/WSL2. Git Bash supports the basic navigation exercises used here, but it is not identical to a native Linux environment.
 
 1. Open your terminal and run `pwd`. Write down the exact output.
 2. Run `ls -la` in that same location. Identify: one regular file, one directory, the `.` entry, and the `..` entry.
@@ -322,7 +334,7 @@ For each scenario, identify the likely cause before reading the explanation.
 $ cd projects
 -bash: cd: projects: No such file or directory
 ```
-*Likely cause:* There is no directory named `projects` inside your current working directory. Run `pwd` then `ls` to confirm what actually exists here — you may be one level off, or there may be a typo/case mismatch (`Projects` vs `projects` — filesystems on Linux/WSL2 are case-sensitive).
+*Likely cause:* There is no directory named `projects` inside your current working directory. Run `pwd` then `ls` to confirm what actually exists here — you may be one level off, or there may be a typo/case mismatch (`Projects` vs `projects` — on Linux and WSL, treat filenames as case-sensitive; on Windows and macOS, case-sensitivity depends on the filesystem/configuration).
 
 **Scenario B**
 ```bash
@@ -351,7 +363,7 @@ $ ls
 $ cd Projects
 -bash: cd: Projects: No such file or directory
 ```
-*Likely cause:* Case mismatch. The real directory is `projects` (lowercase). Filesystem navigation on Linux/macOS/WSL2 is case-sensitive, unlike native Windows.
+*Likely cause:* Case mismatch. The real directory is `projects` (lowercase). Linux and the WSL Linux filesystem are case-sensitive by default, so `projects` and `Projects` can be different names. Windows and macOS can use case-sensitive or case-insensitive filesystem configurations, so don't assume case sensitivity from the operating system name alone.
 
 **General diagnostic procedure whenever navigation misbehaves:**
 
@@ -382,7 +394,7 @@ Without creating, deleting, or modifying any files (this lesson is read-only nav
 5. What do `.` and `..` mean, and where do you see them appear directly in `ls -la` output?
 6. Does `ls` ever change your current working directory? Does `cd`? Explain the difference.
 7. If you're unsure where you are, which single command should you run first?
-8. Why is `cd Projects` different from `cd projects` on Linux/WSL2, but might not matter on native Windows?
+8. Why is `cd Projects` different from `cd projects` on Linux/WSL2, but might not matter on some Windows or macOS filesystem configurations?
 9. What does `cd -` do?
 10. Walk through, step by step, how the shell resolves the path `../data/train.csv` starting from `/home/learner/projects/ai-project`.
 
