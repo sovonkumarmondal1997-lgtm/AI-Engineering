@@ -30,8 +30,9 @@ its solution — that is where the actual learning happens.
 
 Create variables describing a person: their full name, their age, their
 height in meters, whether they are currently a student, and their middle
-name (which they have not told you, so it should represent "no value at
-all"). Print each value together with its type.
+name (which they have not told you, so it should represent "no value has
+been provided or assigned for this field"). Print each value together
+with its type.
 
 #### Concepts practised
 
@@ -234,8 +235,8 @@ unambiguous rather than relying on memorized precedence.
   discount part of the shipping fee too.
 - Using `/` instead of `*` when computing 10% of a total (`* 0.10`, not
   `/ 0.10`).
-- Forgetting the `.2f` format specifier and getting an ugly, unpredictable
-  number of decimal places in the output.
+- Forgetting the `.2f` format specifier and getting a number of decimal
+  places that is not fixed at two in the output.
 
 #### Optional improvement challenge
 
@@ -328,8 +329,8 @@ noitagaporpkcab
 Each extraction uses exactly the indexing or slicing rule that fits the
 task: a single position for one character, a range for several
 consecutive characters, and a full negative-step slice for reversal.
-Because slicing always builds a brand-new string rather than modifying
-`word`, none of these operations affect `word` itself or each other.
+String slicing returns a string result without modifying the original
+string, so none of these operations affect `word` itself or each other.
 
 #### Common beginner mistakes
 
@@ -632,9 +633,9 @@ Email: ada@example.com
 
 #### Why this solution works
 
-Because every string method returns a *new* string rather than changing
-the original (Topic 4), chaining `.strip().title()` and
-`.strip().lower()` safely builds a fully cleaned value in one expression,
+The string-cleaning methods used here return strings rather than
+modifying the original string in place (Topic 4), so chaining
+`.strip().title()` and `.strip().lower()` safely builds a fully cleaned value in one expression,
 without ever needing an intermediate variable — and the original
 `raw_name`/`raw_email` values are left completely untouched, in case they
 are needed again.
@@ -1094,8 +1095,8 @@ A classroom roster is represented as a list of small group lists, such as
 `[["Ada", "Grace"], ["Alan"]]`. Make a shallow copy of it and show that
 mutating a name *inside* one of the inner groups affects both the
 original and the copy, while adding a whole new group to just the copy
-does not affect the original. Then use `copy.deepcopy()` to make a fully
-independent copy and show that mutating an inner group through the deep
+does not affect the original. Then use `copy.deepcopy()` to make a copy whose
+nested lists are independent and show that mutating an inner group through the deep
 copy leaves the original completely untouched.
 
 #### Concepts practised
@@ -1167,7 +1168,8 @@ print("deep copy:", deep)
 - `shallow.append(["Linus"])` adds a brand-new inner list directly to the
   *outer* shallow-copied list, which really is independent — so
   `classroom` is unaffected by this particular change.
-- `copy.deepcopy(classroom)` copies every level of nesting independently.
+- `copy.deepcopy(classroom)` creates independent copies of the nested list
+  objects in this example.
   `deep[0].append("Katherine")` now mutates a completely separate inner
   list, leaving `classroom` untouched.
 
@@ -1188,8 +1190,8 @@ The example deliberately separates two different kinds of change —
 mutating something *inside* an existing inner list, versus adding a whole
 new inner list to the outer list — because a shallow copy behaves
 differently for each: shared for the first, independent for the second.
-`deepcopy()` closes that gap entirely by copying every level, which is
-exactly why it exists.
+`deepcopy()` closes that gap in this example by creating independent
+copies of the nested list objects, which is exactly why it exists.
 
 #### Common beginner mistakes
 
@@ -1443,9 +1445,8 @@ it with the empty-set result above.
 
 Several pairs of words might represent "the same word," once case and a
 few tricky characters (like the German `ß`) are normalized. Given a list
-of `(original, candidate)` tuples, unpack each pair and decide whether the
-two words should be treated as equal, using a normalization technique more
-reliable than plain `.lower()`.
+of `(original, candidate)` tuples, unpack each pair and compare the strings after Unicode-aware case
+folding, a normalization technique more reliable than plain `.lower()`.
 
 #### Concepts practised
 
@@ -1621,10 +1622,10 @@ print(x is y)
   printing that it was never answered.
 - `x = 1000` and `y = int("1000")` are built in two different ways but
   end up with the same value, `1000`.
-- `x == y` is `True`, since both represent the same value. `x is y` is
-  `False`, since `x` and `y` are two separate `int` objects that merely
-  happen to be equal — CPython does not guarantee sharing a single object
-  for a number this large, unlike some small literal numbers.
+- `x == y` is `True`, since both represent the same value. `x is y`
+  compares object identity, not value; whether two equal integers are the
+  same object is an implementation detail, so the `False` shown here is
+  what CPython typically prints but is not guaranteed.
 
 #### Example output
 
@@ -1643,17 +1644,18 @@ value" (`rating = 0`) from "no value was ever provided"
 cannot make, since it treats every falsy value identically (Topic 9).
 Separately, `==` and `is` answer genuinely different questions (Topic
 10): equal value versus the exact same object — and using a
-runtime-built integer (`int("1000")`) rather than a small literal avoids
+runtime-built integer (`int("1000")`) rather than a small literal usually avoids
 the coincidental object-reuse behavior that can make `is` look like it
-"works" for ordinary values, when it should not be relied on for that.
+"works" for ordinary values; either way, `is` should not be relied on for
+that.
 
 #### Common beginner mistakes
 
 - Writing `if rating:` instead of `if rating is None:`, incorrectly
   treating a genuine `0` rating the same as "never answered."
 - Using `is` to compare `x` and `y` and expecting it to behave like `==`
-  for ordinary values — as this example shows, it can silently give a
-  different answer.
+  for ordinary values — as this example shows, it can give a different
+  answer, because it tests identity rather than value.
 - Assuming the `is` result for small literal integers (which can
   coincidentally be `True` in CPython) generalizes to all integers — it
   does not, and should never be relied upon either way.
@@ -1855,8 +1857,8 @@ drawing on Topics 5, 6, and 9.
 #### Solution approach
 
 1. Store the student data as a list of tuples.
-2. Build separate `names` and `scores` lists by unpacking each tuple in a
-   loop (useful for the statistics that follow).
+2. Build a separate `scores` list by unpacking each tuple in a loop
+   (useful for the statistics that follow).
 3. Compute the class average, highest, and lowest score from `scores`.
 4. Build a list of pass/fail `bool` flags using a fixed passing threshold.
 5. Print the per-student report, the statistics, and the `any()`/`all()`
@@ -1877,10 +1879,8 @@ student_scores = [
     ("Marie", 60),
 ]
 
-names = []
 scores = []
 for name, score in student_scores:
-    names.append(name)
     scores.append(score)
 
 class_average = sum(scores) / len(scores)
@@ -1918,9 +1918,8 @@ print(f"Top student: {top_name} ({top_score})")
 #### Explanation
 
 - `for name, score in student_scores:` unpacks each tuple directly in the
-  loop header, building two parallel lists, `names` and `scores` (the
-  `names` list here is kept for clarity, even though this program does
-  not end up needing it further).
+  loop header, building a `scores` list (the names are not needed
+  separately, because the later loops use `student_scores` directly).
 - `sum(scores) / len(scores)` computes the average using the running-total
   pattern from earlier lessons; `max(scores)` and `min(scores)` find the
   extremes directly.
@@ -2179,6 +2178,7 @@ profile = {
 updates = {
     "bio": "Engineer and lifelong learner.",
     "age": "34",
+    "referral_code": "REF-2026",
 }
 
 for field, new_value in updates.items():
@@ -2200,6 +2200,8 @@ for field, value in profile.items():
 
 if profile.get("referral_code") is None:
     print("\nNo referral code on file yet.")
+else:
+    print(f"\nReferral code on file: {profile['referral_code']}")
 ```
 
 #### Explanation
@@ -2217,24 +2219,31 @@ if profile.get("referral_code") is None:
 - `profile["age"] = int(profile["age"])` converts the just-added text
   value `"34"` into the real number `34`, after all updates have been
   applied.
-- `profile.get("referral_code") is None` is still `True` at the end,
-  since nothing in `updates` touched that field, so the final message
-  correctly reports it as still unset.
+- For `"referral_code"`, `current_value` is `None` but the key *is* in
+  `profile`, so the second branch runs, correctly reporting a previously
+  empty field being filled in. That also shows all three cases: `"age"` is
+  brand new, `"referral_code"` was previously empty, and `"bio"` is
+  overwritten.
+- `profile.get("referral_code") is None` is now `False` at the end, so the
+  final message reports the referral code that is on file. (If you remove
+  `"referral_code"` from `updates`, it stays `None` and the program
+  reports "No referral code on file yet.")
 
 #### Example output
 
 ```text
 Overwriting existing value for 'bio'.
 Adding new field 'age'.
+Filling in previously empty field 'referral_code'.
 
 Final profile:
   username: grace92
   bio: Engineer and lifelong learner.
   newsletter_opt_in: False
-  referral_code: None
+  referral_code: REF-2026
   age: 34
 
-No referral code on file yet.
+Referral code on file: REF-2026
 ```
 
 #### Why this solution works

@@ -54,7 +54,7 @@ By the end of this lesson, you will be able to:
 |---|---|
 | **List** | An ordered, changeable collection of values, written between square brackets, such as `[1, 2, 3]`. |
 | **Element / item** | One single value stored inside a list. |
-| **Mutable** | Able to be changed in place, without creating a brand-new value. |
+| **Mutable** | Describes an object whose state can be changed in place. |
 | **Index** | A whole number identifying one element's position inside a list. |
 | **Zero-based indexing** | Python's rule that the first element of a list is at position `0`. |
 | **Negative index** | An index counted from the end of a list backward, where `-1` is the last element. |
@@ -65,7 +65,7 @@ By the end of this lesson, you will be able to:
 | **Alias** | A second variable name that refers to the exact same list as another name, rather than to a separate copy. |
 | **Copy** | A genuinely separate list containing the same elements, which can be changed without affecting the original. |
 | **Shallow copy** | A copy of the outer list only; any lists *inside* it are still shared with the original. |
-| **Deep copy** | A copy where every nested list is also independently copied, all the way down. |
+| **Deep copy** | A copy that recursively copies nested objects so that mutable nested objects are no longer shared, where `deepcopy()` supports copying them. |
 
 ## Step-by-step explanation
 
@@ -77,7 +77,7 @@ list whenever you have more than one related value that naturally belongs
 together as a group — the items in a shopping cart, the scores from a set
 of exams, the lines read from a file. A single variable like
 `price = 4.99` is right for one value; a list is right once you have
-*several* values of the same kind to keep track of together.
+*several* related values to keep track of together.
 
 ### 2. Creating empty and populated lists
 
@@ -198,6 +198,18 @@ print(copy_via_slice)    # [1, 2, 3, 4]     — the new list grew
 which is also, as you will see again in Section 9, one common way to make
 a full copy of a list.
 
+#### Membership: `in` and `not in`
+
+You can check whether a value occurs in a list with `in`, and that it does
+not occur with `not in`. Both give a Boolean result:
+
+```python
+fruits = ["apple", "banana", "cherry"]
+
+print("banana" in fruits)      # True
+print("orange" not in fruits)  # True
+```
+
 ### 6. Mutating a list: lists are mutable
 
 As you learned when comparing lists and strings in the previous two
@@ -249,8 +261,9 @@ print(result)    # None       — sort() itself returns nothing
 returns `None`. If you write `numbers = numbers.sort()`, you have just
 destroyed your list, replacing it with `None`! The list's built-in
 `.sort()` and `.reverse()` methods (covered fully in the appendix) both
-mutate in place and both return `None` — never assign their result to
-anything. If you want a *new*, sorted or reversed list while keeping the
+mutate the list in place and both return `None`, so assigning their
+return value to a variable binds that name to `None` — never assign their
+result to anything. If you want a *new*, sorted or reversed list while keeping the
 original list unchanged, use the built-in functions `sorted(...)` and
 `reversed(...)` instead, covered in Section 11 below — they do the
 opposite: they leave the original list alone and return a new value.
@@ -286,7 +299,7 @@ points to completely untouched.
 
 When you genuinely want a separate list — one you can change without
 affecting the original — you need a real **copy**, not an alias. Python
-gives you three equivalent ways to make one:
+provides several common ways to make a shallow copy of a list:
 
 ```python
 original_list = [1, 2, 3]
@@ -382,12 +395,27 @@ print(list(reversed(numbers)))    # [3, 9, 1, 8, 4]  — a NEW reversed list
 `.sort()` and `.reverse()` methods from Section 7: they always leave the
 original list exactly as it was, and hand back a new result instead —
 `sorted(...)` gives back a real list directly, while `reversed(...)` gives
-back a special reversible sequence, which is why it is wrapped in
-`list(...)` above to display it as an ordinary list.
+an iterator that produces the elements in reverse order, which is why it is
+wrapped in `list(...)` above to create an ordinary list.
+
+A `for` loop can visit each list element in order; the loop variable
+receives each element one at a time (first taught in Module 1.1):
+
+```python
+fruits = ["apple", "banana", "cherry"]
+
+for fruit in fruits:
+    print(fruit)
+```
+
+```text
+apple
+banana
+cherry
+```
 
 `enumerate(...)` is useful whenever you need both the position and the
-value while going through a list, using a `for` loop (first taught in
-Module 1.1):
+value while going through a list this way:
 
 ```python
 fruits = ["apple", "banana", "cherry"]
@@ -401,9 +429,10 @@ for position, fruit in enumerate(fruits):
 2 cherry
 ```
 
-`any(...)` and `all(...)` each take a list of `True`/`False` values.
-`any(...)` returns `True` if **at least one** is `True`; `all(...)` returns
-`True` only if **every single one** is `True`:
+`any(...)` and `all(...)` take an iterable of values and test the
+truthiness of those values. `any(...)` returns `True` if **at least one**
+element is truthy; `all(...)` returns `True` only if **every single one**
+is truthy:
 
 ```python
 scores = [55, 82, 91, 40]
@@ -597,6 +626,8 @@ Do not look up full solutions. Predict the output before running each one.
       why an index can go out of range.
 - [ ] I can write a slice with a start, a stop, and a step, and explain
       why a slice is always a new list.
+- [ ] I can check whether a value is in a list with `in` / `not in`, and
+      loop over a list's elements with `for`.
 - [ ] I can add, remove, replace, reorder, and clear items in a list, and
       explain why this is possible because lists are mutable.
 - [ ] I can explain the difference between a mutating method (like

@@ -33,7 +33,7 @@ By the end of this lesson, you will be able to:
   truthiness inside `if` statements.
 - Explain when `if value:` is a fine check, and when an explicit check
   like `if value is None:` is required instead.
-- Use `any()` and `all()` to summarize a list of true/false-like values.
+- Use `any()` and `all()` to summarize an iterable of true/false-like values.
 
 ## Prerequisites
 
@@ -89,8 +89,8 @@ into another, when your program actually needs to.
 
 **Implicit conversion** happens automatically, without you writing any
 conversion code. The most common example: combining an `int` and a
-`float` with an operator automatically produces a `float`, since a `float`
-can represent everything an `int` can, plus fractional values:
+`float` with an operator is allowed, and Python produces a floating-point
+result:
 
 ```python
 count = 3
@@ -117,10 +117,10 @@ print("5" + 3)
 TypeError: can only concatenate str (not "int") to str
 ```
 
-This is a deliberate safety feature: implicit conversion only happens in
-the small number of cases where there is one obviously correct answer
-(like `int` and `float`); everywhere else, Python asks you to say exactly
-what you mean.
+This is a deliberate safety feature: Python performs some automatic
+numeric coercion (like combining an `int` and a `float`), but it does not
+automatically convert arbitrary incompatible types; there, Python asks you
+to say exactly what you mean.
 
 ### 3. Explicit conversion: doing it on purpose
 
@@ -212,7 +212,7 @@ are not literally `bool` to begin with.
 
 #### Falsy values
 
-A small, fixed set of values count as **falsy** — they behave as `False`:
+These standard built-in values count as **falsy** — they behave as `False`:
 
 ```python
 print(bool(False))     # False
@@ -227,12 +227,15 @@ print(bool(set()))      # False  — empty set
 ```
 
 Every one of these is falsy: `False` itself, `None`, numeric zero (as an
-`int` or a `float`), and every *empty* built-in collection.
+`int` or a `float`), and every *empty* built-in collection. These are the
+important standard falsy values; Python's truth-value testing is more
+general, because custom objects can define their own truth-value behavior.
 
 #### Truthy values
 
-Everything else is **truthy** — in particular, every non-empty string,
-every non-zero number, and every non-empty collection:
+Among standard built-in values, everything else is **truthy** — in
+particular, every non-empty string, every non-zero number, and every
+non-empty standard collection:
 
 ```python
 print(bool(True))       # True
@@ -312,7 +315,8 @@ valid values rather than lumped in with "nothing was provided."
 
 #### `any()` and `all()`
 
-`any()` and `all()` apply truthiness across a whole list at once. `any()`
+`any()` and `all()` apply truthiness across a whole iterable (such as a
+list) at once. `any()`
 returns `True` if **at least one** value is truthy; `all()` returns `True`
 only if **every** value is truthy:
 
@@ -355,8 +359,9 @@ them, as first shown in
 **Conversions can change order, remove duplicates, or fail outright:**
 
 - Converting a list to a **set** removes duplicates — `[1, 2, 2, 3]`
-  became `{1, 2, 3}` above — and, as you learned in the sets lesson, does
-  not preserve the original order.
+  became `{1, 2, 3}` above — and, as you learned in the sets lesson, a set
+  does not provide an ordering guarantee, so code should not rely on
+  element order.
 - `dict(...)` requires its input to already be shaped as pairs; feeding it
   something the wrong shape raises an error rather than guessing how to
   pair things up:
@@ -581,8 +586,9 @@ Do not look up full solutions. Predict the output before running each one.
 - `str()` converts any value to text, which is what actually fixes the
   "cannot join text and a number with `+`" error from earlier lessons.
 - `bool()` converts any value using **truthiness**: `False`, `None`,
-  numeric zero, and every empty built-in collection are **falsy**;
-  everything else is **truthy**.
+  numeric zero, and every empty built-in collection are the standard
+  **falsy** values; other standard built-in values are **truthy**, and
+  custom objects can define their own truth-value behavior.
 - `list()`, `tuple()`, `set()`, and `dict()` convert between collection
   types, and can change order, remove duplicates, or fail if the input's
   shape does not fit.
@@ -591,7 +597,7 @@ Do not look up full solutions. Predict the output before running each one.
 - `if value:` is convenient but conflates every falsy value; use an
   explicit check like `if value is None:` whenever `0`, `False`, or `""`
   need to be treated as meaningfully different from "missing."
-- `any()` and `all()` summarize a list of values using truthiness, without
+- `any()` and `all()` summarize an iterable of values using truthiness, without
   writing manual comparisons.
 - A `try`/`except ValueError` block is an introductory way to handle a
   conversion that might fail, without crashing the program.
@@ -602,11 +608,11 @@ Do not look up full solutions. Predict the output before running each one.
       conversion, with an example of each.
 - [ ] I can use `int()`, `float()`, and `str()`, and explain the errors
       each can raise.
-- [ ] I can list Python's falsy values from memory and explain why
-      everything else is truthy.
+- [ ] I can list Python's standard falsy values from memory and explain
+      why other standard built-in values are truthy.
 - [ ] I can explain when `if value:` is appropriate and when an explicit
       `is None` check is required instead.
-- [ ] I can use `any()` and `all()` correctly on a list of values.
+- [ ] I can use `any()` and `all()` correctly on an iterable of values.
 - [ ] I can convert between lists, tuples, sets, and dictionaries, and
       explain how order, duplicates, or shape can be affected.
 - [ ] I can use `isinstance()` and explain why it is usually preferred
@@ -675,8 +681,8 @@ print(str(True))    # True
 print(str(None))    # None
 ```
 
-**Warning:** `str(value)` almost never raises an error — nearly every
-Python value can be turned into some text representation.
+Note: `str(value)` converts ordinary Python values into text, which makes
+it the standard fix for joining text and numbers.
 
 #### `bool(value)`
 
@@ -687,13 +693,14 @@ print(bool(0))        # False
 print(bool("hi"))     # True
 ```
 
-**Warning:** `bool(value)` never raises an error either; every value has
-a defined truthiness.
+Note: ordinary standard built-in values have a defined truth value, and
+`bool()` turns that truth value into `True` or `False`; custom objects can
+define their own truth-value behavior.
 
 #### `list(iterable)`
 
-Converts a suitable collection (a string, tuple, set, or dictionary's
-keys) into a `list`.
+Converts an iterable (such as a string, tuple, set, or the keys of a
+dictionary) into a `list`.
 
 ```python
 print(list("abc"))         # ['a', 'b', 'c']
@@ -702,7 +709,7 @@ print(list((1, 2, 3)))      # [1, 2, 3]
 
 #### `tuple(iterable)`
 
-Converts a suitable collection into a `tuple`.
+Converts an iterable into a `tuple`.
 
 ```python
 print(tuple([1, 2, 3]))   # (1, 2, 3)
@@ -710,8 +717,9 @@ print(tuple([1, 2, 3]))   # (1, 2, 3)
 
 #### `set(iterable)`
 
-Converts a suitable collection into a `set`, automatically removing
-duplicates and discarding order.
+Converts an iterable into a `set`, automatically removing duplicates. A
+set does not provide an ordering guarantee, so code should not rely on
+element order.
 
 ```python
 print(set([1, 2, 2, 3]))   # {1, 2, 3}

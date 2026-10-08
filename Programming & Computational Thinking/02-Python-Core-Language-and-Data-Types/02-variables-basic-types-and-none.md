@@ -4,9 +4,9 @@
 
 In Module 1.1 you already used variables and were told, "every value has a
 type — you will study types in detail in Module 1.2." This lesson is that
-promise kept. Every single piece of data your programs will ever touch —
-an age, a price, a name, whether something is finished, or whether a piece
-of information is even available yet — belongs to one of Python's basic
+promise kept. Every piece of data your programs touch — an age, a price, a name,
+whether something is finished, or whether a piece of information is even
+available yet — has a type. This lesson focuses on five foundational
 types. Knowing exactly what each type represents, and what it does not, is
 what lets you predict how your code will behave instead of guessing.
 
@@ -16,7 +16,7 @@ By the end of this lesson, you will be able to:
 
 - Explain what a variable is, and create, assign, and reassign one with a
   meaningful name.
-- Name Python's five basic types covered here — `int`, `float`, `bool`,
+- Name the five foundational types covered here — `int`, `float`, `bool`,
   `str`, and `None` — and give a real-world example of each.
 - Use `type()` to check what type a value actually is.
 - Explain what `None` means, and explain why it is different from `0`,
@@ -37,10 +37,10 @@ By the end of this lesson, you will be able to:
 |---|---|
 | **Type** | A label that tells Python (and you) what *kind* of value something is, and what you're allowed to do with it. |
 | **`int`** | A whole number type, with no decimal point, such as `7` or `-3`. Short for "integer." |
-| **`float`** | A number type that includes a decimal point, such as `3.14` or `7.0`. Short for "floating-point number." |
+| **`float`** | A floating-point number type, commonly written with a decimal point or scientific notation, such as `3.14`, `7.0`, or `1e3`. Short for "floating-point number." |
 | **`bool`** | A type with exactly two possible values, `True` or `False`. Short for "Boolean." |
-| **`str`** | A text type, always written between quotation marks, such as `"hello"`. Short for "string." |
-| **`None`** | A special, single value meaning "no value is available here" — not zero, not false, not empty text, but genuinely nothing yet. |
+| **`str`** | A text type: a `str` object represents text. String literals are commonly written using quotation marks, such as `"hello"`. Short for "string." |
+| **`None`** | A special singleton value commonly used to represent the absence of a meaningful value, such as information that is not available yet or does not apply — not zero, not false, not empty text. |
 | **`type()`** | A built-in instruction that tells you the type of any value, for example `type(7)`. |
 
 ## Step-by-step explanation
@@ -49,13 +49,18 @@ By the end of this lesson, you will be able to:
 
 As you learned in
 [Values, Expressions, Statements, and Variables](../01-Computational-Thinking-and-Program-Design/02-values-expressions-statements-and-variables.md),
-a **variable** is a name attached to a value using `=`:
+a **variable** is a name attached to a value using `=`. More precisely, in
+Python a variable name is a name that is bound to an object. The object has
+a type and a value/state. Assignment binds a name to an object, and
+reassignment binds that name to another object:
 
 ```python
 age = 25
 ```
 
-You can also **reassign** a variable to point it at a new value later. This
+Here, the name `age` is bound to an integer object representing 25.
+
+You can also **reassign** a variable to bind it to a new object later. This
 lesson adds one new habit on top of that: giving variables **meaningful
 names**. `age = 25` tells a reader what the number means; `x = 25` does
 not. Prefer full, descriptive, lowercase words separated by underscores
@@ -65,11 +70,12 @@ your own future self.
 
 ### 2. What a "type" is, and why Python cares
 
-Every value in Python has exactly one **type**, and that type decides what
+Every object in Python has exactly one **type**, and that type decides what
 you are allowed to do with it. You can add two numbers together, but adding
 a number to a piece of text directly does not make sense — and Python will
-refuse to guess what you meant. This lesson covers five basic types:
-`int`, `float`, `bool`, `str`, and `None`.
+refuse to guess what you meant. This lesson focuses on five foundational
+types: `int`, `float`, `bool`, `str`, and `None`. Python has many other
+types too, several of which come in later lessons.
 
 ### 3. `int`: whole numbers
 
@@ -85,11 +91,11 @@ items_in_cart = 4
 
 ### 4. `float`: numbers with a decimal point
 
-A **`float`** is a number written with a decimal point: `3.14`, `7.0`,
-`-0.5`. Use `float` for measurements or amounts that can meaningfully have
+A **`float`** is a floating-point number, commonly written with a decimal
+point or scientific notation: `3.14`, `7.0`, `-0.5`, `1e3`. Use `float` for measurements or amounts that can meaningfully have
 a fractional part: a price, a temperature, a height in meters. Even a value
-like `7.0`, which looks like a whole number, is still a `float`, because of
-the decimal point.
+like `7.0`, which looks like a whole number, is still a `float`, because it
+is written as a floating-point number.
 
 ```python
 price = 19.99
@@ -103,6 +109,10 @@ A **`bool`** (Boolean) can only ever be one of two values: `True` or
 `bool` for genuine yes/no, on/off facts: whether a task is finished,
 whether a user is subscribed, whether a checkbox is ticked.
 
+(Python detail: `bool` is technically a subclass of `int`, so `True` and
+`False` can take part in some numeric operations as `1` and `0`. This will
+become clearer when operators are introduced.)
+
 ```python
 is_completed = False
 is_subscribed = True
@@ -110,9 +120,9 @@ is_subscribed = True
 
 ### 6. `str`: text
 
-A **`str`** (string) is text, always written between quotation marks —
-either single (`'like this'`) or double (`"like this"`); this course uses
-double quotes consistently. Use `str` for names, messages, labels, and any
+A **`str`** (string) object represents text. String literals are commonly
+written using quotation marks — either single (`'like this'`) or double
+(`"like this"`); this course uses double quotes consistently. Use `str` for names, messages, labels, and any
 other information that is fundamentally words or characters rather than a
 number to calculate with.
 
@@ -124,20 +134,22 @@ Note that `"7"` (with quotes) is a `str` containing the character `7`, not
 the number seven — this distinction causes one of the most common beginner
 mistakes, covered later in this lesson.
 
-### 7. `None`: no value available yet
+### 7. `None`: no meaningful value available
 
-**`None`** is a single, special value that means "there is genuinely no
-value here yet" — not zero, not false, not an empty piece of text, but the
-complete absence of a value. Use `None` when information does not exist
-yet, has not been provided, or is not applicable:
+**`None`** is a special singleton value commonly used to represent the
+absence of a meaningful value, such as information that is not available
+yet or does not apply — not zero, not false, not an empty piece of text.
+Use `None` when information does not exist yet, has not been provided, or
+is not applicable:
 
 ```python
 middle_name = None
 ```
 
 This says "we do not have a middle name to store right now" — very
-different from `middle_name = ""`, which would say "we know the middle name
-is an empty piece of text" (an unusual, but different, claim). You will
+different from `middle_name = ""`. `""` is an actual string value
+containing zero characters. Whether an empty string means "known to be
+blank" or something else depends on the application. You will
 practice this distinction directly in Example 2 below.
 
 ### 8. Using `type()` to check a value's type
@@ -159,9 +171,8 @@ will print in a finished program.
 
 ### 9. A variable's type can change after reassignment
 
-A Python variable does not have a fixed type forever — only the *value* it
-currently points to has a type. Reassigning a variable can point it at a
-completely different type of value:
+A Python name is not permanently associated with one type. A name can be
+rebound to objects of different types:
 
 ```python
 signup_status = "not started"
@@ -171,8 +182,10 @@ signup_status = True
 print(type(signup_status))   # <class 'bool'>
 ```
 
-This is normal and intentional in Python, but it can surprise beginners who
-expect a variable to "lock in" its first type — it does not.
+The name `signup_status` is first bound to a `str` object and later
+rebound to a `bool` object. This is normal and intentional in Python, but
+it can surprise beginners who expect a variable to "lock in" its first
+type — it does not.
 
 ### 10. `None` is not `0`, `False`, or `""`
 
@@ -190,9 +203,9 @@ print(None == "")    # False
 ```
 
 All three print `False`, confirming that `None` is equal to none of them.
-`None` means "nothing has been provided at all," while `0`, `False`, and
-`""` are all real, specific values that just happen to represent "small" or
-"empty" amounts of something.
+`None` commonly means "no meaningful value has been provided," while `0`,
+`False`, and `""` are all real, specific values that just happen to
+represent "small" or "empty" amounts of something.
 
 ## Examples
 
@@ -266,10 +279,10 @@ print("Age: " + age)
 
 - `age = 25` stores a whole number.
 - `print("Age: " + age)` tries to use `+` to join the text `"Age: "`
-  directly onto the number `age`. Python's `+` operator only works when
-  both sides are the same kind of thing it knows how to combine — two
-  numbers, or two pieces of text — and refuses to guess how to combine text
-  with a number.
+  directly onto the number `age`. The `+` operator supports particular
+  combinations of operand types. For example, it can add compatible numeric
+  values and concatenate strings. It does not directly combine a `str` and
+  an `int`, and Python refuses to guess how to combine text with a number.
 - Running this stops the program and shows:
   `TypeError: can only concatenate str (not "int") to str`. This is a
   **runtime** error (as you learned in
@@ -287,15 +300,15 @@ print("Age: " + age)
 
   This prints `Age: 25` without error, because `print` is allowed to
   display several different-typed values one after another; it is only
-  `+` that demands both sides match.
+  `+` that has no rule for combining a `str` with an `int`.
 
 ## Common beginner mistakes
 
 - **Trying to join text and a number with `+`.** As Example 3 shows, this
   raises a `TypeError`; use `print(a, b)` with a comma instead, for now.
 - **Confusing `None` with `0`, `False`, or `""`.** These are four different
-  values with four different meanings; only `None` means "nothing has been
-  provided at all."
+  values with four different meanings; `None` commonly means "no meaningful
+  value has been provided."
 - **Confusing the value `None` with the text `"None"`.** `None` (no quotes)
   is the special value; `"None"` (with quotes) is an ordinary four-letter
   piece of text and behaves completely differently.
@@ -304,7 +317,7 @@ print("Age: " + age)
   harder to read later.
 - **Expecting a variable to "lock in" its first type.** As Example 9 in the
   step-by-step section showed, reassigning a variable can freely change
-  which type of value it points to.
+  which type of object its name is bound to.
 
 ## Try it yourself
 
@@ -328,17 +341,17 @@ print("Age: " + age)
 
 ## Summary
 
-- A **variable** is a name attached to a value; giving variables meaningful
+- A variable name can be bound to an object; giving variables meaningful
   names makes code far easier to read and maintain.
-- Python's five basic types covered here are **`int`** (whole numbers),
-  **`float`** (decimal numbers), **`bool`** (`True`/`False`),
-  **`str`** (text), and **`None`** (no value available yet).
+- The five foundational types covered here are **`int`** (whole numbers),
+  **`float`** (floating-point numbers), **`bool`** (`True`/`False`),
+  **`str`** (text), and **`None`** (absence of a meaningful value).
 - **`type()`** lets you inspect what type any value actually is, which is
   especially useful while you are still learning.
-- **`None`** is a distinct value meaning "nothing here yet" — it is not
-  equal to `0`, `False`, or `""`.
-- A variable's type is not fixed; reassigning it can point it at a value of
-  a completely different type.
+- **`None`** is a special value commonly used to represent the absence of a
+  meaningful value — it is not equal to `0`, `False`, or `""`.
+- A name is not permanently tied to one type; reassigning it can bind it to
+  an object of a completely different type.
 - Combining text and a number directly with `+` raises a `TypeError`,
   because Python will not silently guess how to combine mismatched types.
 

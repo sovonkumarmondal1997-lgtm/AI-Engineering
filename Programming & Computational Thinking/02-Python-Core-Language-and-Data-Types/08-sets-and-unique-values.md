@@ -54,7 +54,7 @@ By the end of this lesson, you will be able to:
 | **Set literal** | A set written directly in code using curly braces and comma-separated values. |
 | **Unordered** | Having no fixed position or sequence; a set does not remember "first," "second," and so on. |
 | **Membership** | Whether a particular value exists inside a collection, checked with `in` or `not in`. |
-| **Hashable** | Able to be stored in a set (or used as a dictionary key); roughly, "immutable and therefore safe to use as a lookup value." |
+| **Hashable** | Able to be stored in a set (or used as a dictionary key) because the object has a stable hash value and consistent equality behavior. Many common hashable built-in values are immutable, but hashable and immutable are not synonyms. |
 | **Union** | Every value that appears in either of two sets (or both). |
 | **Intersection** | Only the values that appear in both of two sets. |
 | **Difference** | The values that appear in one set but not in another. |
@@ -222,9 +222,10 @@ direction; **disjoint** asks "do these two sets share nothing whatsoever?"
 ### 8. Hashable values
 
 Just like dictionary keys from the previous lesson, set members must be
-**hashable** — in practice, immutable. Numbers, text, booleans, and tuples
-(as long as everything inside the tuple is itself hashable) can all be set
-members:
+**hashable**. Many common hashable values are immutable, but hashability
+and immutability are different concepts. Numbers, text, booleans, and
+tuples (as long as everything inside the tuple is itself hashable) can all
+be set members:
 
 ```python
 valid_set = {1, "two", False, (3, 4)}
@@ -232,20 +233,20 @@ print(valid_set)   # some order of: {1, 'two', False, (3, 4)}
 ```
 
 Lists and dictionaries **cannot** be set members, because they are
-mutable — for exactly the same reason they cannot be dictionary keys:
+unhashable — for exactly the same reason they cannot be dictionary keys:
 
 ```python
 invalid_set = {[1, 2]}
 ```
 
 ```text
-TypeError: cannot use 'list' as a set element (unhashable type: 'list')
+TypeError: unhashable type: 'list'
 ```
 
-A set needs every member's value to stay fixed for as long as it is a
-member, so it can be found reliably; a mutable value could change after
-being added, which would break that guarantee — so Python refuses the
-attempt outright, rather than risking it.
+A set relies on stable hashing and equality behavior to find its members
+reliably, so every member must be hashable. Common mutable built-in objects
+such as lists are unhashable, so Python refuses to put them in a set
+rather than risking unreliable lookups.
 
 ### 9. Converting between lists and sets
 
@@ -401,7 +402,7 @@ print(tags_a.issubset(all_unique_tags))
   and should never affect your program's logic; use `sorted(my_set)` if
   a predictable order is genuinely needed for display.
 - **Trying to put a list (or dictionary) inside a set.** Set members must
-  be hashable (in practice, immutable); Python raises `TypeError`
+  be hashable (lists and dictionaries are not); Python raises `TypeError`
   immediately.
 - **Expecting `list(some_set)` to preserve the original list's order**
   after converting to a set and back — as Section 9 explained, the set
@@ -449,8 +450,8 @@ Do not look up full solutions. Predict the output before running each one.
   difference (`^`) each have both a method and an operator form; subset,
   superset, and disjoint checks compare two sets' relationship rather than
   building a new set.
-- Set members must be **hashable** (in practice, immutable); lists and
-  dictionaries cannot be set members.
+- Set members must be **hashable**; lists and dictionaries are unhashable,
+  so they cannot be set members.
 - Converting a list to a set and back is the standard way to remove
   duplicates, but does not preserve the original order.
 - `frozenset` is an optional, immutable variant of a set.
@@ -659,9 +660,10 @@ print(len(s))            # 2
 ```
 
 **Mutates the set in place; returns the removed value.** "Arbitrary" here
-means genuinely **not chosen by you** and not predictable in advance —
-this is a direct consequence of sets having no order at all, unlike a
-list's `.pop()`, which always removes from a specific, chosen position.
+means Python does not specify which element will be chosen, so your
+program logic should not depend on which element is returned. This is a
+consequence of sets having no defined order, unlike a list's `.pop()`,
+which always removes from a specific, chosen position.
 
 #### `remove(value)`
 
@@ -771,8 +773,8 @@ would expect from the previous lessons — `min()`/`max()` require every
 value to be mutually comparable (all numbers, for example), just as they
 do for lists and tuples.
 
-`set()` and `frozenset()` both build a new collection from any existing
-sequence, such as a list:
+`set()` and `frozenset()` both build a new collection from any
+iterable, such as a list:
 
 ```python
 print(set([1, 2, 2, 3]))         # {1, 2, 3}

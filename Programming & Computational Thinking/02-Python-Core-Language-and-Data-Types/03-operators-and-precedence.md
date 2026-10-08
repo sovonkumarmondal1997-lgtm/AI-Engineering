@@ -44,9 +44,9 @@ By the end of this lesson, you will be able to:
 | **Operand** | A value that an operator works on — in `3 + 4`, both `3` and `4` are operands. |
 | **Arithmetic operator** | An operator that performs a mathematical calculation, such as `+` or `*`. |
 | **Comparison operator** | An operator that compares two values and produces `True` or `False`, such as `==` or `<`. |
-| **Boolean operator** | An operator that combines or inverts `True`/`False` values: `and`, `or`, and `not`. |
+| **Boolean operator** | An operator used to combine or invert conditions: `and`, `or`, and `not`. With `True`/`False` operands they give `True`/`False`; `and` and `or` can also return one of their operands. |
 | **Membership operator** | An operator that checks whether one value appears inside another, such as `in`. |
-| **Identity operator** | An operator that checks whether two names refer to the exact same underlying object, such as `is`. |
+| **Identity operator** | An operator that checks whether two references refer to the same object, such as `is`. |
 | **Operator precedence** | The fixed order in which Python evaluates different operators when several appear in one expression. |
 
 ## Step-by-step explanation
@@ -65,17 +65,22 @@ An **operator** is a symbol that does something with one or more
 | `-` | Subtraction | `10 - 3` | `7` |
 | `*` | Multiplication | `6 * 7` | `42` |
 | `/` | Division (always gives a `float`) | `7 / 2` | `3.5` |
-| `//` | Floor division (whole number of times it divides) | `7 // 2` | `3` |
+| `//` | Floor division (divides, then rounds down) | `7 // 2` | `3` |
 | `%` | Modulo (the remainder left over) | `7 % 2` | `1` |
 | `**` | Exponentiation (raise to a power) | `2 ** 3` | `8` |
 
 The three operators beginners most often mix up are `/`, `//`, and `%`.
 `/` always produces a `float`, even when the numbers divide evenly
-(`8 / 2` is `4.0`, not `4`). `//` throws away any fractional part and gives
-a whole number of "full groups" (`7 // 2` is `3`, because `2` goes into `7`
-three whole times). `%` gives whatever is left over after those full groups
+(`8 / 2` is `4.0`, not `4`). `//` performs floor division: it divides and
+rounds the result down toward negative infinity. For positive whole numbers
+such as `7 // 2`, this gives `3` full groups, because `2` goes into `7`
+three whole times. `%` gives whatever is left over after those full groups
 are removed (`7 % 2` is `1`, because `3` groups of `2` use up `6`, leaving
-`1`). `//` and `%` are commonly used together — for example, to work out
+`1`). With negative values, remember that floor division rounds toward
+negative infinity rather than simply cutting off the decimal part: `-7 // 2`
+is `-4`, not `-3`. For negative operands, the `%` result follows Python's
+floor-division rule, so the sign may differ from the remainder convention
+you may have seen in basic arithmetic. `//` and `%` are commonly used together — for example, to work out
 how many full boxes of a fixed size you can fill, and how many items are
 left over.
 
@@ -90,29 +95,43 @@ left over.
 | `<=` | Less than or equal to | `5 <= 5` | `True` |
 | `>=` | Greater than or equal to | `5 >= 6` | `False` |
 
-Every comparison operator produces a `bool` value: `True` or `False`,
-nothing else. As you learned in
+For the built-in comparisons used in this lesson, the result is a Boolean
+value: `True` or `False`. As you learned in
 [Values, Expressions, Statements, and Variables](../01-Computational-Thinking-and-Program-Design/02-values-expressions-statements-and-variables.md),
 `=` performs **assignment** ("make this name refer to this value"), while
 `==` performs **comparison** ("are these two values equal?"). Confusing
 the two is one of the most common beginner mistakes in any language that
 uses this pattern.
 
-Comparing values of *different* types with `==` does not cause an error —
-Python simply decides they are not equal and returns `False`:
+Comparing values of *different* types with `==` does not cause an error.
+Values of different types can still compare equal when Python defines their
+values as equal. For example, `1 == 1.0` is `True`. But a value such as `5`
+is not equal to the string `"5"`, so `5 == "5"` is `False`:
 
 ```python
-print(5 == "5")   # False — an int is never equal to a str, even a matching one
+print(5 == "5")   # False — an int is not equal to a str, even a matching-looking one
+print(1 == 1.0)   # True — an int and a float can have equal values
 ```
 
-This is different from `+`, which raises a `TypeError` when you try to
-combine mismatched types directly, as you saw in the previous lesson.
-Comparison is always safe to attempt; it just quietly returns `False` when
-the types genuinely cannot match.
+This is different from `+`, which raises a `TypeError` for the operand-type
+combination `str + int`, as you saw in the previous lesson. The `+`
+operator supports particular combinations of operand types. For example,
+Python can add compatible numeric values, and it can concatenate strings.
+It does not directly combine a `str` and an `int`.
+
+Python also lets you chain comparisons, so `18 <= age < 65` is valid:
+
+```python
+age = 25
+print(18 <= age < 65)   # True
+```
+
+This is a **chained comparison**. It means the same as
+`18 <= age and age < 65`, without you having to repeat `age`.
 
 ### 4. Boolean operators: `and`, `or`, `not`
 
-**Boolean operators** combine or invert `True`/`False` values:
+**Boolean operators** combine or invert conditions:
 
 - `and` — the whole expression is `True` only if **both** sides are `True`.
 - `or` — the whole expression is `True` if **at least one** side is `True`.
@@ -125,6 +144,27 @@ print(has_ticket and is_on_time)   # False, because both must be True
 print(has_ticket or is_on_time)    # True, because at least one is True
 print(not is_on_time)              # True, because is_on_time was False
 ```
+
+That description is exactly right when both sides are `True` or `False`.
+More precisely, `and` and `or` can return one of their operands. `and`
+evaluates the left operand first and returns the first falsy operand;
+otherwise it returns the last operand. `or` evaluates the left operand
+first and returns the first truthy operand; otherwise it returns the last
+operand. (Here, "falsy" values include `False`, `0`, `None`, and `""`;
+every other value you have met so far is "truthy". You will study this
+fully in a later lesson.)
+
+```python
+print(0 and "hello")         # 0
+print("hello" and "world")   # world
+print(0 or "fallback")       # fallback
+print("hello" or "fallback") # hello
+```
+
+Both operators also **short-circuit**: Python may not evaluate the
+right-hand operand when the result is already determined. `and` stops when
+the left operand is falsy, and `or` stops when the left operand is truthy.
+For example, in `False and x`, Python never even looks at `x`.
 
 ### 5. Membership operators: `in` and `not in`
 
@@ -143,15 +183,17 @@ on text.
 
 ### 6. Identity operators: `is` and `is not`, and the `None` rule
 
-The **identity operators** `is` and `is not` check whether two names refer
-to the exact **same** underlying value in memory — a stricter, different
-question from whether two values are merely *equal*. For most everyday
+The **identity operators** `is` and `is not` test whether two
+references refer to the **same object** — a stricter, different question
+from whether two values are merely *equal*. `==` asks "same value?"; `is`
+asks "same object?". For most everyday
 comparisons — numbers, text, `True`/`False` — you should use `==`, not
 `is`.
 
 There is exactly one common, important exception: **checking for `None`**.
-Python guarantees there is only ever one single `None` value in your entire
-program, so checking `is None` is the standard, expected way to test for
+Python guarantees there is only ever one single `None` object in your
+entire program, so `is None` checks whether the name refers to the
+singleton `None` object. That is the standard, expected way to test for
 it:
 
 ```python
@@ -169,20 +211,34 @@ uses, and is what you should get in the habit of writing.
 
 When an expression combines several operators, Python evaluates them in a
 fixed order, called **precedence** — not simply left to right. A simplified
-order, from highest priority (evaluated first) to lowest:
+precedence order for the operators covered in this lesson (not the complete
+Python table), from highest priority (evaluated first) to lowest:
 
 ```text
 1. Parentheses ( )
 2. Exponent **
-3. Multiplication, division, floor division, modulo: * / // %
-4. Addition and subtraction: + -
-5. Comparisons: == != < > <= >=
-6. not
-7. and
-8. or
+3. Negation (unary minus): -x
+4. Multiplication, division, floor division, modulo: * / // %
+5. Addition and subtraction: + -
+6. Comparisons: == != < > <= >=, plus in, not in, is, is not
+7. not
+8. and
+9. or
 ```
 
 For example, `2 + 3 * 4` is `14`, not `20`, because `*` runs before `+`.
+Two exponent details are worth knowing. `**` is evaluated right to left, so
+`2 ** 3 ** 2` is read as `2 ** (3 ** 2)`, which is `512` (not
+`(2 ** 3) ** 2`, which is `64`). And because `**` binds tighter than a
+leading minus sign, `-2 ** 2` is read as `-(2 ** 2)`:
+
+```python
+print(-2 ** 2)    # -4
+print((-2) ** 2)  # 4
+```
+
+In `(-2) ** 2`, the parentheses make `-2` the base.
+
 `age >= 18 or age >= 13 and has_guardian` is read as
 `age >= 18 or (age >= 13 and has_guardian)`, because `and` binds tighter
 than `or`. Memorizing this whole table is not the goal — the goal is
@@ -321,17 +377,20 @@ else:
 ## Summary
 
 - The **arithmetic operators** are `+`, `-`, `*`, `/`, `//`, `%`, and `**`;
-  `/` always gives a `float`, `//` gives whole groups, and `%` gives the
-  remainder.
-- The **comparison operators** `==`, `!=`, `<`, `>`, `<=`, and `>=` always
-  produce a `bool`, and comparing mismatched types with `==` simply
-  returns `False` rather than raising an error.
+  `/` always gives a `float`, `//` is floor division (it rounds down), and `%` gives
+  the remainder.
+- The **comparison operators** `==`, `!=`, `<`, `>`, `<=`, and `>=` produce
+  a `bool` for the built-in comparisons used here; comparing values of
+  different types with `==` does not raise an error, and can be `True`
+  (`1 == 1.0`) or `False` (`5 == "5"`). Comparisons can be chained, as in
+  `18 <= age < 65`.
 - The **Boolean operators** `and`, `or`, and `not` combine or invert
-  `True`/`False` values.
+  conditions; `and` and `or` can return one of their operands and
+  short-circuit.
 - The **membership operators** `in` and `not in`, used here on text, check
   whether one value appears inside another.
 - The **identity operators** `is` and `is not` check whether two names
-  refer to the exact same value; use `==` for ordinary comparisons and
+  refer to the same object; use `==` for ordinary comparisons and
   `is` only when checking for `None`.
 - **Operator precedence** sets a fixed order of evaluation; parentheses
   override that order and make your intent explicit to any reader.
@@ -343,6 +402,9 @@ else:
 - [ ] I can use all six comparison operators correctly.
 - [ ] I can combine conditions with `and`, `or`, and `not`, and predict the
       result correctly.
+- [ ] I can explain that `and` and `or` can return operands and can
+      short-circuit.
+- [ ] I can recognize a chained comparison such as `18 <= age < 65`.
 - [ ] I can use `in` and `not in` to check whether text appears inside
       other text.
 - [ ] I can explain the difference between `==` and `is`, and state the

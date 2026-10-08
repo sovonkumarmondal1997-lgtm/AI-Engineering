@@ -47,12 +47,12 @@ By the end of this lesson, you will be able to:
 
 | Term | Plain-English definition |
 |---|---|
-| **Dictionary (`dict`)** | An unordered-by-meaning, changeable collection that maps unique keys to values, written between curly braces, such as `{"name": "Ada"}`. |
+| **Dictionary (`dict`)** | A changeable mapping from unique keys to values, where values are looked up by key rather than by position, written between curly braces, such as `{"name": "Ada"}`. |
 | **Key** | The unique name used to look up a value in a dictionary. |
 | **Value** | The piece of data stored under a key. |
 | **Key-value pair** | One `key: value` entry inside a dictionary. |
 | **Mapping** | A general term for any collection that connects keys to values, of which `dict` is Python's main example. |
-| **Hashable** | Able to be used as a dictionary key; roughly, "immutable and therefore safe to use as a lookup name." Strings, numbers, booleans, and tuples of hashable values are hashable; lists and dictionaries are not. |
+| **Hashable** | An object that has a stable hash value and can therefore be used as a dictionary key. Many common hashable objects are immutable, such as strings, numbers, and tuples containing hashable values, but hashability and immutability are not exactly the same concept. Lists and dictionaries are not hashable. |
 | **`KeyError`** | The error Python raises when you look up a key that does not exist, using direct lookup. |
 | **Dictionary view** | A live, linked object returned by `.keys()`, `.values()`, or `.items()`, which reflects the dictionary's current contents rather than freezing a copy. |
 | **Mutation** | Changing a dictionary in place — adding, updating, or removing key-value pairs — without replacing it with a different dictionary. |
@@ -95,17 +95,33 @@ means "empty dict" in Python.
 ### 3. Keys and values
 
 **Valid key types, at a beginner level:** a dictionary key must be
-**hashable**, which in practice means it must be an immutable type —
-strings, numbers, and booleans are the most common valid keys. Lists (and
-other dictionaries) are **not** allowed as keys, because they are mutable:
+**hashable**. Many common hashable keys are immutable values, such as
+strings, numbers, and tuples containing hashable values, but hashability
+and immutability are different concepts. Strings, numbers, and booleans
+are the most common valid keys. Lists (and other dictionaries) are **not**
+allowed as keys, because they are mutable and unhashable:
 
 ```python
 bad_dict = {[1, 2]: "value"}
 ```
 
 ```text
-TypeError: cannot use 'list' as a dict key (unhashable type: 'list')
+TypeError: unhashable type: 'list'
 ```
+
+**Keys are matched by hashing and equality:** Python decides whether two
+keys are the same using their hash and equality, not their apparent type.
+
+```python
+data = {1: "integer"}
+
+print(data[True])   # integer
+print(data[1.0])    # integer
+```
+
+`1`, `True`, and `1.0` compare equal in Python, so they refer to the same
+dictionary key in this example. Dictionary key behavior is based on hashing
+and equality, not simply on the key's apparent type.
 
 **Why mutable values must not be used as keys:** a dictionary needs a
 key's value to stay exactly the same for as long as it is used to find
@@ -272,8 +288,8 @@ Alan 76
 
 Compare this with the alternative of looping over keys and then indexing
 back in (`for name in scores: print(name, scores[name])`) — it works, but
-it is both slower and less readable than `.items()` giving you both
-pieces directly.
+it is usually less clear than using `.items()` when you need both the key
+and its value directly.
 
 ### 9. Dictionary ordering
 
@@ -458,8 +474,9 @@ for setting, value in config.items():
   10 showed, this only creates a second name for the same dictionary;
   mutating one mutates both. Use `.copy()` for a real, independent copy.
 - **Trying to use a list (or another dictionary) as a key.** Keys must be
-  hashable (in practice, immutable); Python raises `TypeError` immediately
-  rather than allowing it.
+  hashable. Many common hashable keys are immutable, but hashability and
+  immutability are different concepts; Python raises `TypeError`
+  immediately rather than allowing a list as a key.
 - **Writing the same key twice while creating a dictionary and expecting
   both values to be kept.** Only the last value written under a repeated
   key survives — Python does not warn you about this.
@@ -498,7 +515,8 @@ Do not look up full solutions. Predict the output before running each one.
 
 - A **dictionary** maps unique **keys** to **values**; use one whenever
   data is naturally "look this up by name."
-- Keys must be **hashable** (in practice, immutable) and unique; a
+- Keys must be **hashable** (many common hashable keys are immutable) and
+  unique; a
   repeated key silently keeps only the last value written.
 - Direct lookup (`data["key"]`) raises `KeyError` on a missing key;
   `.get(key, default)` is the safer alternative.
@@ -562,9 +580,12 @@ Python provides.
 **You do not need to memorize this appendix.** Read through it once to
 know what exists, get comfortable with the methods used throughout the
 lesson above, and come back here as a reference whenever you need a
-method you do not use every day. Every method below is a **public
-instance method** of `dict`; none of Python's internal "dunder" methods
-(like `__len__`) or private methods are included. For every method, the
+method you do not use every day. The appendix covers the public
+dictionary methods and related constructor-level operation shown below.
+Most entries are instance methods of `dict`; `fromkeys()` is called on the
+`dict` type itself rather than on an individual dictionary instance. None of
+Python's internal "dunder" methods (like `__len__`) or private methods are
+included. For every method, the
 note explicitly states whether it **mutates** the original dictionary or
 **returns a separate value or view** without changing it.
 

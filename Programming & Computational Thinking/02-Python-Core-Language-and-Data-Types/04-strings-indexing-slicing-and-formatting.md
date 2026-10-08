@@ -19,10 +19,10 @@ By the end of this lesson, you will be able to:
 
 - Create strings with single quotes, double quotes, and triple quotes, and
   explain when each is useful.
-- Use escape characters to include newlines, tabs, quotation marks, and
+- Use escape sequences to include newlines, tabs, quotation marks, and
   backslashes inside a string.
-- Explain why strings are immutable, and why most string methods return a
-  new string instead of changing the original.
+- Explain why strings are immutable, and why string methods that transform
+  text return a new string instead of changing the original.
 - Read a single character out of a string using zero-based, positive, and
   negative indexes, and explain why `IndexError` happens.
 - Extract a piece of a string using slicing, including omitted start/stop
@@ -58,7 +58,7 @@ By the end of this lesson, you will be able to:
 | **Slice** | A piece of a string extracted using `[start:stop]` or `[start:stop:step]`. |
 | **Step** | The third slicing value, controlling how many positions to move forward (or backward) between each character kept. |
 | **Immutable** | Unable to be changed in place; every string "change" actually produces a brand-new string. |
-| **Escape character** | A backslash (`\`) followed by a letter or symbol, representing a character that is hard or impossible to type directly, such as `\n` for a new line. |
+| **Escape sequence** | A backslash (`\`, the escape character) followed by a letter or symbol, representing a character that is hard or impossible to type directly, such as `\n` for a new line. |
 | **Concatenation** | Joining two or more strings together, usually with `+`. |
 | **Membership** | Checking whether one piece of text exists inside another, using `in` or `not in`. |
 | **f-string** | A string written as `f"..."` that can evaluate Python expressions directly inside `{ }`. |
@@ -107,13 +107,13 @@ Triple-quoted strings are useful for longer blocks of text, such as a
 multi-line message to print, without manually inserting line-break
 characters.
 
-### 2. Escape characters
+### 2. Escape sequences
 
-An **escape character** is a backslash (`\`) followed by another
-character, representing something you cannot (or would rather not) type
-directly inside a string:
+The backslash (`\`) is the **escape character**. An **escape sequence** is
+a backslash followed by another character, representing something you
+cannot (or would rather not) type directly inside a string:
 
-| Escape | Meaning |
+| Escape sequence | Meaning |
 |---|---|
 | `\n` | New line |
 | `\t` | Tab |
@@ -144,15 +144,39 @@ Python knows they are part of the text, not the end of the string. The
 fourth line shows the easier alternative: since that string was wrapped in
 *single* quotes, only the apostrophe (a single quote) needed escaping.
 
+#### Raw strings
+
+When backslashes are common, a **raw string literal** — written with an `r`
+before the opening quote — is easier, because ordinary escape sequences
+such as `\n` and `\t` are not interpreted in the same way:
+
+```python
+normal_path = "C:\\Users\\Ada"
+raw_path = r"C:\Users\Ada"
+
+print(normal_path)
+print(raw_path)
+```
+
+```text
+C:\Users\Ada
+C:\Users\Ada
+```
+
+Raw strings are particularly useful for Windows-style paths and for
+regular-expression patterns (which this course does not cover here).
+
 ### 3. Strings are immutable
 
 As you briefly saw in
 [Values, Expressions, Statements, and Variables](../01-Computational-Thinking-and-Program-Design/02-values-expressions-statements-and-variables.md),
 strings in Python are **immutable**: once created, a string's own
-characters can never be changed in place. Every string method that seems to
-"transform" text — making it uppercase, replacing a word, trimming spaces —
-actually builds and returns a brand-new string, leaving the original
-completely untouched.
+characters can never be changed in place. String methods do not mutate the original
+string. A method that seems to "transform" text — making it uppercase,
+replacing a word, trimming spaces — builds and returns a resulting string,
+leaving the original completely untouched. (Other methods return other
+types: `"hello".count("l")` returns an `int`, `"hello".isalpha()` returns a
+`bool`, and `"a b".split()` returns a list.)
 
 ```python
 name = "sam"
@@ -166,9 +190,8 @@ print(name)          # "SAM" — only now, because we reassigned the name
 The first `name.upper()` call does compute `"SAM"`, but since nothing
 captures that result, it is calculated and discarded. Only the second line,
 which reassigns `name` to the method's return value, actually changes what
-`name` points to. This rule applies to every string method in this lesson
-and its appendix: **read the method's result, and if you want to keep it,
-assign it to a variable.**
+`name` points to. The habit to build is: **read the method's result, and if you want to
+keep it, assign it to a variable.**
 
 ### 4. String indexing
 
@@ -229,7 +252,7 @@ word = "python"
 print(word[0:3])   # pyt   — indexes 0, 1, 2
 print(word[2:])    # thon  — start at 2, go to the end
 print(word[:4])    # pyth  — start at the beginning, stop before 4
-print(word[:])     # python — a full copy, start to end
+print(word[:])     # python — the whole string, start to end
 ```
 
 **Why the stop position is excluded:** this design makes the *length* of a
@@ -300,9 +323,8 @@ print(f"{name} is {age} years old.")
 Ada is 30 years old.
 ```
 
-Use f-strings for essentially all new formatting code — they are the
-clearest to read and the current standard, recommended way to format
-strings in Python.
+For ordinary application output and string construction, f-strings are
+the preferred modern approach — they are the clearest to read.
 
 #### Formatting numbers with a format specifier
 
@@ -566,10 +588,11 @@ Do not look up full solutions. Predict the output before running each one.
 
 - Strings can be created with single quotes, double quotes, or triple
   quotes (for multi-line text); pick one quote style and stay consistent.
-- Escape characters, such as `\n` and `\t`, let you include characters
+- Escape sequences, such as `\n` and `\t`, let you include characters
   that are otherwise hard to type directly inside a string.
-- Strings are immutable: methods always return a new string, and you must
-  reassign a variable to keep the result.
+- Strings are immutable, so string methods do not modify the original
+  string. Methods that produce changed text return a new string result that
+  can be assigned or otherwise used.
 - Indexing (`word[0]`, `word[-1]`) reads one character by position, using
   zero-based, optionally negative, indexes; an out-of-range index raises
   `IndexError`.
@@ -589,7 +612,7 @@ Do not look up full solutions. Predict the output before running each one.
 
 - [ ] I can create strings with all three quoting styles and explain when
       to use each.
-- [ ] I can use at least five escape characters correctly.
+- [ ] I can use at least five escape sequences correctly.
 - [ ] I can explain, using my own words, why strings are immutable and why
       `text.upper()` alone does not change `text`.
 - [ ] I can index a string with positive and negative positions and
@@ -637,8 +660,9 @@ list should match almost any modern Python 3 install.
 know what exists, get comfortable with the methods marked as especially
 common in the main lesson above, and come back to this appendix as a
 reference whenever you need a method you do not use every day. Every
-method below is a **public instance method** of `str` — none of Python's
-internal "dunder" methods (like `__add__`) or private methods are included,
+entry below is a public method of `str` — almost all are instance methods,
+called on a particular string, while `maketrans()` is a static helper
+called on the `str` type itself. None of Python's internal "dunder" methods (like `__add__`) or private methods are included,
 since you call those indirectly through operators, not directly by name.
 
 A few methods below (`join`, `split`, `partition`) naturally return a
@@ -725,6 +749,21 @@ print(repr("  Hello, World!  ".strip()))   # 'Hello, World!'
 print("xxHelloxx".strip("x"))              # Hello
 ```
 
+A note on `repr()`: it produces a developer-oriented representation of a
+value, which is useful for making things such as surrounding spaces and
+escape characters visible. Compare:
+
+```python
+text = "  Hello  "
+print(text)
+print(repr(text))
+```
+
+```text
+  Hello  
+'  Hello  '
+```
+
 Use case: cleaning up user-typed text before validating or storing it, as
 shown in Example 2 above.
 
@@ -770,7 +809,8 @@ print("banana".count("a"))    # 3
 #### `find(substring)`
 
 Returns the index of the first occurrence of `substring`, or `-1` if it is
-not found. Never raises an error.
+not found. `find()` returns `-1` when the substring is not found rather
+than raising `ValueError`.
 
 ```python
 print("banana".find("na"))   # 2
@@ -937,8 +977,8 @@ print("²".isdigit())     # True
 
 #### `isdecimal()`
 
-`True` only for plain decimal digits — the strictest of the three
-digit-related checks.
+`True` when every character is a Unicode decimal digit (such as `0`–`9`) —
+the strictest of the three digit-related checks.
 
 ```python
 print("123".isdecimal())   # True
@@ -1011,17 +1051,21 @@ print("Hello world".istitle())   # False
 
 #### `isidentifier()`
 
-`True` if the string would be a legal Python variable name.
+`True` if the string is syntactically valid as a Python identifier.
+Python keywords such as `class` and `def` also pass this test, so
+`isidentifier()` alone does not guarantee that the text can be used as a
+variable name.
 
 ```python
 print("valid_name".isidentifier())   # True
 print("2bad".isidentifier())         # False — cannot start with a digit
+print("class".isidentifier())        # True — but `class` is a keyword
 ```
 
 #### `isascii()`
 
-`True` if every character fits in the original, English-only ASCII
-character set (no accents, other scripts, or emoji).
+`True` if every character is in the ASCII range (U+0000 through U+007F),
+which excludes accented characters, most other writing systems, and emoji.
 
 ```python
 print("hello".isascii())   # True
@@ -1030,8 +1074,8 @@ print("héllo".isascii())   # False
 
 #### `isprintable()`
 
-`True` if the string contains no non-printable control characters (such as
-a newline).
+`True` if all characters in the string are printable (Python treats
+control characters such as a newline as non-printable).
 
 ```python
 print("Hello".isprintable())     # True
@@ -1095,7 +1139,7 @@ print("{name}".format_map(data))   # Ada
 #### `partition(separator)`
 
 Splits the string at the **first** occurrence of `separator`, returning a
-group of three pieces: everything before it, the separator itself, and
+3-tuple containing everything before it, the separator itself, and
 everything after it.
 
 ```python

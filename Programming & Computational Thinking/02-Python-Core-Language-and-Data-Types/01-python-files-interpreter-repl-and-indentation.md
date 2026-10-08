@@ -46,10 +46,10 @@ By the end of this lesson, you will be able to:
 
 | Term | Plain-English definition |
 |---|---|
-| **Python file** | A plain text file whose name ends in `.py`, containing Python source code. |
-| **Interpreter** | The `python` program installed on your computer that reads a Python file's text and carries out its instructions. |
+| **Python file** | A plain text file whose name normally ends in `.py`, containing Python source code. |
+| **Interpreter** | The `python` program installed on your computer that reads a Python file's text, parses it, and executes it. |
 | **Terminal** | A text window where you type commands for your computer to run, instead of clicking icons. |
-| **REPL** | Short for Read–Eval–Print Loop: an interactive Python session where you type one line, Python runs it immediately, and shows the result. |
+| **REPL** | Short for Read–Eval–Print Loop: an interactive Python session where you type Python code, Python runs it immediately, and shows the result. |
 | **Comment** | Text in a Python file that Python completely ignores; it exists only for humans reading the code. |
 | **Indentation** | Blank space at the start of a line, used in Python to show which lines belong together as one block. |
 | **Code block** | A group of one or more lines that belong together and run together, shown by being indented at the same level. |
@@ -62,8 +62,9 @@ By the end of this lesson, you will be able to:
 
 A **Python file** is just a plain text file — the same basic kind of file
 you would get from a simple text editor — with one important difference:
-its name ends in `.py` (for example, `hello.py`), and its content follows
-Python's grammar. As you learned in
+its name normally ends in `.py` (for example, `hello.py`), and its content
+follows Python's grammar. The extension is a naming convention; the
+contents still need to be valid Python source code. As you learned in
 [Algorithms, Programs, and Data](../01-Computational-Thinking-and-Program-Design/01-algorithms-programs-and-data.md),
 this file is the **source code**: it just sits on your disk, unmoving,
 until something reads and runs it.
@@ -72,9 +73,11 @@ until something reads and runs it.
 
 Python is an **interpreted** language. The **interpreter** is a separate
 program, already installed on your computer, whose whole job is to open a
-`.py` file, read its text, check that the text follows Python's grammar,
-and then carry out each instruction, one at a time, from top to bottom.
-Without the interpreter, a `.py` file is just inert text sitting on a
+`.py` file, read its text, parse it according to Python's grammar, prepare
+it for execution, and then execute the code according to Python's rules and
+control flow. For a simple script, statements normally execute in source
+order unless a control-flow construct, function call, exception, or other
+language feature changes what executes next. Without the interpreter, a `.py` file is just inert text sitting on a
 disk — nothing happens until you ask the interpreter to run it.
 
 ### 3. Checking Python from a terminal
@@ -107,14 +110,17 @@ Follow these steps once, for real, before reading further:
 
 If you run the same command again, it prints the same thing again, because
 you are asking the interpreter to read and run the same file a second time.
-Nothing is "remembered" between runs unless the file itself is changed.
+Each normal script execution starts with a fresh Python process state.
+Variables and objects from the previous run are not retained in Python
+memory, although changes made to external resources such as files or
+databases can persist.
 
 ### 5. The REPL: an interactive Python session
 
 Typing `python3` alone, with no filename after it, starts the **REPL**
 instead of running a file. Rather than reading a whole file at once, the
-REPL waits for you to type one line, immediately runs just that line, shows
-you the result, and then waits for your next line — hence the name
+REPL waits for you to type something, immediately runs it, shows you the
+result, and then waits for your next input — hence the name
 **Read–Eval–Print Loop**:
 
 ```text
@@ -130,13 +136,27 @@ Here, `$` is the terminal prompt before starting Python, and `>>>` is the
 REPL's own prompt, shown by Python itself once it is running and waiting
 for your next line.
 
+The REPL lets you enter Python interactively. Simple expressions and
+statements can often be entered and evaluated immediately, while
+multi-line constructs such as `if` statements, loops, and function
+definitions require continuation lines (shown with the `...` prompt):
+
+```text
+>>> if True:
+...     print("hello")
+...
+hello
+```
+
 **When to use the REPL:** quickly checking what an expression evaluates to,
 testing one small idea, or exploring how an unfamiliar piece of syntax
 behaves.
 
 **When not to use the REPL:** for any real program you want to keep, reuse,
-share, or run again later. Anything typed into the REPL disappears the
-moment you close it — it was never saved to a file.
+share, or run again later. Code and definitions created during a REPL
+session are not automatically saved as a `.py` source file. When the Python
+process ends, its in-memory program state is gone, although your terminal
+or interactive environment may retain command history.
 
 **Exiting the REPL:** type `exit()` and press Enter, or press `Ctrl-D` (on
 Linux or macOS) or `Ctrl-Z` followed by Enter (on Windows).
@@ -146,7 +166,7 @@ The core difference to remember:
 ```text
 .py file  = saved permanently, runs top-to-bottom all at once when you run it,
             used for real programs you keep.
-REPL      = not saved anywhere, runs one line at a time as you type it,
+REPL      = not saved as a file, runs each statement as you enter it,
             used only for quick, throwaway experiments.
 ```
 
@@ -189,10 +209,13 @@ because Python's default behavior (as you saw in
 is to run statements in sequence, one after another.
 
 **The rule that matters most:** use consistent spacing throughout an entire
-file — the Python community standard is 4 spaces per indentation level —
-and never mix tabs and spaces. Most text editors, including VS Code, insert
-spaces automatically when you press Tab, which avoids this problem
-entirely.
+file. Python requires consistent indentation to define blocks, and four
+spaces per indentation level is the standard Python style convention. Never
+mix tabs and spaces: mixing them inconsistently can cause a `TabError`,
+which is a specific subclass of `IndentationError`. The safest beginner
+practice is to use spaces consistently, with 4 spaces per indentation
+level. Most text editors, including VS Code, insert spaces automatically
+when you press Tab, which avoids this problem entirely.
 
 ### 8. Common errors from getting this wrong
 
@@ -308,7 +331,8 @@ print("This line always runs, no matter what age is.")
 - **Mixing tabs and spaces in the same file.** Even if a line "looks"
   correctly indented, mixing tab characters and space characters for
   indentation can cause Python to see it differently than you do, leading
-  to a confusing `IndentationError`. Let your editor insert spaces for you.
+  to a confusing `TabError` (a specific kind of `IndentationError`). Let
+  your editor insert spaces for you.
 - **Confusing the REPL with a saved file.** Typing a real, useful program
   directly into the REPL and then closing the terminal loses it completely,
   because the REPL never saves anything to disk on its own.
@@ -317,9 +341,11 @@ print("This line always runs, no matter what age is.")
   containing `hello.py` produces a "No such file or directory" style error
   — this is a terminal/location problem, not a Python grammar problem.
 - **Forgetting quotation marks around text.** Writing `print(Hello)`
-  instead of `print("Hello")` makes Python look for a variable named
-  `Hello`, which does not exist, producing a `NameError` rather than
-  showing the text.
+  instead of `print("Hello")` treats `Hello` as a name, not as text. If no
+  value is bound to the name `Hello`, Python raises a `NameError` rather
+  than showing the text. If `Hello` has already been defined, the statement
+  is valid: after `Hello = "world"`, `print(Hello)` prints `world`. The
+  difference is `"Hello"` (a string literal) versus `Hello` (a name).
 
 ## Try it yourself
 
@@ -334,9 +360,10 @@ run anything, then compare.
 3. Start the REPL, type three or four small expressions of your own (such
    as `5 * 6` or `"cat" + "fish"`), then exit it correctly using one of the
    methods from step 5.
-4. Take Example 3, remove the indentation from just one of the two lines
-   inside the `if` block, run the file, and write down the exact error
-   message Python shows you.
+4. In Example 3, remove the indentation from the first `print()` line
+   immediately below the `if` statement. Run the file and write down the
+   exact error message Python shows you. Then restore the indentation and
+   run the program again.
 5. In Example 3, change `age` to a number below `18`, predict the exact
    output before running, then run it to check whether you were right.
 
@@ -344,9 +371,9 @@ run anything, then compare.
 
 - A **Python file** is plain text ending in `.py`; it is source code that
   does nothing on its own until it is run.
-- The **interpreter** reads a Python file's text, checks its grammar, and
-  then carries out its instructions one at a time, top to bottom.
-- The **REPL** runs one line of Python at a time interactively and is meant
+- The **interpreter** reads a Python file's text, parses it, and executes
+  it; for a simple script, statements normally run in source order.
+- The **REPL** runs Python interactively as you enter it and is meant
   for quick checks, not for programs you want to keep — use a `.py` file
   for that instead.
 - A **comment**, starting with `#`, is ignored completely by the

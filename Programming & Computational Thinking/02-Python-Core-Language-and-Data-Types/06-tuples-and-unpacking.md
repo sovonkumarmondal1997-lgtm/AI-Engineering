@@ -9,8 +9,8 @@ negative_count, zero_count` — and you were told, "this is called returning
 a tuple of values, which you will study properly in Module 1.2." This
 lesson is that promise kept. A **tuple** is Python's tool for grouping a
 small, fixed set of related values together — a coordinate, a color, a
-function's several results — with a built-in guarantee that those values
-cannot be accidentally changed later. You will also learn **unpacking**,
+function's several results — with built-in protection against the tuple's
+own elements being accidentally replaced, added, or removed later. You will also learn **unpacking**,
 the elegant technique for pulling a tuple's values back out into separate,
 named variables in a single line, which you already saw briefly in that
 same Module 1.1 example.
@@ -26,8 +26,9 @@ By the end of this lesson, you will be able to:
 - Index, slice, and iterate over a tuple, and explain that tuples keep
   order and allow duplicates, just like lists.
 - Explain why tuples are **immutable**, show the error that results from
-  trying to change one, and explain the difference between mutating an
-  item and reassigning the variable.
+  trying to change one, explain the difference between mutating an
+  item and reassigning the variable, and distinguish tuple immutability
+  from the mutability of objects contained inside a tuple.
 - Explain tuple **packing** and **unpacking**, and use unpacking to assign
   several variables at once, swap two variables, and capture a function's
   multiple return values.
@@ -56,7 +57,7 @@ By the end of this lesson, you will be able to:
 | Term | Plain-English definition |
 |---|---|
 | **Tuple** | An ordered, **unchangeable** collection of values, usually written between round brackets, such as `(3, 5)`. |
-| **Immutable** | Unable to be changed in place; every "change" to a tuple actually requires creating a different tuple. |
+| **Immutable** | A tuple's own element references cannot be changed in place; changing which objects the tuple contains requires creating or assigning a different tuple. |
 | **Packing** | Combining several values together into a single tuple, often just by separating them with commas. |
 | **Unpacking** | Assigning a tuple's values to several variables at once, in one statement. |
 | **Single-item tuple** | A tuple holding exactly one value, which requires a trailing comma (`(5,)`) to be recognized as a tuple at all. |
@@ -70,8 +71,8 @@ By the end of this lesson, you will be able to:
 A **tuple** is an ordered collection of values, written between round
 brackets: `(3, 5)`. It looks and behaves a great deal like the lists from
 the previous lesson — you can index it, slice it, and loop over it — with
-one crucial difference: a tuple is **immutable**, meaning its contents can
-never be changed after it is created. Reach for a tuple instead of a list
+one crucial difference: a tuple is **immutable**, meaning its own elements
+cannot be replaced, added, or removed after it is created. Reach for a tuple instead of a list
 whenever the values genuinely belong together as a fixed, complete group
 that should not grow, shrink, or change — a coordinate `(x, y)`, an RGB
 color `(255, 0, 0)`, or a calendar date `(2024, 1, 15)`. Reach for a list
@@ -134,13 +135,13 @@ print(numbers[1:3])   # (20, 10)  — a slice, itself a new tuple
 
 Just as with lists, `numbers[1:3]` returns every item from index `1` up to,
 but not including, index `3`. The one difference to notice: slicing a
-tuple returns a **tuple**, not a list — the result always matches the type
-of what you sliced.
+tuple returns a new **tuple**, not a list.
 
 ### 4. Tuple immutability
 
-A tuple's contents can never be changed once created — no item can be
-replaced, added, or removed. Trying to assign to a tuple position raises an
+A tuple's own elements cannot be replaced, added, or removed once the tuple
+is created. However, if an element refers to a mutable object such as a
+list, that object can still be changed (see below). Trying to assign to a tuple position raises an
 error:
 
 ```python
@@ -152,12 +153,12 @@ point[0] = 99
 TypeError: 'tuple' object does not support item assignment
 ```
 
-This is deliberate: a tuple offers a guarantee that nothing else in your
-program can quietly modify it behind your back — useful for exactly the
-"small, fixed record" situations from Section 1.
+This is deliberate: a tuple prevents its own elements from being replaced,
+added, or removed, which is useful when the grouping itself should remain
+fixed — exactly the "small, fixed record" situations from Section 1.
 
 **Mutating an item versus reassigning the variable:** immutability only
-blocks changing a tuple's *contents*. It does **not** stop you from
+blocks changing a tuple's own *elements*. It does **not** stop you from
 pointing the same variable name at a completely different tuple:
 
 ```python
@@ -172,6 +173,34 @@ original tuple at all — it builds a brand-new tuple and reassigns the name
 `point` to point at it instead, exactly like reassigning any other
 variable, as you learned in
 [Values, Expressions, Statements, and Variables](../01-Computational-Thinking-and-Program-Design/02-values-expressions-statements-and-variables.md).
+
+**Mutable objects inside a tuple:** a tuple is immutable, but objects
+stored inside the tuple may themselves be mutable. Tuple immutability does
+not make contained mutable objects immutable:
+
+```python
+container = ([1, 2],)
+
+container[0].append(3)
+
+print(container)   # ([1, 2, 3],)
+```
+
+The tuple still has exactly one element, and that element reference was
+not replaced — the **list** stored at index `0` was mutated. Trying to
+replace the tuple's own element is still an error:
+
+```python
+container = ([1, 2],)
+container[0] = [9, 9]
+```
+
+```text
+TypeError: 'tuple' object does not support item assignment
+```
+
+So the tuple itself is immutable; the objects it refers to keep their own
+mutability.
 
 ### 5. Tuple packing
 
@@ -465,6 +494,9 @@ for name, year in birth_records:
 - **Forgetting the trailing comma on a single-item tuple.** `(5)` is just
   the number `5`; `(5,)` is a one-item tuple. Always check with `type(...)`
   if you are unsure.
+- **Assuming tuple immutability makes everything inside the tuple
+  immutable.** A tuple cannot have its own elements replaced, but a mutable
+  object such as a list inside the tuple can still be changed.
 - **Trying to mutate a tuple like a list.** `point[0] = 99` always raises
   `TypeError`; if you need to change values, either build a new tuple with
   the updated values, or use a list instead from the start.
@@ -515,9 +547,10 @@ Do not look up full solutions. Predict the output before running each one.
 - Tuples support indexing, negative indexes, slicing, and iteration, just
   like lists, and they allow duplicate values.
 - A single-item tuple requires a trailing comma — `(5,)`, not `(5)`.
-- Trying to change a tuple's contents raises `TypeError`; reassigning the
-  variable to a brand-new tuple is a completely different, always-allowed
-  operation.
+- Trying to replace, add, or remove a tuple's own elements raises
+  `TypeError`; reassigning the variable to a brand-new tuple is a
+  completely different, always-allowed operation. A mutable object stored
+  inside a tuple (such as a list) can still be mutated.
 - **Packing** combines several values into one tuple; **unpacking**
   assigns a tuple's values to several variables at once, and requires the
   variable count to match the value count.
@@ -551,8 +584,8 @@ Do not look up full solutions. Predict the output before running each one.
 ## Connection to later Applied AI and Agentic AI engineering work
 
 Tuples are exactly the right tool whenever an AI system needs to hand back
-several fixed, related pieces of information at once and guarantee they
-will not be silently altered afterward — a model's response paired with
+several fixed, related pieces of information at once and keep that grouping
+from being silently altered afterward — a model's response paired with
 its confidence score, a tool call's result paired with a status code, or a
 retrieved document paired with its relevance ranking. The unpacking
 pattern from this lesson — `result, confidence = call_model(...)` — is one
@@ -560,7 +593,7 @@ you will write constantly once you are working with functions that wrap
 AI calls or tool invocations, and reaching for an immutable tuple instead
 of a list for this kind of fixed, small result communicates a clear
 intent: "these values belong together, and nothing downstream should be
-able to change them by accident."
+able to replace or remove them by accident."
 
 ---
 

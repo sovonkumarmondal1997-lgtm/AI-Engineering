@@ -58,7 +58,7 @@ module, and draws directly on:
 | Term | Plain-English definition |
 |---|---|
 | **Object** | A piece of data that exists somewhere in memory while your program runs — every value (a number, a string, a list) is an object. |
-| **Reference** | The connection a variable name has to an object; a variable does not "contain" its object, it refers to it. |
+| **Reference** | The connection a variable name has to an object: the name is bound to the object. A variable does not "contain" its object, it refers to it. |
 | **Mutable** | Able to be changed in place, without becoming a different object. |
 | **Immutable** | Unable to be changed in place; any "change" actually produces a different, new object. |
 | **Alias** | A second variable name referring to the exact same object as another name. |
@@ -66,7 +66,7 @@ module, and draws directly on:
 | **Equality (`==`)** | Whether two objects have the same *value*. |
 | **Identity (`is`)** | Whether two names refer to the exact same *object*. |
 | **`id()`** | A built-in function that returns a number identifying an object's identity, useful only for comparison, never as a meaningful value on its own. |
-| **Hashable** | Able to be used as a dictionary key or set member; roughly, "immutable, and made only of other hashable values." |
+| **Hashable** | Able to be used as a dictionary key or set member because the object has a hash value that stays stable during its lifetime and is consistent with its equality. Many immutable built-in objects are hashable, but hashability and immutability are not the same thing. |
 
 ## Step-by-step explanation
 
@@ -74,9 +74,10 @@ module, and draws directly on:
 
 Every value in Python — `5`, `"Ada"`, `[1, 2, 3]` — is an **object**: a
 piece of data that exists somewhere while your program runs. A variable
-does not "hold" that object the way a box holds an item; a variable is a
-**reference** — a name pointing at an object, like a label stuck onto a
-box. Multiple labels can point at the very same box:
+does not "hold" that object the way a box holds an item; a variable name
+is **bound to** an object (it is a **reference** to it) — like a label
+stuck onto a box, where the label does not contain or own the box.
+Multiple labels can point at the very same box:
 
 ```python
 first_name = "Ada"
@@ -113,8 +114,9 @@ was never touched by this line at all — it still points at the original
 
 A **mutable** object can be changed in place — its contents can be
 altered without it becoming a different object. An **immutable** object
-cannot: any apparent "change" actually builds and returns a brand-new
-object, leaving the original completely alone.
+cannot be changed in place: an operation that appears to change it must
+produce an appropriate immutable result, leaving the original completely
+alone (Python may sometimes reuse an existing immutable object).
 
 | Immutable | Mutable |
 |---|---|
@@ -209,30 +211,34 @@ This works reliably because Python guarantees there is only ever one
 `None` object in your entire program.
 
 **Why beginners should avoid `is` for normal text or number comparison:**
-it can appear to "work" by coincidence, which is more dangerous than an
-obvious failure. CPython (the standard Python implementation) happens to
-reuse the same small number objects for performance:
+equal immutable objects may or may not be the same object (CPython, the
+standard Python implementation, happens to reuse some small number objects
+for performance), so `is` can appear to "work" by coincidence, which is
+more dangerous than an obvious failure. The clear contrast is two equal
+but separate lists:
 
 ```python
-p = 5
-q = 5
-print(p == q)   # True
-print(p is q)   # True   — looks like it "works"... but don't rely on this
+a = [1, 2]
+b = [1, 2]
+
+print(a == b)  # True — same value
+print(a is b)  # False — different objects
 ```
 
-That coincidence disappears the moment a value is computed at runtime
-rather than typed as a literal, even though the *value* is still equal:
+Their identity is not something you should rely on for ordinary value
+comparison, even for equal immutable values. For example, these values are
+equal, but whether they are the same object is an implementation detail:
 
 ```python
 x = 1000
 y = int("1000")
 print(x == y)   # True
-print(x is y)   # False  — two separate objects, despite equal values
+print(x is y)   # False here — separate objects, but don't rely on this
 
 a = "hello"
 b = "".join(["h", "e", "l", "l", "o"])
 print(a == b)   # True
-print(a is b)   # False  — same story for strings
+print(a is b)   # False here — same story for strings
 ```
 
 The lesson here is not "large numbers behave differently from small
@@ -327,10 +333,12 @@ to make position `0` refer to a *different* object entirely, which the
 tuple correctly refuses. The tuple itself never changed in either case;
 only the mutable object living inside it did.
 
-**`+=` behaves differently depending on the type.** On a **mutable**
+**`+=` behaves differently depending on the type.** Augmented assignment
+may perform an operation in place when the object/type supports it;
+otherwise it can produce a new result and rebind the name. On a **mutable**
 list, `+=` mutates the existing list in place; on an **immutable** tuple
-or string, `+=` must build a brand-new object, since the original cannot
-be changed. `id()` reveals the difference directly:
+or string, it produces a new object, since the original cannot be changed.
+`id()` reveals the difference directly:
 
 ```python
 numbers = [1, 2, 3]
@@ -359,9 +367,11 @@ aliasing the same object: `+=` on a list is visible through every alias;
 **Hashability, at a beginner level:** as you saw in the
 [dictionaries](07-dictionaries-and-lookups.md) and
 [sets](08-sets-and-unique-values.md) lessons, dictionary keys and set
-members must be **hashable** — in practice, immutable. Since tuples are
-immutable, they are *usually* hashable and safe to use as keys — but only
-if **every value inside them** is also hashable:
+members must be **hashable**. Hashability and immutability are related
+but not identical: a hashable object has a hash value that stays stable
+during its lifetime and is consistent with its equality, and many immutable
+built-in objects are hashable. A tuple is hashable only when **every value
+inside it** is also hashable:
 
 ```python
 valid_key = (1, 2)
@@ -375,12 +385,13 @@ bad_data = {invalid_key: "point"}
 ```
 
 ```text
-TypeError: cannot use 'tuple' as a dict key (unhashable type: 'list')
+TypeError: unhashable type: 'list'
 ```
 
 The outer tuple being immutable is not enough — `invalid_key` contains a
-mutable list, so Python correctly refuses to use it as a key at all,
-tracing the failure straight back to that one unhashable list.
+list, which is unhashable, so the tuple is unhashable too and Python
+correctly refuses to use it as a key, tracing the failure straight back to
+that one unhashable list.
 
 ### 7. Safe engineering habits
 
@@ -465,7 +476,7 @@ roster[student] = "enrolled"
   dictionary key — but because `student` contains a list, it is not
   hashable, so this raises:
   ```text
-  TypeError: cannot use 'tuple' as a dict key (unhashable type: 'list')
+  TypeError: unhashable type: 'list'
   ```
 - This example shows the real, practical consequence of Section 6's
   hashability rule: a record shaped like this one is genuinely useful for
@@ -559,12 +570,13 @@ Do not look up full solutions. Predict the output before running each one.
 
 ## Summary
 
-- A variable is a **reference** — a label pointing at an **object** — not
-  a box that owns its value; several names can label the same object at
+- A variable name is bound to an **object** (it is a **reference** to it) —
+  a label, not a box that owns its value; several names can label the same object at
   once (**aliasing**).
 - **Mutable** objects (`list`, `dict`, `set`) can be changed in place;
   **immutable** objects (`int`, `float`, `bool`, `str`, `tuple`,
-  `frozenset`, `None`) cannot, and any "change" produces a new object.
+  `frozenset`, `None`) cannot be changed in place, and any apparent "change"
+  produces an appropriate immutable result.
 - **Reassignment** points one name at a different object and never
   affects any other name; **mutation** changes the shared object itself
   and is visible through every name that refers to it.
@@ -573,10 +585,12 @@ Do not look up full solutions. Predict the output before running each one.
 - `.copy()`, `[:]`, and type constructors all build genuine, independent,
   but **shallow** copies — nested mutable objects are still shared.
 - A tuple's immutability only covers its own slots; a list stored inside
-  a tuple can still be mutated. `+=` mutates a list in place but must
-  build a new object for a tuple or string.
-- A value is **hashable** (usable as a dictionary key or set member) only
-  if it is immutable *and* everything inside it is also hashable.
+  a tuple can still be mutated. `+=` mutates a list in place but produces
+  a new object for a tuple or string.
+- A value is **hashable** (usable as a dictionary key or set member) when
+  it has a stable hash consistent with equality. Many immutable built-in
+  values are hashable, but hashability and immutability are not the same
+  thing; a tuple is hashable only when everything inside it is hashable.
 
 ## Completion checklist
 
@@ -633,4 +647,4 @@ lessons.
 | `dict(x)` | Build a new dict from `x` | `dict({"a": 1})` | Shallow copy when `x` is already a mapping. |
 | `set(x)` | Build a new set from `x` | `set([1, 1, 2])` → `{1, 2}` | Shallow copy; also removes duplicates. |
 | `[:]` | Slice an entire sequence | `y = x[:]` | Shallow copy for lists; tuples/strings are already immutable, so this mainly matters for lists. |
-| `+=` | In-place add (mutable) or rebind (immutable) | `x += [3]` vs `x += (3,)` | Mutates in place for a list; builds a new object for a tuple or string. |
+| `+=` | In-place add when supported, otherwise new result and rebind | `x += [3]` vs `x += (3,)` | Mutates in place for a list; produces a new object for a tuple or string. |
