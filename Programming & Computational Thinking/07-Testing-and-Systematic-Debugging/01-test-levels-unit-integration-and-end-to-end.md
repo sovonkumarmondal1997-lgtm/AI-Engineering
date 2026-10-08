@@ -90,6 +90,15 @@ If it doesn't, the test **fails** — actual and expected diverged, which
 is exactly the signal that something is wrong, either in the code or in
 the expectation itself.
 
+A test **failure** is not the same thing as a test **error**:
+
+```
+TEST FAILURE  →  the test ran, and the expected behavior was not satisfied
+TEST ERROR    →  the test could not complete normally — a setup, collection,
+                 fixture, import, or environment problem (or another
+                 unexpected exception) prevented the intended check
+```
+
 **What is a test case?** A **test case** is one concrete instance of
 this whole procedure — one specific set of inputs, one specific
 expected result, and the logic that checks the two match. `add(2, 3) ==
@@ -167,22 +176,23 @@ def apply_discount(price: float, percent: float) -> float:
     return price - percent   # BUG: treats percent as a flat amount, not a percentage
 ```
 
-Running the existing test again now **fails** —
-`apply_discount(100.0, 10)` returns `90.0` either way in this
-particular case (coincidentally), so a *weak* test might not catch it,
-but a slightly better one would:
+Running the existing test again still **passes** —
+`apply_discount(100.0, 10)` returns `90.0` either way (`100 - 10 == 90`),
+so this *weak* test does **not** detect the regression: the buggy
+implementation happens to return the same result for that particular
+input. A better-chosen test does detect it:
 ```python
 def test_apply_discount_twenty_percent():
     assert apply_discount(200.0, 20) == 160.0   # old code: 160.0; new (buggy) code: 180.0
 ```
-This is a **regression** — correct behavior (`apply_discount` computing
+A weak or poorly chosen test can fail to detect a real regression. This is a **regression** — correct behavior (`apply_discount` computing
 a true percentage discount) became incorrect as a side effect of an
 unrelated-seeming "simplification." A **bug** is any instance of
 incorrect behavior; a **defect** is often used interchangeably with
 "bug," particularly in more formal/production contexts, to mean a
-flaw in the software that causes it to behave incorrectly. The test
-existing *before* this change is precisely what turns a silent,
-undiscovered regression into an immediate, loud test failure.
+flaw in the software that causes it to behave incorrectly. A
+well-chosen test existing *before* this change is precisely what turns a
+silent, undiscovered regression into an immediate, loud test failure.
 
 ## 3. Testing vs. Debugging
 
@@ -335,6 +345,14 @@ illustrate it — the principle to hold onto from here forward: **an
 assertion should verify the specific thing the test claims to be
 testing, not merely that "something" happened.**
 
+**A caveat about Python's `assert` statement**: `assert condition` is the
+right tool for test assertions, including pytest tests. Application
+runtime validation, however, should not rely on `assert` for conditions
+that must always be enforced (user input, permissions, required
+arguments) — Python can disable assertions entirely when run with
+optimization (`python -O`), silently skipping those checks. Raise an
+explicit exception such as `ValueError` instead.
+
 ## 6. Test Scope
 
 **Test scope** is how much of a system a single test actually exercises
@@ -352,9 +370,9 @@ This spectrum of scope is exactly what gives rise to the three test
 
 - **Unit tests** (§7–§19) — small scope: one function, method, or small,
   isolated piece of logic.
-- **Integration tests** (§20–§26) — medium scope: two or more real
-  components working together across a genuine boundary (application
-  and database, service and filesystem).
+- **Integration tests** (§20–§26) — medium scope: components
+  interacting across a meaningful boundary (application and database,
+  service and filesystem).
 - **End-to-end tests** (§27) — large scope: an entire workflow, from a
   user or external request all the way through to a final, observable
   result.
@@ -427,8 +445,12 @@ def calculate_total(price: float, quantity: int) -> float:
 
 ```python
 def test_calculate_total():
-    assert calculate_total(9.99, 3) == 29.97
+    assert calculate_total(9.99, 3) == pytest.approx(29.97)
 ```
+
+(Floating-point results are compared with `pytest.approx` rather than
+`==`, since binary floats cannot represent most decimals exactly; `pytest`
+is imported with `import pytest`.)
 
 This is unit testing in its simplest, purest form: `calculate_total`
 has no dependencies at all beyond its own arguments, so testing it in
@@ -578,7 +600,7 @@ def test_apply_discount_rejects_negative_percent():
 # Unfocused — testing several unrelated things in one test
 def test_everything():
     assert apply_discount(100.0, 10) == 90.0
-    assert calculate_total(9.99, 3) == 29.97
+    assert calculate_total(9.99, 3) == pytest.approx(29.97)
     assert add(2, 2) == 4
 ```
 
@@ -872,9 +894,11 @@ it introduces its own, real problems.
 
 ```python
 # Over-mocked — asserts on internal call mechanics, not observable behavior
-def test_process_payment_calls_repository_exactly_once(mocker):
-    repository = mocker.Mock()
-    notifier = mocker.Mock()
+from unittest.mock import Mock
+
+def test_process_payment_calls_repository_exactly_once():
+    repository = Mock()
+    notifier = Mock()
     service = PaymentService(repository, notifier)
 
     service.process_payment("order-1", 49.99)
@@ -944,10 +968,15 @@ dragging the side effect along with it.
 
 ## 20. Integration Testing
 
-**What is integration testing?** Integration testing verifies that two
-or more **real** components work correctly *together*, across a genuine
-boundary — deliberately the opposite of §13–§18's unit-testing approach
-of replacing a dependency with a controlled stand-in.
+**What is integration testing?** Integration testing verifies the
+interactions between components across a meaningful boundary.
+Depending on the architecture and the question being asked, the
+participating components may be real, partially substituted, isolated, or
+test-environment implementations — but integration tests are especially
+valuable for verifying genuine interactions with the real thing on the
+other side of the boundary, which is the opposite emphasis from §13–§18's
+unit-testing approach of replacing a dependency with a controlled
+stand-in.
 
 **Why does it exist?** A unit test proves `PaymentService.process_payment`
 calls `repository.save_payment(...)` correctly, *assuming* the
@@ -958,8 +987,8 @@ SQL work, does the schema match, does a real connection actually
 succeed? Integration testing exists specifically to answer exactly
 these questions, which unit testing, by design, cannot.
 
-**What is being integrated?** Two (or more) real, concrete pieces,
-verified working together as they'll actually be used in production:
+**What is being integrated?** Typically real (or realistic test-environment)
+pieces, verified working together as they'll actually be used in production:
 
 - **Application + database** — does the repository's SQL actually
   produce the right rows, against a real database engine?
@@ -971,6 +1000,9 @@ verified working together as they'll actually be used in production:
   requests and parse responses against a real (test) server?
 - **Pipeline + storage** — does a data pipeline's output actually land
   correctly in real (test) object storage?
+
+Illustrative example (`real_database` and `PaymentRepository` are assumed
+to exist, not defined here):
 
 ```python
 def test_repository_save_and_fetch_payment(real_database):
@@ -992,8 +1024,8 @@ merely that `PaymentService` calls the repository's method correctly.
 
 | Aspect | Unit test | Integration test |
 |---|---|---|
-| **Scope** | One unit, in isolation | Two or more real components, together |
-| **Dependencies** | Controlled (stubs/fakes) or none at all | Real (a real database, filesystem, or service) |
+| **Scope** | One unit, in isolation | Components interacting across a meaningful boundary |
+| **Dependencies** | Controlled (stubs/fakes) or none at all | Typically real or realistic test-environment (a test database, filesystem, or service) |
 | **Speed** | Milliseconds | Slower — real I/O, real connections (often tens to hundreds of milliseconds, or more) |
 | **Environment** | Pure Python process; minimal setup | Needs real infrastructure (a test database, a test server) |
 | **Isolation** | Fully isolated from other tests and external state | Partially isolated — shares real infrastructure, needs deliberate cleanup (§45–§46) |
@@ -1013,8 +1045,9 @@ end-to-end tests are for, closing the loop §28–§29 make fully explicit.
 ## 22. Integration Boundaries
 
 An **integration boundary** is the specific seam between your
-application's own code and something genuinely external to it — a real
-dependency an integration test deliberately exercises for real.
+application's own code and something external to it (or between two
+meaningful components) — a dependency an integration test deliberately
+exercises, typically for real.
 
 ```
 application  ↔  database          (§23)
@@ -1275,10 +1308,13 @@ doing so.
 ## 27. End-to-End Testing
 
 **What is end-to-end (E2E) testing?** End-to-end testing verifies an
-entire, complete workflow — from the point a user or external caller
-initiates a request, through every real layer of the system, to the
-final, observable result — with nothing simulated or replaced along the
-way.
+a complete, representative workflow through the system under test —
+from the point a user or external caller initiates a request, through
+the major application layers and meaningful real boundaries, to the
+final, observable behavior, in a production-like setup where
+appropriate. External dependencies need not always be real: they may
+legitimately be sandboxed, virtualized, substituted, or represented by
+realistic test environments when appropriate.
 
 **What does "end-to-end" mean, literally?** From one *end* of the
 system (the request coming in) to the other *end* (the response, or
@@ -1308,11 +1344,14 @@ field name to the service layer, say — can slip through both unit and
 integration tests individually while still breaking the real, complete
 workflow.
 
+Illustrative example (`running_app_client` is assumed to exist, not
+defined here):
+
 ```python
 def test_create_order_end_to_end(running_app_client):
     response = running_app_client.post(
         "/orders",
-        json={"customer_id": 42, "items": [{"sku": "widget", "quantity": 2}]},
+        json={"customer_id": 42, "items": [{"price": 19.99, "quantity": 2}]},
     )
 
     assert response.status_code == 201
@@ -1407,7 +1446,7 @@ def test_create_order_via_api(running_app_client):
         "/orders",
         json={
             "customer_id": 42,
-            "items": [{"sku": "widget", "quantity": 2}, {"sku": "gadget", "quantity": 1}],
+            "items": [{"price": 9.99, "quantity": 2}, {"price": 5.00, "quantity": 1}],
         },
     )
 
@@ -1418,7 +1457,7 @@ This verifies the **entire** chain: the API correctly receives and
 parses the request, correctly calls the service layer, which correctly
 calls the real repository, which correctly persists to the real
 database, and the API correctly serializes the final response — every
-real layer, wired together exactly as production wires them.
+major layer, wired together as production wires them.
 
 **Why this distinction is now unambiguous**: each test verifies a
 genuinely different *scope* of the same underlying feature — the unit
@@ -2266,9 +2305,11 @@ the system* each category is checked against.
 
 ## 52. Regression Testing
 
-**A regression test** is a test written specifically **because** a real
-bug was found — capturing that exact failure so it can never silently
-reappear again.
+**A regression test** protects behavior that previously worked against
+being unintentionally broken again. It is very commonly added after a
+real bug is discovered — capturing that exact failure so it can never
+silently reappear — but that is not the only way a regression test can
+originate.
 
 ```
 reproduce bug
@@ -2288,7 +2329,7 @@ def apply_discount(price: float, percent: float) -> float:
     return price - percent   # WRONG — treats percent as a flat amount
 
 # Step 1: reproduce the bug as a failing test
-def test_apply_discount_two_hundred_twenty_percent():
+def test_apply_discount_twenty_percent():
     assert apply_discount(200.0, 20) == 160.0   # FAILS against the buggy code above
 
 # Step 2: fix the bug
@@ -2322,11 +2363,14 @@ def classify_temperature(celsius: float) -> str:
     return "warm"
 ```
 
-A test suite that only ever calls `classify_temperature(-5)` would show
-**high line coverage** for this function (nearly every line executes)
-while providing **zero branch coverage** for the `"cool"` and `"warm"`
-branches — those lines of code have simply never been executed by any
-test at all, and could be completely broken with no test ever noticing.
+A test suite that only ever calls `classify_temperature(-5)` exercises
+only the `"freezing"` branch. The `"cool"` and `"warm"` return lines are
+never executed by any test at all, so they could be completely broken
+with no test ever noticing. Additional tests (for example, one for `10`
+and one for `25`) are required to exercise the other paths. **Line
+coverage** (which lines ran) and **branch coverage** (which decision
+outcomes were taken) are different measurements, and neither proves the
+code is correct.
 
 **A further, more meaningful (but harder to measure) idea**:
 **behavior coverage** — not merely "was this line executed," but "was
@@ -2387,8 +2431,10 @@ making the test fragile in a specific, avoidable way.
 
 ```python
 # Fragile — coupled to an internal implementation detail
-def test_process_order_calls_repository_save_exactly_once(mocker):
-    repository = mocker.Mock()
+from unittest.mock import Mock
+
+def test_process_order_calls_repository_save_exactly_once():
+    repository = Mock()
     service = OrderService(repository)
 
     service.process_order(order)
@@ -2697,7 +2743,7 @@ def test_create_order_persists_correctly(test_database):
 ```python
 def test_create_order_via_api(running_app_client):
     response = running_app_client.post(
-        "/orders", json={"customer_id": 1, "items": [{"sku": "widget", "quantity": 2}]}
+        "/orders", json={"customer_id": 1, "items": [{"price": 9.99, "quantity": 2}]}
     )
     assert response.status_code == 201
     assert response.json()["total"] == 19.98
@@ -3214,9 +3260,9 @@ function that both computes something and touches a dependency.
 *Why it's problematic:* a "unit" test that secretly makes a real
 database call inherits all of §13's problems (speed, isolation,
 reliability, reproducibility) while being mistaken for something fast
-and isolated. *Better approach:* explicitly ask "does this test touch
-anything real outside the process?" — if yes, it's an integration test,
-and belongs in `tests/integration/`, not `tests/unit/` (§33).
+and isolated. *Better approach:* explicitly ask "which boundary is this test actually verifying?" — if it
+exercises a real interaction across a meaningful boundary (a database,
+the filesystem, an HTTP service), it's an integration test, and belongs in `tests/integration/`, not `tests/unit/` (§33).
 
 **4. Making every test E2E.**
 *Why it happens:* an E2E test feels the most "realistic" and reassuring.
@@ -3374,7 +3420,7 @@ def test_save_and_get_order(test_database):
 # tests/e2e/test_order_workflow.py
 def test_create_order_via_api(running_app_client):
     response = running_app_client.post(
-        "/orders", json={"customer_id": 1, "items": [{"sku": "widget", "quantity": 2}]}
+        "/orders", json={"customer_id": 1, "items": [{"price": 9.99, "quantity": 2}]}
     )
     assert response.status_code == 201
     assert response.json()["total"] == 19.98
@@ -3702,10 +3748,11 @@ consistently and end to end.
   inputs and comparing the actual result to an expected one (§1).
 - *What is a unit test?* A test verifying one small unit — typically a
   function or method — in isolation from its real dependencies (§7–§8).
-- *What is an integration test?* A test verifying that two or more real
-  components genuinely work together across a real boundary (§20).
+- *What is an integration test?* A test verifying that components interact
+  correctly across a meaningful boundary (§20).
 - *What is an E2E test?* A test verifying a complete workflow, from a
-  request through every real layer to the final result (§27).
+  request through the major application layers to the final observable
+  result (§27).
 - *What is an assertion?* A statement declaring "this must be true,"
   raising an error immediately if it isn't (§5).
 
@@ -3833,7 +3880,7 @@ consistently and end to end.
     nondeterminism.
 22. What is a flaky test, and why shouldn't it just be rerun until
     green?
-23. What is a regression test, and when is it written?
+23. What is a regression test, and when is one commonly written?
 24. Why doesn't high test coverage guarantee high-quality testing?
 25. What is the difference between testing behavior and testing
     implementation details?
@@ -3929,10 +3976,11 @@ consistently and end to end.
   immediately if it isn't.
 - **Unit test** — a test verifying one small unit in isolation from its
   real dependencies.
-- **Integration test** — a test verifying two or more real components
-  work correctly together across a genuine boundary.
-- **End-to-end (E2E) test** — a test verifying a complete workflow, from
-  request to final result, through every real layer.
+- **Integration test** — a test verifying that components interact
+  correctly across a meaningful boundary.
+- **End-to-end (E2E) test** — a test verifying a complete, representative
+  workflow, from request to final observable result, through the major
+  application layers.
 - **Test suite** — a collection of tests run together.
 - **Fixture** — reusable setup (and teardown) logic a test can request.
 - **Mock** — a controlled stand-in that also records how it was called.
@@ -3945,8 +3993,9 @@ consistently and end to end.
 - **Deterministic test** — a test producing the same result every run.
 - **Flaky test** — a test that intermittently passes and fails with no
   code change.
-- **Regression test** — a test written after a real bug is found, kept
-  permanently to prevent its recurrence.
+- **Regression test** — a test protecting previously working behavior
+  from being unintentionally broken again; commonly written after a real
+  bug is found and kept permanently.
 - **Test coverage** — the measured proportion of code (lines/branches)
   actually executed by a test suite.
 - **Test pyramid** — the heuristic that a healthy suite has many unit

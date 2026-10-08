@@ -1111,6 +1111,8 @@ def user():
 
 ### Database-like resource
 
+*Illustrative snippet: assumes the application function/resource already exists.*
+
 ```python
 @pytest.fixture
 def database_connection():
@@ -1168,6 +1170,8 @@ Examples:
 ### Yield fixtures
 
 A pytest fixture can use `yield`:
+
+*Illustrative snippet: assumes the application function/resource already exists.*
 
 ```python
 @pytest.fixture
@@ -1380,6 +1384,8 @@ Instead ask:
 A broader scope can reduce repeated setup, but it increases the lifetime and sharing surface of the resource. A function-scoped fixture can improve isolation but may cost more setup time.
 
 Performance is therefore only one part of scope selection.
+
+**Scope also constrains fixture dependencies.** A broader-scoped fixture cannot depend on a narrower-scoped one: for example, a `session`-scoped fixture that requests a function-scoped fixture makes pytest raise a `ScopeMismatch` error, because the long-lived fixture would outlive the short-lived one it needs.
 
 ---
 
@@ -2179,6 +2185,8 @@ parametrize    → which inputs/cases the same test logic should run against
 They can be combined.
 
 ### Direct combination
+
+*Illustrative snippet: assumes the application function/resource already exists.*
 
 ```python
 @pytest.fixture
@@ -2984,6 +2992,8 @@ Only one value is yielded as the fixture result. Cleanup logic belongs after `yi
 
 Better:
 
+*Illustrative snippet: assumes the application function/resource already exists.*
+
 ```python
 @pytest.fixture
 def resource():
@@ -3299,6 +3309,8 @@ over opaque generated identifiers.
 
 ### Separate data from logic
 
+*Illustrative snippet: assumes the application function/resource already exists.*
+
 ```python
 USER_CASES = [
     ("admin", True, True),
@@ -3461,6 +3473,8 @@ Parametrization can cover:
 
 A fixture can provide a test client:
 
+*Illustrative snippet: assumes the application function/resource already exists.*
+
 ```python
 @pytest.fixture
 def client():
@@ -3510,6 +3524,8 @@ Parametrization can cover:
 
 Tests can verify transformations:
 
+*Illustrative snippet: assumes the application function/resource already exists.*
+
 ```python
 @pytest.mark.parametrize(
     "raw,expected",
@@ -3550,6 +3566,8 @@ Fixtures can provide controlled:
 - test databases.
 
 Example:
+
+*Illustrative snippet: assumes the application function/resource already exists.*
 
 ```python
 @pytest.fixture
@@ -3728,10 +3746,10 @@ def test_add(a, b, expected):
 If the second case fails, run only it if the node ID is known:
 
 ```bash
-pytest tests/test_math.py::test_add -k "2-3-10" -vv
+pytest tests/test_math.py::test_add[2-3-10] -vv
 ```
 
-Or rerun by a more specific selection expression depending on the generated ID.
+This selects by exact node ID. Alternatively, `-k "2-3-10"` selects by keyword expression (a substring match against test names and IDs), which may match more than one test.
 
 ### Fixture problem
 
@@ -3809,7 +3827,7 @@ def register_user(payload):
     if age < 18:
         raise RegistrationError("user must be at least 18")
 
-    if "@" not in email:
+    if not isinstance(email, str) or "@" not in email:
         raise RegistrationError("invalid email")
 
     return {
@@ -3881,8 +3899,9 @@ def test_register_user_accepts_valid_ages(valid_payload, age):
         ("age", "30", "age must be an integer"),
         ("age", 17, "user must be at least 18"),
         ("email", "invalid", "invalid email"),
+        ("email", None, "invalid email"),
     ],
-    ids=["missing-name", "age-string", "underage", "invalid-email"],
+    ids=["missing-name", "age-string", "underage", "invalid-email", "missing-email"],
 )
 def test_register_user_rejects_invalid_input(
     valid_payload,
@@ -4507,7 +4526,8 @@ def transaction():
 @pytest.mark.parametrize("currency", ["INR", "USD", "EUR"])
 def test_supported_currency(transaction, currency):
     transaction["currency"] = currency
-    assert transaction["currency"] in {"INR", "USD", "EUR"}
+
+    assert validate_transaction(transaction) is True
 ```
 
 **Explanation:** Fixture creates the baseline; parametrization creates variations.
@@ -4560,7 +4580,7 @@ def test_add(a, b, expected):
 
 **Hint:** Separate cases by observable behavior.
 
-**Complete solution:**
+**Solution pattern:** (this assumes `validate_payload()` is the application function provided by the exercise context)
 
 ```python
 import pytest
@@ -4629,7 +4649,7 @@ def test_inactive_user(make_user):
 
 **Problem:** Design a fixture that creates a database connection and guarantees closure.
 
-**Complete solution:**
+**Complete solution:** (illustrative: assumes `create_test_connection()` exists in the exercise context)
 
 ```python
 import pytest

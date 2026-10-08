@@ -1357,8 +1357,8 @@ def load_name(client):
     return response["name"]
 
 
-def test_load_name(client_fixture):
-    assert load_name(client_fixture) == "Alice"
+def test_load_name(mock_client):
+    assert load_name(mock_client) == "Alice"
 ```
 
 Fixtures can build reusable mocks, but fixture scope should match the state being shared. A mock that records calls is usually best created fresh per test unless sharing is deliberate and reset is explicit.
@@ -1371,7 +1371,9 @@ from unittest.mock import Mock
 
 @pytest.fixture
 def mock_client():
-    return Mock()
+    client = Mock()
+    client.get.return_value = {"status": "ok", "name": "Alice"}
+    return client
 ```
 
 ## 36. pytest `monkeypatch`
@@ -1484,7 +1486,7 @@ def test_malformed_response_is_handled():
     client = Mock()
     client.fetch.return_value = {"unexpected": "shape"}
 
-    with pytest.raises(ValueError, match="missing status"):
+    with pytest.raises(KeyError, match="status"):
         parse_status(client)
 ```
 
@@ -1966,6 +1968,8 @@ import time
 from dataclasses import dataclass
 from typing import Protocol
 
+from models import ApiResponse
+
 
 class Transport(Protocol):
     def get(self, path: str, timeout: float) -> ApiResponse: ...
@@ -1986,7 +1990,8 @@ class ResilientClient:
                     return response.payload
                 if response.status_code in {429, 500, 502, 503, 504}:
                     raise RuntimeError(f"retryable status: {response.status_code}")
-                raise RuntimeError(f"non-retryable status: {response.status_code}")
+                # ValueError is not caught below, so non-retryable statuses fail immediately
+                raise ValueError(f"non-retryable status: {response.status_code}")
             except (TimeoutError, RuntimeError) as exc:
                 last_error = exc
                 if attempt == self.attempts:
@@ -2001,6 +2006,9 @@ class ResilientClient:
 ```python
 from unittest.mock import Mock, call
 import pytest
+
+from client import ResilientClient
+from models import ApiResponse
 
 
 def test_success():
@@ -2039,6 +2047,18 @@ def test_exhausted_retries():
         client.get_json("/items/1")
 
     assert transport.get.call_count == 2
+
+
+def test_non_retryable_status_is_not_retried():
+    transport = Mock()
+    transport.get.return_value = ApiResponse(400, {})
+
+    client = ResilientClient(transport, attempts=3)
+
+    with pytest.raises(ValueError, match="non-retryable status: 400"):
+        client.get_json("/items/1")
+
+    transport.get.assert_called_once_with("/items/1", timeout=2.0)
 ```
 
 ### Production note

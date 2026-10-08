@@ -235,7 +235,7 @@ Software often fails where assumptions become incorrect.
 
 Developers may accidentally write:
 
-```python
+```text
 if age > 18:
 ```
 
@@ -247,7 +247,7 @@ age >= 18
 
 Or:
 
-```python
+```text
 if amount < 1000:
 ```
 
@@ -1728,6 +1728,22 @@ def test_validate_age_rejects_invalid_types(value):
         validate_age(value)
 ```
 
+## `bool` is a subclass of `int`
+
+In Python, `bool` is a subclass of `int`, so:
+
+```python
+isinstance(True, int)   # True
+```
+
+This means `isinstance(value, int)` does not automatically mean "value is a non-boolean integer". If `True` and `False` must be rejected where an integer is required, use the stricter check:
+
+```python
+isinstance(value, int) and not isinstance(value, bool)
+```
+
+and include `True`/`False` among the invalid-type test inputs.
+
 ## Type validation vs value validation
 
 These are different:
@@ -2309,7 +2325,7 @@ def test_percentage_rejects_out_of_range_value():
 
 Using:
 
-```python
+```text
 with pytest.raises(Exception):
 ```
 
@@ -3254,6 +3270,10 @@ def test_transfer_agent_checks_balance_before_transfer(agent, fake_tools):
     assert fake_tools.balance.called
     assert fake_tools.transfer.called
     assert result["status"] == "success"
+
+    # `fake_tools` is a Mock, so `mock_calls` records the order of its child calls
+    call_names = [call[0] for call in fake_tools.mock_calls]
+    assert call_names.index("balance") < call_names.index("transfer")
 ```
 
 A stronger test may verify the transfer amount and tool arguments.
@@ -3323,7 +3343,7 @@ assert is_valid_age(18)
 
 Good for repeated logic:
 
-```python
+```text
 @pytest.mark.parametrize(
     "age,expected",
     [
@@ -3392,7 +3412,7 @@ Use the simplest representation that keeps the cases clear.
 
 Compare:
 
-```python
+```text
 @pytest.mark.parametrize("x", [0, 1, 2, 99, 100, 101])
 ```
 
@@ -3936,13 +3956,13 @@ def test_transaction_rejects_insufficient_balance():
 
 Suppose a refactor accidentally changes:
 
-```python
+```text
 if transaction.amount <= 0:
 ```
 
 to:
 
-```python
+```text
 if transaction.amount < 0:
 ```
 
@@ -3965,7 +3985,7 @@ This is exactly the kind of regression protection boundary testing should create
 
 ---
 
-# 52. Complete Mini Project
+# 52. Guided Mini Project
 
 ## Project Objective
 
@@ -4188,13 +4208,13 @@ def test_invalid_amounts_are_rejected(accounts, amount):
 
 Suppose a developer changes:
 
-```python
+```text
 if amount <= 0:
 ```
 
 to:
 
-```python
+```text
 if amount < 0:
 ```
 
@@ -4478,7 +4498,7 @@ Providing the wrong number of tuple values for the declared parameters.
 
 #### Problem
 
-A function treats missing and `None` differently.
+A function `validate_username(payload)` (supplied by the application) treats a missing `username` key and an explicit `username=None` differently: a missing key raises `ValueError("username is missing")`, while `None` raises `ValueError("username is required")`.
 
 #### Task
 
@@ -4492,15 +4512,14 @@ None value
 #### Complete solution
 
 ```python
-def test_username_can_be_missing_from_payload():
-    payload = {}
-
-    assert "username" not in payload
+def test_username_missing_from_payload_is_rejected():
+    with pytest.raises(ValueError, match="username is missing"):
+        validate_username({})
 
 
 def test_username_none_is_rejected():
     with pytest.raises(ValueError, match="username is required"):
-        validate_username(None)
+        validate_username({"username": None})
 ```
 
 #### Explanation
@@ -4840,7 +4859,7 @@ Asserting order simply because the current implementation happens to return one.
 
 #### Problem
 
-A pipeline accepts transaction amounts `0–1,000,000`.
+A pipeline accepts transaction amounts `0–1,000,000`. By contract, `validate_amount()` returns `True`/`False` for numeric values and raises `TypeError` for non-numeric input (`None`, `"100"`).
 
 #### Task
 
@@ -4886,11 +4905,11 @@ def test_transaction_amount_boundaries(value, expected_valid):
     ],
 )
 def test_transaction_amount_rejects_wrong_input_types(value):
-    with pytest.raises((TypeError, ValueError)):
+    with pytest.raises(TypeError):
         validate_amount(value)
 ```
 
-In production, prefer the narrowest expected exception type once the contract is defined.
+The test asserts the specific exception type the contract defines.
 
 #### Common mistake
 
@@ -4942,7 +4961,7 @@ Hard-coding a provider-specific token limit without referencing the actual confi
 
 #### Problem
 
-An agent may transfer at most 1,000 units without an additional approval workflow.
+An agent may transfer at most 1,000 units without an additional approval workflow. Assume `agent.evaluate_transfer(amount)` is supplied by the application and returns a mapping containing a boolean `requires_approval`.
 
 #### Task
 
@@ -5051,19 +5070,19 @@ You cannot test every integer.
 
 #### Complete solution
 
-Use:
+Use boundary values derived from the stated range:
 
 ```text
-0, 1, 18, 19, 64, 65, 119, 120
+-1, 0, 1, 119, 120, 121
 ```
 
-plus invalid type/format cases as appropriate.
+plus one representative interior value (for example `60`) and invalid type/format cases as appropriate.
 
 If business rules have additional ranges, use equivalence classes to choose representatives for those classes.
 
 #### Explanation
 
-The test plan should reflect actual domain rules, not arbitrary numbers.
+The test plan should reflect the stated contract, not arbitrary numbers or invented business boundaries such as 18 or 65.
 
 #### Common mistake
 
@@ -5117,7 +5136,7 @@ amount
 currency
 ```
 
-A refactor removes `currency`.
+A refactor removes `currency`. Assume `transform(...)` returns a DataFrame-like tabular result that exposes `.columns`.
 
 #### Complete solution
 
@@ -5661,7 +5680,7 @@ Split parameter groups when they represent different behaviors.
 
 For small cases:
 
-```python
+```text
 @pytest.mark.parametrize(...)
 ```
 
@@ -6219,7 +6238,7 @@ Boundary and invalid-input design often produces small tables of cases.
 
 If you declare one argument:
 
-```python
+```text
 @pytest.mark.parametrize("value", [1, 2, 3])
 ```
 
@@ -6227,7 +6246,7 @@ the data entries are individual values.
 
 If you declare multiple arguments:
 
-```python
+```text
 @pytest.mark.parametrize(
     "a,b,expected",
     [
@@ -6464,7 +6483,7 @@ Only the boundary, failure mode, and observation point change.
 - [x] Boundary debugging is covered.
 - [x] Regression debugging is covered.
 - [x] A substantial realistic example is included.
-- [x] A complete mini-project is included.
+- [x] A guided mini-project is included.
 - [x] More than 20 progressive exercises are included.
 - [x] Every exercise includes a solution, explanation, and common-mistake guidance.
 - [x] A debugging lab is included.
@@ -6489,7 +6508,7 @@ Only the boundary, failure mode, and observation point change.
 - [x] The material progresses from basic → intermediate → advanced → production.
 - [x] The chapter remains focused on boundary, invalid-input, and regression test design.
 - [x] The chapter connects to backend, API, data, ML, AI, agentic-AI, CI/CD, and production reliability work.
-- [x] Python examples are syntactically correct and progressively harder.
+- [x] Executable Python examples are syntactically correct and progressively harder; intentionally incomplete fragments are labeled `text`.
 - [x] Pytest examples are written using standard pytest patterns.
 - [x] No unrelated topic has taken over the chapter.
 

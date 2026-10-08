@@ -385,7 +385,7 @@ def calculate_total(price, quantity):
     return subtotal
 ```
 
-When execution reaches `breakpoint()`, the program enters the configured debugger. Python's built-in `breakpoint()` delegates through `sys.breakpointhook()`; with the standard configuration this enters `pdb`. citeturn193898search5turn682082view0
+When execution reaches `breakpoint()`, the program enters the configured debugger. Python's built-in `breakpoint()` delegates through `sys.breakpointhook()`; with the standard configuration this enters `pdb`. (See [Python `breakpoint()` documentation](https://docs.python.org/3/library/functions.html#breakpoint); [Python `pdb` documentation](https://docs.python.org/3/library/pdb.html).)
 
 ## Why does it exist?
 
@@ -588,7 +588,7 @@ You can set a breakpoint condition with:
 
 or update an existing breakpoint using `condition`.
 
-`pdb` supports breakpoint conditions as expressions that must evaluate to true before the breakpoint is honored. citeturn108140view0
+`pdb` supports breakpoint conditions as expressions that must evaluate to true before the breakpoint is honored. (See [Python `pdb` documentation](https://docs.python.org/3/library/pdb.html).)
 
 ## Useful conditions
 
@@ -1280,7 +1280,7 @@ user["balance"]
 quantity * price
 ```
 
-The `pdb` debugger provides `display`, which can show an expression's value when execution stops. citeturn108140view1
+The `pdb` debugger provides `display`, which can show an expression's value when execution stops. (See [Python `pdb` documentation](https://docs.python.org/3/library/pdb.html).)
 
 ## Why is it useful?
 
@@ -1329,7 +1329,7 @@ and avoid invoking mutating operations while investigating.
 
 ## Important technical detail
 
-`pdb` permits Python statements to be evaluated in the current stack frame. This is powerful, but it means debugging can change the program if you deliberately execute assignments or mutating calls. citeturn108140view0
+`pdb` permits Python statements to be evaluated in the current stack frame. This is powerful, but it means debugging can change the program if you deliberately execute assignments or mutating calls. (See [Python `pdb` documentation](https://docs.python.org/3/library/pdb.html).)
 
 ---
 
@@ -1614,7 +1614,7 @@ where a letter `O` appears instead of zero.
 
 Consider:
 
-```python
+```text
 try:
     process_order(order)
 except ValueError:
@@ -1651,7 +1651,7 @@ exception uncaught
 
 Example:
 
-```python
+```text
 try:
     int("abc")
 except ValueError:
@@ -1778,7 +1778,7 @@ That is much stronger evidence than seeing only the final wrong number.
 
 `breakpoint()` is Python's built-in way to request entry into a debugger at runtime.
 
-It was introduced in Python 3.7. By default, it routes through `sys.breakpointhook()`, which normally enters `pdb`. citeturn193898search5turn682082view0
+It was introduced in Python 3.7. By default, it routes through `sys.breakpointhook()`, which normally enters `pdb`. (See [Python `breakpoint()` documentation](https://docs.python.org/3/library/functions.html#breakpoint); [Python `pdb` documentation](https://docs.python.org/3/library/pdb.html).)
 
 ## Syntax
 
@@ -1818,13 +1818,13 @@ is no longer required for the common case.
 
 ## `PYTHONBREAKPOINT`
 
-The built-in is configurable through `sys.breakpointhook()` and the `PYTHONBREAKPOINT` environment variable. This lets environments customize or disable the breakpoint behavior. citeturn193898search5
+The built-in is configurable through `sys.breakpointhook()` and the `PYTHONBREAKPOINT` environment variable. This lets environments customize or disable the breakpoint behavior. (See [Python `breakpoint()` documentation](https://docs.python.org/3/library/functions.html#breakpoint).)
 
 ## Common mistake
 
 Committing a temporary `breakpoint()` unintentionally.
 
-Before committing:
+Before committing (on Linux/macOS or another Unix-like shell):
 
 ```bash
 grep -R "breakpoint()" .
@@ -1860,7 +1860,7 @@ It supports:
 - post-mortem debugging
 - programmatic debugging
 
-The current Python documentation describes it as an interactive source-code debugger with conditional breakpoints, stepping, stack-frame inspection, source listing, and evaluation in frame context. citeturn682082view0
+The current Python documentation describes it as an interactive source-code debugger with conditional breakpoints, stepping, stack-frame inspection, source listing, and evaluation in frame context. (See [Python `pdb` documentation](https://docs.python.org/3/library/pdb.html).)
 
 ## Why does it matter?
 
@@ -1929,7 +1929,7 @@ def calculate(value):
     return value * 2
 ```
 
-`pdb.set_trace()` enters the debugger at the calling stack frame. Current Python documentation also provides options such as `header` and, in recent Python releases, command-related features. citeturn682082view0
+`pdb.set_trace()` enters the debugger at the calling stack frame. Current Python documentation also provides options such as `header` and, in recent Python releases, command-related features. (See [Python `pdb` documentation](https://docs.python.org/3/library/pdb.html).)
 
 ## Conceptual relationship
 
@@ -1957,7 +1957,7 @@ sets a breakpoint at a line.
 
 You can also specify a function.
 
-`pdb` supports conditional breakpoints and temporary breakpoints through commands such as `condition` and `tbreak`. citeturn108140view0
+`pdb` supports conditional breakpoints and temporary breakpoints through commands such as `condition` and `tbreak`. (See [Python `pdb` documentation](https://docs.python.org/3/library/pdb.html).)
 
 ## When to use
 
@@ -1987,7 +1987,7 @@ and, in Python 3.14+, process attachment by PID:
 python -m pdb -p 1234
 ```
 
-The latter is subject to operating-system/process conditions and should not be treated as a universal safe production technique. citeturn682082view0
+The latter is subject to operating-system/process conditions and should not be treated as a universal safe production technique. (See [Python `pdb` documentation](https://docs.python.org/3/library/pdb.html).)
 
 ## Simple script
 
@@ -2098,7 +2098,7 @@ pytest --trace
 
 to break immediately while running each test.
 
-`--full-trace` can retain full tracebacks, and `--pdbcls` can select a custom debugger class. citeturn682082search0turn682082search4
+`--full-trace` can retain full tracebacks, and `--pdbcls` can select a custom debugger class. (See [pytest documentation](https://docs.pytest.org/en/stable/how-to/failures.html).)
 
 ## Inline breakpoint
 
@@ -2322,7 +2322,7 @@ call context
 
 Execution can suspend at:
 
-```python
+```text
 await something()
 ```
 
@@ -2336,7 +2336,7 @@ IDE support varies.
 
 Some environments expose async-task views and specialized stepping. Others provide more basic source-level debugging.
 
-Python 3.14's `pdb` also includes an async `set_trace_async()` entry point for use inside async functions; this is a current-version feature and should not be assumed for older Python versions. citeturn682082view0
+Python 3.14's `pdb` also includes an async `set_trace_async()` entry point for use inside async functions; this is a current-version feature and should not be assumed for older Python versions. (See [Python `pdb` documentation](https://docs.python.org/3/library/pdb.html).)
 
 ## Common mistake
 
@@ -2476,7 +2476,7 @@ Because:
 
 ## Attaching
 
-Current Python's `python -m pdb -p PID` can attach `pdb` to a running Python process on supported platforms/configurations. The Python 3.14 documentation notes that attachment may wait until a bytecode instruction executes or a signal is received if the target is blocked in a system call or I/O. citeturn682082view0
+Current Python's `python -m pdb -p PID` can attach `pdb` to a running Python process on supported platforms/configurations. The Python 3.14 documentation notes that attachment may wait until a bytecode instruction executes or a signal is received if the target is blocked in a system call or I/O. (See [Python `pdb` documentation](https://docs.python.org/3/library/pdb.html).)
 
 Treat this as a technical capability, not an invitation to attach to production casually.
 
@@ -2808,13 +2808,13 @@ if n <= 1:
 
 ### Incorrect recursive step
 
-```python
+```text
 return factorial(n)
 ```
 
 instead of:
 
-```python
+```text
 return factorial(n - 1)
 ```
 
@@ -4484,7 +4484,7 @@ Suppose a developer reports:
 Expected sender balance = 700
 Expected receiver balance = 800
 Actual sender balance = 700
-Actual receiver balance = 700
+Actual receiver balance = 500
 ```
 
 The transaction amount was:
@@ -4498,7 +4498,7 @@ The transaction amount was:
 ```python
 def test_transfer_service():
     sender = Account("A", 1000)
-    receiver = Account("B", 500)
+    receiver = Account("B", 200)
 
     result = transfer_service(sender, receiver, 300)
 
@@ -4506,7 +4506,7 @@ def test_transfer_service():
     assert result["receiver_balance"] == 800
 ```
 
-Suppose this fails.
+Suppose this fails (the receiver ends at `500`, not `800`).
 
 ## Step 2 — Break at the mutation
 
@@ -4523,11 +4523,11 @@ At the first statement:
 
 ```text
 sender.balance = 1000
-receiver.balance = 500
+receiver.balance = 200
 amount = 300
 ```
 
-Correct.
+Consistent with the Arrange state shown above.
 
 After:
 
@@ -4539,7 +4539,7 @@ inspect:
 
 ```text
 sender.balance = 700
-receiver.balance = 500
+receiver.balance = 200
 ```
 
 Correct.
@@ -4554,10 +4554,10 @@ inspect:
 
 ```text
 sender.balance = 700
-receiver.balance = 800
+receiver.balance = 500
 ```
 
-Also correct.
+Also correct (`200 + 300 = 500`).
 
 ## Step 4 — Read the call stack
 
@@ -4565,9 +4565,9 @@ Also correct.
 transfer_service
     ↓
 execute_transfer
-    ↓
-validate_transfer
 ```
+
+`validate_transfer` has already returned by the time execution reaches the balance mutation, so it is no longer an active frame.
 
 Suppose the debugger actually shows:
 
@@ -6283,7 +6283,7 @@ The transfer is not guarded by the authorization state.
 
 ### Better
 
-```python
+```text
 if not approved:
     return {"status": "rejected"}
 
@@ -6830,7 +6830,7 @@ This section is intentionally compact. The goal is to know the important control
 breakpoint()
 ```
 
-**Important detail:** The default hook normally enters `pdb`; the behavior can be customized through Python's breakpoint hook configuration. citeturn193898search5
+**Important detail:** The default hook normally enters `pdb`; the behavior can be customized through Python's breakpoint hook configuration. (See [Python `breakpoint()` documentation](https://docs.python.org/3/library/functions.html#breakpoint).)
 
 **Common mistake:** Leaving an unintended breakpoint in committed code.
 
@@ -6871,7 +6871,7 @@ pdb.set_trace()
 python -m pdb script.py
 ```
 
-Current Python also supports module execution and, in Python 3.14+, a `-p/--pid` process-attachment option. citeturn682082view0
+Current Python also supports module execution and, in Python 3.14+, a `-p/--pid` process-attachment option. (See [Python `pdb` documentation](https://docs.python.org/3/library/pdb.html).)
 
 **Use when:** Debugging from a terminal or minimal environment.
 
@@ -6881,7 +6881,7 @@ Current Python also supports module execution and, in Python 3.14+, a `-p/--pid`
 
 ## `c` / `continue`
 
-**What it does:** Resumes execution until another breakpoint or stopping condition.
+**What it does:** Resumes execution and continues until the debugger stops again, typically at the next breakpoint; if no breakpoint is hit, the program runs to completion.
 
 **Use when:** You have enough information about the current location.
 
@@ -6913,9 +6913,25 @@ Current Python also supports module execution and, in Python 3.14+, a `-p/--pid`
 
 ## `w` / `where`
 
-**What it does:** Displays the current stack trace and indicates the current frame. Current `pdb` supports optional frame-count behavior as well. citeturn108140view0
+**What it does:** Displays the current stack trace and indicates the current frame. Current `pdb` supports optional frame-count behavior as well. (See [Python `pdb` documentation](https://docs.python.org/3/library/pdb.html).)
 
 **Use when:** You need to understand who called the current function.
+
+---
+
+## `u` / `up`
+
+**What it does:** Moves the current frame up the stack, toward the caller's frame.
+
+**Use when:** You want to inspect the state of the function that called the current one.
+
+---
+
+## `d` / `down`
+
+**What it does:** Moves the current frame down the stack, toward the more recently called (current) frame.
+
+**Use when:** You moved up the stack and want to return toward where execution stopped.
 
 ---
 
@@ -6929,7 +6945,7 @@ Current Python also supports module execution and, in Python 3.14+, a `-p/--pid`
 
 ## `p expression`
 
-**What it does:** Evaluates and prints an expression in the current frame. citeturn108140view1
+**What it does:** Evaluates and prints an expression in the current frame. (See [Python `pdb` documentation](https://docs.python.org/3/library/pdb.html).)
 
 Example:
 
@@ -6953,7 +6969,7 @@ Example:
 
 ## `a` / `args`
 
-**What it does:** Displays current function arguments and their values. citeturn108140view1
+**What it does:** Displays current function arguments and their values. (See [Python `pdb` documentation](https://docs.python.org/3/library/pdb.html).)
 
 **Use when:** A function may have received unexpected inputs.
 
@@ -6985,13 +7001,13 @@ Example:
 (Pdb) b 20
 ```
 
-`pdb` also accepts function-based breakpoints and conditions. citeturn108140view0
+`pdb` also accepts function-based breakpoints and conditions. (See [Python `pdb` documentation](https://docs.python.org/3/library/pdb.html).)
 
 ---
 
 ## `tbreak`
 
-**What it does:** Sets a temporary breakpoint removed after its first hit. citeturn108140view0
+**What it does:** Sets a temporary breakpoint removed after its first hit. (See [Python `pdb` documentation](https://docs.python.org/3/library/pdb.html).)
 
 **Use when:** You need one targeted pause.
 

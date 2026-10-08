@@ -470,6 +470,7 @@ A test suite creates users with different roles. Each test case needs a fresh us
 - Use a fixture that returns a factory function.
 - Parametrize the role values.
 - Keep each test isolated from the other case.
+- Use `yield` so the fixture has an explicit teardown step, and state the fixture scope.
 
 ### Expected Outcome
 
@@ -481,12 +482,18 @@ Each parametrized test case should get its own fresh test object through the fix
 import pytest
 
 
-@pytest.fixture
+@pytest.fixture  # default function scope: each test gets a fresh factory
 def user_factory():
-    def make_user(role: str) -> dict[str, str]:
-        return {"name": "Alice", "role": role}
+    created = []
 
-    return make_user
+    def make_user(role: str) -> dict[str, str]:
+        user = {"name": "Alice", "role": role}
+        created.append(user)
+        return user
+
+    yield make_user
+
+    created.clear()  # teardown: runs after each test, even if it failed
 
 
 @pytest.mark.parametrize(
@@ -504,6 +511,8 @@ def test_user_role_is_preserved(user_factory, role):
     # Assert
     assert result == role
 ```
+
+Code after `yield` is the fixture's teardown. Function scope (the default) means setup and teardown run for every test; a broader scope would share the factory's `created` list across tests. If several test files need `user_factory`, it can live in a `conftest.py`.
 
 ### How to Solve It
 
@@ -605,7 +614,7 @@ def final_total(total):
     return taxable(total) + int(total * 18 / 100)
 ```
 
-A test expects `1062` for `1000` but gets `1079`. Describe how you would debug this systematically with a breakpoint and the call stack.
+A test expects `1062` for `1000` but gets `1080`. Describe how you would debug this systematically with a breakpoint and the call stack.
 
 ### Requirements
 
@@ -637,8 +646,12 @@ inspect taxable = 900
 ↓
 step over tax calculation
 ↓
-inspect final components
+inspect final components (tax = 180, but 18% of the taxable 900 would be 162)
 ```
+
+The first incorrect intermediate value is the tax: it is computed from `total` instead of `taxable(total)`, giving `900 + 180 = 1080` instead of the expected `900 + 162 = 1062`.
+
+With `pdb` (using `breakpoint()` inside `final_total()`), the matching commands are `p total` (inspect), `s` (step into `taxable()`), `r` (run until it returns), `n` (next line, stepping over), `w` (show the call stack), and `c` (continue).
 
 The call stack at a paused point conceptually shows:
 
@@ -666,7 +679,7 @@ The debugger exposes the live call stack and current local state. This is differ
 
 ### Common Mistake
 
-Stopping at the final return line and staring only at `1079`. That delays the discovery of which intermediate calculation first became incorrect.
+Stopping at the final return line and staring only at `1080`. That delays the discovery of which intermediate calculation first became incorrect.
 
 ### Key Learning
 
@@ -890,7 +903,7 @@ Moderate
 
 ### Problem
 
-A module reads a feature flag from `os.environ`, calls two configuration functions, and exposes a computed property. Design a pytest test that safely overrides these values and restores the original state automatically. Use a mix of `monkeypatch`, `patch.dict`, `patch.multiple`, and `PropertyMock` where appropriate.
+A module reads a feature flag from `os.environ`, checks configuration paths with `os.path.exists` and `os.path.isfile`, keeps a module-level `settings` dictionary, and exposes a computed `Settings.region` property. Design a pytest test that safely overrides these values and restores the original state automatically. Use a mix of `monkeypatch`, `patch.dict`, `patch.multiple`, and `PropertyMock` where appropriate.
 
 ### Requirements
 
@@ -1099,6 +1112,7 @@ The mock should behave like the real interface closely enough to catch obvious i
 ### Solution
 
 ```python
+import pytest
 from unittest.mock import create_autospec
 
 
@@ -1112,9 +1126,13 @@ def test_mail_client_interface():
         "Hello",
     )
 
-    # These should fail because they do not match the interface:
-    # client.send_emial(...)
-    # client.send_email("alice@example.test", "Welcome")
+    # A misspelled attribute is rejected
+    with pytest.raises(AttributeError):
+        client.send_emial("alice@example.test", "Welcome", "Hello")
+
+    # A call that does not match the signature is rejected
+    with pytest.raises(TypeError):
+        client.send_email("alice@example.test", "Welcome")
 ```
 
 Conceptually:
@@ -1230,7 +1248,16 @@ Hard
 
 ### Problem
 
-A file-processing function opens a text file, reads its contents, and counts lines. You need two tests:
+A file-processing function in a module named `service` opens a text file, reads its contents, and counts lines:
+
+```python
+# service.py
+def count_lines(path):
+    with open(path, "r", encoding="utf-8") as f:
+        return len(f.read().splitlines())
+```
+
+You need two tests:
 
 1. a unit test focused on how the function reacts to a controlled file stream, and
 2. an integration-style test that verifies actual filesystem behavior.
@@ -1310,7 +1337,7 @@ ERROR failed to parse upstream response
 ValueError: missing field: amount
 ```
 
-The API sometimes returns an object without `amount`. The application currently crashes. Describe and implement a regression workflow using a controlled dependency response.
+The API sometimes returns an object without `amount`. The application currently crashes. After the fix, `process_order(api)` must not raise for this input; it must return `{"status": "invalid", "reason": "missing amount"}`. Describe and implement a regression workflow using a controlled dependency response.
 
 ### Requirements
 
@@ -1435,6 +1462,8 @@ except TimeoutError:
 ```
 
 Unless an additional log entry adds distinct, safe information and the architecture intentionally requires it, avoid logging the same exception again. Prefer identifiers and safe metadata over raw customer content.
+
+Duplicate lines can also come from attaching the same handler to both a child logger and an ancestor while `propagate` is `True`. Configure handlers and formatters once at the application boundary, and let module loggers created with `logging.getLogger(__name__)` propagate to them.
 
 ### How to Solve It
 

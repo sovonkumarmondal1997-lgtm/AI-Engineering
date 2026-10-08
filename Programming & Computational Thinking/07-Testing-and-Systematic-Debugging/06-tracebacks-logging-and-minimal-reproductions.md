@@ -1323,7 +1323,7 @@ The standard library recommends module-level loggers such as:
 logger = logging.getLogger(__name__)
 ```
 
-and typically configures logging at the application boundary rather than independently configuring every module. citeturn678828view0
+and typically configures logging at the application boundary rather than independently configuring every module. (See [Python `logging` documentation](https://docs.python.org/3/library/logging.html).)
 
 ---
 
@@ -1443,7 +1443,7 @@ Python defines standard levels:
 | `ERROR` | an operation failed |
 | `CRITICAL` | severe problem that may prevent continued operation |
 
-The official meanings are defined by the standard library, while organizations may create more specific internal conventions. citeturn678828view0
+The official meanings are defined by the standard library, while organizations may create more specific internal conventions. (See [Python `logging` documentation](https://docs.python.org/3/library/logging.html).)
 
 ## Examples
 
@@ -1525,7 +1525,7 @@ The standard logging API expects loggers to be obtained using:
 logging.getLogger(name)
 ```
 
-and repeated requests for the same logger name return the same logger object. citeturn678828view0
+and repeated requests for the same logger name return the same logger object. (See [Python `logging` documentation](https://docs.python.org/3/library/logging.html).)
 
 ## Example
 
@@ -1574,7 +1574,7 @@ root
 
 A child logger can propagate records to ancestor handlers.
 
-The standard library describes this as hierarchical logging. citeturn678828view0
+The standard library describes this as hierarchical logging. (See [Python `logging` documentation](https://docs.python.org/3/library/logging.html).)
 
 ## Why does it matter?
 
@@ -1593,13 +1593,17 @@ without necessarily changing all application logs.
 
 `logger.propagate` controls whether events are passed to ancestor handlers.
 
-The default is `True`. citeturn678828view0
+The default is `True`. (See [Python `logging` documentation](https://docs.python.org/3/library/logging.html).)
+
+## Logger level vs. handler level
+
+Both loggers and handlers can have a level, so a record can be filtered at more than one stage. A logger first compares the record's level to its own effective level and discards it if it is too low. A record that passes is then handed to the logger's handlers and, with propagation, to its ancestors' handlers, and each handler applies its own level before emitting it. A record is therefore emitted only if it passes the logger check and the receiving handler's check, so the actual behavior depends on the logging configuration.
 
 ## Common mistake
 
 Attaching handlers to a child and ancestor logger without understanding propagation.
 
-This can cause the same record to be emitted multiple times. citeturn678828view0
+This can cause the same record to be emitted multiple times. (See [Python `logging` documentation](https://docs.python.org/3/library/logging.html).)
 
 ---
 
@@ -1621,7 +1625,7 @@ at the application entry point while modules use:
 logging.getLogger(__name__)
 ```
 
-This allows module-level records to flow upward to configured handlers. citeturn678828view0
+This allows module-level records to flow upward to configured handlers. (See [Python `logging` documentation](https://docs.python.org/3/library/logging.html).)
 
 ## Why prefer named loggers in application modules?
 
@@ -1775,7 +1779,7 @@ exception information
 custom fields
 ```
 
-The standard library creates a `LogRecord` and handlers/formatters use its information. citeturn678828view0
+The standard library creates a `LogRecord` and handlers/formatters use its information. (See [Python `logging` documentation](https://docs.python.org/3/library/logging.html).)
 
 ## Why should beginners care?
 
@@ -1817,7 +1821,7 @@ logger.info(
 )
 ```
 
-The custom keys become attributes of the record. They must not collide with built-in record fields, and formatter requirements must match what records provide. citeturn678828view0
+The custom keys become attributes of the record. They must not collide with built-in record fields, and formatter requirements must match what records provide. (See [Python `logging` documentation](https://docs.python.org/3/library/logging.html).)
 
 For production systems, consider whether context should instead be attached through a dedicated logging-context design.
 
@@ -1836,7 +1840,7 @@ except Exception:
     logger.exception("Failed to process transaction")
 ```
 
-This logs at `ERROR` level and includes exception information. The standard documentation states that `logger.exception()` should be called from an exception handler. citeturn678828view0
+This logs at `ERROR` level and includes exception information. The standard documentation states that `logger.exception()` should be called from an exception handler. (See [Python `logging` documentation](https://docs.python.org/3/library/logging.html).)
 
 ## Compare
 
@@ -1917,7 +1921,7 @@ is concise and idiomatic.
 
 `exc_info` is useful when you need explicit control or are using another logging level/method.
 
-The standard library notes that `exc_info` includes exception information, while `logger.exception()` is an ERROR-level convenience method for the handled exception case. citeturn678828view0
+The standard library notes that `exc_info` includes exception information, while `logger.exception()` is an ERROR-level convenience method for the handled exception case. (See [Python `logging` documentation](https://docs.python.org/3/library/logging.html).)
 
 ## Example
 
@@ -1962,7 +1966,7 @@ Describes exception information, including the exception traceback.
 
 Includes the current stack leading to the logging call, even when no exception has occurred.
 
-The Python documentation explicitly distinguishes these two kinds of stack information. citeturn678828view0
+The Python documentation explicitly distinguishes these two kinds of stack information. (See [Python `logging` documentation](https://docs.python.org/3/library/logging.html).)
 
 Mental model:
 
@@ -2238,7 +2242,7 @@ def save(record: dict) -> None:
 
 In `main.py`, application-level configuration can be established.
 
-This matches the standard library's recommended pattern of module-level `getLogger(__name__)` combined with higher-level configuration. citeturn678828view0
+This matches the standard library's recommended pattern of module-level `getLogger(__name__)` combined with higher-level configuration. (See [Python `logging` documentation](https://docs.python.org/3/library/logging.html).)
 
 ## Why is this useful?
 
@@ -2453,7 +2457,7 @@ over eagerly constructing a formatted string:
 logger.debug(f"User {user_id} processed")
 ```
 
-The logging system is designed around message templates and arguments. citeturn678828view0
+The logging system is designed around message templates and arguments. (See [Python `logging` documentation](https://docs.python.org/3/library/logging.html).)
 
 ## Why can this matter?
 
@@ -2956,7 +2960,7 @@ Start with:
 
 ```python
 transaction = {
-    "amount": " 100 ",
+    "amount": "1,000",
     "currency": "USD",
 }
 ```
@@ -2966,21 +2970,21 @@ Suppose the large application fails.
 Reduce:
 
 ```python
-transaction = {"amount": " 100 "}
+transaction = {"amount": "1,000"}
 normalize_amount(transaction["amount"])
 ```
 
 Then:
 
 ```python
-normalize_amount(" 100 ")
+normalize_amount("1,000")
 ```
 
 Then perhaps:
 
 ```python
 def normalize_amount(value):
-    return int(value)
+    return int(value)   # raises ValueError for "1,000"
 ```
 
 If the failure is now obvious, the MRE has done its job.
@@ -3424,17 +3428,17 @@ A strong bug report can look like:
 
 ```text
 Title:
-Parser rejects valid surrounding whitespace
+Parser rejects valid thousands separator
 
 Environment:
 Python 3.14.x
 application version abc123
 
 Steps:
-1. Call parse_amount(" 100 ")
+1. Call parse_amount("1,000")
 
 Expected:
-Returns 100
+Returns 1000
 
 Actual:
 Raises ValueError
@@ -3449,7 +3453,7 @@ Regression suspected:
 Introduced after parser refactor
 
 Minimal reproduction:
-parse_amount(" 100 ")
+parse_amount("1,000")
 ```
 
 ## Why is this powerful?
@@ -3949,7 +3953,8 @@ logger = logging.getLogger(__name__)
 
 def process_transaction(transaction_id: str, amount_text: str) -> int:
     logger.info(
-        "processing transaction",
+        "processing transaction %s",
+        transaction_id,
         extra={"transaction_id": transaction_id},
     )
 
@@ -3959,7 +3964,8 @@ def process_transaction(transaction_id: str, amount_text: str) -> int:
         raise ValueError("amount must be positive")
 
     logger.info(
-        "transaction accepted",
+        "transaction accepted %s",
+        transaction_id,
         extra={"transaction_id": transaction_id},
     )
 
@@ -3986,6 +3992,7 @@ def main() -> None:
         logging.getLogger(__name__).exception(
             "transaction processing failed"
         )
+        raise
 
 
 if __name__ == "__main__":
@@ -4039,6 +4046,8 @@ Write regression protection
 ```python
 import pytest
 
+from transaction import InvalidTransactionError, parse_amount
+
 
 def test_parse_amount_rejects_invalid_text():
     with pytest.raises(InvalidTransactionError):
@@ -4059,19 +4068,19 @@ to:
 return int(value)
 ```
 
-Now decide whether:
+Python's `int()` already tolerates surrounding whitespace, so `" 100 "` is still accepted. Now decide whether:
 
 ```text
-" 100 "
+"1,000"
 ```
 
-should still be accepted.
+should be accepted (it currently raises `InvalidTransactionError`).
 
 If yes, write a regression test first:
 
 ```python
-def test_parse_amount_accepts_surrounding_whitespace():
-    assert parse_amount(" 100 ") == 100
+def test_parse_amount_accepts_thousands_separator():
+    assert parse_amount("1,000") == 1000
 ```
 
 Then fix the implementation.
@@ -4537,7 +4546,7 @@ Using `exc_info=True` when no exception exists.
 A minimal reproduction shows:
 
 ```python
-parse_amount(" 100 ")  # currently fails
+parse_amount("1,000")  # currently fails
 ```
 
 #### Task
@@ -4547,8 +4556,8 @@ Turn it into a regression test.
 #### Complete solution
 
 ```python
-def test_parse_amount_accepts_surrounding_whitespace():
-    assert parse_amount(" 100 ") == 100
+def test_parse_amount_accepts_thousands_separator():
+    assert parse_amount("1,000") == 1000
 ```
 
 #### Explanation
@@ -5114,7 +5123,7 @@ def test_parse(value):
 
 ### Symptom
 
-One case fails but the reason is unclear.
+Two cases raise `ValueError` (`"abc"` and `""`), but the test does not make clear whether that is the expected contract.
 
 ### Diagnostic approach
 

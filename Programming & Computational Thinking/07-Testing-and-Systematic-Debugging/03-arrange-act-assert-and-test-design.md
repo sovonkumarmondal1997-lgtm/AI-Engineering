@@ -852,7 +852,8 @@ Potentially too brittle:
 assert order.__dict__ == {
     "_internal_cache": {},
     "_generated_at": "2026-09-23T09:00:00+05:30",
-    ...
+    "status": "created",
+    "total": 100,
 }
 ```
 
@@ -3831,6 +3832,7 @@ Using:
 
 ```python
 with pytest.raises(Exception):
+    divide(10, 0)
 ```
 
 This is usually less precise than asserting the specific expected exception type.
@@ -3952,6 +3954,10 @@ Implement Exercise 6 with pytest parametrization.
 import pytest
 
 
+def is_valid_score(score: int) -> bool:
+    return 0 <= score <= 100
+
+
 @pytest.mark.parametrize(
     "score,expected",
     [
@@ -3964,7 +3970,7 @@ import pytest
     ],
 )
 def test_score_is_valid(score, expected):
-    assert (0 <= score <= 100) is expected
+    assert is_valid_score(score) is expected
 ```
 
 #### Explanation
@@ -4130,6 +4136,10 @@ Create tests for the meaningful combinations.
 import pytest
 
 
+def can_access_feature(authenticated: bool, active: bool) -> bool:
+    return authenticated and active
+
+
 @pytest.mark.parametrize(
     "authenticated,active,expected",
     [
@@ -4140,7 +4150,7 @@ import pytest
     ],
 )
 def test_feature_access(authenticated, active, expected):
-    result = authenticated and active
+    result = can_access_feature(authenticated, active)
 
     assert result is expected
 ```
@@ -4231,7 +4241,7 @@ Redesign the test so it does not depend on the current system time.
 
 #### Complete solution
 
-Refactor the function:
+One possible production refactoring that makes time controllable in tests is to pass the current time in explicitly:
 
 ```python
 def is_expired(deadline, now):
@@ -4287,7 +4297,7 @@ Problems:
 2. Expensive or irrelevant setup.
 3. Weak assertion.
 
-Possible refactoring:
+Possible refactoring pattern (illustrative: `Cart` and `Product` are assumed application classes, not defined here):
 
 ```python
 def test_discounted_cart_total():
@@ -4338,7 +4348,7 @@ def test_pipeline_preserves_row_count():
         {"id": 3, "valid": True},
     ]
 
-    # Act
+    # Act (`process_rows()` and its result are the pipeline interface supplied by the application context)
     result = process_rows(rows)
 
     # Assert
@@ -4373,7 +4383,6 @@ def test_create_user_returns_created_resource(client):
 
     # Assert
     assert response.status_code == 201
-    assert response.json()["name"] == "Alice"
     assert response.json()["id"]
 ```
 
@@ -4414,13 +4423,11 @@ def test_classifier_returns_structured_result(classifier):
 
     # Assert
     assert set(result) == {"label", "confidence"}
-    assert result["label"] in {"refund_request", "other"}
-    assert 0.0 <= result["confidence"] <= 1.0
 ```
 
 #### Explanation
 
-The test checks structural and semantic constraints.
+The test checks only the stated structure (`label` and `confidence`), not exact wording or unstated value constraints.
 
 #### Common mistake
 
@@ -4452,6 +4459,23 @@ def test_agent_checks_balance_before_transfer(agent, fake_tools):
     # Assert
     assert fake_tools.balance.called
     assert fake_tools.transfer.called
+
+
+def test_agent_does_not_transfer_when_balance_is_insufficient(agent, fake_tools):
+    # Arrange
+    fake_tools.balance.return_value = 50
+    request = {
+        "from_account": "A",
+        "to_account": "B",
+        "amount": 100,
+    }
+
+    # Act
+    agent.run(request)
+
+    # Assert
+    assert fake_tools.balance.called
+    assert not fake_tools.transfer.called
 ```
 
 A stronger production design would also record tool call arguments and verify that the transfer amount was authorized by the balance and policy rules.
