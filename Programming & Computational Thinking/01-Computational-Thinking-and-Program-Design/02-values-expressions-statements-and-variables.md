@@ -2,11 +2,10 @@
 
 ## Why this topic matters
 
-Every single Python program, no matter how advanced, is built out of four
-small building blocks: **values**, **expressions**, **statements**, and
-**variables**. If these four ideas are solid, everything else — loops,
-functions, classes, even future AI agent code — will make sense as
-combinations of these blocks. If they are shaky, every later topic will
+Python programs rely on four foundational concepts: **values**,
+**expressions**, **statements**, and **variables**. If these four ideas
+are solid, everything else — loops, functions, classes, even future AI
+agent code — will make sense as combinations of them. If they are shaky, every later topic will
 feel confusing for reasons you can't quite name. This lesson slows down and
 builds each block carefully, with an emphasis on the idea that most
 beginners find hardest: that a variable can point to different data at
@@ -34,19 +33,19 @@ By the end of this lesson, you will be able to:
 
 | Term | Plain-English definition |
 |---|---|
-| **Value** | A single piece of data, such as the number `7`, the text `"apple"`, or the list `[1, 2, 3]`. |
-| **Expression** | Anything that can be worked out to produce a value, such as `3 + 4` or `len("hello")`. |
-| **Statement** | A complete instruction that Python carries out, such as `total = 3 + 4` or `print(total)`. |
-| **Variable** | A name that refers to a value, so you can use that value again later by name instead of retyping it. |
+| **Value** | A piece of data represented in a Python program, such as the number `7`, the text `"apple"`, or the list `[1, 2, 3]`. |
+| **Expression** | A piece of Python syntax that Python can evaluate to produce a value, such as `3 + 4` or `len("hello")`. |
+| **Statement** | A syntactic unit in a Python program that represents an action or other operation (some statements contain expressions), such as `total = 3 + 4` or `print(total)`. |
+| **Variable** | A name that refers to an object (a value), so you can use that value again later by name instead of retyping it. |
 | **Assignment** | The act of connecting a name to a value using `=`, such as `age = 25`. |
 | **Reassignment** | Pointing a variable's name at a *new* value, replacing what it pointed to before. |
-| **Mutation** | Changing a value *in place*, without replacing it with a different value — only possible for certain data types, like lists. |
+| **Mutation** | Changing the state of an existing mutable object in place — only possible for certain data types, like lists. |
 
 ## Step-by-step explanation
 
 ### 1. Values: the raw material
 
-A **value** is a single, concrete piece of data. Examples of values in
+A **value** is a concrete piece of data represented in a Python program. Examples of values in
 Python:
 
 ```text
@@ -63,8 +62,8 @@ in Module 1.2; for now, just notice that values come in different kinds.
 
 ### 2. Expressions: recipes that produce a value
 
-An **expression** is anything Python can evaluate (work out) to produce a
-single value. `3 + 4` is an expression; when Python evaluates it, it
+An **expression** is a piece of Python syntax that Python can evaluate
+(work out) to produce a value. `3 + 4` is an expression; when Python evaluates it, it
 produces the value `7`. `"a" + "b"` is also an expression; it produces the
 value `"ab"`. Expressions can be as simple as a single value (`42` is
 technically an expression that evaluates to itself) or as complex as a
@@ -72,7 +71,8 @@ combination of many operations.
 
 ### 3. Statements: complete instructions
 
-A **statement** is a full instruction that Python carries out. Some
+A **statement** is a syntactic unit in a Python program that represents an
+action or other operation. Some
 statements contain an expression; some don't. Examples:
 
 ```text
@@ -88,6 +88,8 @@ then throws it away, because nothing tells Python to keep or show it.
 ### 4. Variables and assignment: naming a value
 
 A **variable** is a name you give to a value so you can refer to it again.
+In Python, a name refers to an object. In beginner examples, we often call
+such a name a variable because its binding can change during the program.
 You create one with an **assignment statement**, using the `=` sign:
 
 ```python
@@ -99,7 +101,9 @@ equals 25." This distinction matters because `=` in Python does not test
 whether two things are equal — that job belongs to `==`, which you will
 meet in [topic 4](04-sequence-selection-iteration-and-abstraction.md). The
 `=` sign always means "take the value on the right, and connect the name on
-the left to it."
+the left to it." For a simple assignment like this, Python evaluates the
+right-hand side expression before binding the resulting value to the name
+on the left.
 
 Once a variable is assigned, you can use its name anywhere you could use
 the value itself:
@@ -122,16 +126,18 @@ score = 20
 print(score)   # 20
 ```
 
-Nothing about the number `10` changed — it still exists as a value. What
-changed is that the name `score` now points to `20` instead. Think of a
+Nothing about the integer object itself was changed. What changed is that
+the name `score` now refers to a different object (`20`). Think of a
 variable as a **label on a box**, not a permanently fixed container: you
-can peel the label off one box and stick it on a different box.
+can peel the label off one box and stick it on a different box. This is
+only a mental model: Python names refer to objects rather than acting as
+physical containers.
 
 ### 6. Mutation: changing a value without reassigning the name
 
 Some values in Python — importantly, **lists** — can be changed **in
-place**, without creating a new value and without reassigning the variable.
-This is called **mutation**, and it is one of the most important ideas for
+place**, without reassigning the variable. Mutation means changing the
+state of an existing mutable object in place. It is called **mutation**, and it is one of the most important ideas for
 a beginner to get right, because it looks different from reassignment even
 though both use a variable name.
 
@@ -185,8 +191,9 @@ print(total_cost)
   to the right of `=`, `price * quantity`, is an **expression** — Python
   first looks up what `price` and `quantity` currently refer to (`19.99`
   and `3`), multiplies them to get `59.97`, and *then* assigns that result
-  to the new name `total_cost`. Assignment always evaluates the right side
-  first, completely, before doing the naming.
+  to the new name `total_cost`. For a simple assignment like this, Python
+  evaluates the right-hand side expression before binding the resulting
+  value to the name on the left.
 - `print(total_cost)` is a statement that displays `59.97` on the screen.
 
 ### Example 2 — Reassignment: the running-total pattern
@@ -271,9 +278,11 @@ print(backup_attempts)            # ['qwerty', 'letmein', 'hunter2']
   value of `x` plus one, then make `x` refer to that new result."
 - **Assuming `variable_2 = variable_1` makes an independent copy.** As
   Example 3 shows, for mutable data like lists, this only creates a second
-  name for the *same* data. To make a true independent copy of a list, you
-  need `variable_2 = variable_1.copy()` (or `list(variable_1)`) — this
-  becomes especially important in Module 1.2.
+  name for the *same* data. To make a separate list, you can use
+  `variable_2 = variable_1.copy()` (or `list(variable_1)`), which creates a
+  shallow copy of the list. The new outer list is separate from the
+  original list, but nested mutable objects inside it can still be shared.
+  This becomes especially important in Module 1.2.
 - **Expecting a method like `.upper()` to change the original text.** Text
   is immutable; methods that seem to "transform" it actually return a new
   value, which you must capture with an assignment if you want to keep it:
@@ -313,15 +322,16 @@ print(backup_attempts)            # ['qwerty', 'letmein', 'hunter2']
 
 ## Summary
 
-- A **value** is a single piece of data; an **expression** is anything that
-  evaluates to a value; a **statement** is a complete instruction.
-- A **variable** is a name attached to a value, created with an
+- A **value** is a piece of data; an **expression** is a piece of syntax
+  that evaluates to a value; a **statement** is a unit of a program that
+  represents an action.
+- A **variable** is a name that refers to an object (a value), created with an
   **assignment** statement (`=`), which is not the same as mathematical
   equality.
-- **Reassignment** points a variable's name at a new value, leaving any
-  older value untouched (unless nothing else refers to it).
-- **Mutation** changes a value in place, without creating a new value or
-  reassigning any name; only certain types (like lists) can be mutated.
+- **Reassignment** points a variable's name at a new object, leaving the
+  older object itself unchanged.
+- **Mutation** changes the state of an existing mutable object in place,
+  without reassigning any name; only certain types (like lists) can be mutated.
 - Two variable names can refer to the *same* mutable value at once, so a
   mutation made through one name is visible through the other — this is
   different from reassignment, which only ever affects the one name being

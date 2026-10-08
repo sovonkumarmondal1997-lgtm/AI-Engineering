@@ -2,13 +2,11 @@
 
 ## Why this topic matters
 
-Every program, no matter how complex, is built from only four control
-ideas: doing things **in order** (sequence), doing something **only if** a
+Many programs can be understood through four foundational ideas: doing things **in order** (sequence), doing something **only if** a
 condition is true (selection), doing something **repeatedly** (iteration),
 and wrapping a set of steps into a **reusable, named unit** (abstraction).
-Once you can recognize these four patterns, you can read almost any
-program ever written and understand its shape, even before you understand
-every detail. This lesson introduces all four using small, everyday
+Once you can recognize these four patterns, you can identify the shape of
+many programs, even before you understand every detail. This lesson introduces all four using small, everyday
 examples, and deliberately avoids advanced syntax so you can focus on the
 underlying ideas.
 
@@ -47,9 +45,10 @@ By the end of this lesson, you will be able to:
 ### 1. Sequence: the default behavior
 
 You already saw this in [topic 1](01-algorithms-programs-and-data.md):
-Python runs statements one after another, top to bottom. This is called
-**sequence**, and it's the default — every program is a sequence unless you
-tell Python otherwise using selection or iteration.
+Python normally executes statements in **sequence**, one after another in
+the order they appear. Sequence is the basic ordering of execution;
+selection and iteration change which statements run and how often they
+run.
 
 ### 2. Selection: doing something only if a condition is true
 
@@ -103,8 +102,10 @@ else:
 **Iteration** repeats a block of statements. Python has two main loop
 types.
 
-A **`for` loop** repeats once for each item in a collection (like a list),
-or a fixed number of times using `range(...)`:
+A **`for` loop** iterates once for each item produced by an iterable, such
+as a list. You can also use `range(...)` when you want to iterate over a
+sequence of numbers, often to repeat something a particular number of
+times:
 
 ```python
 for number in [10, 20, 30]:
@@ -114,8 +115,9 @@ for number in [10, 20, 30]:
 This runs the indented block three times, with `number` taking the value
 `10`, then `20`, then `30` in turn.
 
-A **`while` loop** repeats as long as a condition stays true, and is used
-when you don't know in advance how many times you'll need to repeat:
+A **`while` loop** repeats a block of statements as long as its condition
+is true. It is useful when the number of repetitions depends on a
+condition rather than simply iterating over a known collection:
 
 ```python
 count = 0
@@ -124,16 +126,18 @@ while count < 3:
     count = count + 1
 ```
 
-Every `while` loop needs something inside it that can eventually make the
-condition false (here, increasing `count`); otherwise it repeats forever,
-which is a common beginner bug.
+A `while` loop that is intended to terminate needs a way for execution to
+eventually leave the loop. Often this means changing something so the
+condition becomes false (here, increasing `count`). If there is no path to
+termination, the loop may run forever, which is a common beginner bug.
 
 ### 4. Abstraction: giving steps a name with functions
 
 As programs grow, repeating the same steps in different places becomes
-messy and error-prone. **Abstraction** means wrapping a set of steps into a
-single named unit that can be reused. In Python, the main tool for this is
-a **function**:
+messy and error-prone. **Abstraction** means giving a useful name and interface to a piece of
+logic so you can use it without needing to repeat or think about all of its
+internal steps each time. In Python, functions are the main mechanism
+introduced here for creating this kind of abstraction:
 
 ```python
 def greet(name):
@@ -144,8 +148,9 @@ greet("Grace")
 ```
 
 `def greet(name):` **defines** a function called `greet` that expects one
-piece of input, called a **parameter**, named `name`. Nothing runs yet at
-definition time — Python just remembers the recipe. `greet("Ada")` **calls**
+piece of input, called a **parameter**, named `name`. The function body does not
+run yet. The `def` statement creates the function so it can be called
+later, like writing down a recipe. `greet("Ada")` **calls**
 the function, meaning "run those steps now, using `"Ada"` wherever `name`
 appears." The same function is called again with `"Grace"`, reusing the
 exact same steps without retyping them.
@@ -282,8 +287,9 @@ print("Positive:", positives, "Negative:", negatives, "Zero:", zeros)
   because the comparison itself already produces a `True`/`False` value.
 - `def count_signs(numbers):` wraps the entire loop-and-counters logic from
   Example 2 into a function. It takes one parameter, `numbers` (any list of
-  numbers), and returns all three counts together, separated by commas —
-  this is called returning a **tuple** of values, which you will study
+  numbers), and returns the three counts together as a **tuple**. Python
+  allows multiple expressions separated by commas to form a tuple, which
+  can then be unpacked into separate variables. You will study tuples
   properly in Module 1.2. For now, just notice that a function can hand
   back more than one piece of information at once.
 - `passwords_to_check = [...]` is a list of three example passwords. The
@@ -311,7 +317,9 @@ print("Positive:", positives, "Negative:", negatives, "Zero:", zeros)
 - **Forgetting the colon or the indentation** after `if`, `elif`, `else`,
   `for`, `while`, or `def`. Python uses indentation (consistent spaces) to
   know which lines belong inside a block; missing or inconsistent
-  indentation causes errors or, worse, silently wrong behavior.
+  indentation can cause syntax or indentation errors. Even when indentation
+  is syntactically valid, putting a statement in the wrong block can
+  produce incorrect program behavior.
 - **Writing a `while` loop whose condition never becomes false.** Forgetting
   to update the variable being checked (for example, forgetting
   `count = count + 1` inside the loop body) causes an infinite loop that

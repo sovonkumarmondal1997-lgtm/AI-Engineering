@@ -58,7 +58,9 @@ Two whole numbers: hours, and remaining minutes (for example, `2` hours and
 **Assumptions**
 - The input is a whole number of minutes, not a decimal.
 - The input is zero or a positive number; negative minutes do not make
-  sense for this problem and will be treated as invalid.
+  sense for this problem and will be treated as invalid. The assumption
+  defines the valid input; the edge-case section asks you to decide how the
+  program should respond if that assumption is violated.
 
 **Rules**
 - Hours are found by dividing the total minutes by 60 and keeping only the
@@ -81,8 +83,8 @@ Two whole numbers: hours, and remaining minutes (for example, `2` hours and
   error).
 
 **State to track**
-None — this is a single calculation with no information that needs to be
-remembered between steps or across repeated calls.
+None — this calculation does not need to remember information beyond the
+values being computed for this problem.
 
 **Pseudocode**
 ```text

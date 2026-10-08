@@ -70,6 +70,8 @@ handling a possible empty list correctly (see
 
 - Can an expense be `0`? Can it be negative (for example, a refund)?
 - Should the average be rounded, or shown exactly as Python calculates it?
+- For an empty list, choose and document what your program should return
+  or report before coding.
 
 **Edge cases to test:**
 
@@ -123,7 +125,8 @@ conditions, and thinking through edge cases for text input, as covered in
 
 - Exactly which rules count as "minimum" rules? Decide and write them down
   before coding (for example: minimum length, at least one digit, no
-  spaces).
+  spaces). This is intentionally open-ended: your chosen rules are part of
+  the problem specification, so write them down before coding.
 - Should the password be checked against *all* rules, or should checking
   stop at the first rule that fails?
 
@@ -175,6 +178,9 @@ allowed next.
 
 **Assumptions to consider:**
 
+- Either design is acceptable. Whichever approach you choose, define the
+  allowed transitions explicitly before coding and test both valid and
+  invalid requests.
 - Does the light always move to a single, fixed next state (like the
   simple example in topic 8), or can it be *asked* to jump to an arbitrary
   state, which you must then accept or reject (like the elevator example
@@ -254,7 +260,7 @@ an `if` / `elif` / `else` inside it), as covered in
 - [ ] I dry-ran my pseudocode on a short made-up list, by hand, tracking
       all three counters.
 - [ ] My program gives correct counts on a normal list.
-- [ ] My program gives correct (all-zero) counts on an empty list.
+- [ ] My program gives three zero counts for an empty list.
 - [ ] I can explain my code aloud, line by line.
 
 ---
@@ -276,7 +282,9 @@ that reappears constantly in programming.
 **Assumptions to consider:**
 
 - What should your program do if the list is empty? Is there a sensible
-  "largest number" of nothing?
+  "largest number" of nothing? There is no single required choice for an
+  empty list in this exercise; choose and document the behavior before
+  coding.
 - What should happen if the largest number appears more than once in the
   list?
 
@@ -326,12 +334,15 @@ following the decomposition habit from
   `"The cat sat. The cat sat on the mat!"`.
 - Output: a report of how many times each distinct word appears (for
   example, `"the"` appears a certain number of times, `"cat"` a certain
-  number of times, and so on).
+  number of times, and so on). Unless you define an ordering rule
+  yourself, the exercise does not require a particular output order.
 
 **Assumptions to consider:**
 
 - Exactly which characters count as punctuation to remove? Decide on a
   small, clear list rather than trying to handle every possible symbol.
+  This exercise intentionally uses a small, learner-defined punctuation
+  set; document which characters your program will remove before coding.
 - Should `"Cat"` and `"cat"` be counted as the same word? (The question
   says yes — decide *how* you will make that true in your code.)
 

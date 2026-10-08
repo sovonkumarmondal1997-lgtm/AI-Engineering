@@ -2,7 +2,7 @@
 
 ## Why this topic matters
 
-Almost every program you will ever write — a small script, a command-line
+Many programs you will write — a small script, a command-line
 tool, a web backend, or a future AI agent — can be described using one
 simple shape: it takes something **in**, does some work on it, and produces
 something **out**. This is called the **Input → Process → Output** model,
@@ -32,11 +32,11 @@ By the end of this lesson, you will be able to:
 
 | Term | Plain-English definition |
 |---|---|
-| **Input** | Any information a program receives before or during its work — typed by a user, stored in a variable, or read from a file. |
+| **Input** | Any data made available to a program for processing — typed by a user, already stored in a variable, or read from a file. |
 | **Process** | The steps a program performs to turn input into output — calculations, comparisons, and transformations. |
-| **Output** | Whatever the program produces as a result — text on the screen, a returned value, or data written somewhere. |
-| **`input()`** | A built-in Python instruction that pauses the program, waits for the user to type something, and gives back what they typed as text. |
-| **`print()`** | A built-in Python instruction that displays information on the screen. |
+| **Output** | Information produced by a program — such as text displayed on the screen, a value returned to another part of a program, or data written somewhere. Output is more than just `print()`. |
+| **`input()`** | A built-in Python function that pauses the program, waits for the user to type something, and gives back what they typed as text. |
+| **`print()`** | A built-in Python function that displays information on the screen. |
 | **Type conversion** | Turning one type of value into another, such as turning the text `"5"` into the number `5`, because `input()` always gives back text. |
 
 ## Step-by-step explanation
@@ -74,7 +74,7 @@ this module are:
 - **Data already given to you**, stored directly in a variable (as in
   topic 2's examples).
 - **Data typed by a user while the program runs**, using the built-in
-  `input()` instruction.
+  `input()` function.
 
 ```python
 name = input("What is your name? ")
@@ -86,6 +86,10 @@ using it to type something and press Enter, and then it gives back
 whatever they typed — **always as text (a string)**, even if they typed
 numbers. This last point causes a very common bug, covered in detail
 below.
+
+Keep the two ideas apart: *input* (the IPO idea) is any data made
+available to the program for processing, while `input()` is just one
+Python function that obtains text from interactive user input.
 
 ### 4. Process in Python
 
@@ -260,7 +264,7 @@ if total > 100:
    and which are output.
 3. Write a program that reads three numbers of test scores from the user,
    computes the average, and prints `"Pass"` if the average is 40 or above
-   and something else otherwise (you can use the small `if` preview from
+   and `"Fail"` otherwise (you can use the small `if` preview from
    Example 3, even without fully understanding selection yet).
 4. Take Example 3 and add a fourth expense input, updating the rest of the
    program so the average is still calculated correctly. Predict the
@@ -268,7 +272,7 @@ if total > 100:
 
 ## Summary
 
-- The **Input → Process → Output** model describes almost every program:
+- The **Input → Process → Output** model describes many programs:
   gather information, transform it, present the result.
 - Answering "what is the input, what is the process, what is the output?"
   in plain English *before* coding makes writing the actual code far

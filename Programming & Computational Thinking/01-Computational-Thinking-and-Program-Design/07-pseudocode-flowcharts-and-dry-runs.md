@@ -101,17 +101,18 @@ tools), a flowchart can be written using simple ASCII arrows and labels:
 ```
 
 The loop is shown by the arrow that curves back up to "For each expense" —
-this is exactly the repeating behavior of a `for` loop. Flowcharts are most
-useful for problems with several decision branches, where seeing the shape
-of the branching helps you spot a missing or wrong path before you code
-it.
+this is exactly the repeating behavior of a `for` loop. This particular
+example shows a loop; a decision would be drawn as a diamond (or a labelled
+branch) wherever the plan has a condition. Flowcharts are especially useful
+for problems with multiple branches or repeated paths, where seeing the
+structure helps you spot a missing or wrong path before you code it.
 
 ### 4. Dry runs: tracing code by hand
 
 A **dry run** means going through code line by line, as if you were the
 computer, and writing down what each variable holds after each statement
 runs. This is usually done with a simple **trace table**: one column per
-variable of interest, one row per statement. Dry runs are extremely
+variable of interest, one row per traced step. Dry runs are extremely
 effective for two purposes: predicting what unfamiliar code will do before
 running it (part of the engineering loop in the module
 [README](README.md)), and finding a bug by comparing what you *expected*
@@ -200,10 +201,10 @@ print(average)
 
 **Plain-English explanation:**
 
-- Each row of the trace table represents the state of the important
-  variables (`number`, `total`, `count`) right after one statement runs.
-  Working through this by hand, one line of code at a time, is exactly
-  what a dry run means.
+- Each row of the trace table represents a traced step or relevant state
+  change, showing the values of the variables being followed (`number`,
+  `total`, `count`) at that point. Working through this by hand, one step
+  at a time, is exactly what a dry run means.
 - The tricky part of this example is the `if number > 5: total = total +
   1` line inside the loop — it's easy to skim past this while reading and
   assume `total` only ever gets the plain sum of the numbers. The dry run
@@ -284,9 +285,9 @@ print(count_positive_and_negative([3, -1, 5, -2, 0]))
   total"). Vague pseudocode hides exactly the kind of thinking mistakes it
   is meant to catch.
 - **Dry-running code too fast, skipping steps.** The value of a dry run
-  comes from being slow and mechanical — writing down every single
-  variable's value after every single statement, not just "the important
-  ones" (as Example 3 shows, an "unimportant" variable can be exactly
+  comes from being slow and mechanical — carefully tracking the relevant
+  variables after each traced step or state change rather than skipping
+  steps, and not just "the important ones" (as Example 3 shows, an "unimportant" variable can be exactly
   where the bug is hiding).
 - **Only dry-running the normal case.** Just like testing, dry runs should
   sometimes be done on edge cases too (an empty list, a boundary value)
@@ -333,8 +334,8 @@ print(count_positive_and_negative([3, -1, 5, -2, 0]))
 - A **dry run** means manually tracing code, statement by statement,
   writing down how each variable's value changes, usually with a
   **trace table**.
-- Dry runs are one of the most reliable ways to predict what code will do,
-  and to find bugs, without needing to run the program at all.
+- Dry runs are a useful manual way to predict what small pieces of code
+  will do and to find certain bugs before running the program.
 - These tools are cheap (a few minutes with pen and paper) and catch
   mistakes early, before they become confusing runtime bugs.
 

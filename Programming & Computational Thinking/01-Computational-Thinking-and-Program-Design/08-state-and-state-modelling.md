@@ -32,11 +32,11 @@ By the end of this lesson, you will be able to:
 
 | Term | Plain-English definition |
 |---|---|
-| **State** | Information a program remembers between one action and the next, which can change over time. |
+| **State** | Information or values that describe the current condition of a program or system, can change over time, and can affect future behavior. |
 | **State transition** | A change from one state to another, usually triggered by some event or action. |
 | **Valid transition** | A state change that is allowed by the rules of the system, such as a traffic light going from red to green. |
 | **Invalid transition** | A state change that should never be allowed, such as a traffic light going straight from red to green without passing through the correct sequence. |
-| **State machine** | A system with a fixed, known set of possible states and a fixed set of rules describing which transitions between states are allowed. |
+| **State machine** | A model of a system that defines its possible states and the rules describing which transitions between those states are allowed. In this lesson, we use a simple fixed set of states. |
 | **Current state** | The one state a system is in right now, out of all its possible states. |
 
 ## Step-by-step explanation
@@ -48,8 +48,9 @@ over time, and that affects future behavior. A bank account's balance is
 state: it changes with every deposit and withdrawal, and future
 withdrawals depend on its current value. The color a traffic light is
 currently showing is state. Whether a user is currently logged in is
-state. Notice the common thread: state is not recalculated fresh every
-time from nothing — it persists, and it is updated by specific events.
+state. Notice the common thread: state is information that persists across
+relevant steps and can affect future behavior, and it is updated by
+specific events.
 
 Contrast this with something that is **not** state: if you can always
 recompute a value freshly from other information you already have (for
@@ -69,10 +70,10 @@ transitions**.
 
 ### 3. Valid versus invalid transitions
 
-Not every imaginable state change should be allowed. A traffic light
-should go red → green → yellow → red, in that specific order — it should
-never jump directly from red to yellow, or from green to red, skipping
-yellow. A **valid transition** follows the real-world (or business) rules
+Not every imaginable state change should be allowed. For the simplified
+traffic-light model used in this lesson, the allowed sequence is
+red → green → yellow → red, in that specific order — it should never jump
+directly from red to yellow, or from green to red, skipping yellow. A **valid transition** follows the real-world (or business) rules
 of the system; an **invalid transition** violates them. A well-designed
 program actively **prevents** invalid transitions, rather than merely
 hoping they never happen. This connects directly to the precondition idea
@@ -186,11 +187,13 @@ print(current_state)                       # red
   returned value back into `current_state`, overwriting the old value.
 - Tracing through the four `print` statements confirms the light correctly
   cycles red → green → yellow → red, matching the rules from step 4.
-- This example shows a state machine where invalid transitions are not
-  just "checked against" — they are **impossible to express at all**,
-  because `advance()` never asks "what state do you want to go to?" It
-  always decides the one valid next state itself, based only on the
-  current state.
+- This example shows a state machine where `advance()` does not expose a
+  way for the caller to request an arbitrary next state, because it never
+  asks "what state do you want to go to?" It returns only the next state
+  allowed by this simplified model for the recognized current state.
+  (This simplified function assumes `state` is one of the three recognized
+  traffic-light states; an unrecognized state would fall through and
+  return `None`.)
 
 ### Example 3 — An elevator that rejects invalid requested transitions
 
@@ -265,8 +268,8 @@ print(current_state)                                          # still door_open 
   exactly like a precondition check from
   [topic 6](06-preconditions-postconditions-and-edge-cases.md), and the
   state is only ever changed after the check succeeds. This prevents the
-  elevator from ever entering an impossible or unsafe sequence of states,
-  no matter what asks it to.
+  transition logic from accepting requests that violate the rules defined
+  by this state model.
 
 ## Common beginner mistakes
 
@@ -297,7 +300,8 @@ print(current_state)                                          # still door_open 
    of Example 3 (returning `True` or `False`).
 3. Extend the `advance` function from Example 2: add a separate counter
    variable that increases by one every time the light returns to `"red"`
-   after having left it. Call `advance` ten times in a row (reassigning
+   after having left it (count each completed red → green → yellow → red
+   cycle once). Call `advance` ten times in a row (reassigning
    `current_state` and updating the counter each time) and print how many
    full cycles have happened.
 4. Using the functions from Example 3, write a small test that calls

@@ -31,9 +31,9 @@ By the end of this lesson, you will be able to:
 
 | Term | Plain-English definition |
 |---|---|
-| **Precondition** | Something that must be true *before* a function runs, for it to work correctly. |
+| **Precondition** | Something that must be true *before* a function runs, for it to work correctly. A precondition is a condition required by the function's contract; checking incoming data and deciding what to do when the condition fails is a separate act, often called validation or handling. |
 | **Postcondition** | Something that is guaranteed to be true *after* a function finishes running correctly. |
-| **Invariant** | Something that stays true throughout a function's execution, or throughout the life of a piece of data, and is never allowed to become false. |
+| **Invariant** | A condition that must remain true throughout the relevant steps or states of a computation, and is never allowed to become false. |
 | **Normal case** | An input that is typical, expected, and well-behaved. |
 | **Edge case** | An unusual input that sits at the "edge" of what a function was designed to handle, and is a common place for bugs to hide. |
 | **Invalid input** | Input that does not meet a function's basic assumptions, such as text where a number was expected. |
@@ -52,6 +52,12 @@ assumes the list is not empty — dividing by zero would break it. Writing
 down preconditions forces you to notice these hidden assumptions instead
 of discovering them by crashing.
 
+A precondition is a condition required by a function's contract. That is
+different from **validation or handling**, which means checking incoming
+data and deciding what the function does when the expected condition is
+not satisfied. A precondition is not something a function always checks
+internally; a function may check it, or may simply assume it.
+
 ### 2. Postconditions: what you promise after you finish
 
 A **postcondition** is a guarantee about the result, assuming the
@@ -67,17 +73,20 @@ An **invariant** is a condition that must remain true the entire time,
 not just at the start or the end. For a running total of expenses, an
 invariant might be "the total is never negative" (assuming expenses cannot
 be negative amounts). For a bank account balance during a transfer, an
-invariant might be "the total money across both accounts never changes."
+invariant might be "the total money across both accounts never changes"
+(assuming the transfer only moves money between those two accounts). An
+invariant always depends on the rules and assumptions of the system being
+modelled.
 Invariants are especially important once you study state in
 [topic 8](08-state-and-state-modelling.md), where you must ensure certain
 facts about a system's state remain true across many operations.
 
 ### 4. Edge cases: where bugs hide
 
-Most bugs are not found in ordinary, well-behaved input — they are found at
-the "edges" of what a function was designed to handle. A disciplined
-programmer always asks about these categories of edge cases for any new
-function:
+Many bugs are not found in ordinary, well-behaved input — they appear at
+the "edges" of what a function was designed to handle. A useful starting
+checklist for a new function is to ask about these categories of edge
+cases:
 
 - **Empty input** — an empty list, an empty string. What should happen?
 - **Invalid input** — the wrong type or an impossible value, like a
@@ -89,9 +98,9 @@ function:
   ages 0–120 are valid, what about exactly `0`, exactly `120`, `-1`, and
   `121`?).
 
-Asking these four questions about every function you write, *before*
-calling it "done," is one of the most valuable habits in this entire
-curriculum.
+These four questions form a useful starting checklist. Asking them about
+the functions you write, *before* calling them "done," is one of the most
+valuable habits in this entire curriculum.
 
 ## Examples
 
@@ -142,14 +151,15 @@ print(average([]))             # None
 
 **Plain-English explanation:**
 
-- The precondition ("`numbers` is not empty") is now **checked explicitly**
-  with `if len(numbers) == 0:` rather than merely assumed.
-- When the precondition is violated (empty list), the function returns
-  `None` — Python's built-in value that represents "nothing" or "no
-  result" — instead of crashing. This is a deliberate design decision: the
-  **postcondition** of this function is now "returns the numeric average
-  if the list has at least one number, or `None` if the list is empty,"
-  and it never crashes on this particular kind of bad input.
+- The function now **checks explicitly** whether `numbers` is empty, with
+  `if len(numbers) == 0:`, rather than silently assuming that it is not.
+- When the list is empty, the function returns `None` — Python's built-in
+  value commonly used to represent the absence of a value or result — which
+  defines behavior for that input instead of crashing. This is a
+  deliberate design decision: the **postcondition** of this function is now
+  "returns the numeric average if the list has at least one number, or
+  `None` if the list is empty," and it never crashes on this particular
+  kind of bad input.
 - Whoever calls `average(...)` now must remember to check for `None` before
   using the result as a number — that's the trade-off of this design.
   (Module 1.3 introduces a different, often better, way to signal this
@@ -164,8 +174,8 @@ print(average([]))             # None
 ### Example 3 — A function tested against a full checklist of edge cases
 
 This example defines a function to validate a simple password rule set,
-and then deliberately runs it against normal cases *and* every edge-case
-category from step 4 above, to show what a thorough check looks like.
+and then deliberately runs it against normal cases *and* each of the four
+edge-case categories introduced in step 4 above, to show what a thorough check looks like.
 
 ```python
 def validate_password(password):
@@ -199,14 +209,14 @@ for case in test_cases:
 - `validate_password(password)` checks its input step by step, from the
   most fundamental assumption (is it text at all?) to the most specific
   rule (is the length in the allowed range?). `isinstance(password, str)`
-  asks Python directly "is this value of type text (`str`)?" — this
+  checks whether `password` is an instance of `str` (text) — this
   guards against **invalid input** where something other than text is
   passed in, such as a number.
-- The **postcondition** of this function is: it always returns one of a
-  fixed, known set of text messages, and it never crashes, no matter what
-  is passed in — a strong, clear guarantee that makes it safe to call with
-  any data.
-- `test_cases` is deliberately built to cover every edge-case category:
+- The **postcondition** of this function is: for the kinds of inputs
+  shown here, it always returns one of a fixed, known set of text messages
+  rather than raising an error — a strong, clear guarantee for those kinds
+  of input.
+- `test_cases` is deliberately built to cover the four edge-case categories:
   a normal password; **empty input** (`""`); a **boundary value** just
   below the minimum (`"short"`, 5 characters); exact **boundary values**
   at both the minimum (8 characters, using `"a" * 8` to repeat the letter
@@ -233,8 +243,9 @@ for case in test_cases:
   expected data and declaring it "done" without ever trying an empty list,
   invalid input, or a boundary value.
 - **Assuming input is always well-formed.** Especially input from a user,
-  a file, or (later) an external system — always **untrusted** until
-  checked, as you'll see again in Module 1.5.
+  a file, or (later) an external system should not be assumed to satisfy
+  your expected format until it has been checked, as you'll see again in
+  Module 1.5.
 - **Not deciding, on purpose, what should happen for bad input.** Letting a
   program crash "by accident" rather than deliberately deciding — and
   documenting — that certain input is invalid and what should happen when
@@ -259,8 +270,9 @@ for case in test_cases:
 2. Write a function `first_positive(numbers)` that returns the first
    positive number in a list. Before coding, list at least four edge cases
    you should test (include an empty list and a list with no positive
-   numbers at all). Then implement the function and test it against your
-   list.
+   numbers at all). Decide and document what the function should return
+   when no positive number exists. Then implement the function and test it
+   against your list.
 3. Write a function `remove_duplicates(items)` that returns a new list with
    duplicate values removed, keeping the first occurrence of each value.
    Test it on a list with no duplicates, a list that is all duplicates of

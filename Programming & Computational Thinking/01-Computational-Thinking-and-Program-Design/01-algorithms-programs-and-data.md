@@ -33,10 +33,10 @@ By the end of this lesson, you will be able to:
 
 | Term | Plain-English definition |
 |---|---|
-| **Algorithm** | A precise, step-by-step plan for solving a problem, written so clearly that anyone (or any machine) following the steps gets the same correct result every time. |
-| **Program** | An algorithm written in a language a computer can actually run, such as Python. |
+| **Algorithm** | A finite, well-defined sequence of steps for solving a specified problem. |
+| **Program** | A set of instructions written in a programming language that a computer can execute to perform a task. A program may implement one or more algorithms. |
 | **Data** | The information a program reads, uses, changes, or produces (numbers, text, lists of values, and so on). |
-| **Source code** | The text of a program, exactly as a human types and reads it, before the computer runs it. |
+| **Source code** | The human-readable text stored in a source file, written by a human and read before the computer runs it. |
 | **Runtime behavior** | What actually happens — the calculations, the output, any errors — while the program is running. |
 | **Interpreter** | A program (here, `python`) that reads your source code and carries out its instructions one by one. |
 | **Instruction** | One single step the computer is told to do, such as "add these two numbers" or "print this text." |
@@ -48,26 +48,45 @@ By the end of this lesson, you will be able to:
 An algorithm is just a clear set of steps for solving a problem. You already
 use algorithms every day without calling them that. A recipe is an
 algorithm: "1. Boil water. 2. Add pasta. 3. Wait 10 minutes. 4. Drain."
-Following a recipe correctly always produces the same dish. A bad recipe —
+Following a recipe correctly produces the dish it describes. A bad recipe —
 one that skips steps or is vague ("cook until done") — produces
-inconsistent results. Good algorithms share three qualities:
+inconsistent results. A good algorithm should have clear steps, terminate
+when it should, and produce a correct result according to the problem's
+specification. In other words, good algorithms share three qualities:
 
 - **Precise** — each step is unambiguous.
 - **Finite** — the steps come to an end (they don't run forever).
-- **Correct** — following the steps actually solves the stated problem.
+- **Correct** — following the steps actually solves the stated problem, as
+  the problem is specified.
 
-### 2. A program is an algorithm written for a computer
+### 2. Inputs and outputs
+
+Every algorithm solves a problem by taking some **input**, performing
+operations on that input or on some state, and producing an **output** (a
+result). For example:
+
+```text
+Problem: Calculate the total cost of a shopping basket.
+Input:   A collection of item prices.
+Output:  The total price.
+```
+
+This is only a starting mental model; a later topic
+([topic 3](03-input-process-output.md)) covers input, process, and output
+in detail.
+
+### 3. A program is written for a computer
 
 A computer cannot read a recipe written in casual English. A **program** is
-the same kind of step-by-step plan, but written in a **programming
-language** — a strict, limited language with exact rules, so that a
-machine can follow it with zero ambiguity. In this curriculum, that language
-is **Python**.
+a set of instructions written in a **programming language** — a strict,
+limited language with exact rules — that a computer can execute to perform
+a task. A program may implement one or more algorithms. In this curriculum,
+that language is **Python**.
 
-### 3. Data is what the algorithm works on
+### 4. Data is what the algorithm works on
 
-An algorithm is useless without something to act on. **Data** is that
-"something": a person's name, a list of expenses, a password someone typed,
+Algorithms usually operate on input data or state to produce a result.
+**Data** is that "something": a person's name, a list of expenses, a password someone typed,
 today's temperature. The same algorithm (for example, "add up all the
 numbers in this list") can run on many different pieces of data (different
 lists of numbers) and still follow the exact same steps.
@@ -75,11 +94,11 @@ lists of numbers) and still follow the exact same steps.
 It helps to keep these two ideas separate in your head:
 
 ```text
-Program  = the fixed set of steps (the recipe)
-Data     = the specific information the steps are applied to (today's ingredients)
+Program  = the set of instructions that define what the computer can do (the recipe)
+Data     = the information those instructions operate on (today's ingredients)
 ```
 
-### 4. Source code versus runtime behavior
+### 5. Source code versus runtime behavior
 
 **Source code** is the text you type into a file — it just sits there,
 unmoving, like a recipe printed on paper. **Runtime behavior** is what
@@ -94,10 +113,12 @@ answer, crash, or unexpected result). Reading code is not the same as
 knowing what it will do — you have to trace through it, which you will
 practice in [topic 7](07-pseudocode-flowcharts-and-dry-runs.md).
 
-### 5. How Python actually runs your instructions
+### 6. How Python actually runs your instructions
 
-Python is what's called an **interpreted** language. When you type
-`python my_program.py` in a terminal, here is roughly what happens:
+At a beginner level, you can think of Python as executing a program in
+order, from top to bottom, unless a control-flow construct changes that
+order. When you type `python my_program.py` in a terminal, here is roughly
+what happens:
 
 1. The **Python interpreter** (a program installed on your machine) opens
    your file and reads the source code as text.
@@ -112,8 +133,11 @@ Python is what's called an **interpreted** language. When you type
 
 This "one instruction at a time, top to bottom" behavior is the default.
 Later topics (selection and iteration) show how you can make Python skip
-some instructions or repeat others — but underneath, it is always
-processing one instruction at a time.
+some instructions or repeat others.
+
+Internally, the Python implementation performs additional parsing and
+execution steps before and during execution. You do not need to understand
+those implementation details yet.
 
 ## Examples
 
@@ -125,13 +149,13 @@ print("Hello, this is my first program.")
 
 **Plain-English explanation:**
 
-- `print(...)` is a built-in Python instruction that displays whatever is
-  inside the parentheses on the screen.
+- `print(...)` is a built-in function that displays whatever is inside the
+  parentheses on the screen.
 - `"Hello, this is my first program."` is a piece of **data** — specifically
   text, which in programming is called a **string**. The quotation marks
   tell Python "this is text, not an instruction."
 - When you run this file, the interpreter reads this one line, recognizes
-  `print` as an instruction, and carries it out: it shows the text on the
+  `print` as a built-in function, and carries out the call: it shows the text on the
   screen. There is one instruction and no data was changed — only shown.
 
 ### Example 2 — A tiny algorithm: adding up expenses
@@ -248,21 +272,26 @@ document, explain aloud.
    run it, then check if you were right.
 4. Change Example 3 so that instead of crashing when `count` is `0`, it
    prints a friendly message like `"Cannot compute an average with zero
-   items."` instead. (You do not need to understand `if` yet to think
-   about *what* the fix should do — just describe it in English first.)
+   items."` instead. First describe in plain English how the program should
+   behave when `count` is `0`. If you already know how to use `if`,
+   implement your solution in Python. Otherwise, write only the algorithm
+   for now; you will implement it when you learn selection.
 
 ## Summary
 
-- An **algorithm** is a precise, step-by-step plan for solving a problem.
-- A **program** is an algorithm written in a language, like Python, that a
-  computer can run exactly and without ambiguity.
+- An **algorithm** is a finite, well-defined sequence of steps for solving a
+  specified problem.
+- An **algorithm** takes input and produces an output (a result).
+- A **program** is a set of instructions written in a language, like
+  Python, that a computer can execute to perform a task; it may implement
+  one or more algorithms.
 - **Data** is the information a program works on; the same algorithm can run
   on many different pieces of data.
-- **Source code** is the fixed text of a program; **runtime behavior** is
+- **Source code** is the human-readable text stored in a source file; **runtime behavior** is
   what actually happens when that code runs, which can depend heavily on
   the data it is given.
-- Python runs your instructions one at a time, from top to bottom, checking
-  the syntax first and then carrying out each instruction in order.
+- At a beginner level, Python runs your instructions in order, from top to
+  bottom, unless a control-flow construct changes that order.
 
 ## Completion checklist
 

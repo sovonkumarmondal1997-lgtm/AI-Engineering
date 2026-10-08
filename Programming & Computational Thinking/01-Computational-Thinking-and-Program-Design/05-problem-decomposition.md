@@ -7,7 +7,7 @@ code. This works for tiny programs, but quickly falls apart as problems
 grow: the code becomes hard to read, hard to test, and terrifying to
 change. **Decomposition** is the skill of breaking one large problem into
 several small, clearly named responsibilities — usually functions — each
-doing exactly one job well. This is one of the most valuable habits in all
+doing one clear, cohesive responsibility well. This is one of the most valuable habits in all
 of software engineering, and it is built directly on the abstraction idea
 from the previous topic.
 
@@ -32,9 +32,9 @@ By the end of this lesson, you will be able to:
 |---|---|
 | **Decomposition** | Breaking one large problem into several smaller, more manageable parts. |
 | **Responsibility** | One clear job that a piece of code (usually a function) is in charge of, and nothing more. |
-| **Single responsibility** | The idea that a function should do exactly one job, so its name can honestly describe everything it does. |
-| **Composition (of functions)** | Building a bigger behavior by calling several small functions together, in sequence. |
-| **Coupling** | How much one piece of code depends on the internal details of another; smaller, well-named functions usually reduce unwanted coupling. |
+| **Single responsibility** | The idea that a function should have one clear, cohesive responsibility, so its name can honestly describe what it does. |
+| **Composition (of functions)** | Building a bigger behavior by calling several small functions together. |
+| **Coupling** | How much one piece of code depends on another; clear boundaries, well-defined inputs, and return values can help reduce unwanted coupling. |
 
 ## Step-by-step explanation
 
@@ -63,7 +63,7 @@ separate jobs happening here?" For the expense script above, you might spot:
 3. Calculating the total and the average.
 4. Formatting and printing a report.
 
-Each of these becomes its own small function. This mirrors the
+Each of these could become its own small function. This mirrors the
 **Input → Process → Output** model from
 [topic 3](03-input-process-output.md): decomposition is really the same
 idea applied at a larger scale, where the "process" step itself gets
@@ -71,33 +71,35 @@ broken down into multiple smaller processes.
 
 ### 3. Giving each responsibility a function with one clear job
 
-The goal is **single responsibility**: each function should do one thing,
-and its name should describe that one thing accurately, with no
-"and" hiding in the description. `calculate_total_and_print_report` is
+The goal is **single responsibility**: each function should have one
+clear, cohesive responsibility, and its name should describe it accurately,
+with no unrelated "and" hiding in the description. `calculate_total_and_print_report` is
 doing two jobs and should probably be two functions:
 `calculate_total` and `print_report`.
 
-A useful test: if you cannot describe what a function does in one short
-sentence without using the word "and" to join two unrelated actions, it is
-probably doing too much.
+A useful warning sign: if you cannot describe what a function does in one
+short sentence without using the word "and" to join two unrelated actions,
+it is probably doing too much. This is a heuristic, not a strict rule.
 
 ### 4. Composing small functions into a full program
 
 Once each responsibility has its own function, the main part of your
 program becomes short and readable: it just calls the functions in the
-right order, passing the result of one into the next. This "calling small
-functions in sequence" is called **composition**, and it's exactly the
-same sequence idea from
-[topic 4](04-sequence-selection-iteration-and-abstraction.md), just applied
-to functions instead of individual statements.
+right order, passing the result of one into the next. Combining small
+functions by calling them together to build larger behavior is a simple
+form of **composition**. This is related to the sequence idea from
+[topic 4](04-sequence-selection-iteration-and-abstraction.md), where
+operations are performed in an intentional order, just applied to functions
+instead of individual statements.
 
 ### 5. A practical way to decompose: nouns and verbs
 
-A simple, beginner-friendly technique: read the plain-English problem
-description and underline the **verbs** (actions) — each verb is a strong
-candidate for a function. Underline the **nouns** (things) — each noun is
-a strong candidate for a variable or a piece of data passed between
-functions. For "read expenses, validate each one, calculate the total, and
+A simple, beginner-friendly starting heuristic: read the plain-English
+problem description and underline the **verbs** (actions) — each verb is a
+possible candidate for a function. Underline the **nouns** (things) — each
+noun is a possible candidate for a variable or a piece of data passed
+between functions. It still takes judgment to decide which ones really
+deserve their own function. For "read expenses, validate each one, calculate the total, and
 print a summary," the verbs (`read`, `validate`, `calculate`, `print`) map
 almost directly onto the four functions from step 2.
 
@@ -123,7 +125,7 @@ print(total_of(expenses))
   numbers, add them up and return the result. Its name (`total_of`)
   honestly describes everything it does — nothing more, nothing less.
 - Inside, it uses the running-total pattern from earlier topics.
-- Because this function does only one thing, it is trivial to test on its
+- Because this function does only one thing, it is easy to test on its
   own (`total_of([1, 2, 3])` should return `6`), and trivial to reuse
   anywhere a total is needed, without dragging along any input or output
   logic.
@@ -160,7 +162,10 @@ print(describe_spending(expenses))
 - `average_of(expenses)` has its own single responsibility: compute the
   average, guarding against dividing by zero when the list is empty (this
   guard is a small preview of
-  [topic 6](06-preconditions-postconditions-and-edge-cases.md)). Notice it
+  [topic 6](06-preconditions-postconditions-and-edge-cases.md)). For this
+  example, an empty list is assigned an average of `0` as a simple
+  application policy so the function has a defined result; this is a design
+  choice, not the mathematical average of an empty collection. Notice it
   **reuses** `total_of` rather than recalculating the sum itself — this is
   composition: a new function built partly out of an existing one, instead
   of duplicating logic.
@@ -172,8 +177,8 @@ print(describe_spending(expenses))
   [topic 3](03-input-process-output.md)'s `int(...)`/`float(...)`.
 - If the way totals are calculated ever needs to change, you only need to
   fix it in `total_of` — `average_of` and `describe_spending` will
-  automatically use the corrected logic, because they call it rather than
-  repeating it. This is the direct payoff of decomposition.
+  use the updated logic when they call `total_of`, because they reuse that
+  function rather than duplicating the logic. This is the direct payoff of decomposition.
 
 ### Example 3 — A small decomposed program: password checker report
 
