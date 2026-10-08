@@ -107,7 +107,7 @@ Recall the individual mental models from each earlier lesson — this section pl
 ```text
 NAVIGATE     (Lesson 01)   → where am I, and how do I move around?
     ↓
-INSPECT      (Lesson 02)   → create, copy, move, remove filesystem objects
+FILE OPERATIONS (Lesson 02) → create, copy, move, remove filesystem objects
     ↓
 READ         (Lesson 03)   → look inside a file's contents
     ↓
@@ -126,7 +126,7 @@ CONTROL ACCESS (Lesson 09) → understand who/what is allowed to do any of the a
 
 **Read this diagram as a rough, common *order of operations* for a new task, not a rigid law.** In practice, real work jumps around this diagram constantly — you might check permissions before transforming data, or configure an environment variable before navigating anywhere. But when you're lost on where to even start, walking down this list in order — "do I know where I am? do I know what exists? have I looked inside it? do I need to find something? does it need reshaping? should I chain steps together? does behavior depend on configuration? should this be saved as a script? am I actually allowed to do this?" — is a reliable way to locate the right tool.
 
-**The single most important idea in this entire lesson:** none of these nine categories replaced any other. `find` (LOCATE) didn't make `ls` (NAVIGATE) obsolete; `chmod` (CONTROL ACCESS) didn't replace anything about `cp` (INSPECT/manage). Each category answers a genuinely different question, and real command-line work draws on several of them, together, for almost any nontrivial task.
+**The single most important idea in this entire lesson:** none of these nine categories replaced any other. `find` (LOCATE) didn't make `ls` (NAVIGATE) obsolete; `chmod` (CONTROL ACCESS) didn't replace anything about `cp` (file operations). Each category answers a genuinely different question, and real command-line work draws on several of them, together, for almost any nontrivial task.
 
 ---
 
@@ -139,7 +139,7 @@ CONTROL ACCESS (Lesson 09) → understand who/what is allowed to do any of the a
 | `cd` | Changes the current working directory | To move somewhere else | a path | Updates your shell's location | Navigate | Losing track of location after several `cd`s |
 | `cp` | Copies a file/directory | To duplicate without destroying the original | source + destination | A new copy | File operations | Forgetting `-r` for directories; silent overwrite |
 | `mv` | Moves or renames a file/directory | To relocate or rename | source + destination | Source disappears, destination appears | File operations | Confusing with `cp`; accidental rename |
-| `rm` | Deletes a file/directory | To remove something no longer needed | a path | Irreversible removal | File operations | `rm -rf` with no confirmation; wrong path |
+| `rm` | Removes files; directories normally require a recursive option such as `rm -r` | To remove something no longer needed | a path | Irreversible removal | File operations | `rm -rf` with no confirmation; wrong path |
 | `mkdir` | Creates a directory | To set up structure before adding files | a path | A new, empty directory | File operations | Forgetting `-p` for nested paths |
 | `cat` | Prints an entire file | Small files, quick full view | a file | Full contents to stdout | Viewing | Using it on very large files |
 | `less` | Interactively pages through a file | Large or unfamiliar files | a file | An interactive, scrollable view | Viewing | Not knowing `q` to exit |
@@ -150,7 +150,7 @@ CONTROL ACCESS (Lesson 09) → understand who/what is allowed to do any of the a
 | `sort` | Reorders lines | Before deduplicating, or for readability | lines of text | Reordered lines | Transform | Textual vs. numeric (`-n`) sorting |
 | `uniq` | Collapses **adjacent** duplicate lines | After sorting, to deduplicate/count | sorted lines | Deduplicated lines, optionally counted | Transform | Assuming it finds non-adjacent duplicates |
 | `cut` | Extracts a field or character range | Simple, consistently delimited text | delimiter + field/lines | One column/slice per line | Transform | Assuming it understands complex CSV |
-| `xargs` | Builds and runs a command from input items | Applying a command to many items at once | lines/words of input | Executes a constructed command | Transform | Pairing with a mutating command on untrusted input |
+| `xargs` | Builds and runs a command from input items | Applying a command to many items at once | lines/words of input | Executes a constructed command | Transform | Pairing with a mutating command on untrusted input; ordinary whitespace-delimited `xargs` is not safe for arbitrary filenames containing whitespace/newlines (safer: `find -exec … {} +` or `find -print0 \| xargs -0`) |
 | `\|` (pipe) | Connects one command's stdout to another's stdin | Combining tools without an intermediate file | two commands | A live stream between processes | Connect | Assuming stderr is piped too |
 | `>` / `>>` / `<` / `2>` / `2>&1` | Redirects stdin/stdout/stderr to/from files | Saving output, separating errors, feeding input | a command + a file | A file is read/written | Connect | `>` silently overwrites; `2>&1` ordering |
 | Environment variables / `export` | Configuration attached to a process's environment | Making behavior vary by environment, safely | `NAME=value` (+ `export`) | Available to child processes | Configure | Forgetting `export`; assuming persistence |
@@ -183,17 +183,17 @@ Restating Section 5's model as an explicit grouping, since this is the structure
 
 Individual commands are useful; **combinations** of them are where real command-line work actually happens. A few representative combinations, each explicitly citing which categories and which earlier lessons it draws from:
 
-**Locate + Read:**
+**Locate + limit/display results:**
 ```bash
 find . -name "*.log" | head
 ```
-Locate (04) finds candidate files; Connect (06) pipes the list into Read (03) for a quick first look.
+Locate (04) finds candidate files; Connect (06) pipes the list of pathnames into `head`, which limits/displays the first results (it does not read the files' contents).
 
 **Locate + Transform + Connect:**
 ```bash
 grep "ERROR" app.log | sort | uniq -c
 ```
-Locate (04) filters; Transform (05) orders and counts; Connect (06) links the three stages and could redirect the final result to a file.
+Locate (04) filters; Transform (05) orders and counts identical matching lines; Connect (06) links the three stages and could redirect the final result to a file.
 
 **Configure + Automate:**
 ```bash
@@ -265,7 +265,7 @@ Terminal → Shell → command → process → operating system → filesystem/e
 ```
 
 - The **shell** (Lesson 01) parses each command, resolving paths and expanding wildcards.
-- Each command runs as its own **process** (Module 0.2), inheriting a **copy** of the current environment (Lesson 07) at the moment it starts.
+- Not every command is a separate process. External commands normally execute in a separate execution environment/process (Module 0.2), inheriting a **copy** of the current environment (Lesson 07) at the moment they start, while shell builtins (like `cd`) and shell functions can execute within the current shell. Pipeline elements normally execute in separate execution contexts/processes, although exact behavior can depend on the shell.
 - **Pipes** (Lesson 06) connect one process's stdout directly to another's stdin; **redirection** (Lesson 06) connects a process's stdin/stdout/stderr to a file instead.
 - Every filesystem operation a process attempts is checked against **permissions** (Lesson 09) — the process's identity versus the target's owner/group/others bits.
 - Every command reports an **exit status** (Lessons 04, 06, 08) when it finishes — the signal that lets a script, or a human, know whether it actually succeeded.
@@ -366,7 +366,7 @@ ls -l data/error-summary.txt
 ```
 Example output:
 ```text
--rw------- 1 learner learner 22 Sep 10 12:00 data/error-summary.txt
+-rw------- ... ... ... ... data/error-summary.txt   (owner, group, size and timestamp vary by environment)
 ```
 
 **Cleanup:**
@@ -438,9 +438,10 @@ Work through each scenario's reasoning before reading the diagnosis.
 - *Fix:* check permissions against the service's actual identity, not your own.
 
 **Scenario 8 — A long combined command fails and it's unclear where**
-- *Situation:* `find . -name "*.csv" | xargs grep "error" | sort | uniq -c > out.txt` produces an empty `out.txt`.
-- *Diagnose:* break the chain apart, testing `find`, then `find | xargs grep`, then adding `sort`, one stage at a time (Section 8's composition model, applied backward for debugging).
+- *Situation:* `find . -name "*.csv" -exec grep "error" {} + | sort | uniq -c > out.txt` produces an empty `out.txt`. (`find -exec … {} +` is used here rather than `find | xargs`, because ordinary whitespace-delimited `xargs` can split filenames containing spaces or newlines.)
+- *Diagnose:* break the chain apart, testing `find`, then `find -exec grep`, then adding `sort`, one stage at a time (Section 8's composition model, applied backward for debugging).
 - *Fix:* whichever isolated stage first shows the wrong (or no) result is where the actual problem lives.
+- *Bash note:* by default, a Bash pipeline's exit status is normally the status of the final command, so an earlier stage can fail while the pipeline still reports success. `set -o pipefail` makes a pipeline report failure when an earlier component fails, rather than relying only on the final command's status.
 
 **Scenario 9 — Directory traversal blocks access to a file with fine permissions**
 - *Situation:* a file shows `-rw-r--r--` (looks readable) but access still fails.
@@ -574,7 +575,7 @@ cd /tmp/module-0-3-capstone
 1. **Navigate + File operations:** confirm your location (`pwd`), and create the structure above if you haven't already.
 2. **Read:** create a small sample log in `logs/` with a mix of normal and `ERROR` lines, and view it fully.
 3. **Locate:** find every `.log` file in the workspace using `find`.
-4. **Transform:** filter, sort, and count the distinct error messages (`grep | sort | uniq -c`).
+4. **Transform:** filter, sort, and count identical matching error lines (`grep | sort | uniq -c`).
 5. **Connect:** redirect that summary into `reports/error-summary.txt`.
 6. **Configure:** export a variable (e.g. `REPORT_LEVEL=summary`) that a script will read.
 7. **Automate:** write a script in `scripts/` that reads that variable, re-runs the filter/sort/count step, and reports its own exit status clearly.
@@ -582,7 +583,7 @@ cd /tmp/module-0-3-capstone
 9. **Debug:** deliberately break one thing (an unexported variable, a missing execute bit, or a wrong path) and correctly diagnose and fix it using this lesson's methodology.
 10. **Document:** write a short summary of which category each step belonged to, and why you sequenced them the way you did.
 
-**Test cases:** run the script twice — once with the variable exported, once without — and confirm the behavior differs exactly as expected.
+**Test cases:** run the script twice — once after `export APP_ENV=development`, then again after `unset APP_ENV` (so the two states are actually different in the same shell) — and confirm the behavior differs exactly as expected.
 
 **Completion checklist:**
 - [ ] Workspace structure created and confirmed with `pwd`/`ls`.
@@ -611,7 +612,7 @@ rm -r /tmp/module-0-3-capstone
 
 **The integrated mental model:**
 ```text
-NAVIGATE → INSPECT/MANAGE → READ → LOCATE → TRANSFORM → CONNECT → CONFIGURE → AUTOMATE → CONTROL ACCESS
+NAVIGATE → FILE OPERATIONS → READ → LOCATE → TRANSFORM → CONNECT → CONFIGURE → AUTOMATE → CONTROL ACCESS
 ```
 used as a common order to check, not a rigid rule.
 

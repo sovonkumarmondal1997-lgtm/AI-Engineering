@@ -7,6 +7,7 @@
 **Concept(s) covered:** environment variables, shell variables, `export`, `printenv`, `env`, `unset`, `PATH`
 **Status:** Complete
 **Builds on:** 01–06 (navigation, file operations, viewing, searching, text processing, pipes/redirection) and Module 0.2 (processes, shell, process lifecycle, standard input/output)
+**Environment:** Primary shell: Bash. Recommended platforms: Linux, macOS, Git Bash, or WSL2. Python 3 is required for the Python exercises. PowerShell examples are comparison-only.
 
 ---
 
@@ -279,10 +280,10 @@ env
 **Combining with earlier lessons:**
 
 ```bash
-printenv | grep APP_ENV
+env | grep '^APP_ENV='
 ```
 
-Search the full environment listing for one specific name — directly reusing Lesson 04's `grep` and Lesson 06's pipe, exactly as promised in Section 2.
+Search the full environment listing for one specific name using an exact-name pattern (a bare `grep APP_ENV` could also match unintended names such as `MY_APP_ENV_SECRET` or `APP_ENVIRONMENT`; for a single known variable, `printenv APP_ENV` is simpler) — directly reusing Lesson 04's `grep` and Lesson 06's pipe, exactly as promised in Section 2.
 
 ---
 
@@ -355,7 +356,7 @@ If `python application.py` itself starts something else (a **grandchild** proces
 
 **Process lifetime:** once a process (shell or otherwise) ends, its environment — and anything only ever set as a shell variable in it — ends with it. There's nothing left over afterward.
 
-**Why environment variables normally do not persist across unrelated shell sessions:** each new terminal window, or each new shell session, starts with its own fresh environment (typically inherited from whatever started *it* — often your operating system's default startup process, not from some other terminal window you had open). A variable you exported in one terminal window is simply **not present** in a second, separate terminal window you open afterward — they're different shell processes, each with their own independent environment.
+**Why environment variables normally do not persist across unrelated shell sessions:** each new terminal window, or each new shell session, starts with its own environment (normally inherited from its parent process — whatever started *it* — often your operating system's default startup process, not from some other terminal window you had open). A variable you exported in one terminal window is simply **not present** in a second, separate terminal window you open afterward — they're different shell processes, each with their own independent environment. A new shell does not automatically receive changes made later inside an unrelated, already-running shell session (Shell A's `export` never reaches Shell B).
 
 **The important distinction to internalize:**
 
@@ -394,7 +395,9 @@ PATH=/directory1:/directory2:/directory3
 User types:
 python
 
-Shell searches directories in PATH, in order
+(Shell functions and builtins can be resolved first; Bash may also use its command hash table)
+        ↓
+For external commands, shell searches directories in PATH, in order
         ↓
 finds an executable file named "python" in one of them
         ↓
@@ -403,8 +406,8 @@ starts that program
 
 **Why `PATH` matters:**
 
-- **"command not found" errors** almost always mean: none of the directories currently listed in `PATH` contain an executable with that exact name.
-- **Python installations** — which specific `python` actually runs when you type `python` depends entirely on which directory containing a `python` executable appears *first* in `PATH`.
+- **"command not found" errors** very often mean (for an external command): none of the directories currently listed in `PATH` contain an executable with that exact name.
+- **Python installations** — which specific `python` actually runs when you type `python` depends largely on which directory containing a `python` executable appears *first* in `PATH` (shell functions, aliases, and Bash's command hash table can also affect which one runs).
 - **Virtual environments** (a topic this lesson does not teach in depth) work, at a foundational level, partly by temporarily adjusting `PATH` so that a project-specific version of a tool is found before any other. This lesson mentions this only to connect `PATH` to something you'll encounter later — it does not teach virtual environments here.
 - **Developer environments generally** — installing a new command-line tool and then getting "command not found" anyway is very often a `PATH` problem, not an installation problem (Section 24, Scenario 9, walks through this).
 
@@ -491,10 +494,10 @@ BATCH_SIZE
 ```
 
 - **Uppercase** — the overwhelming convention in Unix/Linux environments for environment variables (as opposed to lowercase, often used for ordinary shell-script-local variables). **This is a convention, not a technical requirement** — lowercase names work mechanically — but breaking this convention makes your configuration harder for others (and future you) to recognize at a glance.
-- **Underscores** — used to separate words, since spaces aren't allowed in variable names at all.
+- **Underscores** — used to separate words, since spaces don't belong in names. Bash shell variable names follow shell identifier rules, and the portable practice is to use letters, digits, and underscores (not starting with a digit).
 - **Descriptive names** — `LOG_LEVEL` tells you immediately what it controls; a name like `X` or `TMP1` does not.
 - **Avoiding confusing names** — don't reuse a name that already means something specific elsewhere (like `PATH` itself) for an unrelated purpose.
-- **Avoiding accidental typos** — a misspelled variable name doesn't cause an error (Section 23, Scenario 2) — it simply creates a *different*, unrelated, empty variable, which is precisely why careful, consistent naming matters.
+- **Avoiding accidental typos** — in ordinary Bash usage, a misspelled variable name doesn't cause an error (Section 23, Scenario 2; shells using options such as `set -u` can instead report an error) — it simply creates a *different*, unrelated, empty variable, which is precisely why careful, consistent naming matters.
 
 ---
 
@@ -517,6 +520,8 @@ value = os.environ["APP_ENV"]
 **`os.environ["APP_ENV"]`** — expects the key to exist. If `APP_ENV` is **not** present in the environment, this raises an error (a `KeyError`) instead of quietly returning something.
 
 **The practical difference, stated plainly:** use `.get(...)` when a variable is optional (and you're prepared to handle its absence, perhaps with a fallback value: `os.environ.get("LOG_LEVEL", "info")`); use `[...]` when a variable is genuinely required and you *want* the program to fail loudly and immediately if it's missing, rather than silently continuing with `None`.
+
+Note: `os.environ` represents the environment available to the Python process. An already-running Python process does not automatically receive environment changes made later in another shell — environment configuration should be present before the process starts.
 
 **Scope note:** this lesson does not teach `python-dotenv`, Pydantic Settings, or any other configuration framework — those are later-stage topics (Section 42). This section's entire purpose is the two lines above, and the conceptual difference between them.
 
@@ -553,7 +558,7 @@ Lists the current environment variables — PowerShell's rough equivalent to Bas
 Foundational points worth knowing, without going deeper:
 
 - **The Linux environment inside WSL2 has its own process/environment context** — a shell running inside WSL2 has its own environment, following exactly the Bash model taught in this lesson.
-- **Windows and WSL2 are related, but they are not simply one single, identical shell environment.** A variable exported inside a WSL2 Bash session is not automatically visible to a Windows PowerShell session (or vice versa) — they are genuinely separate environments, even though WSL2 provides some interoperability between the two worlds.
+- **Windows and WSL2 are related, but they are not simply one single, identical shell environment.** A variable exported inside a WSL2 Bash session is not automatically visible to a Windows PowerShell session (or vice versa) — they are genuinely separate environments, even though WSL2 provides some interoperability between the two worlds (WSL provides interoperability mechanisms, including `WSLENV`, that can explicitly share selected environment variables between Windows and WSL).
 - **Environment behavior can differ depending on how a process is launched** — a program started directly from within WSL2's Bash behaves according to this lesson's model; a program started via some Windows-to-WSL2 interop mechanism may involve additional considerations this lesson does not cover.
 
 This lesson does not teach advanced WSL2/Windows interop configuration — only enough to prevent the common beginner assumption that "it's all just one environment somehow."
@@ -683,7 +688,7 @@ API_BASE_URL=https://example.invalid
 ## 28. Common Mistakes
 
 1. **Forgetting `export`** — the variable exists in the shell but is never actually handed to a child process (Section 9).
-2. **Typing the variable name incorrectly** — a typo silently creates or reads a *different*, unrelated (usually empty) variable, with no error (Section 19).
+2. **Typing the variable name incorrectly** — in ordinary Bash usage, a typo silently creates or reads a *different*, unrelated (usually empty) variable, with no error (Section 19; options such as `set -u` can change this).
 3. **Confusing shell variables with environment variables** — assuming any `NAME=value` assignment is automatically inherited (Section 7).
 4. **Assuming variables are globally available** — believing `export` shares a variable with every other process/terminal on the machine (Section 7's explicit correction).
 5. **Assuming variables persist forever** — believing an exported variable survives closing the shell, or is visible in a brand-new terminal window automatically (Section 14).
@@ -791,7 +796,7 @@ Work through each scenario's reasoning *before* reading the corrected command/co
 - *Broken command/code:* `env` (unfiltered), shared in full.
 - *Why it fails:* The full environment can contain far more than the one value you meant to show — including anything sensitive that happens to be set in that shell (Section 17).
 - *How to investigate:* Before sharing anything, ask: "have I actually looked at everything in this output, or am I just assuming it's all harmless?"
-- *Corrected command/code:* `printenv APP_ENV` (or `printenv | grep APP_ENV`) — share only the specific variable relevant to the issue, never the full, unfiltered environment.
+- *Corrected command/code:* `printenv APP_ENV` (or `env | grep '^APP_ENV='`) — share only the specific variable relevant to the issue, never the full, unfiltered environment.
 - *General lesson:* Treat "dump the whole environment" as something to do carefully and privately, never as something to casually share in full.
 
 ---
@@ -858,7 +863,7 @@ Why this differs from Step 3: the variable is now genuinely exported, so `printe
 
 **Step 7 — use `env`**
 
-Command: `env | grep APP_ENV`
+Command: `env | grep '^APP_ENV='`
 Example output:
 ```text
 APP_ENV=development
@@ -948,7 +953,7 @@ MODEL_NAME=example-model
 - Poor structure for complex configuration — nested or list-like settings are awkward as flat strings.
 - Can be difficult to validate — nothing stops you from providing a malformed value; the program has to check for itself.
 - Can be accidentally exposed — as detailed throughout Section 17 and Section 29's Scenario 10.
-- Values are always strings — a `BATCH_SIZE` of `"32"` needs to be explicitly converted to a number by the reading code; there's no built-in type system.
+- Environment variables are exposed to applications as string-like environment values; applications must parse them into numbers, booleans, lists, or other types when needed — a `BATCH_SIZE` of `"32"` needs to be explicitly converted to a number by the reading code; there's no built-in type system.
 - Environment inheritance can surprise beginners — exactly the misconceptions Section 12 corrected directly.
 - Debugging can be difficult — a missing export, a typo, or a stale value from an earlier session can all look identical from the outside ("the value is just wrong/missing"), as Section 29 demonstrated repeatedly.
 - Not a secret-management system (Section 17) — convenient, but not inherently secure.
@@ -968,7 +973,7 @@ MODEL_NAME=example-model
 - **Provide safe defaults only when appropriate** — `os.environ.get("LOG_LEVEL", "info")` is reasonable for an optional setting; a genuinely required setting (like which database to use) usually should **not** silently default to something plausible-looking.
 - **Distinguish required vs. optional configuration** — decide deliberately, per variable, which category it belongs to, and code accordingly (`.get()` with a default vs. `[...]`/an explicit startup check).
 - **Never log secrets** — ensure logging code never accidentally includes sensitive environment values.
-- **Avoid printing entire environments** — prefer targeted `printenv NAME` or `printenv | grep NAME` over bare `env`/`printenv` when you only need to check one thing (Section 17, Section 29 Scenario 10).
+- **Avoid printing entire environments** — prefer targeted `printenv NAME` or `env | grep '^NAME='` over bare `env`/`printenv` when you only need to check one thing (Section 17, Section 29 Scenario 10).
 - **Do not hard-code environment-specific values unnecessarily** — the core motivation from Section 4, restated as a habit.
 - **Document expected configuration** — someone else (or future you) should be able to find a list of what variables an application expects, without reading through all of its code to discover them.
 - **Keep configuration separate from application logic** — configuration values should be read in one clear place, not scattered arbitrarily throughout code.

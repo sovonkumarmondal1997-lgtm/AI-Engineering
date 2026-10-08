@@ -150,13 +150,19 @@ Write-Output "Hello $name"    # prints: Hello world
 
 The underlying idea — single quotes protect literally, double quotes still allow variable
 substitution — carries over directly from Bash, even though the two shells are otherwise quite
-different.
+different — Bash and PowerShell have different parsing, pipelines, and stream behavior.
 
 ### 5. Standard Input, Output, and Error (`stdin`, `stdout`, `stderr`)
 
-Every command-line program is connected, by default, to three **streams** — covered conceptually in
+Unix/Linux programs conventionally use three standard file descriptors: stdin (0), stdout (1), and stderr (2). In an interactive terminal they commonly refer to the terminal, but they can be redirected, piped, closed, or otherwise configured. These are the three **streams** — covered conceptually in
 Module 0.2's [Standard Input/Output](../02-Operating-System-Fundamentals/11-standard-input-output.md)
 lesson. Here's the practical version:
+
+| File descriptor | Stream |
+|---|---|
+| 0 | `stdin` |
+| 1 | `stdout` |
+| 2 | `stderr` |
 
 - **`stdin`** — where a program reads input from, if it reads any at all; by default, your keyboard.
 - **`stdout`** — where a program writes its normal, expected results; by default, your terminal.
@@ -174,6 +180,8 @@ system, used constantly in Section 6 and in real debugging.
 echo "hello" > output.txt
 ```
 
+In Bash, the shell interprets the redirection syntax and sets up the relevant file descriptors before executing the command.
+
 `>` sends `stdout` to a file, **overwriting** the file's previous contents entirely — use it
 carefully, since it silently discards whatever was there before.
 
@@ -181,8 +189,8 @@ carefully, since it silently discards whatever was there before.
 echo "another line" >> output.txt
 ```
 
-`>>` sends `stdout` to a file too, but **appends** to the end instead of overwriting — safe to run
-repeatedly without losing earlier content.
+`>>` sends `stdout` to a file too, but **appends** to the end instead of overwriting — it appends to the existing file without replacing its earlier
+contents; repeated execution adds more output.
 
 ```bash
 ls nonexistent-folder 2> errors.txt
@@ -213,8 +221,7 @@ cat access.log | grep ERROR
 
 This runs `cat access.log`, and instead of printing its output to the terminal, sends it straight
 into `grep ERROR`, which filters for lines containing `ERROR`. You can chain several commands this
-way, each one processing the previous command's output — you'll do exactly this in this module's
-Project 0.2.
+way, each one processing the previous command's output — you'll do exactly this in the Shell File-and-Stream Investigation project (`Projects/01-shell-file-and-stream-investigation.md`).
 
 ### 8. Practical Examples in a Dedicated Practice Directory
 
@@ -271,7 +278,7 @@ cat sample.log | grep -c ERROR
 ```
 
 `grep -c` counts matching lines instead of printing them — a small preview of the counting technique
-this module's Project 0.2 builds on directly.
+the Shell File-and-Stream Investigation project (`Projects/01-shell-file-and-stream-investigation.md`) builds on directly.
 
 ### 9. Why Streams and Redirection Matter for Investigating Logs and AI-Service Failures
 
@@ -282,17 +289,17 @@ this module's Project 0.2 builds on directly.
 - **Redirecting a service's output to a file** (`>`/`>>`) is the simplest form of logging — before
   any dedicated logging framework is involved, this is literally how a running program's history
   gets captured for later investigation.
-- **Piping a log through `grep`, `sort`, and `uniq -c`** (this module's Project 0.2) is the
-  first-line technique for answering "how many errors happened" and "what's the most common
+- **Piping a log through `grep`, `sort`, and `uniq -c`** (the Shell File-and-Stream Investigation project (`Projects/01-shell-file-and-stream-investigation.md`)) is a
+  basic local technique for answering "how many errors happened" and "what's the most common
   failure" — before reaching for any specialized log-analysis tool.
 - **Quoting failures are a common, avoidable cause of scripts breaking** on real project paths — a
   path like `AI Engineering/Computer & Digital Foundation` (this very repository) requires exactly
   the quoting discipline this lesson teaches; an unquoted script that works on a no-spaces test
   path can fail unpredictably on a real one.
-- **When an AI service crashes or misbehaves**, the very first useful evidence is almost always
-  captured through exactly this mechanism: redirected output, separated error streams, and a piped
-  filter to find the one relevant line in a large log — the same small toolkit this lesson teaches,
-  used at production scale.
+- **When an AI service crashes or misbehaves**, redirected output, separated error streams, and a piped
+  filter to find the one relevant line in a large log are foundational local troubleshooting
+  techniques that are useful when investigating program or AI-service output — the same small
+  toolkit this lesson teaches.
 
 ### 10. Common Quoting and Redirection Mistakes
 
@@ -336,14 +343,13 @@ this module's Project 0.2 builds on directly.
 
 ### Summary
 
-Quoting and streams are both about telling the shell precisely what you mean. Quote any argument
-containing spaces or special characters — double quotes when you still want variables expanded,
-single quotes when you want the text preserved exactly as typed. Every command has three streams:
+Quoting and streams are both about telling the shell precisely what you mean. Quote an argument when characters in it would otherwise be interpreted by the shell, or when you need to preserve the argument as one word — double quotes when you still want variables expanded,
+single quotes when you want the text preserved exactly as typed. Unix/Linux programs conventionally use three standard streams (file descriptors 0, 1, and 2):
 `stdin` for input, `stdout` for normal output, and `stderr` for errors — kept separate specifically
 so you can redirect one without disturbing the other, using `>` (overwrite), `>>` (append), and
 `2>` (errors only). Pipes (`|`) connect one command's output directly into the next command's
 input, with no file in between. Together, these are the exact tools used to turn a raw log file
-into a specific, evidence-backed answer — the skill this module's Project 0.2 puts into practice.
+into a specific, evidence-backed answer — the skill the Shell File-and-Stream Investigation project (`Projects/01-shell-file-and-stream-investigation.md`) puts into practice.
 
 ### Completion Checklist
 

@@ -19,7 +19,7 @@
 **Learning objectives.** By the end of this lesson you will be able to:
 
 - Explain what a shell script is and why it exists.
-- Explain what a shebang is, and why `#!/usr/bin/env bash` is a common, portable choice.
+- Explain what a shebang is, and why `#!/usr/bin/env bash` is a common choice on Unix-like systems.
 - Create a shell script file and run it two different ways (`bash script.sh` and `./script.sh`), and explain why those two ways differ.
 - Explain, at a foundational level, why `./script.sh` depends on an executable permission, without needing the full permissions lesson yet.
 - Use script arguments (`$0`, `$1`, `$#`, `$@`) correctly and safely.
@@ -70,7 +70,7 @@ command 3
 command 4
 ```
 
-Now the four commands live inside one file. Running the script runs all four, in the same order, every time — identically.
+Now the four commands live inside one file. Running the script runs all four, in the same order, every time — a repeatable procedure under the same relevant inputs and environment.
 
 **Why this matters to a software engineer:** the value isn't "typing less" — it's **consistency**. A procedure that lives in a file can be reviewed, corrected once, shared with someone else, and trusted to behave the same way on the tenth run as it did on the first. A procedure that lives only in your memory and your fingers cannot make any of those guarantees.
 
@@ -123,7 +123,7 @@ A shell script file is just a plain text file. Its structure, piece by piece:
 
 **What it is:** the very first line of a script file, starting with `#!` (pronounced "shebang"), followed by the path to the interpreter that should run the rest of the file.
 
-**What it means, precisely:** it tells whatever launches this file directly (Section 6's `./script.sh` form specifically) *which program* should read and interpret the rest of the file's contents — in this case, `env` is used to locate `bash` wherever it happens to be installed on this particular system, which is why `#!/usr/bin/env bash` is a common, portable choice, rather than hard-coding a specific path like `#!/bin/bash` (which assumes Bash lives at that exact location).
+**What it means, precisely:** it tells whatever launches this file directly (Section 6's `./script.sh` form specifically) *which program* should read and interpret the rest of the file's contents — in this case, `env` is used to locate `bash` wherever it happens to be installed on this particular system, which is why `#!/usr/bin/env bash` is a common convention on Unix-like systems — more flexible than hard-coding a specific path like `#!/bin/bash`, which assumes Bash lives at that exact location — though it is not universally portable across every operating system or environment. Linux/Ubuntu is the primary environment for this lesson.
 
 **A precise correction, stated directly:** the shebang is **not** a Bash command, and Bash does not execute it as one. It's a special, two-character signal (`#!`) that the operating system's own program-loading mechanism recognizes *before* any interpreter is even involved — it's how the system knows *which* interpreter to hand the rest of the file to in the first place. (This lesson does not go deeper into how the operating system recognizes this signal — that belongs to a more advanced systems discussion, out of scope here.)
 
@@ -229,7 +229,7 @@ By default, a newly created text file does **not** have executable permission, w
 chmod +x hello.sh
 ```
 
-`chmod +x` marks the file as executable, which then allows `./hello.sh` to work.
+`chmod +x` marks the file as executable, which supplies the permission needed for `./hello.sh` to work, assuming the script also has a valid interpreter/shebang and the environment permits execution.
 
 **This lesson deliberately explains `chmod +x` only to this minimum depth.** Permissions — what the bits actually mean, who can set them, the full read/write/execute model — are the dedicated subject of `09-permissions.md`, the very next lesson. This lesson only establishes *why* `chmod +x` is the specific, minimal step needed to make `./script.sh` work; it does not turn this into a permissions lesson.
 
@@ -254,7 +254,7 @@ Inside `greet.sh`, several special variables become available:
 | `$2` | The second argument (if any) |
 | `$3` | The third argument (if any), and so on |
 | `$#` | The total number of arguments supplied |
-| `$@` | All arguments, as separate values |
+| `$@` | All arguments (use as `"$@"` to keep each argument as a separate, intact argument) |
 
 Example:
 
@@ -300,7 +300,15 @@ name="Alice"
 echo "$name"
 ```
 
-This creates an ordinary shell variable, exactly as in Lesson 07 — it exists for the life of this script's execution (and would be inherited by anything the script itself starts as a child process, per Lesson 07's inheritance model), but it is not automatically part of some broader "environment" beyond that.
+This creates an ordinary shell variable, exactly as in Lesson 07 — it exists for the life of this script's execution, but it is **not** automatically placed into the environment of child processes the script starts. Only a variable that has been exported (`export`, below) is passed to subsequently started child processes, per Lesson 07's inheritance model.
+
+```text
+shell variable
+      |
+      +-- exported     --> available to child process environment
+      |
+      +-- not exported --> remains shell-local
+```
 
 ### Why spaces around `=` break this
 
@@ -341,7 +349,7 @@ echo "$name"       # double-quoted
 echo '$name'       # single-quoted
 ```
 
-- **Unquoted** (`$name`) — Bash expands the variable, but the result is then subject to further word-splitting on spaces, exactly like the `$@` risk in Section 7. With `name="AI Engineer"`, unquoted `echo $name` can behave unexpectedly, because the space inside the value causes it to be treated as *two* separate words rather than one.
+- **Unquoted** (`$name`) — Bash expands the variable, but the result is then subject to further word-splitting on spaces, exactly like the `$@` risk in Section 7. With `name="AI Engineer"`, the unquoted form is split into *two* separate words rather than one. (`echo` prints its arguments joined by spaces, so it can hide this; `printf` below makes it visible.)
 - **Double-quoted** (`"$name"`) — Bash still expands the variable (substitutes its value), but the result is treated as **one single, intact value**, spaces and all. This is the generally correct, safe default.
 - **Single-quoted** (`'$name'`) — Bash does **not** expand anything inside single quotes at all; this would literally print the text `$name`, not its value.
 
@@ -351,24 +359,24 @@ echo '$name'       # single-quoted
 #!/usr/bin/env bash
 
 name="AI Engineer"
-echo $name
+printf '<%s>\n' $name
 ```
 
-Example output (illustrating the word-splitting risk, using a command that reveals it — `printf` printing each word on its own line):
+Example output (illustrating the word-splitting risk — `printf` applies its format to each separate word it receives):
 ```text
-AI
-Engineer
+<AI>
+<Engineer>
 ```
 
 versus the corrected version:
 
 ```bash
-echo "$name"
+printf '<%s>\n' "$name"
 ```
 
 Example output:
 ```text
-AI Engineer
+<AI Engineer>
 ```
 
 **The engineering habit this section builds:** quote your variables (`"$name"`) as the default, every time, unless you specifically understand and intend the unquoted, word-splitting behavior. This lesson does not go deeper into Bash's word-splitting/parsing rules beyond this practical habit.
@@ -400,6 +408,8 @@ hello
 
 - `0` **generally** means success.
 - Any **non-zero** value **generally** means some kind of failure.
+
+**`grep` is a common example:** `grep` returns `0` when it finds a match, `1` when it finds no matching lines, and `2` when an error occurred. So a `grep` status of `1` can simply mean "zero matches" — which is different from `grep` itself failing. A script that cares should distinguish "zero matches" from "grep failed".
 
 **An explicit, required correction:** this lesson does **not** claim every non-zero exit code means the same thing. Different programs use different non-zero values to signal different specific failure reasons — `$?` tells you *that* something didn't succeed, and (if you know the specific program's conventions) sometimes *what kind* of failure occurred, but "non-zero" as a category is not one single, universal meaning.
 
@@ -457,7 +467,7 @@ for file in *.txt; do
 done
 ```
 
-**Step by step:** `*.txt` is a wildcard (Lesson 04, Section 6) — the shell expands it, *before* the loop even starts, into the actual list of matching filenames in the current directory. The loop then runs once for each filename in that list, with `file` set to the current one each time; `echo "$file"` (correctly quoted, per Section 9) prints it.
+**Step by step:** `*.txt` is a wildcard (Lesson 04, Section 6) — the shell expands it, *before* the loop even starts, into the list of matching filenames in the current directory. (If nothing matches, the behavior depends on Bash options: under default Bash behavior, without `nullglob`, the unmatched pattern can remain as the literal text `*.txt`, so the loop may run once with that literal string.) The loop then runs once for each filename in that list, with `file` set to the current one each time; `echo "$file"` (correctly quoted, per Section 9) prints it.
 
 ### `while` — repeat as long as a condition holds
 
@@ -634,7 +644,7 @@ This connects directly to your existing Module 0.2 knowledge of processes and th
 | Use case | Problem | Why a script helps | Limitation |
 |---|---|---|---|
 | **Local development setup** | Several manual setup steps every time you start working | One script runs them consistently | Doesn't replace understanding what each step actually does |
-| **Project initialization** | Repeatedly creating the same directory/file scaffolding for new projects | A script scaffolds it identically every time | Still needs updating if the desired scaffolding changes |
+| **Project initialization** | Repeatedly creating the same directory/file scaffolding for new projects | A script scaffolds it consistently under the same inputs and environment | Still needs updating if the desired scaffolding changes |
 | **Running test commands** | Remembering the exact test command and its flags | A script encodes it once, correctly | Doesn't replace an actual testing framework's own capabilities |
 | **Formatting/linting** | Running the same code-quality tools before every commit | A script runs them all in one step | The tools themselves still do the real work; the script is just glue |
 | **Starting development services** | Manually starting several local processes in the right order | A script starts them consistently | Doesn't manage complex service dependencies robustly |
@@ -664,7 +674,7 @@ validation
 processing command
 ```
 
-A script can create the expected directory structure (Lesson 02's `mkdir`), confirm expected files are present (Lesson 04's `find`), and run a processing step — all as one repeatable procedure, run identically every time new data arrives.
+A script can create the expected directory structure (Lesson 02's `mkdir`), confirm expected files are present (Lesson 04's `find`), and run a processing step — all as one repeatable procedure, run in the same way each time new data arrives (given the same relevant inputs and environment assumptions).
 
 ### Model workflow
 
@@ -848,7 +858,7 @@ This lesson does not teach Python — this table exists purely to help you recog
 **16. Wildcard matching unexpected files**
 - *Symptom:* a `for file in *.txt` loop (or similar) processes more, or different, files than intended.
 - *Likely cause:* the wildcard matched more broadly than assumed (directly echoing Lesson 04, Section 6's `find` wildcard caution, and Lesson 05's `xargs` caution).
-- *Diagnosis:* run `ls *.txt` (or the equivalent pattern) first, separately, to see exactly what would match.
+- *Diagnosis:* run `ls *.txt` (or the equivalent pattern) first, separately, to preview what would match. This is a useful safety check, but it does not by itself guarantee that a later destructive command will affect exactly the intended files.
 - *Correction:* narrow the pattern, or the directory, until it matches only what's intended.
 - *Prevention:* always check a wildcard's actual matches before using it inside a loop that does anything consequential.
 
@@ -951,7 +961,7 @@ Work through each scenario's reasoning *before* reading the fix and lesson.
 - *Incorrect example:* running the loop without first checking what `*.log` actually matches.
 - *Expected behavior:* only the intended old logs are affected.
 - *Actual/symptomatic behavior:* an unexpected file matching `*.log` is also affected.
-- *Investigation steps:* run `ls *.log` (a safe, read-only check) *before* trusting the pattern in anything destructive.
+- *Investigation steps:* run `ls *.log` (a safe, read-only check) *before* trusting the pattern in anything destructive — a useful preview, though not a guarantee that a later destructive command affects exactly the intended files.
 - *Root cause:* the wildcard matched more broadly than assumed (Section 21, mistake 16).
 - *Fix:* narrow the pattern or the directory until `ls` confirms only the intended files match.
 - *Engineering lesson:* never trust a wildcard's scope inside a script without checking it first, especially before anything irreversible.
@@ -1127,7 +1137,7 @@ Line: one
 Line: two
 Line: three
 ```
-(This introduces `read -r` and Lesson 06's `<` input redirection together, purely as a natural, safe way to demonstrate a `while` loop over a file's lines — not as a new topic to master beyond this one example.)
+(This introduces `read -r` and Lesson 06's `<` input redirection together, purely as a natural, safe way to demonstrate a `while` loop over a file's lines — not as a new topic to master beyond this one example. It is a beginner-level example for simple text files and does not cover every edge case of parsing arbitrary text files.)
 
 **10. Check exit status**
 
@@ -1158,7 +1168,7 @@ rm -r /tmp/shell-script-lesson-demo
 
 **WSL2** provides a genuine Linux environment on Windows, and is entirely appropriate for practicing everything in this lesson exactly as written. One thing worth knowing: filesystem boundaries and Windows/Linux interoperability (crossing between WSL2's Linux filesystem and Windows' native filesystem, e.g. `/mnt/c/...` paths — the same point made in Lessons 02 and 04) can sometimes create path or permission differences worth being aware of, though this lesson does not go deeper into that interop configuration.
 
-**Git Bash** provides a Bash-like environment on Windows; the commands and scripts in this lesson generally behave the same way there as in Linux Bash.
+**Git Bash** provides a Bash-like environment on Windows. Many basic Bash commands and scripts work there, but Git Bash is not a Linux environment — filesystem, path, permission, process, and utility behavior can differ. Linux/Ubuntu remains the primary environment for this lesson.
 
 **PowerShell** is a genuinely **different** shell and scripting environment — different syntax, different conventions, a different underlying model (echoing Lessons 05 and 06's notes on PowerShell's object-oriented pipeline). **This lesson does not teach PowerShell scripting.** A Bash script does **not** automatically run, unchanged, in PowerShell — the two are not interchangeable, and this lesson makes no claim otherwise.
 
@@ -1247,7 +1257,7 @@ workflow-project/
 4. Uses a function to print a formatted status message.
 5. Filters the input file's lines for a specific keyword (Lesson 04's `grep`), sorts the result (Lesson 05's `sort`), and writes it to a file inside `output/` (Lesson 06's redirection).
 6. Uses a loop to report, line by line, how many matching lines were found (or simply to display them).
-7. Checks the exit status of its key step and reports success or failure clearly at the end.
+7. Checks the exit status of its key step and reports success or failure clearly at the end. (Remember that `grep` returning `1` means "no matching lines", not necessarily a failure — distinguish that from `grep` returning `2`, an actual error.)
 
 **Conceptual workflow:**
 
@@ -1417,7 +1427,7 @@ You should be able to answer **yes** to each of these, based on actual capabilit
 
 1. **What is a shell script?** A plain text file containing a sequence of shell commands, saved so it can be run as a repeatable unit instead of retyped manually.
 2. **What is a shebang?** The first line of a script (e.g. `#!/usr/bin/env bash`), which tells the system which interpreter should read and run the rest of the file when it's executed directly.
-3. **Why use `#!/usr/bin/env bash`?** It locates Bash via the system's `PATH`, wherever it happens to be installed, making the script more portable than hard-coding a specific path like `#!/bin/bash`.
+3. **Why use `#!/usr/bin/env bash`?** It locates Bash via the system's `PATH`, wherever it happens to be installed, making the script more flexible than hard-coding a specific path like `#!/bin/bash` (a common Unix-like convention, not universally portable).
 4. **What's the difference between `bash script.sh` and `./script.sh`?** `bash script.sh` explicitly tells Bash to read and run the file's contents, and needs no special file permission; `./script.sh` runs the file directly as a program, relying on its shebang and requiring executable permission on the file.
 5. **What is `$0`?** The script's own name, as it was invoked.
 6. **What are `$1`, `$2`, and `$@`?** `$1`/`$2` are the first/second positional arguments; `$@` represents all arguments — best used quoted (`"$@"`) to keep each one intact even if it contains spaces.

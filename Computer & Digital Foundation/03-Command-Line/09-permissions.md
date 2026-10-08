@@ -187,15 +187,18 @@ For a **directory**, the same three letters mean something structurally differen
 ```text
 Directory:
 r → list directory entries
-w → create/delete/rename entries, subject to other conditions
-x → traverse/access entries
+w → modify directory entries
+x → search/traverse/access entries
+
+Most create/delete/rename operations require both w and x
+on the relevant directory.
 ```
 
 - **`r` on a directory** — controls whether you can **list** what's inside it (e.g. run `ls` on it and actually see the names of its contents).
-- **`w` on a directory** — controls whether you can **create, delete, or rename entries within it** — note carefully: this is about modifying the *directory's own listing* (adding/removing names from it), not about modifying the *contents* of files that happen to live inside it.
+- **`w` on a directory** — controls whether you can **modify entries within it** (create, delete, or rename them — which in practice also requires `x` on that directory, see below) — note carefully: this is about modifying the *directory's own listing* (adding/removing names from it), not about modifying the *contents* of files that happen to live inside it.
 - **`x` on a directory** — controls whether you can **traverse into it** — enter it, and access things by name inside it (including things nested more deeply within it).
 
-**Why `directory write ≠ file write`, stated directly:** having write permission on a directory lets you add, remove, or rename the *entries* (names) listed inside it. It says nothing at all about whether you can modify the *contents* of a specific file inside that directory — that's governed by the *file's own* `w` permission (Section 7's comparison table makes this side by side).
+**Why `directory write ≠ file write`, stated directly:** having write permission (together with search/`x` permission) on a directory lets you add, remove, or rename the *entries* (names) listed inside it. It says nothing at all about whether you can modify the *contents* of a specific file inside that directory — that's governed by the *file's own* `w` permission (Section 7's comparison table makes this side by side).
 
 **Why a user might be able to read a file but still fail to access it, because of directory traversal permissions:** even if you have full `rwx` on a specific file itself, if you lack **execute (`x`)** permission on *any directory in the path leading to it*, you cannot reach the file at all — the system never even gets to check the file's own permissions, because it can't traverse the path to find it in the first place. This is why "I have `rw-` on this exact file, why can't I open it?" is very often actually a directory-permission problem, one level up (or more), not a file-permission problem at all.
 
@@ -217,7 +220,7 @@ Even though `secret.txt` itself looks readable by anyone, a user who is not the 
 | Permission | Regular File | Directory |
 |---|---|---|
 | `r` | Read contents | List entries |
-| `w` | Modify contents | Create/delete/rename entries, subject to access conditions |
+| `w` | Modify contents | Modify entries (create/delete/rename generally need `w` and `x` on the directory) |
 | `x` | Execute the file | Traverse/access entries |
 
 **Important edge cases, stated conceptually:**
@@ -357,7 +360,7 @@ chmod o-r file.txt
 
 Each of these **adjusts one specific bit**, leaving the rest of the permission setting unchanged (Section 9).
 
-**What `chmod` changes, stated precisely:** only the **permission bits** on the filesystem object — nothing about who owns it. **A required, explicit correction: `chmod` does not change file ownership.** Changing who *owns* a file is a separate operation (conventionally `chown`, which this lesson does not teach, since it's outside this lesson's scope of foundational permission bits) — `chmod` only ever adjusts the `rwx` settings for the owner/group/others categories that already exist on the file.
+**What `chmod` changes, stated precisely:** the file's **mode bits** — this lesson focuses on the ordinary owner/group/others `rwx` permission bits — and nothing about who owns it. **A required, explicit correction: `chmod` does not change file ownership.** Changing who *owns* a file is a separate operation (conventionally `chown`, which this lesson does not teach, since it's outside this lesson's scope of foundational permission bits) — `chmod` only ever adjusts the `rwx` settings for the owner/group/others categories that already exist on the file.
 
 **Permissions belong to the filesystem object itself** — not to you, not to your current shell session. Once changed, the new permission persists on that file/directory regardless of who's looking at it or which shell session is active, until something changes it again.
 
@@ -448,7 +451,7 @@ Access decision
 
 Step by step: a running **process** (Module 0.2's concept) has an **identity** — the user (and groups) it's running as. When it attempts an operation (read, write, execute) against a specific filesystem object, the operating system compares that identity against the object's **owner**, **group**, and **others** permission bits, checks whether the **specific requested operation** is permitted for whichever category actually applies (owner, if the process's user matches the file's owner; else group, if the process's user belongs to the file's group; else others), and returns an **access decision** — allow, or deny.
 
-**A required, explicit acknowledgment:** the actual kernel-level permission model has additional real-world details and nuances beyond this simplified flow — this lesson presents the **foundational model**, sufficient for reasoning about and debugging the overwhelming majority of everyday permission situations you'll encounter, without claiming to be a complete, exhaustive account of every kernel-level subtlety.
+**A required, explicit acknowledgment:** this lesson teaches the basic traditional Unix/Linux owner/group/others permission-bit model. Real systems can have additional access-control mechanisms, which are outside this lesson's scope, and the actual kernel-level permission model has additional real-world details and nuances beyond this simplified flow — this lesson presents the **foundational model**, sufficient for reasoning about and debugging the overwhelming majority of everyday permission situations you'll encounter, without claiming to be a complete, exhaustive account of every kernel-level subtlety.
 
 **Connecting to Module 0.2:** this flow directly reuses concepts you already have — **processes** (a running program with an identity), **user space** (where ordinary programs, as opposed to the kernel itself, run), **system calls** (the mechanism by which a process asks the kernel to actually perform a filesystem operation — mentioned here only conceptually, exactly as earlier lessons have consistently done, not re-taught), **filesystems** (where the object and its metadata live), and **file descriptors** (Lesson 06's concept — what a process holds once an open, permitted access has actually been granted). This lesson does not re-teach any of these; it only shows you where permission-checking fits into that already-familiar picture.
 
@@ -497,22 +500,22 @@ This connects directly to `02-file-operations.md` — nothing here repeats that 
 
 Commands like `cp`, `mv`, `rm`, and `mkdir` can all be affected by permissions, in ways that trace back to the file-vs-directory distinction from Section 6:
 
-- **Unable to create a file** — typically a **directory** write-permission problem (you lack `w` on the directory you're trying to create something inside).
-- **Unable to delete a file** — again, typically a **directory** write-permission problem, *not* a problem with the file's own permissions (see the required correction below).
+- **Unable to create a file** — typically a **directory** permission problem (you lack `w` and/or `x` on the directory you're trying to create something inside).
+- **Unable to delete a file** — again, typically a **directory** permission problem (`w` and `x` on it), *not* a problem with the file's own permissions (see the required correction below).
 - **Unable to enter a directory** — a directory **execute** (`x`) permission problem (Section 6).
-- **Unable to rename an entry** — a directory write-permission problem on the directory the entry lives in (renaming is, structurally, removing one directory entry and adding another).
+- **Unable to rename an entry** — a directory permission problem (`w` and `x`) on the directory the entry lives in (renaming is, structurally, removing one directory entry and adding another; renaming across directories involves the directories on both sides).
 
-**This is an important misconception to address directly, exactly as Section 7 flagged it:** deleting or renaming a file is strongly related to the **permissions on the file's containing directory** — specifically, whether you have write permission *on that directory* — not simply the file's own write permission. A file with absolutely no write permission of its own (`r--r--r--`, or even `------` with nothing at all) can still be perfectly deletable, if you have write permission on the directory it lives in — because `rm` doesn't need to modify the file's contents to remove it; it needs to remove the file's *entry* from its containing directory's listing, which is governed by the *directory's* `w` bit, not the file's.
+**This is an important misconception to address directly, exactly as Section 7 flagged it:** deleting or renaming a file is strongly related to the **permissions on the file's containing directory** — specifically, whether you have write and search (`x`) permission *on that directory* — not simply the file's own write permission. A file with absolutely no write permission of its own (`r--r--r--`, or even `------` with nothing at all) can still be perfectly deletable, if you have write permission on the directory it lives in — because `rm` doesn't need to modify the file's contents to remove it; it needs to remove the file's *entry* from its containing directory's listing, which is governed primarily by the *directory's* permissions (`w` plus `x`), not the file's. Additional restrictions can also apply: in shared world-writable directories such as `/tmp`, the sticky bit can further restrict who may delete or rename entries.
 
 ---
 
 ## 17. Safe Practical Demonstration
 
-Everything below uses a **disposable, learner-created practice directory** — for example, `/tmp/permissions-lesson-demo/`. **This lesson does not create this directory for you.** You may create it manually, using commands from earlier lessons:
+Everything below uses a **disposable, learner-created practice directory** — created uniquely with `mktemp -d` and referred to below as `$DEMO_DIR`. **This lesson does not create this directory for you.** You may create it manually, using commands from earlier lessons:
 
 ```bash
-mkdir -p /tmp/permissions-lesson-demo
-cd /tmp/permissions-lesson-demo
+DEMO_DIR="$(mktemp -d)"
+cd "$DEMO_DIR"
 ```
 
 **No command in this section has actually been executed by this lesson.** Every result shown is explicitly labeled `Example output:` — an illustration of expected behavior, never a captured result. Nothing here modifies real project files, system files, `/etc`, `/usr`, `/var`, `/root`, or any other sensitive system location; nothing here requires `sudo`; nothing here is destructive against any pre-existing file.
@@ -596,7 +599,7 @@ Example output:
 
 ```bash
 cd /tmp
-rm -r /tmp/permissions-lesson-demo
+rm -r "$DEMO_DIR"   # removes only the directory this exercise created
 ```
 
 ---
@@ -692,12 +695,12 @@ Purpose: compare `ls -l`'s quick summary against `stat`'s fuller detail (Section
 - *Lesson:* always ask "file or directory?" before interpreting a permission bit.
 
 **2. "`w` on a file controls whether the file can be deleted."**
-- *Correct understanding:* deletion depends on the *containing directory's* write permission, not the file's own (Section 16).
+- *Correct understanding:* deletion depends on the *containing directory's* permissions (write + search/execute), not the file's own (Section 16).
 - *Example:* Experiment B-style file with `444` (no write) can still be `rm`-ed if the directory allows it.
 - *Lesson:* deletion is a directory-listing operation, not a file-content operation.
 
 **3. "Directory write permission equals file write permission."**
-- *Correct understanding:* directory `w` governs adding/removing/renaming *entries*; it says nothing about a specific file's own `w` bit (Section 6, Section 7).
+- *Correct understanding:* directory `w` (with `x`) governs adding/removing/renaming *entries*; it says nothing about a specific file's own `w` bit (Section 6, Section 7).
 - *Example:* you can have `w` on a directory and still be unable to edit a specific file inside it whose own permissions deny you.
 - *Lesson:* check both levels independently.
 
@@ -800,7 +803,7 @@ Work through each scenario's reasoning *before* reading the fix and prevention.
 - *Symptom:* `bash: ./script.sh: Permission denied`
 - *Likely causes:* missing execute permission (Section 15; Lesson 08, Section 22's first scenario).
 - *Diagnostic commands:* `ls -l script.sh`.
-- *Reasoning process:* check specifically for `x` in the owner category.
+- *Reasoning process:* determine which permission class applies to the current identity (owner → owner execute bit; group → group execute bit; otherwise → other execute bit), and check for `x` in *that* class.
 - *Root cause:* the file was never marked executable.
 - *Fix:* `chmod +x script.sh`.
 - *Prevention:* remember this is a one-time, necessary step for `./script.sh`, not for `bash script.sh`.
@@ -884,7 +887,7 @@ Work through each scenario's reasoning *before* reading the fix and prevention.
 - *Situation:* you remove write permission from a file, expecting this to protect it from being deleted, and it still gets deleted.
 - *Symptom:* `rm` succeeds despite the file having no write permission at all.
 - *Diagnostic commands:* `ls -l` on the file's *containing directory*.
-- *Reasoning process:* recall Section 16's direct correction — deletion depends on the *directory's* write permission, not the file's own.
+- *Reasoning process:* recall Section 16's direct correction — deletion depends on the *directory's* permissions (write + search/execute), not the file's own.
 - *Root cause:* a misunderstanding of what file write permission actually protects against.
 - *Fix:* there is no fix to "make" — this is expected behavior; if deletion protection is genuinely needed, the relevant permission to examine is the *containing directory's*, not the file's.
 - *Prevention:* internalize Section 16's distinction permanently — it is one of the most consequential misconceptions in this entire lesson.
@@ -1051,13 +1054,13 @@ it actually needs.
 
 ## 26. Cross-Platform Coverage
 
-**Primary environment for this lesson:** Linux/Ubuntu, Bash, and WSL2 — every command and permission model above applies directly and identically in all three.
+**Primary environment for this lesson:** Linux/Ubuntu with Bash. WSL2 provides a Linux environment where the Linux permission model applies to its native Linux filesystem; files accessed through Windows-mounted paths such as `/mnt/c` can behave differently because of Windows/WSL filesystem interoperability.
 
 **Git Bash:** provides a Bash-like command-line environment on Windows, but **filesystem permission behavior may differ from native Linux** — Windows' underlying filesystem doesn't natively implement the exact owner/group/others `rwx` model taught in this lesson, so `chmod`/`ls -l` output inside Git Bash can behave in ways that don't map perfectly onto genuine Linux semantics.
 
 **PowerShell:** has a **genuinely different permission/security model and command syntax** entirely — this lesson does not teach Windows ACLs (Access Control Lists) in depth; only notes that PowerShell's approach to file access control is a different system, not a re-skinned version of this lesson's `rwx` model.
 
-**WSL2:** Linux permissions inside WSL2 **apply to the Linux environment** exactly as taught throughout this lesson — but **Windows filesystem interoperability can introduce differences** (Section 21, Scenario 14) specifically when crossing between WSL2's own Linux filesystem and the Windows filesystem it can also access (e.g. `/mnt/c/...` paths). **This lesson does not claim WSL2 is identical to native Linux in every filesystem situation** — only that its own Linux-side filesystem follows this lesson's model faithfully.
+**WSL2:** Linux permissions inside WSL2 **apply to its native Linux filesystem** as taught throughout this lesson — but **Windows filesystem interoperability can introduce differences** (Section 21, Scenario 14) specifically when crossing between WSL2's own Linux filesystem and the Windows filesystem it can also access (e.g. `/mnt/c/...` paths). **This lesson does not claim WSL2 is identical to native Linux in every filesystem situation** — only that its own Linux-side filesystem follows this lesson's model faithfully.
 
 ---
 
@@ -1287,7 +1290,7 @@ These combine permissions with earlier Module 0.3 skills (file operations, shell
 
 **Owner/group/others:** every file has exactly one owner and one associated group; everyone else falls under "others." `ls -l`'s permission string encodes owner, group, and others permissions, in that order, after the file-type indicator.
 
-**`rwx`:** for files — read contents, modify contents, run as a program. For directories — list entries, create/delete/rename entries, traverse into the directory. The meanings genuinely differ between files and directories.
+**`rwx`:** for files — read contents, modify contents, run as a program. For directories — list entries, modify entries (create/delete/rename generally need `w` and `x`), traverse into the directory. The meanings genuinely differ between files and directories.
 
 **Numeric permissions:** `r=4, w=2, x=1`, summed per category; `644`, `755`, `700`, `600` are common, recognizable — not universal — patterns.
 
@@ -1324,7 +1327,7 @@ These combine permissions with earlier Module 0.3 skills (file operations, shell
 ## 33. Interview Questions
 
 1. **What are Linux file permissions?** Rules, attached to a filesystem object, describing what its owner, its associated group, and everyone else are allowed to do with it (read, write, execute).
-2. **What do `r`, `w`, and `x` mean?** For files: read contents, modify contents, execute as a program. For directories: list entries, create/delete/rename entries, traverse into the directory — the meanings differ between the two.
+2. **What do `r`, `w`, and `x` mean?** For files: read contents, modify contents, execute as a program. For directories: list entries, modify entries (create/delete/rename generally need `w` and `x`), traverse into the directory — the meanings differ between the two.
 3. **What is the difference between file and directory permissions?** The same three letters govern structurally different capabilities depending on whether the target is a file or a directory (Section 6) — most notably, directory `x` governs traversal, not "running" the directory.
 4. **What does `644` mean?** Owner can read and write; group and others can only read.
 5. **What does `755` mean?** Owner can read, write, and execute; group and others can read and execute, but not modify.

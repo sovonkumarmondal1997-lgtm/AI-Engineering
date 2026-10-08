@@ -56,17 +56,18 @@ By the end of this lesson you will be able to:
   not something the operating system enforces.
 - **Hidden file** — on Linux/WSL, any file or folder whose name starts with a dot (e.g. `.gitignore`,
   `.env`); hidden from a plain `ls`, not from the system itself.
-- **UTF-8** — the character-encoding standard almost all modern text files use, capable of
-  representing virtually any character from any language.
-- **Line ending** — the invisible character(s) marking the end of a line in a text file; Linux uses
-  `\n` (LF), Windows uses `\r\n` (CRLF).
+- **UTF-8** — one of the most widely used text encodings today (though text files can use other
+  encodings as well), capable of representing virtually any character from any language.
+- **Line ending** — the invisible character(s) marking the end of a line in a text file; LF (`\n`) is
+  the common convention on Linux/Unix, CRLF (`\r\n`) on Windows; other formats exist.
 - **Permission** — a rule describing who may read, write, or execute a file or directory (full
   treatment in Module 0.2's [Permissions](../02-Operating-System-Fundamentals/08-permissions.md)).
 - **Ownership** — the specific user (and group) a file belongs to, which determines whose
   permission bits apply.
 - **Symbolic link (symlink)** — a special file that points to another file or directory by path,
   rather than containing data itself.
-- **Recursive command** — a command that applies itself to a directory and everything inside it;
+- **Recursive command** — a command that processes a directory by traversing the items inside its
+  subdirectories; the exact behavior depends on the command;
   powerful, and correspondingly risky if the target is wrong.
 
 ---
@@ -130,7 +131,7 @@ use different conventions.
 |---|---|---|
 | Separator | Backslash `\` | Forward slash `/` |
 | Root | A drive letter, e.g. `C:\` | A single root, `/` |
-| Case sensitivity | Not case-sensitive | Case-sensitive (`Notes.md` ≠ `notes.md`) |
+| Case sensitivity | Normally case-insensitive (Windows also supports case-sensitive directories) | Normally case-sensitive (`Notes.md` ≠ `notes.md`) |
 | Example absolute path | `C:\Users\you\project\notes.md` | `/home/you/project/notes.md` |
 | Accessing the other OS's files | Native | `/mnt/c/Users/you/...` reaches Windows's `C:\Users\you\...` from inside WSL2 |
 
@@ -169,15 +170,15 @@ working with `.env` and `.gitignore` files (Stage 0 Gap 0E and Gap 0A).
 
 ### 6. UTF-8 Text and Line Endings
 
-**UTF-8** is the character encoding almost every modern text file uses — a standard way of
+**UTF-8** is one of the most widely used text encodings today, though text files can use other encodings as well — a standard way of
 representing letters, numbers, symbols, and characters from virtually any language as bytes on
 disk. You rarely need to think about it directly, except when a tool complains about "encoding" or
 displays odd characters — that's usually a sign a file isn't UTF-8, or was mishandled between
 programs that disagree about encoding.
 
 **Line endings** are the invisible character(s) marking where one line ends and the next begins.
-Linux/WSL2 uses a single character, `\n` (**LF**, line feed). Windows uses two characters, `\r\n`
-(**CRLF**, carriage return + line feed). Most of the time this is invisible and harmless. It becomes
+LF is the common line-ending convention on Linux/Unix systems (including WSL2): a single character, `\n` (**LF**, line feed). CRLF is common on Windows: two characters, `\r\n`
+(**CRLF**, carriage return + line feed). Files can use other line-ending formats as well. Most of the time this is invisible and harmless. It becomes
 visible when:
 
 - A script written on Windows and run in Bash on Linux fails with a strange error mentioning `\r`
@@ -241,8 +242,10 @@ lrwxrwxrwx 1 you you 20 Sep 15 10:00 latest-log -> logs/2026-09-15.log
 The leading `l` (instead of `-` or `d`) means "this is a link," and the `->` shows what it points
 to.
 
-**Why you must identify a symlink before moving or deleting it:** deleting a symlink only removes
-the link itself — the file it points to is untouched. But moving or copying *through* a symlink, or
+**Why you must identify a symlink before moving or deleting it:** removing a symlink normally
+removes the link itself, not its target, and moving a symlink normally moves the link itself. Copying a
+symlink depends on the command and its options; for GNU `cp`, options such as `-L` and `-P` control
+whether symbolic links are followed or preserved. Copying *through* a symlink, or
 assuming a symlink "is" the file it points to, can lead to confusing results — editing what you
 think is a copy but is actually the original, or being surprised when a "deleted" file's data is
 still there because you only removed a link to it. The habit: run `ls -l` before acting on anything
@@ -283,16 +286,16 @@ Create a small file and a folder, and inspect them:
 
 ```bash
 mkdir data
-cp /etc/hostname ./data/example.txt   # copies a small, harmless system file as sample text
+printf '%s\n' 'hello from my practice file' > data/example.txt   # creates a small sample file
 ls -la data
 cat data/example.txt
-less data/example.txt                # press q to quit
+less data/example.txt                # press q to quit (less may not be installed in a minimal Linux environment; if unavailable, use cat for this small example)
 find . -name "*.txt"
 ```
 
 - `mkdir` — make a new directory.
-- `cp SOURCE DEST` — copy a file; here, a small existing text file, so you have real content to
-  practice on without writing anything sensitive.
+- `printf '%s\n' '...' > FILE` — write a line of text into a new file, so you have real content to
+  practice on without touching anything sensitive.
 - `ls -la` — list all entries, including hidden ones, in long format (showing permissions and
   ownership, Section 7).
 - `cat` — print a file's entire contents to the terminal at once.
@@ -327,9 +330,9 @@ Get-ChildItem -Recurse -Filter *.txt
 1. In a fresh terminal, run `pwd`, then `cd` into two or three different directories, running `pwd`
    after each move. Write down, before each `cd`, what you *expect* the new directory to be — then
    confirm.
-2. In your WSL2 terminal, try to `cat` a file using its Windows-style path (e.g.
-   `C:\Users\you\Desktop\test.txt`), observe the error, then correctly reach the same file using
-   `/mnt/c/...`.
+2. In your WSL2 terminal, try to `cat` a file using its quoted Windows-style path (e.g.
+   `cat 'C:\Users\you\Desktop\test.txt'`), observe the error (the path is quoted so Bash passes it unchanged; it is still not a normal Linux filesystem path), then correctly reach the same file using
+   `/mnt/c/Users/you/Desktop/test.txt`.
 3. Create a file, list it with `ls -l`, and write out — in your own words — what each of the nine
    permission characters means.
 4. Make a small script executable with `chmod u+x`, confirm the permission change with `ls -l`
