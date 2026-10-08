@@ -18,8 +18,9 @@ genuine execution record.
 
 ### What a virtual environment is
 
-A **virtual environment** is an isolated, self-contained space on your computer where a specific
-Python interpreter and a specific set of installed packages live, separate from the Python
+A **virtual environment** is an isolated Python environment, created from an existing/base Python
+installation, with its own environment-specific interpreter entry points and package installation
+location, where a specific set of installed packages lives, separate from the Python
 interpreter and packages installed system-wide, and separate from any other project's virtual
 environment.
 
@@ -170,8 +171,9 @@ global/system one, and — as this lesson develops — one or more isolated, pro
 
 ### Definition
 
-A **virtual environment** is a self-contained, isolated Python environment (Section 3), created
-specifically to keep one project's interpreter and installed packages separate from the
+A **virtual environment** is an isolated Python environment (Section 3), created from an existing/base
+Python installation, with its own environment-specific interpreter entry points and package
+installation location, and created specifically to keep one project's interpreter and installed packages separate from the
 global/system Python and from other projects' virtual environments.
 
 ### Key vocabulary
@@ -204,7 +206,7 @@ This is an essential accuracy boundary for this lesson, expanded fully in Sectio
 
 | Isolated by a virtual environment | Not isolated by a virtual environment |
 |---|---|
-| Which Python interpreter version is used for this project (to the extent multiple are available) | The operating system itself |
+| Which environment-specific interpreter entry point and package set this project uses (the Python version is whichever interpreter created the environment) | The operating system itself |
 | Which packages, and which versions, are installed and importable for this project | Filesystem access outside of Python's own package resolution |
 | Executable tools installed alongside packages for this project (Section 3) | Network access |
 | | Process/thread execution generally (Module 0.2; `05-debugger.md`, Section 22) |
@@ -222,9 +224,10 @@ Directly solving the problems introduced in Section 2:
   version another project sees.
 - **Project isolation** — a project's environment reflects only what that specific project actually
   needs, rather than everything ever installed on the machine.
-- **Safer experimentation** — trying out a new package, or a different version of one, inside a
-  project's own virtual environment cannot accidentally break an unrelated project or the global
-  Python installation.
+- **Safer experimentation** — installing packages into a virtual environment keeps ordinary
+  package-management changes isolated from the package sets of other environments (trying out a new
+  package, or a different version of one, does not change an unrelated project's packages or the global
+  Python's). A virtual environment is not a security sandbox (Section 29).
 - **Reproducible development workflows** — a project's environment can be recreated (Section 16)
   from a clear record of what it needs, rather than depending on whatever happens to already be
   installed globally.
@@ -298,7 +301,10 @@ Project Uses That Environment
   the global Python's package location (Section 3) and from any other project's environment.
 - **Environment metadata** — the environment directory typically also holds some record of how it was
   created (for example, which Python version it is based on), used internally by the tooling that
-  manages it.
+  manages it. In `venv` environments this is normally a small file named `pyvenv.cfg`, which records
+  information about the base Python installation.
+- **Base site-packages** — by default, a virtual environment does not expose the base environment's
+  site-packages. The `--system-site-packages` option can deliberately change this behavior.
 - **How commands resolve differently** — once a specific environment's `python` (and related tools) is
   what a shell or tool actually invokes, running `python` (or installing a package) affects *that
   environment specifically* — reading and writing to its own package location, not the global one or
@@ -350,6 +356,11 @@ python -m venv .venv
 This asks the `python` command to run its built-in `venv` module, creating a new virtual environment
 in a directory named `.venv` (Section 9 explains this naming convention).
 
+Use the Python command that resolves to the intended Python installation on your system. Depending on
+the platform and installation, this may be `python`, `python3`, or `py`. The interpreter that runs
+`venv` determines the environment's Python runtime: `venv` itself is not a Python-version manager, and
+using a different Python version means invoking `venv` through that Python installation.
+
 ### Activation, deactivation, and checking the active interpreter
 
 These are covered in full in Section 10, Section 11, and Section 25 respectively — introduced only
@@ -357,8 +368,8 @@ briefly here to complete the basic workflow shape:
 
 - **Activation** — a shell command that changes how the *current terminal session* resolves `python`
   and related tools, pointing them at this specific virtual environment (Section 10).
-- **Deactivation** — reverses that, for the current terminal session, without affecting the
-  environment itself (Section 11).
+- **Deactivation** — reverses that, for the current terminal session, restoring the previous shell
+  environment and command resolution, without affecting the environment itself (Section 11).
 - **Checking the active interpreter** — confirming, with evidence rather than assumption, which
   specific Python is currently being used (Section 25).
 
@@ -494,8 +505,13 @@ it does not affect the environment itself.
 ### What happens conceptually to command resolution
 
 After deactivation, typing `python` in that terminal session again resolves the way it did before
-activation — typically back to the global/system Python (Section 3), unless something else was
-already configured differently.
+activation, because `deactivate` restores the previous shell environment / command-resolution state.
+This is often the global/system Python (Section 3), but not necessarily — it depends on what the
+shell resolved before activation.
+
+```text
+activate -> modifies the current shell environment -> deactivate -> restores the previous shell environment
+```
 
 ### Why deactivation does not delete the virtual environment
 
@@ -638,6 +654,16 @@ This connects to the filesystem concepts from Module 0.2 and Module 0.3.
 
 As introduced in Section 7 and Section 9, a virtual environment is, physically, a directory on disk —
 commonly located inside (or near) the project's own directory, most often named `.venv` by convention.
+
+### Version control
+
+Because the environment directory is derived, machine-specific content (see below), `.venv/` should
+normally be excluded from source control rather than committed as project source. A minimal
+`.gitignore` entry:
+
+```gitignore
+.venv/
+```
 
 ### Why it contains environment-specific files
 
@@ -819,7 +845,9 @@ Mentioned here only at a conceptual comparison level.
 ### `venv`
 
 The tool this lesson teaches (Section 8) — Python's own, built-in mechanism for creating virtual
-environments, specifically managing Python interpreters and packages.
+environments. `venv` creates and manages the virtual-environment structure and interpreter/script
+setup; package managers such as `pip` or `uv` handle package installation and dependency management
+(`07-package-managers.md`).
 
 ### Conda environments (introduced only for this comparison — not taught here)
 
@@ -965,10 +993,23 @@ directories.
 7. **Reactivate** — repeating step 3, confirming the same environment can be re-entered at any later
    time.
 8. **Remove/recreate the environment when appropriate** (Section 16) — for example:
+   Linux/macOS:
    ```bash
    rm -rf .venv
-   python -m venv .venv
+   python3 -m venv .venv
    ```
+   Windows PowerShell:
+   ```powershell
+   Remove-Item -Recurse -Force .venv
+   py -m venv .venv
+   ```
+   Windows Command Prompt:
+   ```bat
+   rmdir /s /q .venv
+   py -m venv .venv
+   ```
+   (Before deleting, verify that you are in the project directory and that `.venv` is the folder you
+   intend to remove.)
 
 **Illustrative labeling:** every command above shows the *action* to take; none of the expected results
 are shown as genuine captured output — where this lesson describes what should happen (for example,

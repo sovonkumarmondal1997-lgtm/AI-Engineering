@@ -69,7 +69,10 @@ distributable collection of such files; an **application** is what a developer a
 runs, which typically *depends on* several libraries as its **dependencies**. This lesson does not go
 deeper into Python's own internal packaging terminology (for example, the technical distinction
 between a "module" and a "package" at the level of Python's import system) — that level of detail
-belongs to later, dedicated packaging material, not this foundational lesson.
+belongs to later, dedicated packaging material, not this foundational lesson. In particular, "package"
+is used here in the practical dependency-management/distribution sense (something you install);
+Python packaging terminology draws finer distinctions between module, package, distribution, and
+library.
 
 ---
 
@@ -141,8 +144,10 @@ Directly solving the problems from Section 3:
 
 - **Dependency management** — automatically identifying and installing what a package itself needs
   (Section 7), rather than requiring a developer to work this out by hand.
-- **Repeatability** — the same installation command reliably produces the same result, rather than
-  depending on how carefully a manual copy was performed.
+- **Repeatability** — automating installation and dependency resolution, rather than depending on how
+  carefully a manual copy was performed. The same command does not necessarily produce the exact same
+  dependency set over time unless the dependency inputs are sufficiently constrained or locked
+  (Section 8, Section 22).
 - **Environment setup** — turning "getting a working set of dependencies" into a fast, defined
   process rather than a slow, manual one.
 - **Version management** — precisely tracking and controlling exactly which version of each package
@@ -248,6 +253,19 @@ without an outright conflict. Deliberately choosing and controlling specific ver
 always taking whatever is newest) is part of what makes a project's behavior predictable and
 reproducible (Section 22).
 
+### Basic version specifiers
+
+A dependency can be written with different levels of version constraint:
+
+```text
+requests            (no constraint: any version)
+requests>=2.0       (minimum version)
+requests>=2,<3      (compatible range)
+requests==2.32.0    (exact version)
+```
+
+Tighter constraints make results more predictable; looser ones allow more variation over time.
+
 **Scope note:** this lesson does not teach advanced dependency-resolution theory — how a package
 manager decides which combination of versions satisfies every requirement at once. The concepts above
 are sufficient background for using `pip` and `uv` correctly at this foundational level.
@@ -297,8 +315,9 @@ manager is the *actor*, the package index is the *source it retrieves from*, and
 
 ### What `pip` is
 
-**`pip`** is Python's standard, most widely used package manager (Section 4) — the tool this lesson
-uses as the primary, foundational example of how package management actually works.
+**`pip`** is Python's standard package installer and a widely used tool for installing and managing
+Python packages (Section 4) — it is a tool separate from the Python interpreter itself, and the tool
+this lesson uses as the primary, foundational example of how package management actually works.
 
 ### Relationship with Python
 
@@ -317,6 +336,18 @@ pip install requests
 
 This asks `pip` to find `requests` (Section 9), resolve its dependencies (Section 7), download it, and
 install it into whichever environment `pip` is currently associated with (Section 12).
+
+**Illustrative alternative form:**
+
+```bash
+python -m pip install requests
+```
+
+`python -m pip` runs `pip` through the selected Python interpreter, which makes the association between
+that interpreter and `pip` explicit. This can reduce interpreter/`pip` mismatch confusion — such as
+"package installed but cannot import it" (Section 25) — because a bare `pip` command might belong to a
+different interpreter than the `python` you are using. (Use the Python command name appropriate to your
+platform, e.g. `python`, `python3`, or `py`.)
 
 ### Uninstalling a package
 
@@ -505,6 +536,27 @@ uv pip install requests
 This is shown here only as an illustration of `uv` performing an installation action comparable to
 `pip install` (Section 10) — not as a complete `uv` command reference.
 
+### Two `uv` workflows
+
+`uv` is not simply "a faster `pip`." It offers two related workflows:
+
+```text
+uv
+├── Project workflow:  pyproject.toml, uv add, uv remove, uv lock, uv sync, uv.lock
+└── pip-compatible workflow:  uv pip ...
+```
+
+- `uv pip ...` is a pip-compatible interface, like the example above.
+- The project workflow manages a project's dependencies: `pyproject.toml` declares the project's
+  dependencies, `uv.lock` records the resolved dependency state, and `uv sync` can synchronize the
+  project environment with that state (`uv add` and `uv remove` edit the declared dependencies; `uv lock`
+  resolves them).
+- `uv pip` has its own environment-discovery behavior and is designed to work with virtual
+  environments; it should not be assumed to select environments in exactly the same way as `pip` in every
+  situation, and it should not be conflated with the project workflow. Exact behavior can vary by `uv`
+  version (see `https://docs.astral.sh/uv/`).
+- Detailed `uv` internals are outside this lesson.
+
 ### Relationship to `pip` concepts
 
 Every concept this lesson has built for `pip` — installation targets (Section 12), package indexes
@@ -524,9 +576,9 @@ mastery of `uv`'s full feature set is out of scope here.
 | Dimension | `pip` | `uv` |
 |---|---|---|
 | **Purpose** | Python's standard package installer (Section 10) | A modern, broader package/environment/project tool (Section 13) |
-| **Ecosystem** | Bundled with Python itself; the long-established default | Newer, separate tool adopted specifically for its combined capabilities and speed |
+| **Ecosystem** | Standard Python package installer, commonly available with Python installations; the long-established default | Newer, separate tool adopted specifically for its combined capabilities and speed |
 | **Workflow** | Typically used alongside `venv` (`06-virtual-environments.md`, Section 8) as two separate tools | Can handle environment creation and package installation together |
-| **Environment interaction** | Installs into whichever interpreter/environment it is currently associated with (Section 12) | Similarly installs into a targeted environment, with its own mechanisms for creating/selecting one |
+| **Environment interaction** | Installs into whichever interpreter/environment it is currently associated with (Section 12) | `uv pip` installs into a targeted environment using its own environment-discovery behavior, which is not identical to `pip`'s in every situation |
 | **Dependency installation** | Installs packages and their dependencies (Section 11) | Performs comparable dependency installation, generally aiming for improved speed |
 | **Developer experience** | Familiar, ubiquitous, well-documented, the default assumption in most existing Python material | Often chosen for a faster, more unified experience combining several steps |
 | **Performance considerations** | Established, well-understood performance characteristics | Frequently discussed as faster for common operations — this lesson does not assert specific numbers (Section 28) |
@@ -795,6 +847,21 @@ that isolation alone does not guarantee reproducibility).
   actually contains and what it originally needed, as ad hoc installs and upgrades accumulate over
   time.
 
+### Declaration, resolution, and locked state
+
+```text
+Dependency declaration -> Dependency resolution -> Resolved/locked state
+   -> Environment synchronization -> Reproducible installation
+```
+
+- **Dependency declaration** — what the project says it needs, for example
+  `dependencies = ["requests>=2,<3"]`.
+- **Dependency resolution** — selecting concrete versions that satisfy the declarations.
+- **Resolved/locked state** — the concrete versions selected; for `uv`, recorded in `uv.lock`.
+- **Environment synchronization** — making an environment match that state (for `uv`, `uv sync`).
+
+Declarations alone leave room for different results over time; a locked state narrows that.
+
 ### The path to reproducibility
 
 Isolation (a virtual environment) plus a package manager (this lesson) plus a **declared, maintained
@@ -812,9 +879,18 @@ material (Section 31, Section 42).
 
 ### What it is, at a high level
 
-**`pyproject.toml`** is a file used by modern Python projects to record project metadata and
-dependency declarations — a structured, standard place to state, for example, "this project depends
-on package X."
+**`pyproject.toml`** is the standard Python project configuration file. At this level, it can contain
+project metadata, dependencies, Python version requirements, build-system configuration, and
+tool-specific configuration — a structured, standard place to state, for example, "this project
+depends on package X."
+
+```toml
+[project]
+dependencies = ["requests>=2,<3"]
+requires-python = ">=3.11"
+```
+
+`requires-python` declares which Python versions the project supports.
 
 ### Why Python projects use it
 
@@ -1441,8 +1517,10 @@ project.
 6. **Verify the dependency** — using `pip show` and an actual `import` check (Section 21).
 7. **Inspect package metadata/version** — record the exact version installed (Section 8, Section 10).
 8. **Remove the dependency** — using `pip uninstall`, and confirm its removal with `pip list`.
-9. **Repeat the workflow using foundational `uv`** — install the same (or a different, equally safe)
-   package using `uv`'s equivalent command (Section 13), and verify it the same way as step 6.
+9. **Repeat the workflow using foundational `uv`** — this exercise uses the pip-compatible workflow
+   (`uv pip install ...`, Section 13) to install the same (or a different, equally safe) package, and
+   verifies it the same way as step 6. The project workflow (`uv add`, `uv lock`, `uv sync`) is
+   introduced here only conceptually and is covered more deeply later.
 10. **Compare the workflows** — in your own notes, describe the practical differences you observed
     between the `pip`-based and `uv`-based workflows (Section 14).
 11. **Intentionally reproduce one dependency/environment mistake** — for example, installing a package
@@ -1475,7 +1553,7 @@ safely deleted.
   environment (Section 4).
 - **Package index** — the catalog/repository a package manager retrieves packages from (Section 9).
 - **PyPI** — the standard public package index for Python (Section 9).
-- **`pip`** — Python's standard, built-in package manager (Section 10).
+- **`pip`** — Python's standard package installer and a widely used package-management tool (Section 10).
 - **`uv`** — a modern Python package/environment/project tool (Section 13), compared carefully against
   `pip` (Section 14) without declaring a universal winner.
 - **Virtual environment** — an isolated place for a project's interpreter and packages
@@ -1525,7 +1603,7 @@ A: A tool responsible for finding, downloading, installing, upgrading, and remov
 given Python environment, and for tracking what is currently installed (Section 4).
 
 **Q: What is `pip`?**
-A: Python's standard, built-in package manager, used to install, uninstall, upgrade, and inspect
+A: Python's standard package installer and a widely used package-management tool, used to install, uninstall, upgrade, and inspect
 packages within a specific Python interpreter/environment (Section 10).
 
 **Q: What is `uv`?**
@@ -1658,7 +1736,7 @@ practices are built on.
 ## 42. Key Takeaways
 
 - A package manager finds, installs, upgrades, and removes packages for a given Python environment.
-- `pip` is Python's standard package manager; `uv` is a modern, broader tool offering comparable
+- `pip` is Python's standard package installer; `uv` is a modern, broader tool offering comparable
   package installation plus additional environment/project capabilities.
 - Neither `pip` nor `uv` is universally superior — the right choice depends on project needs.
 - A package manager and a virtual environment solve different, complementary problems: one manages

@@ -19,8 +19,9 @@ this lesson, and no output is presented as a genuine execution record.
 ### What a debugger is
 
 A **debugger** is a tool that lets a developer pause a running program, look at exactly what state
-it is in at that moment, and control its execution one step at a time. Instead of only seeing a
-program's final output (or its final crash), a debugger lets you watch the program *while it runs*.
+it is in at that moment, and control its execution one step at a time. A normally running program can
+also produce output, logs, errors, and other side effects, but it does not conveniently expose its
+internal runtime state; a debugger lets you watch the program *while it runs*.
 
 ### What debugging means
 
@@ -155,11 +156,16 @@ developer to pause it, inspect its internal state, and resume or step through it
   and (as covered in Section 9) which functions are currently active — everything a debugger can show
   you about "what the program currently looks like from the inside."
 - **Observation** — the general act of examining program state without necessarily changing it.
+  Note that a debugger is not purely observational: depending on the debugger, it may also let you
+  evaluate expressions, change variables or other runtime state, or change where execution continues,
+  any of which can alter the behavior you are investigating.
 
 ### What a debugger allows that ordinary execution does not conveniently provide
 
-Running a program normally only gives you its final output (or a crash). A debugger typically allows
-an engineer to:
+Running a program normally does not conveniently expose its internal runtime state: you see what it
+chooses to produce (output, logs, errors, side effects, or a crash). The debugger's advantage is
+interactive access to runtime state and execution control. A debugger typically allows an engineer
+to:
 
 - **pause execution** — stop the program at a chosen point instead of letting it run straight through,
 - **resume execution** — continue running from where it was paused,
@@ -255,8 +261,9 @@ This section builds directly on Module 0.1 and Module 0.2 rather than re-teachin
 
 A debugger does not run *instead of* the program — it runs *alongside* it, using facilities the
 operating system provides (Module 0.2) to observe and, when instructed, pause the process's execution
-at a chosen point, and to read its current memory/state without altering what the program's logic
-does.
+at a chosen point, and to read its current memory/state. Merely reading state does not by itself
+change the program's logic, but a debugger can also be used to change state or execution (Section 3),
+so it should not be assumed to be strictly read-only.
 
 ```text
 Source Code
@@ -287,9 +294,10 @@ tells the debugger: "when execution reaches this point, pause here."
 
 ### Why breakpoints exist
 
-Without a breakpoint, a debugger session would either run the entire program uninterrupted (no
-different from running it normally) or require pausing execution manually at an arbitrary, unplanned
-moment. A breakpoint lets the developer choose, in advance, exactly where in the program's execution
+A breakpoint is one mechanism for intentionally stopping execution. A debugger can also stop for other
+reasons, such as an exception (Section 11), a manual pause, a programmatic stop requested by the
+code, or the debugger's configuration. Without any stopping mechanism, a debugger session would run
+the program uninterrupted. A breakpoint lets the developer choose, in advance, exactly where in the program's execution
 they want to stop and look around — directly supporting the "Inspect" step of Section 2's reasoning
 model.
 
@@ -332,6 +340,25 @@ and costly mistake. Instead, follow a deliberate strategy:
    9).
 6. **Continue narrowing the problem** — based on what the evidence shows, refine the hypothesis and,
    if needed, move the breakpoint closer to the actual root cause.
+
+### Minimal VS Code + Python debugging workflow
+
+A concrete beginner workflow for launching a Python debugging session in VS Code (menu names can vary
+slightly between VS Code versions, and the Python extension, Lesson 03, must be installed):
+
+```text
+Open the project/folder
+   -> Open the Python file
+   -> Select the correct Python interpreter (command palette: "Python: Select Interpreter")
+   -> Set a breakpoint (click in the gutter left of a line number)
+   -> Start Run and Debug (Run and Debug panel, or F5; choose the Python file option if asked)
+   -> The program pauses at the breakpoint
+   -> Inspect Variables (Section 8) and the Call Stack (Section 9) in the debug panels
+   -> Step Over / Step Into / Step Out (Section 7)
+   -> Continue (resume until the next stop, or until the program ends)
+```
+
+If the breakpoint never hits, see "Breakpoint never hits" and "Wrong source file" in Section 21.
 
 ---
 
@@ -403,6 +430,10 @@ than attempting to step through an entire large or complex execution from the ve
 
 **Variable inspection** is examining the current value held by a variable at the moment execution is
 paused. This is one of the most fundamental things a debugger provides.
+
+Some debuggers allow expressions to be evaluated or variables/runtime state to be changed while
+paused. Such actions can alter the state being investigated, so beginners should distinguish passive
+inspection from deliberate state modification.
 
 ### What can be inspected
 
@@ -548,8 +579,11 @@ both together, in sequence, exactly as shown above.
 
 ### Exception, at a foundational level
 
-An **exception** is an unexpected condition that interrupts a program's normal flow of execution —
-for example, attempting an operation that cannot be completed as written. When this happens, the
+An **exception** is a mechanism for signaling and propagating an exceptional condition that
+interrupts a program's normal flow of execution — for example, attempting an operation that cannot be
+completed as written. Exceptions may be raised by the runtime, and may also be raised explicitly by
+program code, so an exception is not necessarily something completely unexpected or accidental. When
+this happens, the
 program does not continue executing its next instruction as normal; instead, control transfers to
 whatever mechanism is responsible for dealing with the exception (or, if nothing handles it, the
 program stops).
@@ -984,8 +1018,9 @@ guessing backward.
 ### State transition debugging, introduced
 
 This general technique — deliberately inspecting state at multiple points across a sequence of
-operations to locate exactly where it changes from correct to incorrect — is sometimes called **state
-transition debugging**. It is not a separate tool; it is simply a deliberate *strategy* for using
+operations to locate exactly where it changes from correct to incorrect — can be described as a
+**state-transition inspection/debugging strategy** (this lesson's name for it, not a standardized
+debugger feature). It is not a separate tool; it is simply a deliberate *strategy* for using
 breakpoints and stepping (Section 6, Section 7) in combination, guided by the reframed question above.
 
 ---
@@ -1116,11 +1151,15 @@ debugged. Each follows: symptom, likely cause, investigation, corrective action.
 
 1. **Symptom:** an exception breakpoint (Section 6) never triggers, even though the program is known to
    fail.
-2. **Likely cause:** the exception occurs in a code path not covered by current breakpoint settings, or
-   is being caught and handled silently somewhere before it becomes visible.
-3. **Investigation:** broaden exception breakpoint settings, or search for exception-handling code that
-   might be silently absorbing the failure.
-4. **Corrective action:** adjust breakpoints or temporarily inspect the handling code directly.
+2. **Likely cause:** the debugger's exception filters/settings do not match the exception (for example,
+   it is set to stop only on uncaught exceptions); the exception is caught and handled before the
+   configured stop condition applies; the debugger is attached to the wrong target process; the
+   debugger/runtime does not support the relevant exception-stop behavior; or the current debugging
+   configuration is not appropriate.
+3. **Investigation:** check the exception filter settings, confirm which process the debugger is
+   attached to, and search for exception-handling code that might be absorbing the failure.
+4. **Corrective action:** adjust the exception settings or debugging configuration, or temporarily
+   inspect the handling code directly.
 
 ### Multiple threads complicate state
 
@@ -1280,20 +1319,25 @@ Interactive debugging (this lesson's main subject) is well suited to:
 where a developer has full, safe control over the running program and no real users are affected by
 pausing it.
 
-### What production systems require instead
+### What production systems generally favor instead
 
 - **logs** (Section 15),
 - **metrics** — a later-stage topic, mentioned here only as a forward reference,
 - **traces** — a later-stage topic, mentioned here only as a forward reference,
-- **error reports** — structured records of failures, generated automatically,
+- **error reports** — structured records of failures, which error-reporting systems can automatically
+  capture and record when appropriately configured,
 - **reproducible requests** — a way to recreate the exact conditions that caused a problem, often
   outside the live production system,
 - **safe diagnostics** — investigation methods that do not risk disrupting real users or exposing
   sensitive data (Section 25),
-- **controlled debugging** — debugging performed deliberately and safely, if at all, rather than ad
-  hoc,
+- **controlled debugging** — interactive debugging, which may sometimes be used under controlled
+  circumstances, performed deliberately and safely rather than ad hoc,
 - **observability** — a later-stage topic (briefly connected in Section 15), mentioned here only as a
   forward reference.
+
+Production systems generally favor safe observability and controlled diagnostics: logs, metrics,
+traces, error reporting, and reproducible evidence are often safer than pausing a live process.
+Interactive debugging is not categorically forbidden, but it carries the risks below.
 
 ### Why attaching an interactive debugger to a production AI service can introduce real risk
 
@@ -1333,7 +1377,10 @@ privileged access to a running system.
   process is, functionally, a form of deep access to that system and everything it currently holds in
   memory.
 - **Remote debugging risks** — attaching a debugger to a process running on a different machine
-  introduces additional exposure if that connection or access is not properly secured.
+  introduces additional exposure if that connection or access is not properly secured. Do not expose
+  a debugger endpoint directly to an untrusted or public network: debugger access is privileged, so
+  remote endpoints need strong access control (for example, controlled local access or a secure,
+  authenticated tunnel).
 - **Leaving debugging enabled in production** — a debugging capability left accessible on a live system
   extends all of the above risks indefinitely, not just during an intentional investigation.
 - **Accidental disclosure through screenshots/logs/debug sessions** — sensitive state inspected during
@@ -1451,7 +1498,8 @@ production data are required anywhere in this section.
 
 ### Level 2 — Hands-On Exercises
 
-Use this small program for the exercises below:
+To launch a debugging session in VS Code, follow the workflow in Section 6 ("Minimal VS Code + Python
+debugging workflow"). Use this small program for the exercises below:
 
 ```python
 def calculate_average(numbers):
@@ -1999,10 +2047,11 @@ systematic workflow from Section 17 — targeted breakpoints, state and call-sta
 converging toward a verified root-cause fix rather than open-ended inspection.
 
 **Q: How would debugging differ between a monolithic application and a distributed system?**
-A: A monolithic application can typically be fully understood within a single debugger session attached
-to one process; a distributed system involves multiple communicating processes that a single local
-debugger session cannot fully observe, requiring greater reliance on logs and traces across the whole
-system (Section 21, Section 24).
+A: A debugger directly observes and controls only the process or execution context(s) it is attached
+to, and architecture labels alone do not determine that. A monolithic application may still involve
+multiple processes, workers, threads, subprocesses, databases, or queues; a distributed system
+usually spans multiple processes, services, or machines, so it often needs several debugging and
+observability sources, such as logs and traces, across the whole system (Section 21, Section 24).
 
 **Q: How would you debug an AI pipeline with multiple processing stages?**
 A: Apply state-transition debugging (Section 19) — inspecting state at the boundary between each

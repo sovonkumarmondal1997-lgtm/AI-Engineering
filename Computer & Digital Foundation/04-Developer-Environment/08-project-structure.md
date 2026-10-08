@@ -237,7 +237,9 @@ being mixed together with tests, generated output, or configuration.
 A **`src/` layout** places a project's source code inside a dedicated `src/` directory (typically with
 a further subdirectory named after the project or package itself), rather than directly in the
 project's root. This is one common, widely used convention — not the only one (Section 20 compares it
-directly against a simpler alternative).
+directly against a simpler alternative). For package-oriented projects, a `src/` layout helps prevent
+accidentally importing the in-development source directly from the repository root, and encourages
+developing and testing against the installed package.
 
 ### Multiple legitimate layouts exist
 
@@ -273,8 +275,10 @@ step 15 ("add/strengthen a regression test").
 ### How project structure makes testing easier
 
 A clear, separate `tests/` directory makes it obvious, both to a human and to test-running tooling,
-exactly what should be executed when "running the tests" — rather than requiring some other mechanism
-to distinguish test code from everything else in the project.
+what is intended to be executed when "running the tests" — rather than requiring some other mechanism
+to distinguish test code from everything else in the project. `tests/` is a project-organization
+convention; the test runner's discovery rules and configuration determine which tests are actually
+collected and executed.
 
 **Scope note:** this lesson does not teach `pytest` (or any specific testing tool) in depth — testing
 itself receives its own, deeper treatment later in the roadmap (Section 48). Here, only the
@@ -345,8 +349,9 @@ configuration needing to be written directly into a file inside the project at a
 
 A **secret** — a credential, API key, or similarly sensitive value — is a particular, especially
 sensitive category of configuration. **Secrets should not be committed to source control.** This
-principle is stated here and enforced concretely in Section 11 (`.gitignore`) and Section 31
-(security).
+principle is stated here and supported in Section 11 (`.gitignore`) and Section 31
+(security). `.gitignore` helps reduce accidental tracking of local secret files, but it is not a
+secret-management system and does not guarantee that secrets cannot be committed or leaked.
 
 **Scope note:** this lesson does not teach advanced secret-management systems (a later-stage,
 production-engineering topic) — only the foundational principle that secrets are configuration, and
@@ -452,8 +457,9 @@ Project
 
 - **`.venv` belongs to the local development environment** — it is infrastructure for *running* the
   project (`06-virtual-environments.md`, Section 4), not the project's own work product.
-- **Source code is the project** — the actual, original work a developer authored; what makes this
-  project *this* project, as opposed to any other.
+- **Source code is the core implementation of the project** — the actual, original work a developer
+  authored; the project also includes the surrounding configuration, metadata, tests, documentation,
+  and other assets needed to develop and operate it.
 - **`.venv` is an environment used to run the project** — regenerable at any time
   (`06-virtual-environments.md`, Section 16) from the project's own declared dependencies (Section
   17), given a Python installation and a package manager.
@@ -491,8 +497,8 @@ Application
 - **Project structure** (this lesson) — the physical organization of files and directories.
 - **`pyproject.toml`** (Section 14 onward) — where the project *declares* its metadata and
   dependencies.
-- **Package manager** (`07-package-managers.md`, Section 4) — the tool (`pip` or `uv`) that reads
-  those declared dependencies and installs them.
+- **Package manager** (`07-package-managers.md`, Section 4) — the tool (`pip` or `uv`) that installs
+  packages and, in appropriate project workflows, uses those declared dependencies.
 - **Virtual environment** (`06-virtual-environments.md`, Section 4) — the isolated place those
   dependencies actually get installed into.
 - **Installed packages** — the result: a populated, isolated environment the application can actually
@@ -576,6 +582,17 @@ dependencies = [
 ]
 ```
 
+The example above is a foundational/conceptual `[project]` example, not a complete packaging
+configuration. A `pyproject.toml` file has three major conceptual areas:
+
+```text
+[build-system]  Defines how the project is built.
+[project]       Contains standard project metadata and dependency declarations.
+[tool.*]        Contains tool-specific configuration.
+```
+
+Build backends and other packaging mechanics are outside this lesson.
+
 ### Each field, explained
 
 - **`[project]`** — a section header, grouping the fields that describe the project itself.
@@ -604,20 +621,20 @@ project.
 ```text
 pyproject.toml
       |
-declares project/dependency information
+project metadata / dependency declaration
       |
-package manager
+packaging or installation tooling
       |
-resolves/installs dependencies
-      |
-virtual environment
+environment
 ```
 
 `pyproject.toml`'s `dependencies` field (Section 16) is a **declaration** — a statement of what the
-project needs. A package manager (`pip` or `uv`, `07-package-managers.md`) reads that declaration,
-resolves what it actually requires (including transitive dependencies,
-`07-package-managers.md`, Section 7), and installs the result into the project's virtual environment
-(`06-virtual-environments.md`).
+project needs. In appropriate project-installation workflows, packaging or installation tooling (`pip` or `uv`,
+`07-package-managers.md`) uses that metadata to resolve what the project actually requires (including
+transitive dependencies, `07-package-managers.md`, Section 7) and installs the result into the
+project's virtual environment (`06-virtual-environments.md`). Not every package-manager command reads
+the project's `pyproject.toml`: for example, `pip install requests` installs a named package, which is
+different from installing the local project itself.
 
 **Scope note, strictly enforced:** this lesson does not teach dependency resolution in depth — how a
 package manager decides on a specific, compatible combination of versions to satisfy a project's
@@ -644,8 +661,10 @@ tool requiring its own separate file.
 ### The architectural role, not a configuration guide
 
 **This lesson does not turn this into a deep configuration guide** for any of these tools. The point
-here is architectural: `pyproject.toml` can serve as **one centralized location** several different,
-otherwise-independent tools can all read from — directly extending the "IDE as tool-integration
+here is architectural: `pyproject.toml` can serve as **one shared location** several different,
+otherwise-independent tools can all read from. It is an important standardized location for Python
+project metadata and many tool configurations, but not every configuration value or every tool must
+use it — directly extending the "IDE as tool-integration
 layer" pattern already established in `02-ide-concepts.md`, Section 11 and `03-extensions.md`, Section
 11, now applied to configuration itself rather than to execution.
 
@@ -814,7 +833,17 @@ exactly.
   this model/result came out" — a foundational precursor to the deeper data-lineage practices taught
   in later, dedicated material.
 - **Dependency management** — Section 13's chain, applied specifically to an AI project's often
-  larger and more complex dependency set (`07-package-managers.md`, Section 30).
+  larger and more complex dependency set (`07-package-managers.md`, Section 30). Declaring dependencies
+  in `pyproject.toml` contributes to reproducibility but does not by itself guarantee an identical
+  environment:
+
+  ```text
+  Declared dependencies -> Resolved dependencies -> Locked/pinned dependencies (where appropriate)
+     -> Installed environment
+  ```
+
+  Reproducibility can also depend on the Python version, dependency resolution, platform/environment,
+  configuration, source revision, and data/model inputs where relevant.
 - **Collaboration** — Section 3's collaboration point, especially valuable in AI projects where
   experiments, data, and models change frequently and need to remain understandable to teammates.
 - **Debugging** — a clear structure makes `05-debugger.md`, Section 17's workflow easier to apply,
@@ -974,8 +1003,9 @@ This connects to `01-vscode-and-terminal.md` and `02-ide-concepts.md` without re
 ### How IDE/editor tooling discovers project components
 
 - **Project root** — an IDE typically identifies a project's root the same way it was taught to in
-  `01-vscode-and-terminal.md`, Section 2 and `02-ide-concepts.md`, Section 9: whichever folder was
-  opened as the workspace.
+  `01-vscode-and-terminal.md`, Section 2 and `02-ide-concepts.md`, Section 9: in a normal
+  single-folder VS Code workspace, the opened folder commonly acts as the workspace/project root. VS Code
+  also supports multi-root workspaces.
 - **Source files** — located via the project's actual structure (Section 6) — a `src/` layout
   (Section 20) versus a simple layout can affect exactly how an IDE's project-awareness features
   (`02-ide-concepts.md`, Section 9) present and search the project.
@@ -1044,10 +1074,11 @@ Each entry: symptom, likely cause, corrective direction.
    directory before running project commands.
 
 8. **Duplicate configuration.**
-   *Symptom:* the same setting appears, possibly inconsistently, in more than one place. *Cause:* no
-   single, centralized configuration location was established (Section 18's "one centralized
-   location" principle was not followed). *Correction:* consolidate configuration into one authoritative
-   location.
+   *Symptom:* the same setting appears, possibly inconsistently, in more than one place. *Cause:* unnecessary or
+   conflicting duplication, with no clear authoritative location for the setting (Section 18).
+   Intentional configuration layers (for example, defaults plus environment-specific overrides) are not
+   inherently wrong. *Correction:* avoid unnecessary or conflicting duplication by making clear which
+   location is authoritative for each setting.
 
 9. **Confusing project root.**
    *Symptom:* it is unclear which directory is actually "the project" — for example, when a project is
@@ -1143,8 +1174,9 @@ This workflow directly extends the evidence-based methodology already establishe
 
 ### Safe principles
 
-- **Never commit real credentials** — restated directly from Section 9, and enforced structurally via
-  `.gitignore` (Section 11).
+- **Never commit real credentials** — restated directly from Section 9, and supported structurally via
+  `.gitignore` (Section 11), which helps reduce accidental tracking but is not a secret-management
+  system. A credential that was already exposed should be revoked/rotated.
 - **Separate secrets from source** — keep sensitive configuration in a location clearly distinguished
   from, and excluded from, the project's tracked source code.
 - **Use `.gitignore` appropriately** — proactively exclude generated artifacts, environments, and
@@ -1200,7 +1232,7 @@ not prescribe one universal structure.
 
 5. **"The virtual environment is the project."**
    Incorrect — directly Section 12: `.venv` is regenerable infrastructure used to *run* the project;
-   the source code is the project itself.
+   the source code is the core implementation of the project.
 
 6. **"Everything generated by the application belongs in Git."**
    Incorrect — directly Section 10/Section 11: many generated artifacts are regenerable and are
@@ -1347,8 +1379,8 @@ workflow before concluding.
 7. **Scenario:** Two configuration files in the same project specify conflicting values for the same
    setting.
    **Symptoms:** the application's actual behavior is inconsistent or unpredictable. **Investigation
-   goal:** identify both configuration sources and determine which one, per Section 18's "centralized
-   location" principle, should be treated as authoritative.
+   goal:** identify both configuration sources and determine which one should be treated as
+   authoritative (Section 18), and whether the duplication is unnecessary or an intentional layer.
 
 8. **Scenario:** A `scripts/` directory contains a script that appears to duplicate logic already
    present in `src/`.
@@ -1392,8 +1424,10 @@ run the same command from there — it fails, reporting that a file or module ca
 
 1. **Reproduce the problem** — confirm the command fails consistently when run from inside `src/app/`,
    and succeeds consistently when run from the project root.
-2. **Identify expected behavior** — the application should run the same way regardless of which
-   directory it happens to be launched from, as long as the correct command and interpreter are used.
+2. **Identify expected behavior** — determine the application's supported invocation contract: it may
+   be intentionally working-directory-dependent (expected to run from a particular directory), or it
+   may be designed to work independently of the current working directory. This should be understood
+   and verified, not assumed.
 3. **Identify the project root** — determine, explicitly, which directory is actually the project's
    root (Section 27, Section 30).
 4. **Inspect the current working directory** — using `01-vscode-and-terminal.md`, Section 6's
@@ -1414,11 +1448,13 @@ run the same command from there — it fails, reporting that a file or module ca
    `src/app/` again, explicitly comparing the current working directory (step 4) against what the
    relative path in question assumes.
 10. **Fix the root cause** — either run the command consistently from the correct working directory
-    (the project root), or, where appropriate, adjust the reliance on a relative path so it does not
-    depend on which directory the command happens to be launched from.
-11. **Verify the project** — confirm the application now runs correctly and consistently, regardless of
-    which directory within the project it is launched from (or, if the fix is "always run from the
-    project root," confirm that constraint is now clearly understood and followed).
+    (the project root), or, if the application is meant to be independent of the working directory,
+    adjust the reliance on a relative path so it does not depend on which directory the command
+    happens to be launched from.
+11. **Verify the project** — confirm the application now runs correctly and consistently under its
+    supported invocation contract (for example, from any directory if it is designed to be
+    working-directory-independent, or from the project root if that is the documented requirement and
+    that constraint is now clearly understood and followed).
 12. **Explain why the structure/path caused the failure** — in your own words, state precisely why a
     correct project structure (Section 5, Section 20) does not, by itself, prevent a working-directory-
     dependent failure — the structure defines *where things live*; the working directory determines
@@ -1585,8 +1621,9 @@ environment, and not a package manager — used to declare a project's identity,
 configuration (Section 14).
 
 **Q: What is the relationship between `pyproject.toml` and dependency installation?**
-A: `pyproject.toml` declares what a project needs; a package manager (`pip`/`uv`) reads that
-declaration and installs the actual dependencies into the project's virtual environment (Section 17).
+A: `pyproject.toml` declares what a project needs; in appropriate project-installation workflows, a
+package manager (`pip`/`uv`) uses that declaration to install the actual dependencies into the
+project's virtual environment. Not every package-manager command reads it (Section 17).
 
 **Q: Why should `.venv` generally not be committed to version control?**
 A: Because it is large, machine-specific, and entirely regenerable from the project's own declared
@@ -1651,7 +1688,8 @@ environment itself (Section 16, Section 18).
 
 **Q: What should remain outside the Git repository?**
 A: The virtual environment, generated artifacts, secrets/credentials, and — commonly — large datasets
-and model checkpoints, all enforced via `.gitignore` (Section 11, Section 22, Section 31).
+and model checkpoints, all kept out of tracking with the help of `.gitignore` (Section 11, Section 22,
+Section 31; `.gitignore` does not untrack files already tracked).
 
 **Q: How does project structure affect deployment?**
 A: A clearly organized project (identified source, declared dependencies, separated configuration)
@@ -1660,7 +1698,7 @@ together (Section 24).
 
 **Q: How does project structure affect reproducibility?**
 A: Good structure, combined with declared dependencies (`pyproject.toml`) and a clear separation
-between source, configuration, and generated output, makes it possible to know exactly what produced a
+between source, configuration, and generated output, helps make it possible to know what produced a
 given result and to recreate that result later — though structure alone does not guarantee this
 completely (Section 23).
 
@@ -1688,10 +1726,11 @@ Project structure is applied to production Python and AI systems through:
   run automatically before allowing a change to proceed (a forward reference to CI/CD, Section 24).
 - **Configuration separation** — environment-specific configuration (Section 9) that can differ
   between development and production without requiring code changes.
-- **Environment separation** — the same isolation principle from `06-virtual-environments.md`,
-  extended across development, testing, and production contexts (Section 24).
-- **Dependency metadata** — `pyproject.toml`'s declared dependencies (Section 17), the basis for
-  reliably recreating the exact environment a production deployment needs.
+- **Environment separation** — keeping development, testing, and production environments distinct
+  (Section 24). Python virtual environments isolate Python dependencies and interpreters; they are not
+  equivalent to container, VM, OS, network, or security isolation.
+- **Dependency metadata** — `pyproject.toml`'s declared dependencies (Section 17), a basis for
+  recreating the environment a production deployment needs.
 - **Documentation** — Section 8's levels, supporting anyone who later needs to understand or maintain
   the system in production.
 - **Generated artifacts** — Section 10's distinction, critical in production for knowing what must be
@@ -1702,8 +1741,10 @@ Project structure is applied to production Python and AI systems through:
   production system's quality is measured over time.
 - **Deployment preparation** — Section 24's foundational connection to packaging, containers, and
   CI/CD.
-- **Reproducibility** — Section 23, at production stakes: being able to recreate exactly what is
-  running.
+- **Reproducibility** — Section 23, at production stakes: good structure and declared dependencies
+  make deployment and reproducibility easier, but exact production reproducibility also depends on
+  controlling other inputs such as runtime version, resolved dependencies, source revision,
+  configuration, platform, and relevant data/model inputs.
 - **Maintainability** — Section 3's core argument, sustained at production scale and lifespan.
 - **Collaboration** — Section 3's collaboration point, especially important once a system involves a
   team responsible for its ongoing operation.
