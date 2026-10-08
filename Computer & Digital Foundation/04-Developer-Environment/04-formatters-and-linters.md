@@ -102,9 +102,10 @@ language — this list describes common categories, not a universal, fixed speci
 
 ### Deterministic formatting
 
-**Deterministic** means: given the same input code and the same configuration, a formatter always
-produces the exact same output, every time. There is no randomness and no dependence on who runs it
-or when. This is what makes formatting genuinely automatable — the result does not depend on human
+**Deterministic** means: given the same input code, the same formatter/tool version, the same
+configuration, and the same relevant target/language version and environment, a formatter produces
+the same output every time. There is no randomness and no dependence on who runs it or when, but
+changing any of those conditions (for example, upgrading the formatter) can change the output. This is what makes formatting genuinely automatable — the result does not depend on human
 judgment applied inconsistently from person to person (this idea is expanded further in Section 5).
 
 ### Consistency, readability, and reduced style-related discussion
@@ -194,8 +195,8 @@ deliberately excluded in `02-ide-concepts.md` and remains out of scope here.
 
 ## 5. Formatter Characteristics
 
-- **Deterministic behavior** — already defined in Section 2: the same input and configuration always
-  produce the same output.
+- **Deterministic behavior** — already defined in Section 2: the same input, tool version, configuration,
+  and relevant environment produce the same output.
 - **Repeatability** — a direct consequence of determinism: running the formatter again, on the same
   unchanged input, produces the same result again.
 - **Configuration** — formatters typically expose settings controlling specific formatting decisions
@@ -214,10 +215,15 @@ on a file, and then run the *same* formatter, with the *same* configuration, on 
 formatted* output, the result should not change again — the file was already in its correctly
 formatted state, so reformatting it does nothing further.
 
-This matters practically because it means formatting is a **safe operation to repeat**. A developer
-does not need to worry about "how many times have I run the formatter" — running it again on already
+This matters practically because it means repeating the formatter is **stable**. A developer does
+not need to worry about "how many times have I run the formatter" — running it again on already
 formatted code should simply leave it unchanged, rather than progressively altering it further each
 time.
+
+**Idempotence is not the same as semantic preservation.** Idempotence means applying the operation
+again to its already-processed result produces no further change. Semantic preservation means the
+formatting operation keeps the program's intended behavior. Idempotence alone does not prove
+semantic preservation; a formatter is expected to provide both, but they are separate properties.
 
 **Accuracy note:** this describes the generally expected, intended behavior of a well-designed
 formatter, not a guaranteed mathematical property of every formatter in every situation — this lesson
@@ -460,8 +466,9 @@ also be invoked directly, as ordinary commands, from:
 
 ### Why terminal access matters
 
-- **Reproducibility** — a command run from a terminal behaves the same way regardless of which IDE (if
-  any) is present, directly echoing `01-vscode-and-terminal.md`, Section 11/12 reasoning and
+- **Reproducibility** — running the underlying tool directly from a terminal removes the IDE as an
+  invocation layer (the result can still depend on tool version, environment, configuration,
+  working directory, target language version, and command-line overrides), directly echoing `01-vscode-and-terminal.md`, Section 11/12 reasoning and
   `02-ide-concepts.md`, Section 12.
 - **Automation** — only something that can be run as an explicit command can realistically be
   automated (`02-ide-concepts.md`, Section 10).
@@ -509,8 +516,10 @@ If formatting or linting rules exist only in one developer's personal, user-leve
 other person working on the same project may see different formatting results or different lint
 diagnostics for the *same* code — directly undermining the consistency goal that motivated using a
 formatter or linter in the first place (Section 3). Storing configuration as part of the project
-itself ensures everyone working on it — and, later, any automated system running the same tools
-(Section 12, Section 23) — applies the exact same rules.
+itself is an important part of reproducibility: it helps everyone working on it — and, later, any
+automated system running the same tools (Section 12, Section 23) — apply the same rules. Identical
+results also depend on aligned tool versions, the same relevant target assumptions, and avoiding
+conflicting editor or command-line overrides.
 
 **Scope note (per this lesson's boundaries):** Python projects can later centralize this kind of
 configuration inside project metadata/configuration files (for example, `pyproject.toml`) — this is
@@ -1003,10 +1012,11 @@ def  greet(name ):
 
 ```python
 def greet(name):
-    print("Hello, " + name)
+    print("Hello," + name)
 ```
 
-Notice: the *behavior* of both versions is identical; only presentation changed (Section 2).
+Notice: the string literal (`"Hello,"`) and the expression are unchanged; only whitespace changed, so the
+*behavior* of both versions is identical and only presentation differs (Section 2).
 
 **3. A simple lint issue (illustrative):**
 

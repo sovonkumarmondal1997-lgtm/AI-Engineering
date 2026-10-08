@@ -335,6 +335,29 @@ at all (for example, a purely visual/productivity feature, Section 4). The chain
 common pattern for extensions that integrate external capability — it is not a claim that every
 extension must include every layer shown.
 
+### Extension host and activation (Advanced Preview)
+
+VS Code is used here as one concrete example. VS Code runs extensions in an **extension host**, a
+process separate from the editor's own user-interface code. Depending on the environment (for
+example, working locally versus working on a remote machine), extension code can run in different
+extension-host contexts. This is one reason extensions are separate from the editor core, and it
+separates two ideas that are easy to blur: having an extension *installed* and having it *running*.
+
+```
+Installed extension
+   -> may be activated, depending on activation events/context
+        -> runs in an extension host when applicable
+             -> may consume CPU / memory / I/O while active
+                  -> poorly behaved or resource-heavy extensions can affect performance
+```
+
+**Installed is not the same as activated.** An extension can be installed without constantly
+performing work. VS Code can activate an extension when its activation conditions are met (for
+example, opening a file of a certain language, or running one of its commands). Once activated, the
+extension may perform work and consume resources, which is why performance impact depends on the
+extension and its activation behavior (Section 15). This lesson does not go further into extension
+host internals.
+
 ---
 
 ## 7. Extensions and Language Intelligence
@@ -407,8 +430,12 @@ depend on:
   system creates and manages (Module 0.2).
 - **Environment variables** — reading configuration values inherited from the environment (Module 0.2;
   Lesson 01, Section 4) — for example, to help locate an installed tool.
-- **Permissions** — the operating system's file and resource permissions (Module 0.3) apply to
-  whatever the extension (or the tools it invokes) attempts to do; an extension cannot bypass these.
+- **Capabilities and OS permissions** — extensions execute with the capabilities available to the
+  editor and the relevant extension host/environment, rather than through a browser-style permission
+  prompt. Their ability to reach files, processes, network resources, and other system capabilities
+  depends on the extension, the host/environment, and how the extension operates. The operating
+  system's file and resource permissions (Module 0.3) still apply to whatever the extension (or the
+  tools it invokes) attempts to do; an extension cannot bypass these.
 - **Network access** — some extensions communicate over a network (for example, to fetch
   documentation or connect to a remote service); this depends on the specific extension and is not
   universal (per the assignment's accuracy requirement: not every extension requires network access).
@@ -489,6 +516,20 @@ important in later, more advanced stages of this roadmap: keeping a development 
 behavior consistent and reproducible across different people and machines (expanded conceptually,
 without being taught in depth, in Section 20 and Section 30).
 
+### Editor extensions vs. project and runtime dependencies
+
+```
+Editor extension  !=  Project (build/test) dependency  !=  Runtime dependency
+```
+
+- **Runtime dependency** — software the application needs when it runs.
+- **Project/build dependency** — software needed to build, test, or package the project.
+- **Editor extension** — developer tooling that improves the development environment.
+
+Editor extensions can affect developer experience and reproducibility (as described above), but they
+are not automatically equivalent to the application's runtime dependencies. How the other kinds of
+dependencies are managed belongs to later lessons in this module and later stages.
+
 ---
 
 ## 12. Extension Categories Relevant to Applied AI Engineering
@@ -537,12 +578,13 @@ Before installing an extension, consider:
 - **Is it maintained?** An unmaintained extension may stop working correctly as the host application
   or underlying tools change over time.
 - **Is it trustworthy?** Expanded fully in Section 14.
-- **What permissions/access does it require?** Consider whether the access it needs (filesystem,
-  network — Section 9) is proportionate to what it claims to do.
+- **What access does it appear to need?** Consider whether the capabilities it would plausibly use
+  (filesystem, processes, network — Section 9) are proportionate to what it claims to do.
 - **Does it introduce security concerns?** Expanded fully in Section 14.
 - **Does it affect startup time?** Some extensions add noticeable delay when the host application
   starts (Section 15).
-- **Does it consume CPU or memory?** Ongoing resource use, not just at startup (Section 15).
+- **Does it consume CPU or memory?** Resource use while the extension is active, not just at startup
+  (Section 15).
 - **Does it conflict with other extensions?** Particularly relevant when two extensions try to provide
   overlapping functionality (Section 16).
 - **Does it lock the workflow into a specific tool?** Consider whether adopting the extension creates
@@ -571,9 +613,9 @@ dependency.
   and nothing else.
 - **Publisher reputation** — who published the extension, and is there a reasonable basis to trust
   them, is a relevant (though not infallible) signal.
-- **Permissions/capabilities** — as discussed in Section 9 and Section 13, consider what access the
-  extension actually needs (filesystem, network, ability to run external processes) relative to its
-  stated purpose.
+- **Capabilities** — as discussed in Section 9 and Section 13, consider what the extension can
+  actually reach (filesystem, network, ability to run external processes) relative to its stated
+  purpose.
 - **Filesystem access** — an extension with broad file access could, in principle, read or modify files
   well beyond what its stated purpose requires.
 - **Network access** — an extension that communicates externally could, in principle, transmit data
@@ -597,6 +639,24 @@ dependency.
   running with some level of access to your environment; keeping the set of installed extensions to
   those with justified value (Section 13) also limits security exposure.
 
+### Publisher trust vs. Workspace Trust
+
+These are two different questions:
+
+```
+Extension publisher trust:  "Do I trust this extension and who published it?"
+            VS
+Workspace Trust:            "Do I trust the code/project/folder I am opening?"
+```
+
+- **Publisher trust** concerns the extension and its publisher (the points above).
+- **Workspace Trust** concerns the code, project, or workspace being opened. In VS Code, when you open
+  a folder you have not marked as trusted, the editor can run in **Restricted Mode**, which limits
+  potentially risky functionality (for example, running tasks or debugging, applying some workspace
+  settings, and limiting what some extensions can do).
+- Workspace Trust is an additional security boundary on top of extension evaluation. It is not a
+  guarantee that everything is safe, and it does not replace judging extensions carefully.
+
 **Accuracy note (per the assignment's required accuracy rules):** not every extension marketplace or
 distribution channel provides the same level of vetting or security guarantee. This lesson does not
 claim that installing from any particular source is automatically safe.
@@ -609,13 +669,17 @@ for exploiting or compromising an extension or its host application.
 
 ## 15. Performance and Reliability Trade-offs
 
-Every installed extension has some ongoing cost, even when it is not actively being used for a given
-task. As the number of installed extensions grows, this can introduce:
+Installing an extension does not by itself mean it is constantly consuming significant resources: in
+editors that activate extensions on demand (such as VS Code, Section 6), many extensions are
+activated only when required. Performance impact depends on the extension's activation behavior and
+implementation. As more extensions become *active*, or when a poorly behaved extension is active,
+this can introduce:
 
-- **Slower startup** — the host application may need to initialize more extensions each time it opens.
+- **Slower startup** — extensions that activate at startup add to the time the host application
+  takes to become responsive; poorly behaved extensions can affect startup or responsiveness.
 - **Increased memory usage** — each active extension (and any external process it starts, Section 6)
   consumes some memory.
-- **CPU usage** — some extensions perform ongoing background work (for example, continuously analyzing
+- **CPU usage** — some active extensions perform ongoing background work (for example, continuously analyzing
   code, Section 7), which consumes CPU time even without direct user action.
 - **Conflicts** — discussed fully in Section 16.
 - **Confusing diagnostics** — when multiple extensions provide overlapping or contradictory
@@ -745,7 +809,9 @@ to an extension-provided diagnostic.
 3. **Evidence to collect:** which extensions were installed around the time the slowdown began; whether
    disabling extensions one at a time restores normal performance.
 4. **Investigation steps:** disable extensions incrementally (or disable all, then re-enable one at a
-   time) to isolate which one(s) are responsible, rather than guessing.
+   time) to isolate which one(s) are responsible, rather than guessing. VS Code also provides an
+   **Extension Bisect** feature that helps isolate whether an extension is responsible for a problem;
+   it is an example of systematic isolation rather than blindly disabling or removing extensions.
 5. **Root-cause reasoning:** performance problems are often caused by one or two specific extensions
    rather than "too many extensions" as an undifferentiated whole — isolation identifies which.
 6. **Fix:** remove or replace the specific extension(s) identified as responsible, applying the
@@ -859,11 +925,9 @@ Developer runs tests
    -> test results (displayed back through the extension)
 ```
 
-In every one of these workflows, the same pattern from Section 5 and Section 6 repeats: the
-**extension** is the integration/UI layer visible to the developer, while the **underlying tool** does
-the actual work. Recognizing this pattern is what makes the troubleshooting reasoning in Section 17
-possible — each workflow above has (at least) two places a problem could originate: the extension's
-integration, or the underlying tool itself.
+In each workflow, the Section 5 pattern repeats: the **extension** is the integration/UI layer, and
+the **underlying tool** does the actual work — so each has (at least) two places a problem could
+originate (Section 17).
 
 ---
 
@@ -934,9 +998,7 @@ troubleshooting — are durable engineering skills, not beginner-only material t
   out to be malicious or compromised.
 
 - **"An extension and the tool it integrates are always the same software."**
-  Incorrect — the central distinction of Section 5: an extension is frequently a separate
-  integration/UI layer around an independently existing tool, though (per the accuracy requirements)
-  not every extension works this way.
+  Incorrect — see Section 5 (common, though not universal).
 
 ---
 
@@ -1134,7 +1196,9 @@ than an accumulated, unreviewed one.
 2. **Categorize** each one by the capability categories from Section 4 (for example, "language
    intelligence," "formatting integration," "productivity feature").
 3. **Identify the underlying capability/tool**, where applicable, that each extension appears to
-   integrate with (Section 5) — note explicitly where you are unsure, rather than guessing.
+   integrate with (Section 5). Name an underlying tool only where you have evidence for it (for example, the feature
+   also works when you run that tool directly); otherwise record "unknown / not independently
+   verified" rather than guessing.
 4. **Identify potential overlap** — any two or more extensions that appear to provide similar or
    competing functionality (Section 16).
 5. **Evaluate usefulness** for each extension using the criteria from Section 13 (does it solve a real
@@ -1150,7 +1214,7 @@ than an accumulated, unreviewed one.
 ### Expected result
 
 A personal audit (in your own notes) listing every installed extension, its category, its likely
-underlying tool (or "unknown/none identified"), any overlap found, a usefulness judgment, a
+underlying tool (or "unknown / not independently verified"), any overlap found, a usefulness judgment, a
 security/trust judgment, a performance judgment, and a final decision (keep or remove), together with
 a short final list of the minimal justified set.
 
@@ -1158,7 +1222,7 @@ a short final list of the minimal justified set.
 
 - [ ] Every currently installed extension is accounted for.
 - [ ] Each extension has an assigned capability category (Section 4).
-- [ ] Each extension's likely underlying tool is identified, or explicitly marked unknown (Section 5).
+- [ ] Each extension's likely underlying tool is identified with supporting evidence, or explicitly marked "unknown / not independently verified" (Section 5).
 - [ ] Any overlapping extensions are explicitly flagged (Section 16).
 - [ ] Each extension has a usefulness judgment grounded in Section 13's criteria, not popularity alone.
 - [ ] Each extension has a security/trust judgment grounded in Section 14's criteria.
@@ -1202,8 +1266,8 @@ Section 5's central distinction and is the most important reasoning step in the 
   implications (Section 11).
 - **Security** — treat extensions as software dependencies requiring trust evaluation, not
   automatically safe because they are available in a marketplace (Section 14).
-- **Performance** — more extensions is not automatically better; each has an ongoing resource and
-  complexity cost (Section 15).
+- **Performance** — more extensions is not automatically better; active extensions consume resources
+  depending on their activation behavior, and each adds complexity (Section 15).
 - **Conflicts** — overlapping functionality, incompatible versions, and configuration mismatches, best
   resolved through isolation rather than adding more extensions (Section 16).
 - **Troubleshooting** — a systematic process of collecting evidence and isolating whether a problem
@@ -1279,8 +1343,8 @@ A: The IDE is the host application; the extension is an optional add-on installe
 core functionality does not depend on any single specific extension (Section 18).
 
 **Q: How can an extension interact with external tools?**
-A: By invoking them as separate processes and displaying their results, or by connecting the editor to
-a separate analysis process such as a language server (Section 5, Section 6, Section 7).
+A: When an extension uses an external tool, it can invoke it as a separate process and display the
+results, or connect the editor to a separate analysis process such as a language server (Section 5, Section 6, Section 7).
 
 **Q: Why can an extension fail even when it is installed?**
 A: Because it may depend on an underlying tool, configuration, or environment condition that is
@@ -1288,8 +1352,8 @@ missing or broken, even though the extension itself is technically present and e
 Scenario A and Scenario F).
 
 **Q: Why can too many extensions be harmful?**
-A: Cumulative resource use (memory, CPU, startup time) and an increased chance of conflicts between
-extensions can outweigh their individual benefits (Section 15, Section 16).
+A: Cumulative resource use by active extensions (memory, CPU, startup time) and an increased chance
+of conflicts between extensions can outweigh their individual benefits (Section 15, Section 16).
 
 **Q: How would you troubleshoot an extension problem?**
 A: By collecting evidence, forming a hypothesis, and specifically testing whether the underlying
@@ -1302,14 +1366,15 @@ on — the same category of consideration (trust, updates, security) applied to 
 dependency (Section 14).
 
 **Q: What security risks can extensions introduce?**
-A: Excessive or unjustified access to the filesystem or network, exposure of sensitive information if
-broad access is granted, and the possibility of a malicious or later-compromised extension, especially
+A: Excessive or unjustified reach into the filesystem or network, exposure of sensitive information if
+broad access is available to the extension, and the possibility of a malicious or later-compromised extension, especially
 if installed without evaluating its publisher or necessity (Section 14).
 
 **Q: Why is understanding the underlying CLI/tool still important?**
 A: Because extensions frequently invoke the same commands a developer could run directly, and because
-many production and remote environments provide no extension-capable editor at all — only a terminal
-(Section 8, Section 20).
+extensions are not available in every environment: production servers may have no editor at all, and
+automated systems such as CI pipelines generally do not depend on editor extensions (Section 8,
+Section 20).
 
 ---
 
@@ -1319,10 +1384,11 @@ many production and remote environments provide no extension-capable editor at a
 A: Between the host application and, when applicable, an underlying tool or external process — it
 integrates the two using the host application's defined extension APIs (Section 6).
 
-**Q: What happens when an IDE extension invokes an external tool?**
-A: The extension asks the operating system to start a new process running that tool (the same general
-model as Module 0.2 and `02-ide-concepts.md`, Section 6), then reads and displays that tool's output
-inside the editor's interface (Section 5, Section 6).
+**Q: What happens when an IDE extension uses an external tool/process?**
+A: In that case, the extension can invoke the external process, the operating system starts and
+manages it (the same general model as Module 0.2 and `02-ide-concepts.md`, Section 6), and the
+extension can consume and display its results inside the editor's interface (Section 5, Section 6).
+Not every extension needs an external process.
 
 **Q: What dependencies can cause an extension workflow to fail?**
 A: A missing or misconfigured underlying tool, a filesystem/permission problem, a missing or incorrect
@@ -1349,6 +1415,9 @@ machine but not another" (Section 17, Scenario B) for reasons unrelated to the c
 
 ## 30. Production Engineering Connection
 
+*Production Engineering Preview — these connections introduce later-stage ideas; you are not expected
+to master them yet.*
+
 The extension concepts in this lesson establish habits directly relevant to production engineering:
 
 - **Reproducible development environments** — Section 11's configuration-precedence and
@@ -1366,11 +1435,15 @@ The extension concepts in this lesson establish habits directly relevant to prod
   an extension wraps (Section 5, Section 19), directly, with no extension or editor present at all.
 - **CI/CD** — automated pipelines run the equivalent of what an extension's formatter/linter/test
   integration does, but as direct command invocations (Section 8, Section 19).
-- **Containers** — a containerized environment (a later-stage topic, not taught here) typically has no
-  graphical editor or extensions available — only the underlying tools themselves, reachable through a
-  terminal.
-- **Remote development** — connecting to a remote machine may provide a limited or no extension
-  ecosystem, making direct command-line fluency (Module 0.3; Section 8) essential regardless.
+- **Containers** — a container (a later-stage topic, not taught here) normally provides an
+  application/runtime environment rather than a graphical editor. Developers can still use editor
+  integrations such as VS Code's remote/container workflows, but the container itself should not be
+  assumed to contain the graphical editor or its extensions, and it must function independently of
+  the editor UI, so the underlying tools remain important.
+- **Remote development** — modern remote-development setups can support extensions, depending on the
+  architecture and environment (Section 6), but not every environment provides the same extension
+  capabilities, and production servers may have no editor at all; direct command-line fluency
+  (Module 0.3; Section 8) remains essential regardless.
 - **Linux servers** — most production infrastructure runs on Linux (Module 0.2, Module 0.3), typically
   administered without any editor or extensions present.
 - **Production debugging** — the extension/underlying-tool distinction from Section 5, applied
@@ -1404,8 +1477,8 @@ work.
 - Performance and reliability matter: more installed extensions bring cumulative resource and conflict
   costs that must be weighed against actual benefit (Section 15, Section 16).
 - Terminal and underlying-tool knowledge remains important even with extensions available, because
-  many production, remote, and automated environments provide no extension-capable editor at all
-  (Section 8, Section 20, Section 30).
+  extensions are not universally available in every environment (for example, production servers
+  without an editor, or CI pipelines) (Section 8, Section 20, Section 30).
 - A good developer environment should reduce friction without hiding the underlying engineering model
   — understanding what an extension is actually doing, and what it depends on, keeps that convenience
   from becoming a liability when something goes wrong.

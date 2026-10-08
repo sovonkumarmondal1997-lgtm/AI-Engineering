@@ -6,6 +6,13 @@
 **Prerequisites:** Module 0.1 (How Computers Work), Module 0.2 (Operating System Fundamentals), Module 0.3 (Command Line)
 **Status:** Complete
 
+### Hands-on environment
+
+The practical exercises in this lesson assume a Unix-like environment using **Bash**, specifically
+**Linux, macOS, or Windows with WSL2**. PowerShell and other shells are discussed for comparison, but
+the commands in the exercises are written primarily for Bash. This is why commands such as `pwd`,
+`ls`, `cat`, `rm`, `wc`, and `python3` appear throughout.
+
 ---
 
 ## 1. Introduction
@@ -60,8 +67,9 @@ run it, read the result, and go back to editing — all without switching window
 
 Every later stage of this roadmap — Python scripts, data pipelines, model training, RAG systems,
 LLM agents, backend services — is written as code in an editor and executed from a terminal. The
-editor never runs your code; it only edits the text. The terminal (through a shell, through the
-operating system) is what actually starts the process that runs it. Understanding this split
+editor is not the language runtime that runs your code; it mainly edits the text (and can invoke a
+runtime through its tooling). The terminal (through a shell, through the operating system) is what
+we will use to start the process that runs it. Understanding this split
 precisely, now, prevents confusion later when a script "looks correct in the editor" but fails when
 run.
 
@@ -82,8 +90,10 @@ These five words get blurred by beginners. They are distinct:
   toward one purpose (a script, an application, a report). "Project" is not a special file-system
   object — it is just a folder that a developer has decided to treat as one unit of work.
 - **Workspace** — VS Code's term for "the folder (or folders) currently open in this editor
-  window." When you open a project folder in VS Code, that folder becomes your workspace. VS Code
-  stores workspace-specific settings so different projects can be configured differently.
+  window." A VS Code workspace normally consists of one or more folders opened in a VS Code window;
+  VS Code can also be used without an opened workspace. When you open a project folder in VS Code,
+  that folder becomes your workspace. VS Code stores workspace-specific settings so different
+  projects can be configured differently.
 - **Application/editor (VS Code itself)** — the program you launch. It is not tied to any one
   project; you point it at whichever folder you want to work on.
 
@@ -178,17 +188,18 @@ modules if any term below is unfamiliar.
   write through the OS, identical in principle to redirecting output to a file in the terminal
   (`>` from Module 0.3).
 
-- **VS Code launches processes.** Every time VS Code runs something on your behalf — checking code
-  style, running a debugger, opening a terminal — it is asking the operating system to start a new
-  **process** (Module 0.2). VS Code itself does not execute your code; it delegates that to
-  processes the OS creates.
+- **VS Code launches processes.** VS Code is an application that interacts with operating-system
+  resources and processes. For operations that invoke external programs or tools — running a
+  debugger, opening a terminal — VS Code or its extensions can ask the operating system to start
+  those **processes** (Module 0.2). VS Code is not the Python runtime itself; the language
+  runtime/interpreter executes the program, and VS Code can invoke that runtime through its tooling.
 
 - **VS Code can launch a shell/terminal.** The integrated terminal panel is VS Code starting a
   **shell process** (defined precisely in Section 5) and connecting its input/output to that panel,
   instead of to a separate terminal window.
 
 - **The terminal runs commands through a shell.** Exactly as in Module 0.3: you type a command, the
-  shell interprets it, and the shell asks the OS to start a new process for that command.
+  shell interprets it, and for an external command the shell asks the OS to start a new process.
 
 - **Commands execute as processes.** Running `python main.py` inside VS Code's integrated terminal
   creates a `python` process, tracked by the OS with a process ID, exactly like running the same
@@ -265,9 +276,12 @@ terminal does.
 
 An **environment variable** is a named value available to a running process, inherited from the
 process that started it (Module 0.2). Example: `PATH` tells the shell which directories to search
-for a command's program file. VS Code's integrated terminal starts with a copy of the environment
-your operating system provides, plus a few VS Code–specific additions (for example, ones that make
-the "open file in editor from terminal" convenience command work).
+for a command's program file. A process normally inherits environment variables from its parent
+process, and shell startup/configuration files can then modify that environment. VS Code's
+integrated terminal therefore starts with the environment inherited from VS Code (itself shaped by
+how it was launched), plus a few VS Code–specific additions (for example, ones that make the "open
+file in editor from terminal" convenience command work), and then the shell's own startup
+configuration is applied.
 
 ### Process execution
 
@@ -275,6 +289,10 @@ When you type a command and press Enter, the shell parses it, locates the progra
 `PATH`), and asks the OS to create a new **process** running that program. This is identical whether
 the shell is running inside VS Code's integrated terminal or in a standalone terminal window — VS
 Code adds no extra step to this chain.
+
+Not every command starts a separate external process. Shells also provide built-in commands, such
+as `cd`, that are handled by the shell itself. External commands such as `python3` are separate
+programs that the shell can start. (This is why `cd` can change the shell's own working directory.)
 
 ### The full chain
 
@@ -299,7 +317,9 @@ integrated terminal:
 $ python3 hello.py
 ```
 
-Here, `python3` is the command, `hello.py` is its argument. The shell finds the `python3` program
+Here, `python3` is the command, `hello.py` is its argument. (`python3` is the command used in the
+Bash/Linux/macOS/WSL2 examples in this lesson; the Python command name can differ on other
+platforms.) The shell finds the `python3` program
 via `PATH`, the OS starts a `python3` process, that process reads and executes the text in
 `hello.py`, and whatever the script prints appears as the process's stdout in the terminal panel.
 None of this differs from running the same command in a terminal outside VS Code — VS Code only
@@ -337,8 +357,8 @@ command itself wrong?" — is a real diagnostic skill, used throughout Section 1
 |---|---|---|
 | **Bash** | A shell — interprets Linux/Unix-style commands | Linux, macOS, WSL2, Git Bash |
 | **PowerShell** | A shell — interprets Windows-style commands (different syntax from Bash) | Windows |
-| **Git Bash** | A terminal + Bash-compatible shell bundled with Git for Windows, letting Windows users run Bash-style commands | Windows |
-| **WSL2 terminal** | A terminal displaying a Bash shell running inside a real Linux environment on a Windows machine (Module 0.2's concepts apply fully once inside) | Windows, running Linux |
+| **Git Bash** | A Bash-compatible shell environment bundled with Git for Windows (it ships with its own terminal window, but the shell is the core piece), letting Windows users run Bash-style commands | Windows |
+| **WSL2** | A real Linux environment running on a Windows machine (Module 0.2's concepts apply fully once inside); a terminal can display a Bash shell running in it | Windows, running Linux |
 
 VS Code's integrated terminal panel can be configured to start *any* of these shells — it is just
 the display surface. On a machine with WSL2 (as described in this repository's own prerequisites),
@@ -393,7 +413,7 @@ expected":
 Opening a folder in VS Code does not "activate" that folder for every purpose. It affects the file
 explorer and (usually) the integrated terminal's starting directory — but once a terminal is open,
 its working directory only changes when you explicitly `cd`, exactly as you learned in Module 0.3.
-Always verify the current working directory (`pwd` on Bash) before assuming a command will find what
+Always verify the current working directory (`pwd` in Bash) before assuming a command will find what
 you expect.
 
 ---
@@ -526,7 +546,8 @@ This message is written to **stderr**, not stdout (Section 4) — it is the shel
 the operation failed, not a normal result. The cause is simple: no file with that name exists in the
 current working directory. Confirm with `ls` (does the file appear?) and `pwd` (are you in the
 directory you think you are?) before assuming anything more complicated is wrong. Clean up the
-practice file when done:
+practice file when done (before using `rm`, verify the current directory and the filename you
+intend to remove):
 
 ```
 $ rm scratch.txt
@@ -572,8 +593,8 @@ will learn to create isolated, project-specific interpreters (**virtual environm
 lets you tell it, per workspace, *which* installed interpreter to use for features like showing
 errors inline and running code with a button — this is called **interpreter selection**, done via
 the command palette ("Python: Select Interpreter"). At this stage you only need the concept: VS
-Code does not run Python itself; it remembers which interpreter process to launch when you ask it
-to run Python code.
+Code is not the Python runtime. Python tooling in VS Code can select and invoke a Python
+interpreter for running, debugging, and language-related features.
 
 ### Why interpreter/environment selection matters
 
@@ -643,7 +664,8 @@ Each problem: symptom, likely cause, how to inspect it, how to fix it, how to pr
   manually from the terminal.
 - **Likely cause:** VS Code is using a different Python interpreter than the terminal is (Section 9).
 - **Inspect:** Use the command palette's "Python: Select Interpreter" to see which one is active, and
-  compare it against `which python3` (Bash) run in the terminal.
+  compare it against `which python3` run in the terminal (in Bash/Unix-like environments, this shows
+which executable is being resolved).
 - **Fix:** Select the interpreter you actually intend to use, consistently, in both places.
 - **Prevent:** After setting up a project's environment (later lessons), explicitly select that
   environment's interpreter in VS Code rather than leaving it on a default.
@@ -676,7 +698,8 @@ Each problem: symptom, likely cause, how to inspect it, how to fix it, how to pr
 - **Likely cause:** The variable was set in a different terminal session, or a different shell, or a
   configuration file that this particular terminal did not load (Module 0.2's environment variable
   inheritance rules apply here unchanged).
-- **Inspect:** Run `echo $VARIABLE_NAME` (Bash) in the terminal actually being used.
+- **Inspect:** In Bash, `echo $VARIABLE_NAME` displays the value of that environment variable for
+  the current shell session; run it in the terminal actually being used.
 - **Fix:** Set the variable in the session/shell that needs it, using the method appropriate to that
   shell.
 - **Prevent:** Know which terminal/shell session you are in before assuming environment state
@@ -783,7 +806,7 @@ Run `cat my-notes.txt` (succeeds — note the output) and then `cat does-not-exi
 the error message). Identify, in your own words, which stream each message came from.
 
 **Exercise 8 — Identify the active shell explicitly.**
-Run `echo $0` (Bash) and note what it prints. Compare this with what the terminal panel's own label
+In Bash, `echo $0` can provide a clue about the current shell. Run it and note what it prints. Compare this with what the terminal panel's own label
 told you in Exercise 2.
 
 **Exercise 9 — Create and diagnose a path error.**
@@ -793,7 +816,8 @@ Then run `cat sub/inner.txt` and confirm it succeeds. Explain to yourself, in wr
 notes), why the first attempt failed given what Section 6 taught about the working directory.
 
 **Cleanup:** remove the practice files you created (`my-notes.txt`, `sub/`) once finished, so the
-module folder is left as you found it.
+module folder is left as you found it. Before using `rm`, verify the current directory and the
+filename you intend to remove.
 
 ---
 
@@ -889,8 +913,8 @@ roadmap.
   emulator, not a shell itself.
 - The **current working directory** governs how relative paths resolve, in the terminal exactly as
   it did in Module 0.3 — VS Code changes nothing about this rule.
-- **Interpreter selection** in VS Code determines which Python process VS Code uses for
-  Python-specific features; it can differ from whatever `python3` resolves to in the terminal.
+- **Interpreter selection** in VS Code determines which Python interpreter VS Code's Python tooling
+  invokes for Python-specific features; it can differ from whatever `python3` resolves to in the terminal.
 
 ### Important distinctions
 
@@ -946,7 +970,8 @@ VS Code (application, user-space process)
 
 **Q: What is VS Code?**
 A: A code editor — a user-space application for viewing, writing, and organizing source code and
-project files. It is not an operating system and does not itself execute code.
+project files. It is not an operating system and is not the language runtime that executes code
+(it can invoke one through its tooling).
 
 **Q: What is a terminal?**
 A: A program that provides a text-based interface for entering commands and viewing their output; it
@@ -954,7 +979,8 @@ displays what a shell reports, but does not itself interpret commands.
 
 **Q: What is a shell?**
 A: A program that reads typed commands, interprets them (command + arguments), and asks the
-operating system to execute them as new processes.
+operating system to execute them (external commands run as new processes; built-ins such as `cd`
+are handled by the shell itself).
 
 **Q: What is the difference between a terminal and a shell?**
 A: The terminal is the display/input surface; the shell is the program that actually interprets
@@ -1000,9 +1026,10 @@ processes deliberately) are the direct foundation for that later, higher-stakes 
 The habits built in this lesson are not "beginner scaffolding" that gets discarded later — they are
 the same habits production engineering depends on, only carried out in less forgiving settings:
 
-- **Reproducibility.** A command run from a known, verified working directory produces the same
-  result every time it is repeated — the same principle that lets a script work identically on a
-  teammate's machine or a production server.
+- **Reproducibility.** Running a command from a known, verified working directory reduces one source
+  of variation. Reproducibility also depends on versions, dependencies, configuration, environment,
+  and inputs — the same factors that decide whether a script works identically on a teammate's
+  machine or a production server.
 - **Debugging.** The discipline from Section 10 and Section 14 — check the working directory, check
   the shell, check stdout vs. stderr — is exactly how real production incidents get diagnosed,
   just at larger scale and higher pressure.
@@ -1013,9 +1040,9 @@ the same habits production engineering depends on, only carried out in less forg
 - **CI/CD.** Automated build/test/deploy pipelines execute the same kind of shell commands you ran
   by hand in this lesson's exercises, on a remote machine, with no VS Code and no graphical
   interface at all.
-- **Containers.** A container (introduced only conceptually here) is, from the inside, essentially a
-  minimal Linux environment reached through a terminal — the same shell fundamentals from Module 0.3
-  and this lesson apply directly, without VS Code present.
+- **Containers.** Many production containers (introduced only conceptually here) use a Linux
+  userspace and are commonly interacted with through a terminal or shell, so the shell fundamentals
+  from Module 0.3 and this lesson transfer directly, without VS Code present.
 - **Remote servers.** Connecting to a remote machine typically gives you a terminal and a shell, and
   nothing else — the working-directory and shell-identification skills from this lesson transfer
   directly.

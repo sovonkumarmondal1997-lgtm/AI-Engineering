@@ -290,9 +290,11 @@ Introduced conceptually in the previous lesson (`01-vscode-and-terminal.md`, Sec
    13); a direct shortcut removes repetitive typing.
 3. **Problem it solves:** reduces friction in the edit-run-observe loop from the previous lesson.
 4. **Simple example:** a "Run" control that executes the currently open Python file.
-5. **How it helps:** speeds up the core development loop — but, importantly, it does this by
-   internally invoking the exact same kind of command you could type yourself in a terminal (Section
-   7, Section 11).
+5. **How it helps:** speeds up the core development loop — but, importantly, it does this through a
+   configured execution mechanism that ultimately starts a process through the operating system, much
+   like a command you could type yourself in a terminal (Section 7, Section 11). The exact execution
+   path can differ depending on the IDE, language, extension, task, build system, runtime, debugger,
+   and configuration.
 
 ### Debugging integration
 
@@ -362,8 +364,8 @@ Already introduced conceptually in the previous lesson.
   code.
 - **Language intelligence** — a general term for a development environment's ability to understand a
   program's structure and meaning, not just its raw text.
-- **Language server (conceptual only)** — commonly, this "understanding" is not built directly into
-  the editor itself. Instead, a **separate program** (often called a language server) reads the
+- **Language server (conceptual only)** — in one common architecture, this "understanding" is not
+  built directly into the editor itself. Instead, a **separate program** (often called a language server) reads the
   project's source code, analyzes it using a parser and related logic, and sends the results (for
   example, "this symbol is defined on this line") back to the editor to display. This is why editors
   can gain deep language understanding for many different languages without each one being built
@@ -371,7 +373,8 @@ Already introduced conceptually in the previous lesson.
 
 ### Why this enables features like autocomplete, "go to definition," and diagnostics
 
-None of these features are "built-in magic" the editor performs on plain text. They are all the
+None of these features are "built-in magic" the editor performs on plain text. In one common
+architecture (not the only one, and not used identically by every language and IDE), they are the
 visible result of the following chain:
 
 ```
@@ -400,7 +403,9 @@ general, restated briefly here for completeness rather than re-taught from scrat
 
 - **An IDE is an application running in user space.** Like any other program covered in Module 0.1
   and Module 0.2, an IDE is not part of the operating system's kernel; it is an ordinary process the
-  OS schedules and allocates memory to, with no special privileges.
+  OS schedules and allocates memory to. It normally runs as a user-space application and uses
+  operating-system mechanisms to access files, processes, and resources; its actual permissions
+  depend on the user account and OS security context.
 - **The operating system provides resources to the IDE.** CPU time, memory, and access to hardware
   all flow through the OS, exactly as for any other application (Module 0.1/0.2).
 - **The IDE accesses files through the operating system.** Reading a project's files, saving edits,
@@ -412,8 +417,8 @@ general, restated briefly here for completeness rather than re-taught from scrat
 - **The IDE can read environment variables.** Just as a shell process inherits environment variables
   (Module 0.2, and the previous lesson's Section 4), an IDE process can read and use environment
   variables provided by the OS — for example, to help locate installed tools.
-- **The IDE can invoke external development tools.** Expanded in Section 11 — many IDE capabilities
-  are actually thin, convenient wrappers around separate programs.
+- **The IDE can invoke external development tools.** Expanded in Section 11 — IDE capabilities come
+  from several sources, and many involve separate programs.
 
 ### The conceptual chain
 
@@ -458,10 +463,11 @@ lesson is not repeated in full here; only its relevance to IDE concepts is added
 | Reading inline diagnostics (Section 4) | Reproducible, shareable, repeatable workflows |
 
 The GUI's run/build/debug integrations (Section 4) are convenient precisely because they save you
-from typing the equivalent command yourself — but, critically, **they typically work by running that
-same kind of command on your behalf**, as a process, through the operating system. This is the same
-underlying execution model from Section 6, not a separate one. Understanding what command an
-IDE action corresponds to is what lets you reproduce it manually — in a terminal, on a remote server,
+from typing the equivalent command yourself — but, critically, **they use a configured execution
+mechanism** that ultimately starts a process through the operating system. Depending on the IDE,
+language, extension, task, build system, runtime, debugger, and configuration, the underlying
+execution path can differ, but this is the same underlying execution model from Section 6, not a
+separate one. Understanding what an IDE action actually runs is what lets you reproduce it manually — in a terminal, on a remote server,
 or in an automated pipeline — when the GUI is not available (Section 12, Section 24).
 
 ---
@@ -502,8 +508,8 @@ Files / Processes / Resources
   (Section 5) — often produced by a separate analysis process, not the editor's own code.
 - **Tool Integration** — the IDE calling out to independent tools (formatters, linters, version
   control, and more) rather than reimplementing their logic itself (Section 11).
-- **Run/Build Integration** — a convenient way to start your program, internally equivalent to a
-  command you could also type yourself (Section 7).
+- **Run/Build Integration** — a convenient way to start your program, through a configured execution
+  mechanism comparable to a command you could also type yourself (Section 7).
 - **Debugging Integration** — controlled, inspectable execution of your program (Section 4;
   full depth in `05-debugger.md`).
 - **Terminal Integration** — a hosted shell inside the IDE window (Section 7).
@@ -517,10 +523,11 @@ anything — none of them bypass it.
 
 ### The core concepts
 
-- **Project** — a folder (and its contents) that a developer treats as one unit of work (previous
-  lesson, Section 2).
+- **Project** — for this lesson, think of a project as the collection of files and configuration that
+  a developer treats as one unit of work (previous lesson, Section 2). Different development tools can
+  represent projects differently; a project is not necessarily exactly one folder.
 - **Workspace** — the IDE's currently active notion of "the project I am working on" (previous
-  lesson, Section 2).
+  lesson, Section 2). Different IDEs do not define workspaces identically.
 - **Source files** — the actual code files belonging to the project.
 - **Configuration** — files that control how tools should behave for this specific project (only
   introduced conceptually here — full depth belongs to `08-project-structure.md`).
@@ -585,7 +592,7 @@ Terminal
 | **Speed for routine actions** | Fast, via shortcuts/buttons | Fast once commands are memorized |
 | **Discoverability** | High — features are visible in menus/panels | Lower — requires knowing command names in advance |
 | **Automation** | Limited without exporting to a script | Naturally scriptable — commands can be saved and rerun |
-| **Reproducibility** | Depends on replicating GUI actions manually | High — a saved command sequence runs identically elsewhere |
+| **Reproducibility** | Depends on replicating GUI actions manually | Easier — explicit commands can be saved, automated, and reproduced, if the environment is sufficiently controlled |
 | **Explicit control** | Some steps are hidden behind the GUI action (Section 15) | Every step is explicit and visible |
 | **Convenience** | High for interactive, exploratory work | Requires typing, but scales well to repetition |
 | **Remote environments** | Often limited or unavailable (Section 24) | Frequently the *only* interface available |
@@ -612,16 +619,18 @@ IDE
   \-- terminal/shell                (Section 7; full lesson: 01-vscode-and-terminal.md)
 ```
 
-**The critical point:** each of these underlying tools can exist and run **completely independently
-of the IDE**. A formatter, a linter, a debugger, a version-control tool, an interpreter — all of
-them are, at their core, programs that can be invoked directly from a terminal, exactly like any
-command from Module 0.3. The IDE's contribution is *convenience*: it invokes these tools on your
-behalf and displays their results inside its own interface, rather than requiring you to run them
-manually every time.
+**The critical point:** IDE capabilities can come from several sources: functionality built into the
+IDE itself, language services, extensions/plugins, external tools, runtimes/interpreters, build
+systems, and debugging infrastructure. Some capabilities are provided by independent external tools
+(a formatter, a linter, a version-control tool, an interpreter), which can often be invoked directly
+from a terminal, like any command from Module 0.3. Others are built into the IDE, supplied through
+extensions/plugins, or communicate with external processes. The IDE's contribution is
+*convenience*: it brings these together and displays their results inside its own interface, rather
+than requiring you to run each one manually every time.
 
 This is why an experienced engineer, shown an unfamiliar IDE, can still function effectively —
-because the underlying tools (and the commands that drive them) are the same regardless of which
-IDE (if any) is wrapping them.
+because many of the underlying tools (and the commands that drive them) are the same regardless of
+which IDE (if any) is integrating them.
 
 ### Why this distinction matters for future work
 
@@ -656,8 +665,8 @@ for:
 
 ### Why understanding underlying tools matters more than depending on a GUI
 
-Per Section 11, every IDE capability you will rely on for the above work is, underneath, an
-independent tool or command. An Applied AI Engineer who understands *what* the IDE is actually
+Per Section 11, many IDE capabilities you will rely on for the above work are, underneath, driven by
+independent tools or commands. An Applied AI Engineer who understands *what* the IDE is actually
 invoking — not just which button to click — can reproduce that same work in a terminal, a script, a
 container, or a remote server where no IDE is present. This is not a claim that IDEs are
 unimportant; it is a claim that **fluency with the underlying tools is what makes IDE convenience
@@ -681,7 +690,7 @@ step:
 5. **Use code navigation/intelligence.** *Conceptually:* relies on the analysis tool's understanding
    of symbols across the project (Section 5).
 6. **Run the program.** *Conceptually:* the run/build integration triggers a process through the
-   operating system, exactly as a manually typed terminal command would (Section 6, Section 7).
+   operating system, much as a manually typed terminal command would (Section 6, Section 7).
 7. **Inspect output/errors.** *Conceptually:* stdout/stderr from that process, displayed either in an
    IDE-specific output panel or the integrated terminal (previous lesson, Section 4).
 8. **Use the terminal when explicit commands are required.** *Conceptually:* for anything the IDE's
@@ -736,6 +745,9 @@ Using the integrated terminal (previous lesson) from the correct working directo
 $ python3 demo.py
 ```
 
+(`python3` is common on macOS/Linux; `python` is commonly used on Windows and may also be available
+elsewhere. Use the Python command configured for your environment.)
+
 **Expected output:**
 
 ```
@@ -758,7 +770,7 @@ $ python3 demo.py
 **Example output (exact wording varies by Python version):**
 
 ```
-SyntaxError: unexpected EOF while parsing
+SyntaxError: '(' was never closed
 ```
 
 Restore the missing parenthesis and rerun to confirm the program works again. Delete `demo.py` when
@@ -796,9 +808,9 @@ finished, since it was created only for this exercise.
   operating system for files, processes, and resources.
 
 - **"The GUI is the actual development tool."**
-  Incorrect, or at least incomplete. The GUI is an *interface* to underlying tools (Section 11); the
-  tools themselves (interpreter, formatter, linter, debugger, version control) do the actual work,
-  and exist independently of any particular GUI.
+  Incorrect, or at least incomplete. The GUI is an *interface* to underlying capabilities (Section 11); the
+  tools themselves (interpreter, formatter, linter, debugger, version control) do much of the actual
+  work, and many exist independently of any particular GUI.
 
 - **"If an IDE hides a command, I do not need to understand the command."**
   This works only until the GUI is unavailable — a remote server, a container, or a CI/CD pipeline
@@ -886,7 +898,7 @@ finished, since it was created only for this exercise.
 | **GUI convenience vs. explicit terminal control** | Faster for routine, interactive tasks (Section 10) | Every step is visible and reproducible (Section 7) |
 | **Integrated tooling vs. independent tools** | One consistent interface across capabilities (Section 8) | Tools remain usable even without the IDE present (Section 11) |
 | **Productivity vs. hidden complexity** | Faster day-to-day work | Easier to misunderstand what is actually happening underneath a convenient button (Section 15) |
-| **Convenience vs. reproducibility** | Low effort for one-off interactive tasks | Scripted/terminal steps can be saved and rerun identically (Section 10) |
+| **Convenience vs. reproducibility** | Low effort for one-off interactive tasks | CLI workflows make actions explicit and easier to save, automate, and reproduce, but identical results still depend on the environment, configuration, dependencies, versions, working directory, inputs, and other relevant conditions being sufficiently controlled (Section 10) |
 | **Local IDE workflows vs. remote/terminal workflows** | Rich, visual, interactive editing | Works in environments where no GUI exists at all (Section 24) |
 
 **No single approach is universally best.** The right balance depends on the task, the environment,
@@ -1066,13 +1078,14 @@ resources — it does not replace or bypass the operating system (Section 6).
 ### IDE and terminal
 
 The IDE's GUI and its integrated terminal are complementary interfaces to the same underlying
-execution model; run/build/debug GUI actions typically correspond to commands you could also type
-yourself (Section 7).
+execution model; run/build/debug GUI actions use configured execution mechanisms that ultimately start
+processes, comparable to commands you could also type yourself (Section 7).
 
 ### IDE as a tool-integration layer
 
-Most IDE capabilities are convenient wrappers around independent tools (interpreters, formatters,
-linters, debuggers, version control) that can run without the IDE at all (Section 11).
+IDE capabilities come from several sources — built-in functionality, language services,
+extensions/plugins, and external tools (interpreters, formatters, linters, debuggers, version
+control), many of which can run without the IDE at all (Section 11).
 
 ### Project/workspace awareness
 
@@ -1143,8 +1156,8 @@ and can run without the IDE present (Section 11).
 
 **Q: How does an IDE interact with an operating system?**
 A: As an ordinary user-space application: it accesses files, launches processes, and reads
-environment variables entirely through operating-system-provided mechanisms — it has no special
-privileges (Section 6).
+environment variables through operating-system-provided mechanisms, with permissions that depend on
+the user account and OS security context (Section 6).
 
 **Q: Why does an IDE need a project/workspace model?**
 A: Because nearly every other capability — search, navigation, run/build, diagnostics — needs a
@@ -1153,12 +1166,12 @@ unrelated files (Section 9).
 
 **Q: What is the relationship between an IDE and a terminal?**
 A: They are complementary interfaces to the same underlying execution model; the IDE can host an
-integrated terminal, and its own run/build/debug actions typically correspond to commands you could
-type manually in that same terminal (Section 7).
+integrated terminal, and its own run/build/debug actions use configured execution mechanisms comparable to
+commands you could type manually in that same terminal (Section 7).
 
 **Q: Why might a developer use the terminal even when an IDE is available?**
 A: For explicit, precise, reproducible command execution — automation, scripting, and tool
-invocation that is easier to save, share, and rerun exactly, and that works identically in
+invocation that is easier to save, share, and rerun, and that works in
 environments without a GUI (Section 10, Section 12).
 
 **Q: Why is understanding underlying development tools important in production engineering?**
@@ -1167,8 +1180,8 @@ provide no IDE at all, only a terminal; an engineer who only knows an IDE's butt
 that work where the buttons do not exist (Section 12, Section 24).
 
 **Q: What happens conceptually when an IDE runs a program?**
-A: The IDE's run/build integration asks the operating system to start a new process for that
-program, exactly as a manually typed terminal command would — the IDE does not execute the program
+A: The IDE's run/build integration uses a configured execution mechanism that asks the operating system to
+start a new process for that program, much as a manually typed terminal command would — the IDE does not execute the program
 using its own internal code (Section 6, Section 7).
 
 ---
@@ -1188,10 +1201,11 @@ mental models that carry directly into production engineering:
 - **Remote development.** Working on a remote machine frequently means working through a terminal
   only, or through a remote-connected editor with a much smaller feature set than a full local IDE
   — terminal fluency (Module 0.3, previous lesson) remains essential regardless.
-- **Containers.** A container typically provides a minimal environment reachable by terminal, not by
-  a full graphical IDE — the same underlying-tools understanding from Section 11 applies directly.
-- **Linux servers.** Most production AI/ML infrastructure runs on Linux (as established in Module
-  0.2 and Module 0.3), commonly administered entirely through a terminal.
+- **Containers.** Many containers are commonly operated through a terminal and command-line tools
+  rather than a full graphical IDE — the same underlying-tools understanding from Section 11 applies
+  directly.
+- **Linux servers.** Linux is widely used for production AI/ML infrastructure and server environments (as
+  established in Module 0.2 and Module 0.3), commonly administered through a terminal.
 - **Cloud environments.** Cloud infrastructure is frequently managed through terminal-based tools and
   automation, not graphical IDEs.
 - **Debugging production-like environments.** The investigative discipline practiced in Section 16
