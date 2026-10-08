@@ -44,7 +44,7 @@ Application
 | System call | A specific request to the kernel, crossing the user/kernel privilege boundary |
 | Normal function call | Code calling other code that stays entirely within user space |
 | Library function | Reusable user-space code that *may* internally make one or more system calls |
-| Shell command | A user-space *program* you run by name (e.g. `ls`), which itself makes system calls while it runs |
+| Shell command | Something the shell can execute or interpret (an external program such as `ls`, or a shell builtin, function, alias, or script) — not itself a system call |
 
 Section 5 defines each of these precisely, alongside "API" and "kernel function," which are also commonly confused with "system call."
 
@@ -72,8 +72,8 @@ Requirement 2: user-space programs MUST still be able to get useful work done us
 - **Protection.** The kernel decides, for each request, whether and how to fulfill it — user-space code never gets to bypass that decision.
 - **Isolation.** Because every sensitive operation is funneled through the kernel, the kernel can guarantee one program's request cannot corrupt another program's memory or files as a side effect.
 - **Controlled resource access.** Resources like storage devices and network hardware are shared. The kernel arbitrates competing requests through the same interface, rather than letting programs fight over hardware directly.
-- **Validation.** Before performing a requested operation, the kernel checks whether the request is even valid and permitted — for example, whether the requesting program has permission to access a specific file. Section 9 of Concept 01 previewed this; system calls are *where* that check actually happens.
-- **Security.** Because there is exactly one sanctioned way into the kernel (rather than many ad-hoc ones), the kernel's defenses against malicious or malformed requests can be concentrated at this one interface.
+- **Validation.** Before performing a requested operation, the kernel checks whether the request is even valid and permitted — for example, whether the requesting program has permission to access a specific file. Section 9 of Concept 01 previewed this; kernel handling of resource-access operations commonly performs or invokes the relevant permission and security checks.
+- **Security.** Because system calls are the primary controlled mechanism through which user-space programs explicitly request services from the kernel (rather than many ad-hoc ones), the kernel's defenses against malicious or malformed requests can be concentrated at this interface. (User-mode execution can also enter kernel handling through mechanisms such as exceptions and interrupts, but those are not requests that arbitrary program code gets to define.)
 - **Resource management.** The kernel can track and account for how resources are being used across every program on the system, because every request for those resources passes through it.
 - **Hardware abstraction.** Different machines have different physical storage devices, network cards, and CPUs. A system call like "read data from this file" behaves the same way to the application regardless of which specific physical device is involved underneath — the kernel absorbs that complexity. This is *why* the same Python file-reading code works on very different machines.
 - **Consistent OS services.** Every program on the system gets the same, uniform way of requesting the same kinds of services, rather than every program needing its own private arrangement with the hardware.
@@ -101,8 +101,10 @@ reads model checkpoint       → system calls to open/read the file
      ↓
 accepts an HTTP request       → system calls related to network communication
      ↓
-allocates memory for a batch    → system calls (or library calls that themselves use them)
-                                    for memory management
+allocates memory for a batch    → Python/runtime allocator
+                                     ↓ may reuse already-managed memory
+                                     ↓ may request additional memory from the OS
+                                    OS/kernel memory-management mechanisms
      ↓
 writes a log line                → a system call to write output
      ↓
@@ -177,13 +179,13 @@ This is worth restating plainly: **you almost never invoke a system call "by han
 | **Library function** | Reusable user-space code (e.g. Python's `open()`) that *may* internally issue one or more system calls | Sometimes — depends on what it does |
 | **API (Application Programming Interface)** | A general term for any defined interface one piece of software exposes to another — could be a library's functions, a web service's endpoints, or (in a broad sense) the system-call interface itself | Not necessarily — most APIs a Python developer uses (a web framework's API, a library's API) never touch the kernel directly themselves |
 | **Kernel function** | Code that runs *inside* the kernel, used by the kernel to implement what a system call does internally | Already in the kernel — not something user space calls directly |
-| **Shell command** | A user-space *program* (e.g. `ls`, `cat`) that you run by name; while running, it is an ordinary user-space program that itself makes system calls as needed | The program itself may make many system calls while it runs — but the *command itself* is not a system call |
+| **Shell command** | Something the shell can execute or interpret. It may be an external program (e.g. `ls`, `cat`), a shell builtin (e.g. `cd`), a function, an alias, or a script; when it is an external program, it is an ordinary user-space program that itself makes system calls as needed | An external program may make many system calls while it runs — but the *command itself* is not a system call |
 
-**Why this distinction matters for a beginner:** "system call," "library function," "API," and "command" are often used loosely and interchangeably in casual conversation, but they refer to meaningfully different things. Calling `open()` in Python is a library-function call — which, internally and on your behalf, is very likely to result in one or more system calls, but the Python-level call itself is not the system call.
+**Why this distinction matters for a beginner:** "system call," "library function," "API," and "command" are often used loosely and interchangeably in casual conversation, but they refer to meaningfully different things. Calling `open()` in Python is a library-function call — which, internally and on your behalf, is very likely to result in one or more system calls, but the Python-level call itself is not the system call. A Python `open()` call eventually reaches the operating system through runtime/library layers and may result in one or more Linux system calls; the Python call and the underlying Linux system call are different abstraction layers. Similarly, a portable API such as a POSIX interface is not necessarily identical to a particular operating system's underlying system call.
 
 **System-call mechanics — the parts of a request:**
 
-- **Syscall number / identification.** Each system call the kernel supports is identified somehow (conceptually, by a specific number or identifier), so the kernel knows exactly which operation is being requested.
+- **Syscall number / identification.** Each system call the kernel supports is identified so the kernel knows exactly which operation is being requested. On systems such as Linux, system calls are identified by numbers as part of the OS/architecture ABI; the numbering and invocation mechanism are platform-specific.
 - **Arguments.** Most system calls need input — for example, "read a file" needs to know *which* file and *how much* data to read. These are passed along with the request.
 - **Privilege transition.** The CPU switches from user mode into kernel mode as part of making the request (Concept 01, Section 5) — this is not optional or skippable.
 - **Validation.** Before doing anything, the kernel checks whether the request is well-formed and permitted (for example: does this program have permission to access this file?).
@@ -195,9 +197,15 @@ This is worth restating plainly: **you almost never invoke a system call "by han
 
 - **One high-level operation can involve multiple system calls.** A single Python `open(...).read()` sequence may involve more than one underlying system call (opening the file is one operation; reading its contents may be another; closing it yet another).
 - **One system call can support multiple higher-level operations.** The same underlying "read data" system call is used whether you're reading a small text file or a large dataset — the kernel-level operation is the same; only the amount and kind of data differ.
-- **Not every application operation needs a system call at all.** Adding two numbers, building a Python list, or calling one of your own functions never touches the kernel, because none of it needs an OS-managed resource.
+- **Not every application operation needs a system call at all.** Adding two numbers, building a Python list, or calling one of your own functions normally requires no explicit system call and can execute entirely in user space, because none of it needs an OS-managed resource.
 
 **The exact implementation varies — and that's expected.** Different operating systems (Linux, Windows, macOS) and different CPU architectures implement the trap mechanism differently at the hardware/instruction level. This lesson deliberately does not teach any one architecture's specific instruction-level mechanism — that level of detail is out of scope for a beginner-level, portable conceptual understanding.
+
+**System calls are the primary, not the only, way into the kernel.** System calls are the primary controlled mechanism through which user-space programs explicitly request services from the kernel. User-mode execution can also enter kernel handling through mechanisms such as exceptions and interrupts.
+
+**A system call is not always a direct hardware operation.** A system call requests a service from the kernel. The kernel may satisfy that request from memory, caches, filesystem structures, or other kernel-managed state without directly accessing hardware at that moment.
+
+**On Unix-like systems, many I/O resources are accessed through file descriptors,** which are small process-local identifiers used by system calls: system call → file descriptor → file / socket / pipe / terminal.
 
 ---
 
@@ -261,7 +269,7 @@ OS-managed resource (e.g. the filesystem)
 
 **Four precise clarifications, each worth internalizing carefully:**
 
-- **Not every Python statement causes a system call.** `x = 2 + 3` never touches the kernel. `open("data.txt")` very likely does.
+- **Not every Python statement causes a system call.** `x = 2 + 3` normally requires no explicit system call and can execute entirely in user space. `open("data.txt")` very likely results in one.
 - **A Python function call is not automatically a system call.** Calling one of your own Python functions, or most Python standard-library functions that only manipulate in-memory data, stays entirely in user space.
 - **Libraries and runtimes can perform multiple operations on your behalf.** A single high-level Python call can trigger several system calls underneath, exactly as Section 5 described.
 - **Buffering changes *when* actual OS I/O happens.** Python (and the C library beneath it) often buffers output — meaning `print(...)` or a file write may sit in an in-memory buffer for a while before an actual system call to write it out occurs. This means the timing of your code's execution and the timing of actual kernel-level I/O are not always the same moment — a detail that matters when debugging I/O-related timing or ordering issues.
@@ -320,11 +328,11 @@ Starting another program (for example, a Python script launching a separate data
 
 **Example 5 — Standard input/output.**
 
-Every running program has standard input/output channels that the kernel sets up and manages, connecting it to a terminal, a file, or another program. Reading a line of typed input, or printing a line of output, relies on system calls that interact with these kernel-managed channels. **The full treatment of standard input/output, and how programs connect to each other via pipes and the shell, are later lessons in this module** — here, the point is only that these channels are themselves kernel-managed, and interacting with them crosses the same boundary as file or network access.
+On Unix/POSIX systems, processes conventionally start with standard input, standard output, and standard error streams/descriptors, though they can be redirected or replaced; the kernel sets up and manages these channels, connecting a process to a terminal, a file, or another program. Reading a line of typed input, or printing a line of output, relies on system calls that interact with these kernel-managed channels. **The full treatment of standard input/output, and how programs connect to each other via pipes and the shell, are later lessons in this module** — here, the point is only that these channels are themselves kernel-managed, and interacting with them crosses the same boundary as file or network access.
 
 **Example 6 — Memory-related operation.**
 
-When a program needs a large block of memory (for example, to hold a big batch of numeric data), it requests that memory through OS-supported mechanisms, which may involve a system call asking the kernel to make more memory available to the program. **The complete virtual-memory subsystem — how the kernel isolates and manages each program's memory — is the dedicated Virtual Memory lesson later in this module.** Here, the point is only that even memory allocation is not something a user-space program does entirely by itself; the kernel is involved in managing it.
+When a program needs a large block of memory (for example, to hold a big batch of numeric data), it requests that memory from its runtime or allocator (for Python, the Python/runtime allocator), which may satisfy the request from memory it already manages, or may request additional memory from the operating system when necessary — and that latter step may involve a system call asking the kernel to make more memory available to the program. **The complete virtual-memory subsystem — how the kernel isolates and manages each program's memory — is the dedicated Virtual Memory lesson later in this module.** Here, the point is only that memory allocation is not something a user-space program does entirely by itself; the kernel is ultimately involved in managing the memory the allocator draws on.
 
 ---
 
@@ -335,12 +343,12 @@ System calls are the mechanism every later Module 0.2 concept relies on to actua
 | Concept | Relationship to system calls | Depends on system calls? | Full treatment |
 |---|---|---|---|
 | Kernel and User Space (Concept 01) | System calls are the specific mechanism for crossing the boundary that concept introduced | — (this *is* that mechanism) | Already covered |
-| Processes | Created, managed, and ended via system calls (e.g. creating a new process, waiting for one to finish) | Yes | Concept 03 |
-| Threads | Created and managed via system calls, similarly to processes | Yes | Concept 04 |
+| Processes | Created, managed, and ended through kernel interfaces (e.g. creating a new process, waiting for one to finish). On Linux, process and thread creation ultimately uses kernel interfaces such as `clone`/`clone3`; other operating systems expose different APIs and mechanisms | Yes | Concept 03 |
+| Threads | Created and managed through kernel interfaces, similarly to processes (mechanisms differ across operating systems) | Yes | Concept 04 |
 | Scheduling | The kernel schedules CPU time for processes/threads; scheduling decisions are made inside the kernel, not requested via a system call in the same way file access is | Indirectly | Concept 05 |
-| Virtual Memory | Memory is requested and managed through system calls and kernel-managed structures | Yes | Concept 06 |
+| Virtual Memory | Virtual memory is managed by the kernel. User-space programs can request memory mappings or related services through system calls, while mechanisms such as page faults are handled by the kernel | Partially | Concept 06 |
 | Filesystems | File operations (open, read, write, close) are system calls | Yes | Concept 07 |
-| Permissions | Checked by the kernel *during* system-call handling (Section 5's "validation" step) | Yes | Concept 08 |
+| Permissions | Kernel handling of resource-access operations commonly performs or invokes the relevant permission checks (Section 5's "validation" step) | Yes | Concept 08 |
 | Environment Variables | Made available to a process at creation time, involving OS-level mechanisms related to process creation | Partially | Concept 09 |
 | Signals | Delivered to processes via kernel mechanisms; a process may also use a system call to send a signal to another process | Yes | Concept 10 |
 | Standard Input/Output | Reading/writing these kernel-managed channels uses the same system calls as general file I/O | Yes | Concept 11 |
@@ -410,7 +418,7 @@ If nothing is printed, the tool is not installed on this system. This is exactly
 | Misconception | Why it's wrong |
 |---|---|
 | "A system call is the same thing as a normal function call." | A normal function call stays entirely within user space. A system call specifically crosses the user/kernel privilege boundary via a controlled trap mechanism (Sections 5–6). |
-| "Every Python function call is a system call." | Most Python function calls (your own functions, most standard-library utilities working on in-memory data) never touch the kernel. Only calls that need an OS-managed resource may result in a system call, and even then, indirectly, through several layers (Section 6). |
+| "Every Python function call is a system call." | Most Python function calls (your own functions, most standard-library utilities working on in-memory data) normally require no explicit system call and can execute entirely in user space. Only calls that need an OS-managed resource may result in a system call, and even then, indirectly, through several layers (Section 6). |
 | "Every line of Python code causes a system call." | Ordinary computation — arithmetic, assignments, control flow, working with data already in memory — involves no system call at all (Section 5, Section 6). |
 | "Python directly controls hardware." | Python code never touches hardware directly. Any hardware interaction goes through the runtime, the system-call interface, and the kernel (Section 6). |
 | "The shell is the system-call interface." | The shell is an ordinary user-space *program*. It makes system calls like any other program does while it runs — it is not itself the kernel boundary-crossing mechanism (Section 5's comparison table). |
@@ -466,7 +474,7 @@ Each scenario follows: problem, likely (incorrect) assumption, correct mental mo
 
 1. *Problem:* a learner assumes that because a Python function is slow or produces unexpected behavior, "the system call it makes" must be the cause.
 2. *Likely incorrect assumption:* "Every Python function call I write is a system call, so any slowness must be OS-level."
-3. *Correct mental model:* most Python function calls never touch the kernel at all (Section 5, Section 10) — the slowness may be entirely explained by the Python-level logic itself, with no system call involved.
+3. *Correct mental model:* most Python function calls normally require no explicit system call (Section 5, Section 10) — the slowness may be entirely explained by the Python-level logic itself, with no system call involved.
 4. *Investigation approach:* ask specifically whether the function in question does anything that plausibly needs an OS-managed resource (file access, network access, process creation) — if not, the explanation is very unlikely to be system-call-related.
 5. *Expected conclusion:* not every performance or behavior question is an OS-level question — this lesson's value includes knowing when system calls are *not* the relevant explanation, not only when they are.
 
@@ -492,7 +500,7 @@ Each scenario follows: problem, likely (incorrect) assumption, correct mental mo
 2. *Likely incorrect assumption:* "It already started running, so permissions can't be the issue anymore."
 3. *Correct mental model:* being allowed to *run* a program at all is a separate question from whether *each individual system call it makes* is permitted (Section 10's corresponding misconception). A program can start successfully and still have a specific later system call (for example, accessing a particular file) refused.
 4. *Investigation approach:* identify exactly *which* operation failed partway through, and check permissions specific to *that* resource, not the program's ability to run in general.
-5. *Expected conclusion:* permission checks happen per system call, not once at program startup — a distinction that avoids wasted debugging effort in the wrong place.
+5. *Expected conclusion:* access checks are performed as relevant resource-access operations are attempted; successfully starting a program does not guarantee that every later resource access will be permitted — a distinction that avoids wasted debugging effort in the wrong place.
 
 ---
 
@@ -505,7 +513,7 @@ Work through these in your own words. No answer key exists for this lesson — t
 1. In your own words, what is a system call?
 2. Name the four terms this lesson deliberately distinguished from "system call" in Section 5's comparison table.
 3. What does "crossing the user/kernel boundary" mean, in relation to a system call?
-4. List three categories of operations that may involve system calls, and one operation that never does.
+4. List three categories of operations that may involve system calls, and one operation that normally does not.
 5. What is the difference between a syscall's "arguments" and its "return value"?
 6. In this lesson's practical observation, was `strace` available in this environment? How was that determined, and without assuming?
 7. What genuinely observed output did Section 9 include, and why was it labeled as "actual observed output" rather than left unlabeled?
@@ -548,7 +556,7 @@ Work through these in your own words. No answer key exists for this lesson — t
 
 33. Draw (in text/ASCII) the complete path a Python AI service takes when it receives an inference request, reads a model checkpoint file, and writes a response — labeling each step as user space, library/runtime, system call, or kernel, using Section 6 and Section 7 as your model.
 34. A friend claims, "System calls are a low-level detail that only matters for systems programmers, not for someone building AI services in Python." Using Section 3 and Section 12, construct a response with at least three concrete counter-examples from real AI-engineering work.
-35. Explain how "permission checks happen per system call, not once at program startup" (Section 10, Scenario 8) could explain a production incident where a Python service runs fine for hours before suddenly failing on a specific file operation.
+35. Explain how "access checks are performed as relevant resource-access operations are attempted, not only once at program startup" (Section 10, Scenario 8) could explain a production incident where a Python service runs fine for hours before suddenly failing on a specific file operation.
 36. Using Section 8's relationship table, explain why this lesson had to come before the Processes lesson, rather than after it.
 37. A Python data pipeline reads thousands of small files, one at a time, and a teammate suggests this might be unexpectedly slow "at the OS level." Using this lesson's concepts (system-call overhead, one-to-many operations), explain what reasoning supports or challenges that suggestion, without needing specific benchmarking tools.
 
@@ -562,7 +570,7 @@ After reading this lesson, working through the practical observations, and compl
 
 - Correctly define a system call and distinguish it from a normal function call, a library function, an API, a kernel function, and a shell command.
 - Walk through the nine-step conceptual flow of a system call (Section 6) from memory, without needing to re-read the lesson.
-- Correctly classify a given Python operation as "very likely involves a system call," "might, depending on implementation," or "never touches the kernel," and explain your reasoning.
+- Correctly classify a given Python operation as "very likely involves a system call," "might, depending on implementation," or "normally requires no explicit system call," and explain your reasoning.
 - Explain why system calls exist, in terms of protection, isolation, validation, security, resource management, hardware abstraction, and consistency (Section 2).
 - Explain the relationship between system calls and at least three other Module 0.2 concepts (Section 8), without needing those lessons to already be complete.
 - Correctly identify, for several of this lesson's fourteen misconceptions, why each is wrong and what the accurate idea is instead.
@@ -614,7 +622,7 @@ Answers are intentionally not provided directly below these questions.
 ### Errors and permissions questions
 
 - Why can a system call fail even if the requesting program was allowed to start running at all?
-- What does it mean for a permission check to happen "per system call, not once at program startup"?
+- What does it mean that access checks are performed as relevant resource-access operations are attempted, rather than only once at program startup?
 
 ### Python questions
 

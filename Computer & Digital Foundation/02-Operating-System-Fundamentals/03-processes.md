@@ -9,23 +9,23 @@
 
 ## 1. What Is It?
 
-**Connecting to what you already know.** [Kernel and User Space](01-kernel-and-user-space.md) established that ordinary programs run in user space while the kernel manages shared resources. [System Calls](02-system-calls.md) established the specific mechanism — a controlled trap into the kernel — that a user-space program uses to request something from the kernel. This lesson introduces the entity that actually *does* the running: the **process**. Process creation, execution, waiting, and termination are all requested through system calls and carried out by the kernel — everything in this lesson sits directly on top of the previous two lessons.
+**Connecting to what you already know.** [Kernel and User Space](01-kernel-and-user-space.md) established that ordinary programs run in user space while the kernel manages shared resources. [System Calls](02-system-calls.md) established the specific mechanism — a controlled trap into the kernel — that a user-space program uses to request something from the kernel. This lesson introduces the entity that actually *does* the running: the **process**. Process creation and many process and resource operations (such as waiting for a child or requesting more memory) involve system calls and are carried out by the kernel; ordinary user-space execution is not continuously a system-call request, and the scheduler lets a process's code run without every instruction being requested through the kernel — everything in this lesson sits directly on top of the previous two lessons.
 
-**Program.** Simple meaning: a program is a file containing instructions and data, sitting on disk, doing nothing by itself. Technical meaning: a program is a static artifact — executable code and associated data, stored in a file — that describes what should happen when it is run, without itself being an active, running thing. Your `app.py` file, sitting in a folder, is a program. It does not use CPU time, does not hold memory, and does not have any running state, no matter how long it sits there.
+**Program.** Simple meaning: a program is a set of instructions and data that can be executed, commonly stored in a file on disk, doing nothing by itself. Technical meaning: a program is a static artifact — executable code and associated data, commonly stored in a file — that describes what should happen when it is run, without itself being an active, running thing. Your `app.py` file, sitting in a folder, is source code that an interpreter (Python) can execute; for this lesson, treat it as the "program." It does not use CPU time, does not hold memory, and does not have any running state, no matter how long it sits there.
 
-**Process.** Simple meaning: a process is a program actually running — an active, tracked, in-progress execution of that program's instructions. Technical meaning: a process is an execution instance that the operating system creates, identifies, and manages, consisting of the program's loaded code and data, a private virtual address space, an execution state, and a collection of OS-managed resources (open files, environment, credentials, and more — all introduced in Section 5).
+**Process.** Simple meaning: a process is an operating-system-managed execution instance of a program — an active, tracked, in-progress execution of that program's instructions. A process can exist while it is executing, runnable, waiting/sleeping, stopped, or (depending on the OS) in a terminated/zombie-related state. Technical meaning: a process is an execution instance that the operating system creates, identifies, and manages, consisting of the program's loaded code and data, a private virtual address space, an execution state, and a collection of OS-managed resources (open files, environment, credentials, and more — all introduced in Section 5).
 
 **The single most important distinction in this lesson, stated plainly:**
 
 ```text
 Program                              Process
 ------------------------------       ------------------------------
-A file on disk                       A running instance being executed
+Commonly a file on disk              An OS-managed execution instance
 Passive                              Active
 No memory, no CPU use, no state      Has memory, may use CPU, has a state
 One program file                     Can produce zero, one, or many processes
 Exists whether or not anything
-  is running it                      Exists only while the OS is tracking it as running
+  is running it                      Exists only while the OS is tracking it
 ```
 
 **A simple mental model** for this lesson:
@@ -140,7 +140,7 @@ A recipe card sitting in a drawer is not "cooking" — it's just information, de
 
 ## 5. Technical Explanation
 
-**Why multiple processes can run the same program.** Nothing about a program file changes when it runs — the file is only ever *read*, not consumed. Each time the OS is asked to run it, a brand-new process is created: its own identity, its own private memory, its own resources — entirely independent of any other currently running instance of the same program.
+**Why multiple processes can run the same program.** Nothing about a program file changes when it runs — the file is only ever *read*, not consumed. Separate launches normally create separate process instances: each with its own identity, its own virtual address space, and its own resources — normally independent of any other currently running instance of the same program. (Operating systems can also intentionally let processes share memory and other resources, but that is not the default.)
 
 ```text
 app.py  (one program file, unchanged, on disk)
@@ -164,7 +164,7 @@ This is why, for example, a production AI service can run four independent worke
 | **Virtual address space** | The process's own private view of memory, isolated from other processes (full detail: Virtual Memory lesson) | Kernel-maintained, application-visible |
 | **Stack** | Memory used for function calls, local variables, and tracking "where to return to" as code executes | Process-owned |
 | **Heap** | Memory dynamically allocated while the program runs (for example, growing a Python list) | Process-owned |
-| **CPU execution context** | The current values of CPU registers and execution position for this process, saved and restored as the OS switches between processes | Kernel-maintained |
+| **CPU execution context** | Belongs to each thread of the process: the current CPU registers, instruction position, and stack, saved and restored as the OS switches between threads (a process has one or more threads; see the note below the table) | Kernel-maintained |
 | **Open file descriptors** | References to files, network connections, and other I/O resources the process currently has open | Process-owned, kernel-tracked |
 | **Environment** | Environment variables available to the process (full detail: Environment Variables lesson) | Process-owned |
 | **Working directory** | The filesystem location relative paths are resolved against for this process | Process-owned |
@@ -172,13 +172,24 @@ This is why, for example, a production AI service can run four independent worke
 | **Parent-process relationship** | Which process created this one (Section 5's next subsection) | Kernel-maintained |
 | **Scheduling information** | Bookkeeping the kernel uses to decide when this process gets CPU time (full detail: Scheduling lesson) | Kernel-maintained |
 
+```text
+Process
+ └── one or more threads
+       ├── execution context
+       ├── registers
+       ├── instruction position
+       └── stack
+```
+
+Execution context, registers, instruction position, and stack are really per-thread; the Threads lesson explains this properly. Here, treat the "CPU execution context" row as a preview.
+
 **Deliberately out of scope here:** the full internal implementation of virtual memory (page tables, how isolation is physically enforced) is the Virtual Memory lesson; the full mechanics of the CPU scheduler are the Scheduling lesson; the internal structure of a thread within a process is the Threads lesson, which comes immediately after this one.
 
 ### Process identity: PID and PPID
 
-**PID (Process ID).** Simple meaning: a number the operating system assigns to a running process so it can be uniquely referred to. Technical meaning: the PID is a kernel-assigned integer identifier, unique among currently running processes, used whenever the OS or a tool needs to refer to a specific process — for observation (`ps`), for control (`kill`), or for any other process-specific operation.
+**PID (Process ID).** Simple meaning: a number the operating system assigns to a running process so it can be uniquely referred to. Technical meaning: the PID is an operating-system-assigned identifier (on Linux, an integer), unique among currently existing processes within its scope, used whenever the OS or a tool needs to refer to a specific process — for observation (`ps`), for control (`kill`), or for any other process-specific operation.
 
-**PPID (Parent Process ID).** Simple meaning: the PID of whichever process created this one. Technical meaning: when a process creates another process (the mechanism for this is previewed only conceptually in Section 6 — its full detail is later curriculum), the newly created process records the PID of its creator as its PPID, forming a traceable parent/child relationship.
+**PPID (Parent Process ID).** Simple meaning: the PID of the process currently serving as this process's parent in the operating-system process hierarchy (usually the process that created it). Technical meaning: when a process creates another process (the mechanism for this is previewed only conceptually in Section 6 — its full detail is later curriculum), the newly created process is initially recorded as its creator's child, forming a traceable parent/child relationship.
 
 **Why identity matters.** Without a stable way to refer to a specific running instance, you could not observe it, reason about it, or safely stop it. PIDs are exactly what makes "which process do you mean?" answerable — for a human using `ps` and `kill`, and for the kernel itself internally.
 
@@ -196,17 +207,17 @@ init/system process (PID 1)
 └── another process
 ```
 
-This diagram illustrates the *shape* of the idea — processes form a tree, where each process (other than the very first one the system starts) has exactly one parent — not a literal, universal layout. The exact hierarchy you observe depends entirely on your specific environment, what's currently running, and how it was started. **In WSL2 specifically, the process hierarchy you observe belongs to the Linux environment running inside WSL2** — it reflects what Ubuntu itself has started (a shell, background services, whatever you've launched), not a hierarchy of the Windows host's own processes.
+This diagram is a Unix/Linux-oriented conceptual model: it illustrates the *shape* of the idea — processes form a tree, where each process (other than the very first one the system starts) has one parent — not a literal, universal layout for every operating system. The exact hierarchy you observe depends entirely on your specific environment, what's currently running, and how it was started. **In WSL2 specifically, the process hierarchy you observe belongs to the Linux environment running inside WSL2** — it reflects what Ubuntu itself has started (a shell, background services, whatever you've launched), not a hierarchy of the Windows host's own processes.
 
 ### Process state
 
 **Process state.** Simple meaning: what a process is currently doing — actively computing, waiting for something, paused, or finished. Technical meaning: process state is a kernel-tracked attribute recording which phase of execution a process is currently in, used by the kernel (particularly the scheduler) to decide what to do with it next.
 
-**A conceptual, OS-agnostic set of states:**
+**A simplified conceptual model of execution states** (actual process/thread states and terminology vary by operating system and implementation):
 
 | Conceptual state | Meaning |
 |---|---|
-| Running | Currently executing on a CPU right now |
+| Running | Currently executing on a CPU right now (strictly, it is a thread of the process that executes; the Threads lesson explains this) |
 | Ready / runnable | Able to run, waiting only for the CPU to become available |
 | Sleeping / waiting | Not running, because it's waiting for something else (I/O to complete, an event, a timer) |
 | Stopped | Execution has been paused, typically by an explicit control action |
@@ -233,7 +244,7 @@ Address space/resources set up   (memory, open files, environment)
      ↓
 Process becomes runnable
      ↓
-CPU executes it                    (when the scheduler grants it CPU time)
+CPU executes it                    (when the scheduler selects it to run on a CPU)
      ↓
 Waiting / running / stopped, repeatedly, as needed
      ↓
@@ -250,11 +261,11 @@ Cleanup / exit status
 2. **Identity is assigned.** The kernel assigns the new process a PID, and records the creating process's PID as its PPID.
 3. **Resources are set up.** The kernel establishes the new process's virtual address space, loads the program's code and data into it, and sets up its initial open files, environment, and working directory.
 4. **The process becomes runnable.** It's ready to execute but is not necessarily using a CPU yet — that depends on the scheduler (previewed here, fully covered in the Scheduling lesson).
-5. **The CPU executes it.** When the scheduler grants this process CPU time, its code actually runs, following the fetch-decode-execute cycle from Module 0.1.
+5. **The CPU executes it.** When the scheduler selects a runnable execution entity of this process (typically a thread) to run on a CPU, its code actually runs, following the fetch-decode-execute cycle from Module 0.1.
 6. **The process cycles between states.** It may run for a while, then need to wait (for a file, for network data, for its turn again), then run again — often many times over its lifetime.
 7. **It interacts with resources.** Every file it reads, every byte it sends over a network, every additional bit of memory it requests happens via system calls, exactly as Concept 02 described.
 8. **It terminates.** Eventually the process stops running — because it finished normally, was asked to stop, or crashed.
-9. **The kernel cleans up.** Memory is freed, open files are closed, and an exit status is recorded (Section 9) for whoever is interested in it (often the parent process, or your shell).
+9. **The kernel cleans up.** Most process resources (memory, open files) are reclaimed when execution ends, and an exit status is recorded (Section 9) for whoever is interested in it (often the parent process, or your shell). Unix-like systems may retain minimal process metadata for a terminated child until its parent collects ("reaps") it; the detailed lifecycle is a later lesson.
 
 **Explicitly out of scope here** (each belongs to a later, dedicated lesson): the precise mechanism of process creation and how a new program gets loaded into a process, the full state-transition diagram and what happens to "zombie" processes, how the scheduler actually chooses which runnable process runs next, and how virtual memory is physically implemented.
 
@@ -279,12 +290,12 @@ Core 2 → Process B: ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓
 **Three points this lesson insists on, precisely:**
 
 - **Multiple processes do not necessarily mean multiple CPU cores are involved.** A machine with a single CPU core can still run many processes "concurrently," rapidly switching between them, without any of them ever literally executing at the same instant.
-- **The OS scheduler participates in deciding when a runnable process actually gets CPU time.** This lesson does not teach *how* the scheduler decides (that's the Scheduling lesson) — only that this decision is the kernel's, not the application's, to make.
+- **The OS scheduler participates in deciding when a runnable execution entity (typically a thread of a process) actually gets CPU time.** This lesson does not teach *how* the scheduler decides (that's the Scheduling lesson) — only that this decision is the kernel's, not the application's, to make.
 - **Whether you actually get parallelism, rather than just concurrency, depends on available CPU resources and system conditions** — the number of CPU cores available, how many other processes are competing for them, and how the scheduler is currently behaving. Running four worker processes does not, by itself, guarantee four-times parallel throughput.
 
 ### Process isolation
 
-**Why isolation exists.** Because each process gets its own private virtual address space (Section 5) and its own separately tracked resources, one process cannot, under normal circumstances, directly read or corrupt another process's memory, and a crash in one process does not automatically bring down another.
+**Why isolation exists.** Because each process gets its own private virtual address space (Section 5) and its own separately tracked resources, one process cannot, under normal circumstances, directly read or corrupt another process's memory, and a crash in one process does not automatically bring down another. (Operating systems also provide mechanisms for processes to intentionally share memory and other resources; the isolation described here is the default, not an absolute rule.)
 
 **What isolation provides, concretely:**
 
@@ -341,9 +352,9 @@ Each example states what the process represents, what resources it uses, what th
 | Concept | Relationship to processes | Prerequisite or later? | Full treatment |
 |---|---|---|---|
 | Kernel and User Space | A process's application code runs in user space; the kernel creates and manages the process itself | Prerequisite (Concept 01) | Already covered |
-| System Calls | Process creation, resource requests, and termination are all requested via system calls | Prerequisite (Concept 02) | Already covered |
+| System Calls | Process creation and many process and resource operations involve system calls | Prerequisite (Concept 02) | Already covered |
 | Threads | A thread is a unit of execution *within* a process; a process may contain one or more threads | Later | Concept 04 |
-| Scheduling | Determines when a runnable process (or thread) actually gets CPU time | Later | Concept 05 |
+| Scheduling | Determines when a runnable execution entity (typically a thread) actually gets CPU time | Later | Concept 05 |
 | Virtual Memory | Provides the isolated address space each process uses (Section 5, Section 6) | Later | Concept 06 |
 | Filesystems | Processes access files through system calls; a process's open file descriptors point into the filesystem | Later | Concept 07 |
 | Permissions | Determine what a process's security identity is allowed to access | Later | Concept 08 |
@@ -371,7 +382,7 @@ You are working in Ubuntu inside WSL2. All commands in this section are safe and
 | `PID` | The process's identifier (Section 5) |
 | `PPID` | Its parent's identifier (Section 5) |
 | `STAT` | Linux-specific process state notation (Section 6) — e.g. `S` sleeping, `R` running |
-| `%CPU` | Share of CPU time recently used |
+| `%CPU` | On Linux, `ps` reports CPU usage as the process's CPU time divided by the time it has been running (over its lifetime, per the `ps` implementation), not an instantaneous reading; `top` gives a live, recent-interval view |
 | `%MEM` | Share of system memory currently used |
 | `CMD` | The command that started the process |
 
@@ -471,7 +482,7 @@ Actual observed output:
    5420    5418 Sl    0.0  0.2 tail -f /dev/null
 ```
 
-Notice the `STAT` value `Sl` — sleeping (Section 6), with `l` indicating it's a multi-threaded process at the OS level (a detail belonging to the Threads lesson, not explained further here).
+In this captured environment, the `STAT` value was `Sl` — your own `STAT` value may differ (for example, a plain `S`), since the exact state letters and suffixes depend on your environment and the process. Here, `Sl` means sleeping (Section 6), with `l` indicating it's a multi-threaded process at the OS level (a detail belonging to the Threads lesson, not explained further here).
 
 **Step 4–6: inspect it via `/proc`, observing identity, command, working directory, and open files.**
 
@@ -541,7 +552,7 @@ This confirms both that the kernel has finished cleaning up the process's `/proc
 |---|---|
 | "A program and a process are the same thing." | A program is a static file; a process is an active, OS-tracked running instance of it (Section 1, Section 5). |
 | "A Python file is a process." | A `.py` file is a program — passive code on disk. Running it (`python app.py`) creates a process; the file itself never becomes one (Section 1, Section 13). |
-| "One program can only have one process." | The same program file can be run any number of times, each producing an independent process with its own memory and resources (Section 5). |
+| "One program can only have one process." | The same program file can be run any number of times, each normally producing a separate process with its own virtual address space and resources (Section 5). |
 | "A process always uses the CPU." | A process can exist while sleeping/waiting, ready-but-not-yet-scheduled, or stopped — using no CPU at all during those times (Section 6). |
 | "If a process exists, it must currently be running." | Existing (being tracked by the kernel, holding resources) and actively running on a CPU right now are different things (Section 6). |
 | "A PID identifies the application permanently." | A PID identifies one specific running instance for its lifetime only; running the same program again very likely produces a different PID (Section 5). |
@@ -600,15 +611,15 @@ Each scenario follows: problem, beginner's likely assumption, correct mental mod
 
 1. *Problem:* a process that was previously running is no longer visible in `ps`.
 2. *Beginner's likely assumption:* "The system must have removed it randomly, without a specific cause."
-3. *Correct mental model:* a process disappearing always means it terminated — cleanly (it finished its work and exited) or abnormally (it crashed, or was signaled to stop by something) — never "randomly," even if the specific cause isn't immediately obvious to you.
+3. *Correct mental model:* a process that no longer appears in a particular `ps` query may have terminated — cleanly (it finished its work and exited) or abnormally (it crashed, or was signaled to stop by something) — rather than vanishing "randomly," even if the specific cause isn't immediately obvious to you. Also check that the query itself (the PID or selection used, and what you are able to see) is not what changed.
 4. *Investigation approach:* check whether the process's exit status was recorded anywhere available to you (application logs, a process manager's own logs), and consider whether the process's own logic would naturally have completed around that time, versus stopping unexpectedly mid-task.
-5. *Expected conclusion:* "the process is gone" always has a real, specific termination cause behind it (Section 6, Section 9) — the debugging task is narrowing down which kind of termination happened, not questioning whether termination happened at all.
+5. *Expected conclusion:* once you have confirmed the process is genuinely gone (and not merely missing from your query), it has a real, specific termination cause behind it (Section 6, Section 9) — the debugging task is narrowing down which kind of termination happened.
 
 **Scenario 6 — A learner confuses a program file with a process.**
 
 1. *Problem:* a learner says something like "I edited the process" when they mean they edited `app.py`, or expects editing a running script's file to change the behavior of an already-running process.
 2. *Beginner's likely assumption:* "The process and the file are the same thing, so changing one changes the other."
-3. *Correct mental model:* a process loaded its code from the program file at the time it was created (Section 6); editing the file afterward does not retroactively change a process that's already running, because the process is a separate, already-loaded execution instance (Section 1).
+3. *Correct mental model:* a process loaded its code from the program file at the time it was created (Section 6); editing the program/source file normally does not replace the already-loaded code of an existing process, because the process is a separate, already-loaded execution instance (Section 1). (A program can nevertheless be deliberately designed to reread files or load resources/code at runtime.)
 4. *Investigation approach:* ask specifically whether the *file* was changed, or whether the *running process* was restarted — a process must generally be stopped and started again (a new process, from the updated file) for code changes to take effect.
 5. *Expected conclusion:* "I changed the code" and "the running process is now using that changed code" are two different facts, and confusing them is one of the most common beginner mistakes this lesson exists to prevent.
 
@@ -657,7 +668,7 @@ Work through these in your own words. No answer key exists for this lesson — t
 26. A process shows sustained high `%CPU` in `top`. Using Scenario 2, explain what you can and cannot conclude from that observation alone.
 27. A process's memory usage climbs steadily over an hour. Using Scenario 3, explain how to reason about whether this is expected or concerning, without assuming a specific cause.
 28. A learner is about to run `kill` on a PID they identified from memory, without re-checking it. Using Scenario 4, explain the safer approach and why it matters.
-29. A process that was running is no longer visible in `ps`. Using Scenario 5, explain why "it just disappeared randomly" is never actually a complete explanation.
+29. A process that was running is no longer visible in `ps`. Using Scenario 5, explain why "it just disappeared randomly" is not a complete explanation, and what else (besides termination) to check about your `ps` query.
 30. A learner edits `app.py` while an earlier process started from that file is still running, then is confused that the running service's behavior hasn't changed. Using Scenario 6, explain what's actually going on.
 31. A learner assumes that because their AI service process shows 0% CPU in `ps` at a given moment, it must be broken. Using Section 6, Example 7, and Section 10, explain why this assumption may be wrong.
 32. A learner runs `ps -p <PID>` and sees no output at all, where they expected to see their process. Explain the most likely conclusion, referencing Section 9's lab.
@@ -691,7 +702,7 @@ Work through these in your own words. No answer key exists for this lesson — t
 - Whether `htop` is installed depends entirely on your specific environment — this lesson's environment did not have it, and that was not treated as a blocker.
 - Exit statuses you observe from your own scripts depend entirely on what those scripts do — only `0` reliably means "conventionally successful" across arbitrary programs; specific non-zero values are application-defined.
 
-**What happens when the lesson-created process is terminated:** it stops appearing in `ps`, its `/proc/<PID>/` entry disappears (confirmed directly in Section 9), and the kernel reclaims its memory and closes its open file descriptors automatically — you do not need to manually clean up a terminated process's OS-level resources, only any files it may have written to disk, if applicable (this lesson's lab wrote none).
+**What happens when the lesson-created process is terminated:** it stops appearing in `ps`, its `/proc/<PID>/` entry disappears (confirmed directly in Section 9), and the kernel reclaims most of its resources (memory, open file descriptors) automatically, though Unix-like systems may briefly retain minimal metadata until the parent reaps it — you do not need to manually clean up a terminated process's OS-level resources, only any files it may have written to disk, if applicable (this lesson's lab wrote none).
 
 ---
 

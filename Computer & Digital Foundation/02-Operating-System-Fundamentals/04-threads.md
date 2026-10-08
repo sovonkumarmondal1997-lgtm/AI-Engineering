@@ -47,7 +47,7 @@ Thread    =  an execution path running within that container
 
 **Important caveat, stated now and repeated throughout this lesson:** this is a simplified teaching model. Real operating systems and language runtimes implement threads with real engineering detail this lesson does not cover (kernel thread scheduling structures, runtime-level thread management, and more — each belongs to later curriculum, not this beginner-level foundation). What this lesson guarantees is the *conceptual shape*: one process, one or more independent execution paths inside it, sharing most of what the process owns.
 
-**Every process has at least one thread.** A process without any thread of execution wouldn't be running anything at all — so the very first thing a process does is start running as a single thread. A **single-threaded process** has exactly one execution path; a **multi-threaded process** has more than one, all inside the same process, sharing the same resources.
+**Every running process has at least one thread of execution.** A process without any thread of execution wouldn't be running anything at all — so the very first thing a process does is start running as a single thread. A **single-threaded process** has exactly one execution path; a **multi-threaded process** has more than one, all inside the same process, sharing the same resources.
 
 ---
 
@@ -58,8 +58,9 @@ Thread    =  an execution path running within that container
 ```text
 Requirement: a single application often needs multiple things happening during overlapping time
      ↓
-Option A: use multiple separate processes — strong isolation, but no shared memory,
-          and communication between them requires explicit, kernel-mediated mechanisms
+Option A: use multiple separate processes — strong isolation, no shared memory by default,
+          and communication between them requires explicit IPC mechanisms (pipes, sockets,
+          explicitly established shared memory, and others)
      ↓
 Option B: give one process multiple independent execution paths that share its memory
           directly — this is the thread
@@ -71,7 +72,7 @@ Option B: give one process multiple independent execution paths that share its m
 - **Responsiveness.** An application can continue handling new work (or remain responsive to input) while another part of it is busy or waiting.
 - **Overlapping waiting and computation.** While one thread is waiting on something slow (a file, a network reply), another thread in the same process can continue useful work in the meantime.
 - **Handling multiple independent tasks.** A server handling several client requests, or a pipeline handling several independent units of work, can assign each to its own thread.
-- **I/O-bound workloads.** Work that spends a lot of time waiting on input/output (Section 6, Section 9) is a particularly good fit for threads, because waiting threads don't need the CPU during that wait.
+- **I/O-bound workloads.** Work that spends a lot of time waiting on input/output (Section 6, Section 9) is a particularly good fit for threads, because waiting threads don't need the CPU during that wait. Threads can be effective for I/O-bound workloads, particularly when the blocking operation allows other threads to make progress.
 - **Server request handling.** Many server architectures use threads (among other approaches) to handle multiple simultaneous client connections.
 - **Background work.** A long-running task can proceed on its own thread while the rest of the application continues.
 
@@ -153,7 +154,7 @@ This is the single most important comparison in this lesson. Where behavior genu
 | **Resource sharing** | Resources (open files, etc.) generally belong to the process, not shared between processes automatically | Sibling threads generally share the process's open files and other process-level resources |
 | **Isolation** | Strong — the kernel keeps one process's memory separate from another's (Concept 03, Section 6) | Weaker between sibling threads — they can directly read and write the same shared memory by design |
 | **Creation overhead** | Typically involves setting up a full new address space and resource set — often relatively heavier | Typically lighter, since it reuses the existing process's address space and resources — but the exact cost depends heavily on the operating system and runtime, and should not be treated as an unconditional law |
-| **Communication** | Requires explicit, kernel-mediated mechanisms (later lessons: pipes, and others) to exchange data | Can communicate simply by reading and writing shared memory directly — fast, but riskier (Section 6) |
+| **Communication** | Normally have separate address spaces, so they cannot directly access each other's ordinary memory; they communicate through IPC mechanisms such as pipes, sockets, message queues, or explicitly established shared memory (later lessons cover some of these) | Can directly access shared memory within the same process — fast, but riskier (Section 6); synchronization may still require runtime or OS-supported mechanisms |
 | **Failure impact** | A crash is generally contained to that one process (Concept 03's isolation discussion) | A severe failure in one thread can more easily affect the whole process, since threads share the same address space |
 | **Scheduling relationship** | The OS scheduler (Concept 05, not taught here) allocates CPU time to runnable execution entities | Threads are also scheduled — often as the actual unit the scheduler grants CPU time to; the precise relationship is the Scheduling lesson's subject |
 | **Debugging complexity** | Generally easier to reason about in isolation, since state isn't shared with other processes | Can be significantly harder to debug, because bugs may depend on the exact timing of shared-memory access (Section 6) |
@@ -171,7 +172,7 @@ Threads within the same process commonly share:
 - **Global/shared data** — variables intended to be visible across the whole program are visible to every thread.
 - **Many process-level resources** — open file descriptors and other resources generally belong to the process as a whole and are accessible from any of its threads.
 
-**Why sharing makes communication easier:** because threads see the same memory directly, one thread can simply write a value that another thread reads, with no need for the more elaborate, kernel-mediated communication mechanisms separate processes require (a later lesson's subject).
+**Why sharing makes communication easier:** because threads see the same memory directly, one thread can simply write a value that another thread reads, with no need for the explicit IPC mechanisms separate processes normally rely on (pipes, sockets, or explicitly established shared memory — a later lesson's subject).
 
 **Why sharing also creates risk:** exactly because multiple threads can read and write the same memory at the same time, without any inherent coordination, two threads can interfere with each other's work in ways that produce incorrect results — this is the subject of Section 6's race-condition example and Section 13's thread safety discussion.
 
@@ -182,7 +183,7 @@ Each thread has its own:
 - **Execution state** — where, specifically, this thread currently is in the program's execution, distinct from every other thread.
 - **Instruction position (conceptual "program counter")** — a concept introduced at a beginner level in Module 0.1's CPU lessons; here, it's enough to know that each thread tracks its own current position independently, without needing register-level detail.
 - **Execution context (registers, conceptually)** — each thread has its own set of in-progress working values, distinct from other threads', so that switching between threads doesn't lose or mix up any one thread's in-progress work. (This lesson does not repeat Module 0.1's register lesson — only the fact that this state is thread-specific matters here.)
-- **Stack** — its own memory region for tracking function calls, local variables, and "where to return to" as its own execution proceeds — kept separate precisely so that one thread's local, in-progress work isn't visible to or overwritten by another thread's.
+- **Stack** — its own memory region for tracking function calls, local variables, and "where to return to" as its own execution proceeds. Each thread has its own stack for its execution state and normal local/automatic storage, so one thread's in-progress function calls don't get mixed up with another's. However, a thread's stack is **not** a memory-isolation or security boundary: all thread stacks exist within the same process address space, so another thread can access stack memory if it has a valid address and appropriate access.
 - **Thread identity** — its own identifier, distinguishing it from sibling threads (next subsection).
 - **Scheduling state** — its own runnable/waiting/running status (Section 6), tracked independently of its sibling threads' states.
 
@@ -282,7 +283,17 @@ Core 2: Task B ███████
 
 **Shared state.** When more than one thread can read and/or write the same piece of memory, that memory is shared state.
 
-**Race condition.** Simple meaning: a bug that happens because two threads access shared data at nearly the same time, in a way that produces a wrong result depending on the unpredictable order their steps happen to interleave. Technical meaning: a race condition occurs when the correctness of a program's result depends on the relative timing of operations across multiple threads accessing shared state, such that different possible interleavings of those operations produce different, and sometimes incorrect, outcomes.
+**Race condition.** Simple meaning: a bug that happens because the result depends on the unpredictable timing or order of things happening at nearly the same time. Technical meaning: a race condition occurs when the correctness or behavior of a system depends on the relative timing or ordering of concurrent operations, such that different possible interleavings produce different, and sometimes incorrect, outcomes.
+
+```text
+Race condition
+    ↓
+behavior depends on timing/order of concurrent operations
+    ↓
+common example: multiple threads accessing shared mutable state
+```
+
+The shared-memory counter below is the most common example of this, not the only form a race condition can take.
 
 **A concrete conceptual example:**
 
@@ -310,11 +321,11 @@ Expected result: counter = 2   (since two increments happened)
 
 | Category | Example | Thread-safety implication |
 |---|---|---|
-| Immutable / shared read-only data | A configuration value loaded once and never changed | Safe for any number of threads to read simultaneously — no writes means no race condition is possible |
+| Immutable / shared read-only data | A configuration value loaded once and never changed | Generally safe to read concurrently when the data is truly immutable and the underlying operations are thread-safe — with no writes, there is no read/write race on that data |
 | Shared mutable data | The `counter` example above; a shared cache being updated | The highest-risk category — requires deliberate synchronization to be safe |
-| Isolated per-thread state | Each thread's own local variables, its own stack | Inherently safe — by definition, no other thread can see or touch it |
+| Isolated per-thread state | Each thread's own local variables, its own stack | Reduces shared-state race risk, because the state is not shared directly with sibling threads (the thread can still interact with shared resources) |
 
-**Why shared mutable state increases complexity, restated plainly:** it is precisely the combination of "more than one thread can access it" and "at least one thread can change it" that makes race conditions possible at all. Read-only sharing and fully isolated per-thread state are both inherently safe; shared *mutable* state is where careful engineering is required — and, per this lesson's scope boundary, *how* to engineer it safely is next-level curriculum, not this lesson's job.
+**Why shared mutable state increases complexity, restated plainly:** it is precisely the combination of "more than one thread can access it" and "at least one thread can change it" that makes race conditions possible at all. Truly read-only sharing and isolated per-thread state both carry much lower race risk; shared *mutable* state is where careful engineering is required — and, per this lesson's scope boundary, *how* to engineer it safely is next-level curriculum, not this lesson's job.
 
 ---
 
@@ -332,7 +343,7 @@ A service needs to query a database and separately call an external API, and nei
 
 **Example 3 — AI inference (CPU-bound and GPU-bound work).**
 
-Model inference computation is fundamentally different from the waiting-heavy examples above — it's CPU-bound (actively computing) or GPU-bound (actively using a GPU accelerator), not waiting on external I/O. **Adding more Python threads to CPU-bound work does not automatically produce a proportional speedup**, for reasons Section 9 explains specifically (the GIL). Whether GPU-bound work benefits from additional threads depends on the specific inference framework and GPU driver architecture involved — detail that is explicitly out of this lesson's scope (no GPU driver or kernel programming is taught here). The point for this lesson is narrower: **before reaching for threads to speed up inference work, first correctly identify whether the workload is I/O-bound or CPU/GPU-bound** — this lesson gives you that classification skill; it does not teach you how to optimize either kind of workload.
+Model inference computation is fundamentally different from the waiting-heavy examples above — it's CPU-bound (actively computing) or GPU-bound (actively using a GPU accelerator), not waiting on external I/O. **Adding more Python threads to CPU-bound work does not automatically produce a proportional speedup**, for reasons Section 9 explains specifically (the GIL in default GIL-enabled CPython). Whether GPU-bound work benefits from additional threads depends on the specific inference framework and GPU driver architecture involved — detail that is explicitly out of this lesson's scope (no GPU driver or kernel programming is taught here). The point for this lesson is narrower: **before reaching for threads to speed up inference work, first correctly identify whether the workload is I/O-bound or CPU/GPU-bound** — this lesson gives you that classification skill; it does not teach you how to optimize either kind of workload.
 
 **Example 4 — Web service handling multiple requests.**
 
@@ -437,7 +448,7 @@ DEMO_PID=$!
 echo "Started PID: $DEMO_PID"
 ```
 
-Actual observed output:
+Actual observed output (author-recorded example values; your PID will differ and should not be expected to match):
 
 ```text
 Started PID: 5589
@@ -465,7 +476,7 @@ ps -T -p "$DEMO_PID"
 ps -L -p "$DEMO_PID"
 ```
 
-Actual observed output (`ps -T`):
+Actual observed output (`ps -T`; author-recorded example values — your PID and SPID numbers will differ):
 
 ```text
     PID    SPID TTY          TIME CMD
@@ -493,7 +504,7 @@ Actual observed output (`ps -L`) — identical in shape, with `LWP` replacing `S
 ls "/proc/$DEMO_PID/task"
 ```
 
-Actual observed output:
+Actual observed output (author-recorded example values; your thread IDs will differ):
 
 ```text
 5589
@@ -523,7 +534,7 @@ process exit status: 0
     PID TTY          TIME CMD
 ```
 
-The three `worker N done` lines appear together, close in time, rather than one fully finishing before the next begins — direct, observable evidence that the three threads were genuinely overlapping their waiting, exactly as Section 2 and Example 1 (Section 7) described conceptually. The exit status `0` confirms the process completed successfully (Concept 03's exit-code discussion). The final, empty `ps -p` result confirms the process — and every thread that belonged to it — is now completely gone; no manual `kill` was needed, and no temporary files or leftover processes remain.
+The three `worker N done` lines appear together, close in time, rather than one fully finishing before the next begins — observable evidence consistent with the three threads overlapping their waiting, as Section 2 and Example 1 (Section 7) described conceptually. This is not a rigorous benchmark, and it is not proof of parallel CPU execution — these threads were mostly sleeping, not computing. The exit status `0` confirms the process completed successfully (Concept 03's exit-code discussion). The final, empty `ps -p` result confirms the process — and every thread that belonged to it — is now completely gone; no manual `kill` was needed, and no temporary files or leftover processes remain.
 
 **WSL2 caveat:** every observation in this lab reflects the Linux environment running inside WSL2, exactly as in the previous two lessons — the same PIDs, SPIDs, and timing values will not reproduce identically on your own machine or run, and that variability is expected.
 
@@ -544,7 +555,7 @@ The three `worker N done` lines appear together, close in time, rather than one 
 | "A Python thread is exactly the same abstraction as an OS thread in every implementation." | Python's `threading` module behavior — and its relationship to actual OS-level threads — depends on the specific Python implementation and runtime (Section 9); this lesson deliberately avoids treating "Python thread" and "OS thread" as interchangeable in every context. |
 | "Python threads cannot do anything concurrently." | Python threads can absolutely make concurrent progress, especially for I/O-bound work (Section 7, Section 9) — this misconception oversimplifies a more nuanced reality involving CPU-bound work specifically. |
 | "The GIL means Python programs cannot use multiple CPU cores at all." | The GIL specifically constrains CPU-bound *threading* within a single CPython process with the GIL enabled; other approaches (separate processes, and — for those specifically opting in — GIL-free CPython builds) can use multiple cores (Section 9). |
-| "The GIL exists in every Python implementation." | The GIL is a characteristic of the standard CPython implementation (and, even there, is becoming optional in newer versions); other Python implementations may behave differently (Section 9). |
+| "The GIL exists in every Python implementation." | The GIL is a characteristic of the standard (default) CPython implementation (and, even there, is becoming optional in newer free-threaded CPython builds); other Python implementations may behave differently (Section 9). |
 | "If code works correctly with one thread, it must work correctly with many threads." | Single-threaded correctness says nothing about thread safety — race conditions (Section 6) only appear when multiple threads actually access shared state concurrently. |
 | "A thread crash always crashes the entire operating system." | A severe failure can affect the process the thread belongs to (Section 5's "failure impact" row), but process isolation (Concept 03) still generally contains this from affecting unrelated processes or the whole OS. |
 | "A thread is the same thing as an async task." | An async task (a different, non-thread-based concurrency model) is explicitly out of this lesson's scope (Section 7's web-service example) — threads and async tasks are related but distinct concepts, not synonyms. |
@@ -646,8 +657,8 @@ Work through these in your own words. No answer key exists for this lesson — t
 
 17. Run the Section 9 Python program (or a similar small multi-threaded program) in your own WSL2 terminal, capture its PID, and inspect it with both `ps -T -p <PID>` and `ps -L -p <PID>`. Record what you observe.
 18. For the same process, inspect `/proc/<PID>/task`. Compare the entries you see to the `SPID`/`LWP` values `ps` reported.
-19. In your own terminal, run `python3 -c "import sys; print(hasattr(sys, '_is_gil_enabled'))"`. Record the result and explain what it tells you about your Python build.
-20. Using Section 9's timing observation (the three `worker N done` lines appearing close together), explain what this demonstrates about whether the three threads were genuinely overlapping their waiting time.
+19. In your own terminal, run `python3 -c "import sys; print(sys._is_gil_enabled() if hasattr(sys, '_is_gil_enabled') else 'API unavailable')"`. Record the result and explain what it tells you about your Python build: `True` means the GIL is enabled, `False` means it is disabled, and `API unavailable` means that Python version/build does not expose the function.
+20. Using Section 9's timing observation (the three `worker N done` lines appearing close together), explain what this is consistent with regarding the three threads overlapping their waiting time, and why it is not a rigorous measurement or proof of parallel CPU execution.
 21. A classmate says, "Since `ps -T` showed four rows for my program, I must have four separate processes running." Using Section 9's lab, explain what's incorrect about that claim.
 22. Using Section 6's "what threads share/don't share" lists, sketch (in text) what a two-threaded process's memory layout conceptually looks like.
 23. Explain, using Section 7's Example 1, why making several independent LLM API calls on separate threads can reduce total waiting time compared to making them one after another.
@@ -668,7 +679,7 @@ Work through these in your own words. No answer key exists for this lesson — t
 
 33. Draw (in text/ASCII) a Python AI service with one process and three threads — one handling request parsing, one making an external LLM API call, one updating a shared in-memory cache — labeling what's shared and what's thread-specific, using Section 1's core model.
 34. A friend claims, "Since I understand processes now, threads are basically the same thing with a different name." Using Section 5's comparison table, construct a response identifying at least four concrete, substantive differences.
-35. Explain how "I/O-bound workloads benefit from threads, but CPU-bound Python threading is constrained by the GIL" (Section 9) should change how an Applied AI Engineer decides whether to use threads for a specific piece of work — using at least one example each of an I/O-bound and a CPU-bound AI-engineering task.
+35. Explain how "I/O-bound workloads benefit from threads, but CPU-bound threading in GIL-enabled CPython is constrained by the GIL" (Section 9) should change how an Applied AI Engineer decides whether to use threads for a specific piece of work — using at least one example each of an I/O-bound and a CPU-bound AI-engineering task.
 36. A production AI service's shared request-counting cache occasionally undercounts requests under heavy concurrent load, but never under light load. Using Section 6's race-condition example and Section 11's Scenario 7, construct a plausible, reasoned explanation.
 37. Using everything in this lesson, explain to a beginner (in your own words, as if teaching them) why understanding "what a thread shares versus what it doesn't" is the single most important idea in this lesson for avoiding real production bugs.
 
@@ -689,7 +700,7 @@ Work through these in your own words. No answer key exists for this lesson — t
 
 - `ps -T` and `ps -L` on a multi-threaded process will show **multiple rows sharing the same `PID`**, each with a different `SPID`/`LWP` value — this shape (same PID, different thread identifiers) is the reliable, expected pattern, even though the specific numeric values will differ every time you run it.
 - `/proc/<PID>/task/` will list exactly as many entries as there are threads in that process — matching what `ps -T`/`ps -L` reported.
-- For an I/O-bound multi-threaded program like Section 9's example, the threads' completion messages should appear close together in time, not strictly one-after-another — evidence of overlapping waiting.
+- For an I/O-bound multi-threaded program like Section 9's example, the threads' completion messages should appear close together in time, not strictly one-after-another — evidence consistent with overlapping waiting (not a rigorous measurement).
 
 **Possible environment-dependent results — these will vary by machine and are expected to vary:**
 
@@ -780,7 +791,7 @@ For a production Applied AI Engineer, this lesson's mental model shows up consta
 
 - **Python services and API servers.** Understanding what a thread actually shares (Section 5) is the foundation for reasoning correctly about concurrent request handling in any framework, regardless of its specific architecture.
 - **Concurrent requests.** Multiple requests being handled "at once" may mean multiple threads, multiple processes, or an entirely different concurrency model (Section 7) — knowing what a thread specifically is lets you ask the right follow-up question about any given system.
-- **I/O-bound workloads (LLM API calls, database operations).** This lesson's core, practically useful takeaway: I/O-bound work is where threads most reliably help, by overlapping waiting time (Section 7, Section 9).
+- **I/O-bound workloads (LLM API calls, database operations).** This lesson's core, practically useful takeaway: I/O-bound work is where threads can be most effective, particularly when the blocking operation allows other threads to make progress, by overlapping waiting time (Section 7, Section 9).
 - **Background work.** The same thread concept, and the same sharing/risk trade-offs, apply identically whether the work is handling a live request or running in the background.
 - **Model-serving systems.** Correctly classifying inference work as CPU-bound or GPU-bound, rather than assuming threads will speed it up the way they speed up I/O-bound work (Section 7, Example 3), avoids a common, costly misunderstanding.
 - **Shared state.** Every shared cache, shared counter, or shared in-memory structure in a multi-threaded service is a genuine race-condition risk (Section 6, Section 11) worth deliberately reasoning about, not an incidental implementation detail.

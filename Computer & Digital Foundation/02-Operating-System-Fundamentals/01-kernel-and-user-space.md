@@ -34,10 +34,12 @@ has been explicitly permitted to use, and cannot directly manipulate hardware or
 memory. Your Python interpreter, your text editor, your web browser, and an AI inference service
 all run in user space.
 
-**Kernel space.** Simple meaning: the restricted area where the kernel itself runs. Technical
-meaning: kernel space is the privileged execution environment in which the kernel's own code runs,
-with the ability to directly control hardware, access any memory, and perform operations that user
-space code is not permitted to perform on its own.
+**Kernel space.** Simple meaning: the restricted area where the kernel, and other trusted
+privileged components, run. Technical meaning: kernel space is the privileged execution environment
+in which the kernel's own code — and other trusted kernel-mode components, such as kernel-mode
+drivers — runs, with the ability to directly control hardware, access a much broader range of
+system memory than user-space code (subject to the CPU architecture and the system's security
+mechanisms), and perform operations that user space code is not permitted to perform on its own.
 
 **A simple mental model** to hold onto for the rest of this lesson:
 
@@ -47,7 +49,7 @@ Application               (a program you or someone else wrote — e.g. a Python
 User Space                (where that application actually executes)
      ↓
 OS interface /
-system-call boundary      (the only sanctioned way to cross from user space into the kernel)
+system-call boundary      (the primary, controlled way to cross from user space into the kernel)
      ↓
 Kernel Space               (where the kernel executes, with full hardware privilege)
      ↓
@@ -148,8 +150,9 @@ about a huge range of real problems:
   questions about your model's architecture or your Python logic — they're questions about how
   your user-space program is interacting with kernel-managed resources.
 - **Permission errors are kernel-enforced, not application bugs.** When a Python script fails to
-  open a dataset file with a permissions error, the kernel refused the request — your code is
-  correct; the OS-level rule is what stopped it. Recognizing this immediately narrows your
+  open a dataset file with a permissions error, the operating system checked the applicable access
+  rules and rejected the request — your code is correct; the OS-level rule is what stopped it.
+  Recognizing this immediately narrows your
   debugging in the right direction, instead of searching for a bug in application logic that
   doesn't exist.
 - **Containers, GPUs, and production servers all sit on top of this same boundary.** A containerized
@@ -266,7 +269,8 @@ available to every piece of running code — some instructions are restricted to
 only.
 
 **CPU execution modes (privilege levels).** Modern CPUs are built with hardware support for at
-least two execution modes:
+least two execution modes. (User mode and kernel mode are a simplified conceptual model; the exact
+privilege mechanisms and number of levels vary by CPU architecture.)
 
 - **User mode** — the restricted mode. Code running in user mode cannot execute certain sensitive
   CPU instructions (for example, ones that directly reconfigure memory management or talk to
@@ -274,7 +278,9 @@ least two execution modes:
   applications run in user mode.
 - **Kernel mode** — the privileged mode. Code running in kernel mode can execute the full
   instruction set the CPU offers, including sensitive, hardware-controlling instructions, and can
-  access memory more broadly. Only the kernel runs in kernel mode.
+  access memory more broadly. Kernel mode is used by the kernel itself and by other trusted
+  kernel-mode components, such as kernel-mode drivers; ordinary applications run in user mode, not
+  kernel mode.
 
 This distinction is enforced by the **CPU hardware itself**, not just by software convention. The
 processor tracks which mode it is currently in, and refuses to execute privileged instructions
@@ -323,13 +329,19 @@ lands execution at a location the kernel itself has designated as a safe, valid 
 handling requests. This is part of what makes the boundary trustworthy — the kernel is never
 forced to begin executing from a location chosen by potentially buggy or hostile user-space code.
 
+**A note on completeness:** this lesson describes the conventional system-call path, which remains
+the primary, controlled mechanism through which ordinary user-space programs request services from
+the kernel. Some operating systems also provide specialized interfaces (for example, Linux's vDSO
+or io_uring) that can reduce or avoid a traditional system call for particular operations, without
+weakening the general privilege boundary described here.
+
 **Putting the technical picture together:**
 
 ```text
 User mode        →  restricted CPU privilege level; where ordinary applications run
 Kernel mode       →  full CPU privilege level; where the kernel runs
 Privilege boundary →  the line between them, enforced by CPU hardware
-System-call interface → the only sanctioned, controlled way to cross that boundary
+System-call interface → the primary, controlled way to cross that boundary
 ```
 
 ---
@@ -454,9 +466,11 @@ level of detail belongs to the next lesson.
 
 - *What the application wants:* the contents of a file stored on disk (for example, a dataset a
   training script needs to load).
-- *Why the kernel is involved:* the file's data lives on a physical storage device, and the layout
-  of files on that device (which the Filesystems lesson covers) is tracked and managed entirely by
-  the kernel. A user-space program has no direct way to locate or retrieve that data itself.
+- *Why the kernel is involved:* for an ordinary file backed by a physical storage device, the
+  layout of files on that device (which the Filesystems lesson covers) is tracked and managed
+  entirely by the kernel, and a user-space program has no direct way to locate or retrieve that
+  data itself. (Not every file is backed by a physical disk — Section 9 introduces `/proc`, a
+  virtual filesystem the kernel generates on demand — but the kernel mediates access either way.)
 - *OS-managed resource:* the filesystem and the underlying storage device.
 - *User-space/kernel-space relationship:* the application requests the file's contents; the kernel
   performs the actual retrieval and hands the data back.
@@ -470,7 +484,9 @@ level of detail belongs to the next lesson.
   any other program that might also be using storage at the same time.
 - *OS-managed resource:* the filesystem and the underlying storage device.
 - *User-space/kernel-space relationship:* the application hands data to the kernel and requests
-  that it be written; the kernel performs and confirms the write.
+  that it be written; the kernel performs the write through the filesystem, though a successful
+  write does not necessarily mean the data has already been durably committed to the physical
+  storage medium.
 
 **3. Creating/running a process.**
 
@@ -491,20 +507,26 @@ level of detail belongs to the next lesson.
   array of numbers, or a batch of input data).
 - *Why the kernel is involved:* physical memory is a shared, finite resource, and the kernel is
   responsible for deciding which memory belongs to which program and ensuring one program cannot
-  read or corrupt another's memory (the full mechanism — virtual memory — is a later lesson).
+  read or corrupt another's memory (the full mechanism — virtual memory — is a later lesson). A
+  user-space allocator can often satisfy an individual allocation from memory it has already
+  obtained from the kernel; the kernel becomes directly involved when the program's runtime or
+  allocator needs additional virtual memory or mappings from the operating system.
 - *OS-managed resource:* the system's physical memory and the kernel's memory-management
   bookkeeping.
-- *User-space/kernel-space relationship:* the application requests memory; the kernel grants it a
-  region it is now permitted to use, and continues enforcing that no other program can touch it
-  without permission.
+- *User-space/kernel-space relationship:* when more memory is needed than the allocator already
+  has on hand, the application (via its runtime/allocator) requests it from the kernel; the kernel
+  grants a region it is now permitted to use, and continues enforcing that no other program can
+  touch it without permission.
 
 **5. Network communication.**
 
 - *What the application wants:* to send or receive data over a network (for example, an AI service
   accepting an inference request from a client, or a script downloading a dataset).
-- *Why the kernel is involved:* network hardware and the rules governing how data is packaged,
-  addressed, and delivered over a network are managed entirely by the kernel's networking
-  subsystem — no user-space program is allowed to talk to network hardware directly.
+- *Why the kernel is involved:* in the conventional OS networking model, the rules governing how
+  data is packaged, addressed, and delivered over a network are managed by the kernel's networking
+  subsystem, which coordinates with network hardware and drivers on a user-space program's behalf.
+  (Specialized high-performance systems can use alternative user-space networking paths, but that
+  is outside this lesson's scope.)
 - *OS-managed resource:* the network device and the kernel's networking stack.
 - *User-space/kernel-space relationship:* the application requests that data be sent or asks
   whether data has arrived; the kernel manages the actual hardware-level communication.
@@ -513,9 +535,10 @@ level of detail belongs to the next lesson.
 
 - *What the application wants:* to receive input (for example, typed input, or data piped in from
   another program) or to produce visible output (for example, printed text, or a log line).
-- *Why the kernel is involved:* standard input and standard output (their full treatment is a
-  later lesson in this module) are channels the kernel sets up and manages for every running
-  program, connecting a program to a terminal, a file, or another program.
+- *Why the kernel is involved:* on Unix-like systems such as Linux (their full treatment is a
+  later lesson in this module), standard input and standard output are channels the kernel sets up
+  and manages for every running program, connecting a program to a terminal, a file, or another
+  program.
 - *OS-managed resource:* the standard input/output channels the kernel establishes for the
   process.
 - *User-space/kernel-space relationship:* the application asks to read the next piece of input or
@@ -562,7 +585,8 @@ Shell                                    (a user-space program that itself relie
 - **Processes** are entities the kernel creates and manages; understanding that the kernel is a
   privileged manager of resources is what makes "the kernel creates and tracks a process" make
   sense in the first place.
-- **Threads** extend the process concept and are likewise created and scheduled by the kernel.
+- **Threads** extend the process concept; in common OS-managed threading models, threads are
+  created and scheduled with kernel support, though user-level threading models can also exist.
 - **Scheduling** is the kernel deciding which process or thread gets to use the CPU, and for how
   long — a direct application of "the kernel manages shared, contested resources."
 - **Virtual memory** is how the kernel enforces the memory isolation this lesson introduced only
@@ -624,8 +648,9 @@ command -v ps
 ```
 
 If nothing is printed, the tool is not installed. All of the commands listed above (`uname`,
-`whoami`, `id`, `ps`, and reading files under `/proc`) are part of a standard Ubuntu installation
-and should be available without installing anything.
+`whoami`, `id`, `ps`, and reading files under `/proc`) are normally available in a standard Ubuntu
+installation without installing anything, though a minimal or containerized Ubuntu environment can
+sometimes omit one.
 
 **Why `/proc` deserves special attention in this lesson specifically:** it is one of the clearest,
 safest, most concrete illustrations available to a beginner of the kernel/user-space relationship.
@@ -953,8 +978,9 @@ line of operating-system code yourself:
 - **I/O** — file access and network communication — are kernel-mediated in every case, meaning
   slow disks, slow networks, or misconfigured access rules show up as your application "being
   slow" or "failing," even when your code and your model are both functioning correctly.
-- **Networking** for any service accepting requests (an inference API, for example) depends
-  entirely on the kernel's networking subsystem to accept, route, and deliver that traffic to your
+- **Networking** for any service accepting requests (an inference API, for example) depends,
+  in the conventional model, on the kernel's networking subsystem to accept, route, and deliver
+  that traffic to your
   user-space process.
 - **Reliability** of a production system depends on the kernel correctly isolating and managing
   many competing user-space programs — the same principle from Section 2, now operating at
