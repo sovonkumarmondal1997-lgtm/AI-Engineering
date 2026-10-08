@@ -232,8 +232,8 @@ executes.**
 reports an error — something like "Incompatible types in assignment
 (expression has type `str`, variable has type `int`)" — **without
 ever running the code at all**. The checker's entire analysis happens
-by reading the source text and reasoning about it; it never executes
-`age = "twenty"` to discover the mismatch.
+by reading the source text and reasoning about it; it does not
+need to execute `age = "twenty"` to discover the mismatch.
 
 **Four terms, precisely distinguished, since they are frequently
 conflated:**
@@ -672,12 +672,14 @@ The `type` statement makes the alias **explicit** in the source
 itself — clearly distinguishing "this is a type alias declaration"
 from an ordinary variable assignment that merely happens to hold a
 type object, at a glance, without needing to infer intent from
-context. On Python versions before 3.12, the plain-assignment form
+context. On Python 3.12+, `type UserId = int` is the preferred explicit alias
+syntax. On Python versions before 3.12, the plain-assignment form
 (`UserId = int`) remains the correct, portable choice; a
 `TypeAlias`-annotated form (`UserId: TypeAlias = int`, using
-`typing.TypeAlias`, available from 3.10) is also available as an
-explicit-but-portable middle ground for projects that need to support
-3.10 or 3.11.
+`typing.TypeAlias`, available from 3.10) is an explicit-but-portable
+middle ground for projects that need to support 3.10 or 3.11 — but note
+that `typing.TypeAlias` has been **deprecated since Python 3.12** in
+favor of the `type` statement, so new 3.12+ code should not use it.
 
 **Readability, reuse, and domain modeling**: `Coordinates` communicates
 intent far more clearly than a bare `tuple[float, float]` repeated at
@@ -1152,22 +1154,28 @@ def double(value: TNumber) -> TNumber:
     return value * 2
 ```
 
-**A constraint** restricts a type variable to one of an **explicit,
-closed list** of specific types — `int` or `float`, in this example,
-and *nothing else at all*, not even a subclass of either.
+**A constraint** restricts a type variable to an **explicit, closed
+list** of specific types — `int` or `float`, in this example. The type
+variable is *solved as one of the listed constraints*: an argument must
+be compatible with one of them, and a subclass of a listed type is
+accepted but is *promoted* to that constraint.
 
 **Bound vs. constraint, the difference stated precisely**: a
 **bound** (§24) says "this type, or anything that inherits from it" —
-open-ended, permitting any subtype. A **constraint** says "exactly one
-of these specific types, from this closed list" — no subtyping
-relationship is implied or accepted; a type must be *literally one of*
-the listed alternatives (`int` or `float` here) to satisfy it, not
-merely compatible with one of them in some looser sense.
+open-ended, permitting any subtype. A **constraint** says "solve this as
+one of these specific types, from this closed list". The difference
+shows up in the result type: a **bound** preserves the more specific
+subtype the caller passed in, whereas a **constraint** resolves to the
+corresponding listed type, so passing a subclass of `int` yields `int`,
+not the subclass.
 
 ```python
 double(5)        # OK — int is one of the constrained alternatives
 double(5.0)         # OK — float is one of the constrained alternatives
 double("hello")        # error — str is not int and not float
+
+class MyInt(int): ...
+double(MyInt(3))    # accepted, but the result type is int (promoted), not MyInt
 ```
 
 **When each is appropriate**: reach for a **bound** when you need "any
@@ -1178,8 +1186,8 @@ set of acceptable types that don't share a convenient common base
 class to bound against (`int`/`float` here have no shared,
 specifically-arithmetic base class worth bounding against) — this is
 a narrower, less common need than a bound, and worth reaching for only
-when the "closed list of exact alternatives" shape genuinely matches
-your situation.
+when the "closed list of alternatives" shape genuinely matches your
+situation.
 
 ## 26. Type Narrowing
 
@@ -1751,23 +1759,28 @@ class Node:
         self.next_node = next_node
 ```
 This import, placed at the very top of a module, makes **every**
-annotation in that file automatically treated as a string at runtime
-(evaluated lazily, only if something actually inspects it) — meaning
+annotation in that file be stored as a string (stringized) at runtime
+rather than being evaluated immediately when the definition runs —
+meaning
 `Node | None` can be written directly, unquoted, everywhere in the
 file, with no forward-reference quoting needed anywhere, including for
 self-referential or otherwise not-yet-defined names.
 
 **A note on the state of this feature, stated honestly rather than
 overclaimed**: `from __future__ import annotations` has been
-available since Python 3.7 and remains an explicit, opt-in import you
-must add yourself — it is **not** default behavior in current Python,
-despite having been proposed, at one point, as a possible future
-default; do not assume it's automatically in effect. For a project
-targeting Python 3.12+ (this module's own baseline), both the quoted-
-string approach and the `from __future__ import annotations` approach
-remain fully valid, supported options — choose whichever your project
-adopts consistently, rather than mixing the two styles within one
-codebase.
+available since Python 3.7 and remains an explicit, opt-in import. On
+Python 3.7–3.13 it is the mechanism that stores annotations as strings
+instead of evaluating them immediately; without it, those versions
+evaluate annotations eagerly when the definition runs. **Python 3.14
+changes the default model**: annotation evaluation is *deferred* by
+default (annotations are evaluated only when something asks for them),
+so an unquoted forward reference such as `Node | None` works without the
+future import on 3.14+. The future import still stringizes annotations
+when present. For a project targeting Python 3.12+ (this module's own
+baseline) that may run on versions before 3.14, both the quoted-string
+approach and the `from __future__ import annotations` approach remain
+fully valid, supported options — choose whichever your project adopts
+consistently, rather than mixing the two styles within one codebase.
 
 ## 38. Annotations at Runtime
 
@@ -1791,10 +1804,27 @@ import inspect
 
 print(inspect.get_annotations(greet))
 ```
-`inspect.get_annotations()` is the modern, recommended way to read
-annotations, handling the string-vs-object distinction that `from
-__future__ import annotations` (§37) can introduce more robustly than
-accessing `__annotations__` directly.
+`inspect.get_annotations()` (Python 3.10–3.13) is the recommended way to
+read annotations on those versions, handling the string-vs-object
+distinction that `from __future__ import annotations` (§37) can
+introduce more robustly than accessing `__annotations__` directly. On
+**Python 3.14+**, the corresponding tool is
+`annotationlib.get_annotations()`, which can also return annotations in
+different formats (for example, as strings, or with unresolvable names
+kept as forward references):
+```python
+import annotationlib   # Python 3.14+
+
+print(annotationlib.get_annotations(greet))
+```
+(`inspect.get_annotations()` still works on 3.14; it is not invalid.)
+
+**A runtime caution**: reading annotations can mean *evaluating* the
+annotation expressions, and evaluation has runtime consequences — an
+annotation that refers to a name that isn't defined (yet) raises
+`NameError`, and an annotation expression is ordinary Python that runs
+when it is evaluated. Resolving annotations from code you do not control
+therefore deserves the same care as evaluating any other expression.
 
 **Frameworks, validation libraries, serialization, and dependency
 injection**: this runtime-inspection capability is exactly what powers
@@ -1805,9 +1835,9 @@ annotations to know how to convert it to/from JSON; a dependency-
 injection framework can read a function's parameter annotations to
 figure out what to automatically supply. **This is a genuinely
 separate, third thing from static type checking** — worth stating
-explicitly, since it's easy to conflate: a static checker (§39) never
-runs your code and never touches `__annotations__` at all — it works
-purely by reading source text; a framework using
+explicitly, since it's easy to conflate: a static checker (§39) does
+not run your code to verify it and does not need `__annotations__` at
+all — it works by analyzing source text; a framework using
 `inspect.get_annotations()` operates entirely at **runtime**, on the
 same annotation *information*, but through a completely different
 mechanism, for a completely different purpose (building actual runtime
@@ -1816,7 +1846,8 @@ behavior, not analyzing code before it runs).
 ## 39. Type Checkers
 
 A **static type checker** is a separate program that reads your
-Python source code — **without ever executing it** — and verifies that
+Python source code — **without executing it to verify its runtime
+behavior** — and verifies that
 your type annotations are used consistently throughout: that every
 function call's arguments match the declared parameter types, every
 assignment matches the declared variable type, every returned value
@@ -1836,7 +1867,8 @@ execution — typically invoked as its own command, on demand, or in CI
 (§83) — never as part of running `python app.py` itself. **Does it
 execute the program?** No — this bears repeating as plainly as
 possible, since it is the single most important fact about static
-type checking: a type checker **never runs your code**. It can, and
+type checking: an ordinary static type checker **analyzes your source code rather than
+running your application**. It can, and
 often does, report an error about a code path that would never
 actually execute at runtime (an unreachable branch, or one that's
 logically impossible given the actual data your program will ever see)
@@ -1870,7 +1902,7 @@ Python source code
       ↓
 Type annotations                (§3–§38 — the vocabulary this chapter has built)
       ↓
-Static type checker              (§39 — reads the code, never runs it)
+Static type checker              (§39 — analyzes the source; does not run the application)
       ↓
 Type analysis                      (following assignments, calls, narrowing, §26)
       ↓
@@ -2590,7 +2622,7 @@ fully in §56–§57: a dependency's type information doesn't have to live
 directly in its own `.py` source files — it can instead live in
 separate `.pyi` **stub files** shipped alongside the library, or the
 library can simply declare (via a `py.typed` marker file) that its own
-inline annotations should be trusted by checkers at all. **Third-party
+inline annotations are meant to be consumed by checkers at all. **Third-party
 stub packages** — separately published packages (conventionally named
 `types-<library>`) providing type stubs for a library that doesn't
 ship its own — are a further, community-maintained option worth
@@ -2647,8 +2679,10 @@ mypackage/
 
 **The purpose of `py.typed`**: a small, typically **empty** marker
 file placed directly inside a package's own directory, whose sole
-purpose is to declare "this package's own inline type annotations are
-complete and accurate enough to be trusted by a static type checker."
+purpose is to be a packaging marker (PEP 561) indicating that the
+package distributes inline typing information intended for static type
+checkers to consume. It signals intent; it is **not proof** that every
+annotation in the package is complete or correct.
 
 **Why library authors include it**: without a `py.typed` marker,
 static checkers conventionally assume a third-party package's own type
@@ -2656,8 +2690,10 @@ information (even if the source code *does* have annotations sprinkled
 throughout) is **not** reliable enough to be checked against by
 default, and treat imports from it as effectively `Any` (§17) unless
 explicitly told otherwise. Adding `py.typed` is a library author's
-explicit, deliberate promise: "you can trust my annotations — check
-your calls into my library against them."
+explicit, deliberate statement of intent: "my annotations are meant to
+be used — check your calls into my library against them." (Whether they
+are actually complete and correct is a separate matter that the marker
+cannot establish.)
 
 **Connecting this to distributing typed Python packages**: directly
 extending
@@ -3509,7 +3545,18 @@ purpose tool for other situations.
 ## 78. `Concatenate`
 
 ```python
-from typing import Concatenate
+import logging
+from collections.abc import Callable
+from typing import Concatenate, ParamSpec, TypeVar
+
+P = ParamSpec("P")
+R = TypeVar("R")
+Logger = logging.Logger
+
+
+def get_current_logger() -> Logger:
+    return logging.getLogger(__name__)
+
 
 def with_logger(
     func: Callable[Concatenate[Logger, P], R]
@@ -3570,7 +3617,8 @@ itself is).
 (`UserId = int`) is an ordinary variable assignment, binding a name
 directly to an existing type object, with no new object created at
 all. An **explicit alias** written using `TypeAlias` (`UserId:
-TypeAlias = int`, available from Python 3.10) adds a static-only
+TypeAlias = int`, available from Python 3.10, deprecated since 3.12 in
+favor of the `type` statement) adds a static-only
 annotation marking the assignment as intentionally an alias, without
 changing what actually happens at runtime. The **`type` statement**
 (3.12+) is different again at the runtime level — it creates a real
@@ -4793,10 +4841,9 @@ model) both describe.
 15. `TypeVar` preserves the actual relationship between an input's
     type and an output's type across a call; `Any` discards that
     relationship entirely, providing no type information at all (§21).
-16. A bound (`T: SomeBase`) accepts any subtype of a given type; a
-    constraint (`TypeVar("T", int, float)`) accepts only one of an
-    explicit, closed list of exact types, with no subtyping implied
-    (§24–§25).
+16. A bound (`T: SomeBase`) accepts any subtype of a given type; a constraint (`TypeVar("T", int, float)`) is solved as one of an
+    explicit, closed list of types — a subtype is accepted but promoted
+    to the matching listed type rather than preserved (§24–§25).
 17. The checker must be able to follow the code's actual control flow
     and see a recognized narrowing check (`isinstance`, `is None`,
     `assert`, or similar) governing that specific branch (§26).
@@ -4833,8 +4880,9 @@ model) both describe.
     attribute holding a function's/class's own annotations; static
     checking is a separate process that never touches this attribute
     at all, working purely from source text analysis (§38–§39).
-27. No — never. It reads and analyzes source code without executing
-    any of it (§39, §41).
+27. No — an ordinary static type checker reads and analyzes source
+    code rather than executing the application to verify its behavior
+    (§39, §41).
 28. Type inference is a checker's ability to determine a type from
     context (e.g. a literal value) without an explicit annotation;
     explicit annotation still adds value at boundaries with no
@@ -4967,8 +5015,9 @@ model) both describe.
 - **Stub (`.pyi`)** — a file containing only type information, no
   implementation, describing a module's types separately from its
   actual code (§56).
-- **`py.typed`** — a marker file signaling that a package's inline
-  annotations are trustworthy for a checker to verify against (§57).
+- **`py.typed`** — a packaging marker file signaling that a package
+  distributes inline type information for checkers to consume; it does
+  not prove the annotations are correct (§57).
 - **Gradual typing** — the design principle allowing typed and
   untyped code to coexist, with a project adopting annotations
   incrementally rather than all at once (§80).
@@ -4980,7 +5029,7 @@ WRITE PYTHON CODE
     ↓
 ADD TYPE INFORMATION            (§3–§38 — variables, functions, collections, generics, protocols, ...)
     ↓
-STATIC TYPE CHECKER               (§39 — reads the code; never runs it)
+STATIC TYPE CHECKER               (§39 — analyzes the source; does not run the application)
     ↓
 FIND TYPE-RELATED PROBLEMS          (§40–§47 — diagnostics, None-safety, narrowing)
     ↓
@@ -5004,7 +5053,7 @@ responsibilities:
   effect of their own (§3–§4).
 - **Type checkers analyze code statically.** They verify that
   declared and inferred types are used consistently, across an entire
-  codebase, without ever executing a single line of it (§39–§41).
+  codebase, by analyzing the source rather than running the application (§39–§41).
 - **Runtime validation protects system boundaries.** Only actual,
   executed code — never an annotation — can reject or convert data
   that doesn't match expectations, and this is where untrusted,

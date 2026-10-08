@@ -113,7 +113,7 @@ both the project and its dependencies change over time.
 
 ```
 application dependency        — a package your project needs to run
-direct dependency               — one your code imports and declares itself
+direct dependency               — one the project itself declares as a requirement (often because its code imports it)
 transitive dependency             — one a direct dependency needs, pulled in automatically
 dependency version                  — a specific release of a package (e.g. 2.31.0)
 dependency constraint                 — a rule describing which versions are acceptable (e.g. >=2.0)
@@ -200,7 +200,10 @@ application's own code, and its own `pyproject.toml`, ever needs to
 mention.
 
 **Why direct dependencies should normally be declared explicitly**:
-they represent a genuine, intentional choice — "my code needs this" —
+they represent a genuine, intentional choice — "my project needs this"
+(most often because its code imports it, though a direct dependency is
+defined by the project *declaring* the requirement, not solely by the
+existence of an `import` statement) —
 and belong in `pyproject.toml`'s `dependencies` (per the previous
 chapter's §7) so that choice is visible, reviewable, and versioned
 alongside the code that depends on it.
@@ -253,8 +256,12 @@ one declaration, but — as
 dependencies each demand a different exact version of something
 shared, and generally impose a maintenance burden of manually bumping
 every pin by hand, forever. A **bounded range**, informed by what
-SemVer promises (§6 onward), is this chapter's central recommended
-middle ground.
+SemVer promises (§6 onward), is often a useful middle ground — but not a
+universal one. The right strategy depends on whether the project is an
+application or a library (§24), on how reliably the dependency keeps its
+compatibility promises (SemVer is a convention, not a guarantee, §6),
+and on how critical the dependency is: a critical dependency may justify
+tighter controls than a bounded range alone.
 
 ## 5. Version Pinning
 
@@ -279,11 +286,12 @@ serve genuinely different purposes**, extending
 [03-pyproject-lock-files-and-uv.md](03-pyproject-lock-files-and-uv.md)'s
 §13/§16 directly: a *loose* constraint in `pyproject.toml`
 (`package>=1.4`) expresses **intended flexibility** — "any compatible
-version is fine, in principle" — while `uv.lock` still records **one
-exact, specific version** actually installed right now
-(`package==1.4.7`, say). The loose constraint gives *future*
-resolutions room to move; the lock file gives *today's* installation
-exact reproducibility. Confusing the two — believing a loose
+version is fine, in principle" — while `uv.lock` still records the **specific version(s)** resolved right
+now (`package==1.4.7`, say — in the common case one version, though the
+lock file can hold different variants for different Python
+versions or platforms, §15). The loose constraint gives *future*
+resolutions room to move; the lock file gives *today's* installation a
+reproducible resolved state. Confusing the two — believing a loose
 `pyproject.toml` constraint alone guarantees reproducibility, or
 believing an exact pin in `pyproject.toml` is what "locking" means —
 is precisely the confusion
@@ -296,9 +304,10 @@ direct three-way tradeoff: an exact pin maximizes reproducibility for
 that one declaration but requires manual maintenance to ever change; a
 bare minimum maximizes flexibility but sacrifices any guardrail
 against an unreviewed breaking change; a bounded range, informed by
-SemVer, is what lets a project receive routine, low-risk updates
+SemVer, is often what lets a project receive routine, low-risk updates
 automatically while still requiring a deliberate, reviewed decision to
-cross a boundary that might actually break something.
+cross a boundary that might actually break something (when the
+dependency's maintainers honor that convention).
 
 ## 6. What Is Semantic Versioning?
 
@@ -646,25 +655,38 @@ foundation:
 
 ```
 pyproject.toml   =   project-level dependency REQUIREMENTS   (what's acceptable, a range)
-uv.lock            =   RESOLVED dependency STATE               (exactly what's installed, one version each)
+uv.lock            =   RESOLVED dependency STATE               (the resolved versions; may hold environment-specific variants)
 ```
+
+`uv.lock` records the resolved dependency state; it may contain
+environment-specific variants (forks) when different Python versions or
+platforms need different versions of a package, and a concrete
+environment receives the compatible resolved set for itself. It is not
+"exactly one version per package, universally."
+
 
 The four distinct operations this chapter's update workflows (§17
 onward) constantly move between:
 
 - **Declaration** — writing/editing a constraint in `pyproject.toml`.
-- **Resolution** — the resolver computing one valid, compatible set of
-  exact versions satisfying every current declaration.
+- **Resolution** — the resolver computing a valid, compatible set of
+  versions (per supported environment) satisfying every current
+  declaration.
 - **Locking** — recording that resolved set into `uv.lock`.
 - **Installation/synchronization** — actually installing the locked
-  versions into the environment (`uv sync`).
+  versions into the environment (`uv sync`). Note that plain `uv sync`
+  also re-locks first if `uv.lock` is out of date; the strict forms are
+  `uv sync --locked` (fail if the lock would need to change) and `uv sync
+  --frozen` (use the lock as-is, without checking it is current).
 
 **A realistic workflow**, walking all four steps through concretely:
 a developer edits `pyproject.toml` to loosen `requests`'s upper bound
 from `<2.32` to `<3.0` (**declaration**); runs `uv lock` (or `uv add`/
-`uv sync`, depending on the exact change), which **resolves** a new
-compatible version (potentially a newer `requests` release than
-before) and **locks** it into an updated `uv.lock`; then runs `uv
+`uv sync`, depending on the exact change), which **resolves** and
+**locks** a state satisfying the new constraint — `uv lock` keeps
+already-locked versions that still satisfy the constraints, so a newer
+`requests` is chosen only if the change forces it or an explicit upgrade
+is requested (§22); then runs `uv
 sync`, which **installs** that newly-locked version into the actual
 environment. Each of these four steps is a genuinely separate action
 — exactly why
@@ -706,7 +728,8 @@ actually tested anywhere. This is exactly the scenario
 [03-pyproject-lock-files-and-uv.md](03-pyproject-lock-files-and-uv.md)'s
 §15 lock-file discussion was designed to eliminate — dependency drift
 is the *disease*; a committed, consistently-used `uv.lock`, installed
-via `uv sync` at every stage, is the *cure*. This chapter's remaining
+at every stage (strictly, via `uv sync --locked` in CI and production), is
+the *cure*. This chapter's remaining
 sections assume that cure is in place, and focus on how to change the
 locked state *deliberately*, rather than letting it drift.
 
@@ -843,16 +866,22 @@ state**, not to attempt a fix under pressure.
 **Restoring a previous known-good state**: because `uv.lock` is
 committed to version control (per
 [03-pyproject-lock-files-and-uv.md](03-pyproject-lock-files-and-uv.md)'s
-§14), rolling back is, in principle, as simple as reverting to the
-previous commit's `pyproject.toml`/`uv.lock` pair and re-running `uv
-sync` — the exact same reproducibility guarantee that makes forward
-updates safe also makes rollback safe and precise, rather than a
-guessing game about which older version to reinstall.
+§14), rolling back means returning to a previously known-good committed
+dependency state — the previous commit's `pyproject.toml`/`uv.lock` pair
+— and then rebuilding/redeploying (or re-synchronizing) from that state.
+The same locked, reviewable state that makes forward updates safe also
+makes rollback precise, rather than a guessing game about which older
+version to reinstall.
 
 ```bash
 git revert <the commit that updated the dependency>
-uv sync
+# then rebuild/redeploy from the known-good commit, whose build runs:
+uv sync --locked --no-dev
 ```
+
+In production this is normally done by redeploying the previous
+known-good build or artifact (or rebuilding it from the reverted commit),
+not by hand-running `uv sync` on a live server.
 
 **Emergency rollback vs. forward-fix**: a **rollback** restores a
 previously-verified-working state immediately, buying time to
@@ -871,8 +900,9 @@ in CI. Days after deployment, a specific, rare input pattern in
 production triggers a subtly different validation result than before —
 something the test suite's coverage didn't happen to include. The
 team reverts the commit that updated `pyproject.toml`/`uv.lock`,
-runs `uv sync` in production, confirming the previous behavior is
-restored, and then investigates the actual discrepancy calmly, without
+redeploys the previous known-good build from the reverted state
+(`uv sync --locked --no-dev` in its build), confirming the previous
+behavior is restored, and then investigates the actual discrepancy calmly, without
 ongoing production impact, before deciding whether to report it
 upstream, patch around it, or re-attempt the update later with
 additional test coverage for the case that broke.
@@ -888,8 +918,8 @@ specifically.
 |---|---|
 | `uv add package` | Declares a new dependency (with your chosen version constraint, §4) and immediately resolves + locks + syncs |
 | `uv remove package` | Removes a declaration and re-resolves/re-locks/re-syncs accordingly |
-| `uv lock` | Re-runs resolution and updates `uv.lock`, without touching the installed environment — the "resolution + locking" steps of §15, in isolation |
-| `uv sync` | Installs/aligns the environment to match the current lock file — the "installation" step of §15, in isolation |
+| `uv lock` | Resolves and updates `uv.lock` as needed, without touching the installed environment — the "resolution + locking" steps of §15. It keeps existing locked versions that still satisfy the constraints; it does **not** upgrade packages by itself (use `--upgrade-package`, §22) |
+| `uv sync` | Aligns the environment to the lock file — the "installation" step of §15 — and re-locks first if the lock is out of date. `uv sync --locked` fails instead of re-locking; `uv sync --frozen` uses the lock without checking it is current |
 | `uv run ...` | Runs a command inside the project's correctly-resolved environment (§18's steps 7–9 should always be run this way) |
 
 Every one of these is exactly the command
@@ -928,8 +958,21 @@ this chapter's own update-workflow terms:
 # Example: deliberately widen requests' accepted range to allow a newer release
 uv add "requests>=2.32,<3.0"
 ```
-This single command changes the requirement, resolves, updates
-`uv.lock`, and syncs the environment — but it's worth mentally
+(Widening a range does not by itself move an already-locked package: the
+resolver keeps a locked version that still satisfies the constraint.)
+
+To **deliberately upgrade** a package within its existing constraints,
+request the upgrade explicitly:
+```bash
+uv lock --upgrade-package pydantic            # move pydantic to the newest allowed version
+uv lock --upgrade-package pydantic==2.5.1     # or to a specific target version
+```
+The key distinction: plain `uv lock` means "resolve/update the lock file
+as needed", while an explicit upgrade request intentionally moves a
+package beyond its currently locked version.
+
+Returning to the `uv add` example above: that single command changes the
+requirement, resolves, updates `uv.lock`, and syncs the environment — but it's worth mentally
 separating what it accomplished into these three steps, because §18's
 review steps (6–9) specifically target the *resolve/lock* step's
 *output* (the `uv.lock` diff) before trusting the *sync* step's result
@@ -956,20 +999,27 @@ Restating and lightly extending
 §21–§22 distinction, specifically for this chapter's update-strategy
 purposes:
 
-| Group | Purpose | Example | Update risk consideration |
-|---|---|---|---|
-| **Runtime** | Needed for the application to actually run | `requests` | Directly affects production; follow §18's full workflow |
-| **Development** | Needed only while developing/testing | `pytest`, `ruff` | Never reaches production; still worth reviewing, but with lower stakes |
-| **Optional** | Needed only for specific, opt-in features | a feature-specific package (e.g. `openpyxl` for Excel export) | Only affects users who actually enable that feature |
+| Category | Where declared | Purpose | Example | Update risk consideration |
+|---|---|---|---|---|
+| **Runtime** | `[project] dependencies` | Needed for the application to actually run | `requests` | Directly affects production; follow §18's full workflow |
+| **Development** | `[dependency-groups]` (e.g. `dev`) | Development/test/lint/type-check tooling | `pytest`, `ruff` | Not part of the application's runtime; still worth reviewing, but with lower stakes |
+| **Optional (extra)** | `[project.optional-dependencies]` | Published, opt-in features of the project | `openpyxl` for Excel export | Only affects users who actually enable that feature |
 
 ```toml
 [project]
 dependencies = ["requests>=2.31,<3.0"]     # runtime
 
+[dependency-groups]
+dev = ["pytest>=8.0", "ruff>=0.5"]          # development tooling (what `uv add --dev` manages)
+
 [project.optional-dependencies]
-dev = ["pytest>=8.0", "ruff>=0.5"]          # development
-excel = ["openpyxl>=3.0"]                    # optional feature
+excel = ["openpyxl>=3.0"]                    # published optional feature (an "extra")
 ```
+
+`[dependency-groups]` is appropriate for development/test/lint/type-check
+tooling; `[project.optional-dependencies]` represents published optional
+dependencies (extras) tied to optional features of the project. They are
+different mechanisms and are not interchangeable.
 
 **Why this separation matters for update strategy specifically**: a
 runtime dependency update carries direct production risk and warrants
@@ -1027,9 +1077,11 @@ Directly extending
 §31, now with more concrete defensive vocabulary:
 
 - **Vulnerable dependencies** — a package (direct or transitive) with
-  a publicly known security flaw; simply having it installed and
-  reachable can be a real exposure, whether or not your code happens
-  to call the specific vulnerable code path.
+  a publicly known security flaw. An installed vulnerable dependency can
+  introduce security risk depending on the vulnerability, the affected
+  functionality, how your application exposes it, and whether it is
+  actually exploitable — it is a reason to investigate and prioritize,
+  not automatic proof of an exploitable weakness.
 - **Outdated packages** — dependencies that haven't been reviewed or
   updated in a long time may be carrying vulnerabilities discovered
   and fixed upstream long ago, simply because no one applied the fix
@@ -1220,8 +1272,9 @@ than a convenience.
 13. **Using overly strict constraints.** *Why:* can make the resolver's
     job impossible when combined with another dependency's own
     requirements, and imposes ongoing manual-maintenance burden (§4,
-    §7). *Fix:* prefer bounded ranges informed by SemVer's own
-    MAJOR-version boundaries over blanket exact pins.
+    §7). *Fix:* often prefer bounded ranges informed by SemVer's own
+    MAJOR-version boundaries over blanket exact pins (tightening further
+    only where a dependency's criticality or track record justifies it).
 14. **Using overly loose constraints.** *Why:* offers no protection at
     all against an unreviewed future breaking change silently entering
     the project the next time dependencies are resolved (§4). *Fix:*
@@ -1256,11 +1309,12 @@ dependencies = ["requests>=2.31,<3.0"]
 
 **5. Interpreting a SemVer bump**
 ```
-requests 2.31.0 → 2.32.0   # MINOR: new functionality, existing usage should be unaffected
+examplelib 2.31.0 → 2.32.0   # MINOR (illustrative): new functionality, existing usage should be unaffected
 ```
 
 **6. A breaking vs. non-breaking change, read from a changelog entry**
 ```
+# hypothetical changelog entries for an imaginary library, `examplelib`:
 v2.31.1: "Fixed a bug where redirects were not followed for PUT requests."  → PATCH, non-breaking
 v3.0.0:  "Removed the deprecated `Session.request_hook` parameter."         → MAJOR, breaking
 ```
@@ -1308,21 +1362,22 @@ uv sync        # only now, install the reviewed, locked versions
 ```bash
 git log --oneline -- pyproject.toml uv.lock   # find the commit that made the problematic update
 git revert <that commit>
-uv sync
+uv sync --locked      # locally, confirm the reverted state is consistent; then redeploy the known-good build
 ```
 
 **13. An application dependency strategy**
 ```toml
-# an application — tight, reviewed ranges; a committed uv.lock guarantees reproducibility
+# an application — tight, reviewed ranges; a committed uv.lock provides a reproducible resolved state
 dependencies = ["httpx>=0.27,<0.28"]
 ```
 
 **14. A production dependency workflow, end to end**
 ```bash
-uv sync                    # install exactly what's locked
-uv run pytest                # verify correctness
-uv run ruff check .            # additional quality gate
-git push                         # deploy from this exact, reviewed, tested state
+uv sync --locked                  # install the committed lock as-is (fails if it is stale)
+uv run --locked pytest              # verify correctness against it
+uv run --locked ruff check .          # additional quality gate
+git push                                # deploy from this reviewed, tested, locked state
+# (the production build then uses: uv sync --locked --no-dev)
 ```
 
 ## 30. Mini Project — Production Dependency Management and Upgrade Workflow
@@ -1364,7 +1419,7 @@ dependencies = [
     "pydantic>=2.0,<3.0",
 ]
 
-[project.optional-dependencies]
+[dependency-groups]
 dev = ["pytest>=8.0", "ruff>=0.5"]
 ```
 
@@ -1374,7 +1429,7 @@ dev = ["pytest>=8.0", "ruff>=0.5"]
   before any code is written.
 - **COMMAND:** `uv sync`
 - **EXPECTED EFFECT:** `pydantic`, `pytest`, and `ruff` (plus every
-  transitive dependency) installed exactly per `uv.lock`.
+  transitive dependency) installed per `uv.lock` (plain `uv sync` also installs the `dev` group).
 - **RISK/TRADE-OFF:** none yet — this is the safe, reproducible
   starting point every later step measures against.
 
@@ -1404,8 +1459,9 @@ dev = ["pytest>=8.0", "ruff>=0.5"]
 - **WHAT:** `pydantic` releases `2.5.1`, a PATCH fix for a validation
   edge case.
 - **WHY:** low-risk, but still reviewed per §19.
-- **COMMAND:** `uv lock` (or `uv sync`, if the range already covers
-  it), followed by `uv run pytest`
+- **COMMAND:** `uv lock --upgrade-package pydantic` (a plain `uv lock`
+  would keep the already-locked version, since it still satisfies the
+  range), followed by `uv run pytest`
 - **EXPECTED EFFECT:** `uv.lock` now records `pydantic==2.5.1`; tests
   still pass.
 - **RISK/TRADE-OFF:** minimal — a PATCH bump within an already-trusted
@@ -1462,11 +1518,11 @@ dev = ["pytest>=8.0", "ruff>=0.5"]
 - **COMMAND:**
   ```bash
   git revert <the commit for step 6>
-  uv sync
+  uv sync --locked --no-dev    # in the redeployed build, from the reverted known-good state
   ```
-- **EXPECTED EFFECT:** `pydantic` (and `validation.py`'s corresponding
-  code) return to the pre-3.0 state; the earlier issue is resolved
-  immediately.
+- **EXPECTED EFFECT:** the redeployed build has `pydantic` (and
+  `validation.py`'s corresponding code) back at the pre-3.0 state; the
+  earlier issue is resolved.
 - **RISK/TRADE-OFF:** temporarily loses the 3.0 features the team
   wanted, in exchange for immediate production stability — the correct
   trade under incident pressure, per §20.
@@ -1476,9 +1532,11 @@ dev = ["pytest>=8.0", "ruff>=0.5"]
   dependency of `httpx`.
 - **WHY:** treat this as a priority update regardless of where it sits
   in the normal update cadence (§25).
-- **COMMAND:** `uv lock` (to pick up the fixed version, assuming the
-  advisory's fix is already available upstream within the existing
-  constraint range), `git diff uv.lock`, `uv run pytest`
+- **COMMAND:** `uv lock --upgrade-package <the vulnerable package>` (to
+  move it to the fixed version, assuming the advisory's fix is already
+  available upstream within the existing constraint range — a plain
+  `uv lock` would keep the vulnerable locked version), `git diff
+  uv.lock`, `uv run pytest`
 - **EXPECTED EFFECT:** the vulnerable transitive version is replaced
   with the patched one; tests confirm nothing broke.
 - **RISK/TRADE-OFF:** minimal risk, high urgency — security fixes are
@@ -1487,17 +1545,17 @@ dev = ["pytest>=8.0", "ruff>=0.5"]
 **Step 10 — CI/CD synchronization**
 - **WHAT:** every one of the above changes is pushed through CI before
   merging.
-- **WHY:** confirm the exact same reviewed, locked dependency state
+- **WHY:** confirm the same reviewed, locked dependency state
   that passed locally also passes in a clean, independent environment
   (§16, §28 of the previous chapter).
 - **COMMAND:**
-  ```bash
-  uv sync
-  uv run pytest
-  uv run ruff check .
+    ```bash
+  uv sync --locked
+  uv run --locked pytest
+  uv run --locked ruff check .
   ```
-- **EXPECTED EFFECT:** CI installs from the committed `uv.lock`
-  exactly, runs the same tests, and either confirms the change is safe
+- **EXPECTED EFFECT:** CI installs from the committed `uv.lock` as-is
+  (and fails if it is stale), runs the same tests, and either confirms the change is safe
   to merge or catches something the local review missed.
 - **RISK/TRADE-OFF:** none — this step exists specifically to catch
   exactly the kind of drift or oversight §16 warns about, before it
@@ -1527,8 +1585,11 @@ dev = ["pytest>=8.0", "ruff>=0.5"]
 7. A teammate ran `pytest` after updating a dependency and it passed;
    they conclude the update is completely safe. What's missing from
    their reasoning?
-8. Distinguish which of these belongs in `dependencies` vs. a `dev`
-   optional group: `requests`, `pytest`, `mypy`, `pydantic`.
+8. Distinguish which of these belongs in `[project] dependencies`, in a
+   `[dependency-groups]` `dev` group, or in a
+   `[project.optional-dependencies]` extra: `requests`, `pytest`, `mypy`,
+   `pydantic`, `openpyxl` (needed only for an optional Excel-export
+   feature).
 9. Write the `uv` command to update a dependency's constraint to
    `>=3.1,<4.0` and explain what it changes.
 
@@ -1554,7 +1615,7 @@ dev = ["pytest>=8.0", "ruff>=0.5"]
 
 **Answer key**
 
-1. `pandas` is direct (imported by `myapp` itself); `numpy` is
+1. `pandas` is direct (declared and imported by `myapp` itself); `numpy` is
    transitive (needed only because `pandas` depends on it) (§3).
 2. `4.2.1 → 4.2.2` — PATCH; `4.2.2 → 4.3.0` — MINOR; `4.3.0 → 5.0.0` —
    MAJOR (§6–§7).
@@ -1562,8 +1623,9 @@ dev = ["pytest>=8.0", "ruff>=0.5"]
    including version 3.0 — versions before 2.28, or 3.0 and beyond,
    are not acceptable (§4).
 4. `pyproject.toml` records what the project *requires* (often a
-   flexible range); `uv.lock` records the *exact, specific* version
-   actually resolved and installed, for reproducibility (§15).
+   flexible range); `uv.lock` records the specific versions actually
+   resolved (possibly with environment-specific variants), for
+   reproducibility (§15).
 5. `>=1.9,<2.0` — allows routine PATCH/MINOR updates within the 1.x
    line, requires deliberate review before a 2.0 release (§4, §11).
 6. The overlap of `[1, 2)` and `[1.5, 2.5)` is `[1.5, 2.0)` — any `X`
@@ -1573,9 +1635,11 @@ dev = ["pytest>=8.0", "ruff>=0.5"]
    nothing about behavior the test suite doesn't exercise, and doesn't
    substitute for reading the actual release notes/changelog to
    understand what changed (§8, §18's steps 2–3, §28 mistake 11).
-8. `requests` and `pydantic` are runtime `dependencies` (the
-   application needs them to run); `pytest` and `mypy` belong in a
-   `dev` optional group (needed only for development/testing) (§23).
+8. `requests` and `pydantic` → `[project] dependencies` (the
+   application needs them to run); `pytest` and `mypy` →
+   `[dependency-groups]` `dev` (needed only for development/testing);
+   `openpyxl` → `[project.optional-dependencies]` `excel` (a published
+   extra for an optional feature) (§23).
 9. `uv add "package>=3.1,<4.0"` — this changes the declared constraint
    in `pyproject.toml`, re-resolves, updates `uv.lock`, and syncs the
    environment, all in one command (§22).
@@ -1596,8 +1660,9 @@ dev = ["pytest>=8.0", "ruff>=0.5"]
     version of either exists (§13).
 12. A reasonable plan: identify the exact commit that introduced the
     dependency update (via `git log` on `pyproject.toml`/`uv.lock`);
-    `git revert` that commit; run `uv sync` in the affected
-    environment; confirm the regression is resolved; only then
+    `git revert` that commit; redeploy the previous known-good build (or
+    rebuild from the reverted commit, which synchronizes with `uv sync
+    --locked --no-dev`); confirm the regression is resolved; only then
     investigate the root cause calmly, without ongoing production
     impact, before considering a forward-fix or a re-attempted, better-
     tested update later (§20).
@@ -1646,8 +1711,9 @@ A routine `uv sync` unexpectedly installs a newer version of something
 than what was running yesterday. *Diagnosis:* check whether
 `pyproject.toml` or `uv.lock` changed recently (via `git log`).
 *Root cause:* either a teammate's recent, legitimate update (check the
-commit history), or a constraint that's looser than intended,
-combined with a fresh `uv lock` run picking up a newer release.
+commit history), or a stale/changed `pyproject.toml` that made plain
+`uv sync` re-lock (a re-lock can pick up a newer release for anything
+the changed constraints force to be re-resolved, or for a new package).
 *Fix:* if unintended, revert to the previous `uv.lock`; if intended,
 confirm it was reviewed per §18. *Prevention:* always commit
 `pyproject.toml`/`uv.lock` changes with a clear, descriptive commit
@@ -1718,19 +1784,20 @@ A dependency update passed all checks but causes a production issue.
 change (via deployment/commit timing). *Root cause:* an edge case the
 test suite didn't cover (§8's honest SemVer caveat, realized in
 practice). *Fix:* follow §20's rollback procedure — revert the commit,
-`uv sync`, confirm resolution. *Prevention:* add test coverage for the
+redeploy the known-good build (synchronized with `uv sync --locked
+--no-dev`), confirm resolution. *Prevention:* add test coverage for the
 specific case that broke, before re-attempting the update.
 
 **10. Works locally, fails in CI**
 *Diagnosis:* compare what each environment actually installed —
 `uv.lock`'s committed state vs. whatever CI actually synced from.
-*Root cause:* most commonly, CI isn't actually using `uv sync` against
-the committed `uv.lock` (perhaps re-resolving fresh, or using a cached,
-stale environment) — precisely
+*Root cause:* most commonly, CI isn't actually using the committed
+`uv.lock` as-is (plain `uv sync` re-locks a stale file; or it may be
+re-resolving fresh, or using a cached, stale environment) — precisely
 [03-pyproject-lock-files-and-uv.md](03-pyproject-lock-files-and-uv.md)'s
 §36 scenario 6, revisited. *Fix:* ensure CI's dependency-installation
-step genuinely runs `uv sync` against the exact committed `uv.lock`.
-*Prevention:* treat "CI installs exactly what's locked" as a
+step genuinely runs `uv sync --locked` against the committed `uv.lock`.
+*Prevention:* treat "CI installs the committed lock as-is" (`--locked`) as a
 non-negotiable pipeline requirement, verified explicitly if ever in
 doubt.
 
@@ -1781,8 +1848,8 @@ doubt.
    deliberately and reproducibly; manual installs record no durable,
    shared decision about which versions are used, leading to drift and
    unreproducible environments (§1–§2).
-2. A direct dependency is one your own code imports and declares
-   (e.g. `requests`); a transitive dependency is one your direct
+2. A direct dependency is one the project itself declares as a
+   requirement, commonly because its code imports it (e.g. `requests`); a transitive dependency is one your direct
    dependency itself needs (e.g. `urllib3`, needed by `requests`) (§3).
 3. Loose constraints maximize flexibility but offer no protection
    against a future breaking change; strict constraints (exact pins)
@@ -1829,12 +1896,11 @@ doubt.
     resolution error (§13).
 12. `pyproject.toml` is human-authored and declares acceptable version
     ranges (intent); `uv.lock` is machine-generated and records the
-    exact, specific versions actually resolved, for reproducible
-    installation (§15).
+    specific versions actually resolved (with environment-specific
+    variants where needed), for reproducible installation (§15).
 13. Dependency drift is the gradual divergence of dependency versions
     across different environments (developer machines, CI, staging,
-    production) that should ideally match; a lock file prevents it by
-    giving every environment one exact, shared, reproducible record to
+    production) that should ideally match; a lock file prevents it by giving every environment a shared, reproducible resolved record to
     install from, rather than each independently re-resolving (§16).
 14. Identify the update, read release notes, review compatibility,
     update the dependency, resolve, review the lock diff, run tests,
@@ -1850,16 +1916,20 @@ doubt.
     properly diagnose and address the actual problem without ongoing
     impact (§20).
 17. `uv add`/`uv remove` declare a dependency change and immediately
-    resolve/lock/sync; `uv lock` re-resolves and updates the lock file
-    only, without touching the environment; `uv sync` installs/aligns
-    the environment to match the current lock file; `uv run` executes
+    resolve/lock/sync; `uv lock` resolves and updates the lock file
+    as needed (it does not upgrade packages unless asked, e.g. with
+    `--upgrade-package`), without touching the environment; `uv sync`
+    installs/aligns the environment to the lock file (re-locking first if
+    needed; `--locked` fails instead, `--frozen` skips the currency
+    check); `uv run` executes
     a command inside the project's correctly-resolved environment
     (§21–§22).
-18. Runtime dependencies are needed to actually run the application;
-    development dependencies are needed only while developing/testing
-    and never ship to production; optional dependencies support
-    specific, opt-in features, installed only when those features are
-    actually needed (§23).
+18. Runtime dependencies (`[project] dependencies`) are needed to
+    actually run the application; development dependencies
+    (`[dependency-groups]`) are needed only while developing/testing and
+    are excluded from production installs; optional dependencies/extras
+    (`[project.optional-dependencies]`) support specific, opt-in
+    features, installed only when those features are needed (§23).
 19. An application, controlling its own single deployment, benefits
     from tighter, well-reviewed ranges and a committed lock file for
     maximum reproducibility; a library, consumed by many different
@@ -1951,8 +2021,9 @@ doubt.
    convention (§10); the bounded range accepts only versions already
    verified to work, requiring a deliberate, reviewed decision to move
    past `0.28` (§4, §11).
-6. Confirm CI is actually running `uv sync` against the exact,
-   committed `uv.lock` file from the same commit being tested — not a
+6. Confirm CI is actually using the committed `uv.lock` file from the
+   same commit being tested as-is (`uv sync --locked`, since plain `uv
+   sync` can re-lock a stale file) — not a
    stale cached environment, a different branch's lock file, or an
    accidental fresh re-resolution instead of an install from the lock
    file (§16, §32 scenario 10).
@@ -1974,11 +2045,13 @@ doubt.
 ## 35. Production Checklist
 
 **Declarations**
-- [ ] Every runtime dependency the code actually uses is explicitly
-      declared in `pyproject.toml`.
-- [ ] Version constraints are intentional — bounded ranges informed by
-      each dependency's own SemVer MAJOR-version boundary, not left
-      unconstrained and not blindly exact-pinned everywhere.
+- [ ] Every runtime dependency the project needs (typically everything
+      its code imports) is explicitly declared in `pyproject.toml`.
+- [ ] Version constraints are intentional — commonly bounded ranges
+      informed by each dependency's own SemVer MAJOR-version boundary
+      (tighter where a dependency is critical or its compatibility
+      record is weak), not left unconstrained and not blindly
+      exact-pinned everywhere.
 - [ ] Direct and transitive dependencies are understood as distinct;
       only genuine direct dependencies are declared explicitly.
 
@@ -1986,8 +2059,9 @@ doubt.
 - [ ] `uv.lock` is committed and kept in sync with `pyproject.toml` at
       every change.
 - [ ] Every environment (developer, CI, staging, production) installs
-      via `uv sync` against the same committed lock file — no
-      independent, drifting resolutions.
+      from the same committed lock file — no independent, drifting
+      resolutions (developers use `uv sync`; CI and production use the
+      strict `--locked` form).
 
 **Updates**
 - [ ] Dependency updates follow a deliberate review workflow (release
@@ -2015,16 +2089,17 @@ doubt.
 
 **Rollback readiness**
 - [ ] A clear, tested rollback path exists (revert the relevant
-      commit, `uv sync`) for any dependency update that reaches
-      production.
+      commit and redeploy the previous known-good, locked build) for any
+      dependency update that reaches production.
 - [ ] The team distinguishes when to roll back versus when to
       forward-fix, and defaults to rollback under active incident
       pressure.
 
 **Dependency groups**
-- [ ] Runtime, development, and optional dependencies are kept
-      separate, with production installs excluding development-only
-      tooling.
+- [ ] Runtime dependencies (`[project] dependencies`), development
+      tooling (`[dependency-groups]`), and optional extras
+      (`[project.optional-dependencies]`) are kept separate, with
+      production installs excluding development-only tooling.
 
 **Security**
 - [ ] Dependencies are reviewed for maintenance activity and
@@ -2040,6 +2115,9 @@ doubt.
       dependency to an already-large graph.
 
 **CI/CD**
-- [ ] CI installs dependencies via `uv sync` against the exact
-      committed lock file, guaranteeing the same dependency versions
-      are tested and deployed.
+- [ ] CI verifies the committed lockfile with `uv sync --locked`
+      (and runs commands with `uv run --locked`), so the locked
+      dependency state that is tested is the one that is deployed.
+- [ ] Production synchronization uses the committed lockfile and
+      excludes development dependencies where appropriate, e.g.
+      `uv sync --locked --no-dev`.

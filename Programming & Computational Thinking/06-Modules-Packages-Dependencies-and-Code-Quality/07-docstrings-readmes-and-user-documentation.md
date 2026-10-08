@@ -167,7 +167,9 @@ including other strings or comments. Python's compiler looks
 specifically at the first statement of a function/class/module body: if
 it's a plain string literal, that string becomes `__doc__`; if anything
 else comes first, there is no docstring, regardless of what strings
-appear later.
+appear later. (Under normal execution the docstring is available through
+`__doc__`; running Python with the optimization flag `-OO`, as in
+`python -OO app.py`, removes docstrings, so `__doc__` is `None` there.)
 
 ```python
 def bad_example():
@@ -215,17 +217,18 @@ Docstrings apply at four levels, covered in depth in §5, §15, §17, and
 §18 respectively:
 
 ```python
+"""A module docstring — written at the very top of a .py file,
+before any imports."""
+
 def function_docstring():
     """A function docstring."""
+
 
 class ExampleClass:
     """A class docstring."""
 
     def method_docstring(self):
         """A method docstring."""
-
-"""A module docstring — written at the very top of a .py file,
-before any imports."""
 ```
 
 ## 4. Comments vs Docstrings
@@ -948,8 +951,9 @@ into implementation details.
 
 ## 19. Package Documentation
 
-A **package** — a directory of modules with an `__init__.py` — needs
-documentation at a *higher* level than any single module: what the
+A **package** — most commonly a *regular package*, a directory of
+modules with an `__init__.py` (Python also supports *namespace packages*,
+which can exist without an `__init__.py`) — needs documentation at a *higher* level than any single module: what the
 package as a whole is for, which of its modules/classes/functions form
 its supported public interface, how to install it, and how to use it
 at a glance.
@@ -1008,8 +1012,10 @@ public API.
 
 **Why these are related but different concerns**: the package
 docstring is prose — it *describes* the package for a human reader.
-`__all__` is executable — it *controls* import behavior and signals
-(but does not enforce) which names are public. Setting `__all__`
+`__all__` is executable — it controls which names a wildcard import
+(`from package import *`) exports, and it signals (but does not enforce)
+which names are public. It is not general access control: callers can
+still import or access any name in other ways. Setting `__all__`
 without a package docstring leaves a reader knowing *which* names are
 public but not *why the package exists*; writing a great docstring
 without `__all__` leaves the *supported* interface ambiguous, since
@@ -1381,9 +1387,11 @@ billing-service balance --customer-id 12345
 (or a similar library), generates a `--help` output automatically from
 its argument definitions — and that generated help text *is* a form of
 user documentation, arguably the most important one, because it is
-always available, always in sync with the actual code (unlike prose
-documentation, which can drift — §34), and reachable without leaving
-the terminal. Good CLI documentation in a README or docs site is
+always available, its option structure is generated from the CLI's
+current argument definitions and so is closely tied to the code (unlike
+prose documentation, which can drift — §34; though the human-written
+description strings can still become stale), and reachable without
+leaving the terminal. Good CLI documentation in a README or docs site is
 usually a curated, example-rich *complement* to `--help`, not a
 replacement for keeping `--help` itself accurate and well-worded.
 
@@ -1919,6 +1927,11 @@ billing_service.calculate_total = calculate_total(price: float, quantity: int) -
         The total price.
 ```
 
+**A caution**: to render documentation, `pydoc` may *import* the target
+module, and importing a module executes its module-level code. Inspecting
+an untrusted module with `pydoc` should therefore not be treated as a
+harmless, text-only operation.
+
 `pydoc` can also start a local HTTP server that renders browsable
 documentation for every installed module:
 
@@ -2032,10 +2045,14 @@ documentation site
 signature** (§34), because it's built directly from that signature at
 generation time — rename a parameter in code, and the next generated
 build reflects the rename automatically, with no separate file to
-remember to update. It also guarantees *completeness* in a mechanical
-sense: every public function that has a docstring appears in the
-generated reference, with no risk of a human simply forgetting to add
-one to a hand-maintained page.
+remember to update. It also helps with *coverage* in a mechanical
+sense: the functions the generator is configured to discover, and that
+have docstrings, appear in the generated reference, with less risk of a
+human simply forgetting to add one to a hand-maintained page. This is
+not a guarantee of completeness — it doesn't ensure every intended API
+element is documented, that the documentation is semantically complete
+or accurately describes behavior, or that the generator's configuration
+is itself complete.
 
 **Limitations**: a documentation generator can only render what's
 *in* your docstrings — it cannot invent an explanation you never
@@ -2537,10 +2554,12 @@ runbook (§78) for rollback procedure if a bad model version ships.
 The exact-version pin on `scikit-learn` and the scaling requirement are
 the kind of ML-specific "silent wrongness" traps (§1's "understandable
 from code but still has important behavioral assumptions" pattern,
-applied to models): nothing crashes if you feed unscaled features or
-use a slightly different library version — the model just produces
-confidently wrong predictions, which is exactly why this needs to be
-documented explicitly rather than left to be discovered.
+applied to models): nothing necessarily crashes if you feed unscaled features, and a
+different library version can cause a load or runtime failure, an
+incompatibility, changed numerical behavior, or — in some cases — silent
+changes in predictions. Because the failure can be silent and confidently
+wrong, this needs to be documented explicitly rather than left to be
+discovered.
 
 ## 62. Documentation for AI Systems
 
@@ -2567,15 +2586,17 @@ in ordinary deterministic code:
   injection surface, context-length limits).
 
 **Why AI systems often need *more* documentation than deterministic
-code**: a traditional function's behavior is fully determined by its
-code — read the code, and you know exactly what it will do for any
-input. An LLM call's behavior additionally depends on a **model
+code**: a traditional function's behavior is usually much more apparent
+from its code — though ordinary code can also depend on databases,
+environment variables, files, network services, clocks, random sources,
+external APIs, configuration, and dependency versions. An LLM call's
+behavior additionally depends on a **model
 provider's changing weights** (a provider can update a model version
 under a fixed name), **non-determinism** (the same prompt can produce
 different outputs), and a **prompt template's exact wording** (subtle
 rewording can change behavior in ways no diff of the surrounding
-Python code would show). None of that is visible from reading the
-calling code the way a normal function's logic is — which is exactly
+Python code would show). None of that is typically visible from
+reading the calling code the way a normal function's logic usually is — which is exactly
 why explicit documentation of the prompt, the model/version, and the
 known failure modes matters more here than for equivalent deterministic
 code.
@@ -3889,8 +3910,13 @@ calls per request).
 reports 0 words for a non-empty file."
 *Answer:* (sketch) Symptom: 0 count on known non-empty file.
 Diagnosis: check encoding (link to exercise 13's troubleshooting
-entry) and check the file isn't binary. Likely cause: wrong encoding
-silently producing zero tokens rather than crashing. Remediation: set
+entry) and check the file isn't binary. Likely cause: an encoding
+mismatch or a decoding/normalization bug. First verify the encoding used
+to read the file — an incompatible encoding normally raises a decoding
+error (e.g. `UnicodeDecodeError`) unless the application explicitly
+ignores/replaces decoding failures or otherwise handles them — and verify
+the input is actually text and that the tokenizer or normalization logic
+isn't discarding the decoded content. Remediation: set
 `WORDCOUNT_ENCODING` correctly. Escalation: file an issue if the
 correct encoding still produces 0.
 

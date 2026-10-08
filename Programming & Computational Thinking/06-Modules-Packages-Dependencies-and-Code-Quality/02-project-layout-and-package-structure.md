@@ -121,13 +121,14 @@ PROJECT
 
 - **File** — the plain, general term for anything stored on disk;
   `notes.txt` is a file, and so is `utils.py`.
-- **Module** — a `.py` **file**, specifically one meant to be imported
-  and reused, as `01`'s §1 established. Every module is a file; not
-  every file is meant to be a module (a `README.md` is a file, never a
-  module).
+- **Module** — a named unit of Python code that can be imported and
+  that provides its own namespace, as `01`'s §1 established. A `.py`
+  source **file** is the most common way to define one, and the only
+  kind this chapter works with; not every file is meant to be a module
+  (a `README.md` is a file, never a module).
 - **Package** — a **directory** of related modules, given its own
-  namespace via `__init__.py` (or, for namespace packages, §23,
-  without one). A package can itself contain **subpackages** —
+  namespace — conventionally a *regular package* via `__init__.py`
+  (or, for namespace packages, §23, without one). A package can itself contain **subpackages** —
   packages nested inside packages.
 - **Project** — the **whole** thing: one or more packages, plus tests,
   configuration, documentation, and metadata, organized under one root
@@ -147,7 +148,7 @@ weather_cli/                  ← PROJECT (the whole repository)
 └── pyproject.toml
 ```
 
-`weather` is a package because it's a directory containing an
+`weather` is a (regular) package because it's a directory containing an
 `__init__.py`; `cli.py` and `forecasting.py` are modules because
 they're individual, importable `.py` files inside it;
 `weather_cli/` — the whole repository, including `tests/` and
@@ -282,15 +283,21 @@ project root.
 **Why this exists — the specific problem it prevents:** with a src
 layout, the project root itself contains **no importable package** at
 all — only `src/` (which is not, itself, added to `sys.path`
-automatically the way the project root is). This means the *only* way
-to import `mypackage` while developing is through a proper
-**installation** — most commonly an **editable install**
+automatically the way the project root is). This means that
+`import mypackage` run from the project root will not work merely
+because `src/mypackage` exists. The recommended, normal way to make it
+importable while developing is a proper **installation** — most
+commonly an **editable install**
 (conceptually: telling Python "treat this source directory as if it
 were installed, but keep reading directly from these files as I edit
 them," a mechanism this module's dedicated packaging chapter covers in
-full) — which forces your development and testing environment to
+full) — which encourages your development and testing environment to
 exercise the *exact same* import path a real end user's installation
-would use. The exact bug §4 described — a test accidentally passing
+would use. (Python can also import the package if `src/` is placed on
+`sys.path` some other deliberate way — running from inside `src/`,
+`PYTHONPATH`, or IDE/test-runner configuration — but those are
+workarounds, not the preferred project-structure solution.) The exact
+bug §4 described — a test accidentally passing
 against local files that were never actually included in the shipped
 package — becomes structurally much harder to hit by accident, because
 there's no "local package sitting right there in `sys.path`" to
@@ -323,7 +330,7 @@ development-only cruft as part of the actual distributed package.
 | | Flat layout | src layout |
 |---|---|---|
 | Setup simplicity | Slightly simpler, one less directory | One extra level of nesting |
-| Accidental local-import risk | Real — the package is directly importable from the project root | Effectively eliminated — an install is required |
+| Accidental local-import risk | Real — the package is directly importable from the project root | Substantially reduced — normally an install (or deliberate path setup) is needed |
 | Best fit | Small tools, internal scripts, projects not meaningfully "installed" separately from their source checkout | Any project meant to be properly installed and distributed (a real library, a packaged CLI tool) |
 | Learning curve | None beyond ordinary imports | Requires understanding editable installs |
 
@@ -331,7 +338,7 @@ For a small learning project or an internal script you'll always run
 directly from its own checked-out directory, flat is perfectly
 reasonable. For anything meant to be `pip install`ed — by other
 people, in CI, or even just by "future you" from a different
-directory — src is the safer default, precisely because it forces the
+directory — src is the safer default, precisely because it encourages the
 installed-package import path to be exercised from day one, rather
 than only being discovered as a surprise later.
 
@@ -574,7 +581,10 @@ concept given its own clearly-named home.
 
 `tests/` is placed **outside** the package's own source tree —
 directly at the project root, as a sibling to `src/` (or the flat
-package directory, §4), never nested *inside* the package itself.
+package directory, §4), rather than nested *inside* the package
+itself. This is the convention this chapter recommends, not a Python
+language requirement — some projects place certain tests elsewhere
+depending on their repository architecture and tooling.
 
 ```
 project/
@@ -619,8 +629,9 @@ completely alone.
 
 **`pyproject.toml`** is the standard, modern file describing a Python
 project's own metadata — its name, version, dependencies, and build
-configuration — placed **at the project root**, sitting alongside
-`src/`/`tests/`, never inside the package itself.
+configuration — conventionally placed **at the project root** (build tools look for it
+there), sitting alongside `src/`/`tests/`, rather than inside the
+package itself.
 
 ```toml
 [project]
@@ -673,8 +684,9 @@ live at the project root:
 - **`pyproject.toml`** — already covered in §12; listed again here
   simply to confirm it belongs in this same root-level group.
 
-All four sit at the project root for the same underlying reason
-`pyproject.toml` does: they describe or govern the project **as a
+By convention, all four sit at the project root (this is a
+project-layout convention, not a Python requirement) for the same
+underlying reason `pyproject.toml` does: they describe or govern the project **as a
 whole**, not any one specific package or module inside it.
 
 ## 14. Configuration Files
@@ -804,20 +816,27 @@ directory can change whether an import succeeds at all, which is
 exactly why "it works from this directory but not another" (a genuine,
 common real-world confusion) has a precise, diagnosable explanation
 rather than being mysterious: `sys.path`'s contents (and therefore
-what's importable) are a direct function of the current working
-directory and invocation style, not some fixed, universal property of
-the project.
+what's importable) depend on how Python was invoked (a script's
+directory, `-m`, `-c`, the current directory), on the environment
+(`PYTHONPATH`, installed packages, IDE or test-runner configuration),
+and only in part on the current working directory — not on some fixed,
+universal property of the project's layout alone.
 
 **Installed package vs. editable installation**, connecting directly
 to §5: once a package is genuinely installed (a real install, or an
-editable one), imports work identically **regardless of the current
-working directory**, because the package is found via the environment's
-own `site-packages` location (or the editable install's pointer back to
-`src/`) rather than by searching relative to wherever the command
-happened to be run from. This is the single biggest practical advantage
-of installing a project properly (even just as an editable install
-during development) over always running it as a bare script from a
-specific directory: it makes imports **location-independent**.
+editable one), it is found via the environment's own `site-packages`
+location (or the editable install's pointer back to `src/`) rather
+than by searching relative to wherever the command happened to be run
+from. This is the single biggest practical advantage of installing a
+project properly (even just as an editable install during
+development) over always running it as a bare script from a specific
+directory: it makes imports **much less dependent on the working
+directory**. It is a practical benefit, not an unconditional guarantee:
+Python still resolves imports through `sys.path`, and the invocation can
+add entries to it, so a local file or directory with the same name as
+an installed package can still shadow it in some contexts (for example,
+running `python -c "import app"` from a directory that contains its own
+`app/` folder).
 
 A realistic example of the exact confusion this section explains:
 
@@ -831,12 +850,12 @@ $ python -c "import app; print('works')"
 ModuleNotFoundError: No module named 'app'
 ```
 
-With a src layout and **no** installation in place, `app` is only
-importable from *inside* `src/` (because that's the directory actually
-on `sys.path` in the first invocation) — this is precisely why a src
-layout is meant to be paired with an actual (typically editable)
-install, per §5, rather than run by manually `cd`-ing into `src/` every
-time.
+With a src layout, **no** installation, and no other path
+configuration in place, `app` is only importable from *inside* `src/`
+(because that's the directory actually on `sys.path` in the first
+invocation) — this is precisely why a src layout is meant to be paired
+with an actual (typically editable) install, per §5, rather than run by
+manually `cd`-ing into `src/` every time.
 
 ## 18. Common Import/Layout Problems
 
@@ -847,8 +866,8 @@ given how (and from where) the command was run. *Diagnosis:* `print
 *Fix:* run from the correct directory, use `python -m package.module`
 (per the previous chapter's §23), or install the package (editable
 install, §5). *Better design:* don't rely on a specific working
-directory at all — a properly installed package works the same way
-from anywhere.
+directory at all — a properly installed package is generally
+importable from anywhere (§17).
 
 **2. Running a module from the wrong directory**
 *Root cause:* `python src/app/cli.py` directly, inside a src-layout
@@ -882,12 +901,12 @@ intended (installed vs. local) version deliberately.
 ModuleNotFoundError: No module named 'app'
 ```
 even though `src/app/` clearly exists. *Root cause:* with a src layout
-(§5) and no install performed at all, there is genuinely nothing on
-`sys.path` that makes `app` importable from outside `src/` itself.
-*Fix:* perform an editable install (this module's packaging chapter
-covers the exact command), or, during early learning, run commands
-from inside `src/` (a real, if less convenient, alternative) until
-installation is covered.
+(§5) and no install (or other deliberate path configuration such as
+`PYTHONPATH`) performed at all, nothing on `sys.path` makes `app`
+importable from outside `src/` itself. *Fix:* perform an editable
+install (this module's packaging chapter covers the exact command), or,
+during early learning, run commands from inside `src/` (a real, if less
+convenient, alternative) until installation is covered.
 
 **6. Wrong Python environment**
 Identical root cause and diagnosis to
@@ -1130,11 +1149,11 @@ without needing to use it in most everyday code — building directly on
 [01-imports-modules-and-main.md](01-imports-modules-and-main.md)'s
 §16 mention.
 
-A **traditional package** is a directory containing an `__init__.py`
+A **regular package** is a directory containing an `__init__.py`
 file, exactly as this entire chapter has assumed so far. A
-**namespace package** (supported since Python 3.3) is a directory
-that Python treats as *part of* an importable package **without**
-requiring an `__init__.py` at all — Python's import system can, under
+**namespace package** (supported since Python 3.3) is a package
+assembled by Python's namespace-package mechanism **without**
+requiring an `__init__.py` in each contributing directory — Python's import system can, under
 specific conditions, combine several separate directories (potentially
 from entirely different installed distributions) that share the same
 top-level name into one logical package.
@@ -1428,9 +1447,10 @@ project/
     tests/
     pyproject.toml
 ```
-Now `package` is importable only through an install (editable, during
-development) or by explicitly running from inside `src/` — never
-accidentally from the project root (§5).
+Now `package` is normally importable through an install (editable,
+during development), or by deliberately placing `src/` on `sys.path`
+(e.g. running from inside `src/`) — but not accidentally from the
+project root (§5).
 
 **7. CLI application structure**
 ```
@@ -1648,16 +1668,18 @@ already use.
    text/data files) are all *files*; `app.py` and `helpers.py` are
    additionally *modules*, because they're `.py` files meant to be
    run/imported as Python code; `data/` is neither a module nor a
-   package (assuming it contains no `__init__.py` and no `.py` files
-   at all) — it's simply a directory holding non-code data (§1–§2).
+   package (it holds no Python code and isn't meant to be imported) —
+   it's simply a directory holding non-code data (§1–§2).
 2. A reasonable reorganization: `package/cli.py` (or similarly named),
    `package/utils.py`, `tests/test_utils.py`, `pyproject.toml` — the
    answer should demonstrate that every file's *name* now indicates
    its actual responsibility, unlike `final.py`/`final2.py` (§4, §26).
 3. `tests/` verifies the application's source code behaves correctly;
-   it sits as a sibling to the package (at the project root, or
-   alongside `src/`), never nested inside the package itself, because
-   tests are about the code, not part of what actually ships (§11).
+   it conventionally sits as a sibling to the package (at the project
+   root, or alongside `src/`) rather than nested inside the package
+   itself, because tests are about the code, not part of what actually
+   ships — a project-organization convention, not a Python language
+   requirement (§11).
 4. `__init__.py` marks the directory as a package (and may re-export a
    curated public API); `core.py` (no leading underscore) signals a
    public module, safe for external code to import directly;
@@ -1677,9 +1699,10 @@ already use.
    The risk removed: with the flat layout, `package/` sits directly on
    `sys.path` when running commands from the project root, meaning
    tests could accidentally exercise the local source tree directly
-   instead of a properly installed version — the src layout removes
-   this by requiring an actual (typically editable) install to make
-   `package` importable at all (§4–§5).
+   instead of a properly installed version — the src layout substantially
+   reduces this by keeping `package` off the project root's import path,
+   so it normally takes an actual (typically editable) install to make
+   it importable (§4–§5).
 6. A reasonable structure: `cli.py` (argparse + `main()`), `config.py`
    (any configurable options, e.g. `--strict`), `logging_config.py`
    (console logging setup), `validation.py` (JSON schema/shape
@@ -1688,9 +1711,9 @@ already use.
 7. Likely cause: the src-layout package has never been installed, and
    nothing on `sys.path` from the project root makes `src/app`
    importable (§17, §18 scenario 5). Two fixes: perform an editable
-   install, or run the command with `src/` on `sys.path` explicitly
-   (e.g. via `python -m` from inside `src/`, or `PYTHONPATH`) until
-   installation is set up properly.
+   install (the recommended one), or run the command with `src/` on
+   `sys.path` explicitly (e.g. from inside `src/`, or via `PYTHONPATH`)
+   until installation is set up properly.
 8. Introduce a `shared/` (or `common/`) subpackage holding whatever
    `orders` and `customers` both genuinely need (e.g. a shared
    customer-ID type or lookup function); have both `orders/__init__.py`
@@ -1766,9 +1789,9 @@ ModuleNotFoundError: No module named 'app'
 ```
 *Diagnosis:* `print(sys.path)` — `src/` (where `app` actually lives)
 isn't on it when running from the project root. *Root cause:* a src
-layout (§5) with no installation performed, and no explicit `sys.path`
-adjustment. *Fix:* perform an editable install, or run from inside
-`src/`. *Better design:* treat "install before running" as a normal
+layout (§5) with no installation performed, and no other `sys.path`
+configuration. *Fix:* perform an editable install (recommended), or
+run from inside `src/`. *Better design:* treat "install before running" as a normal
 part of this project's documented setup instructions (its `README.md`,
 §13), not an afterthought.
 
@@ -1794,9 +1817,11 @@ WARNING: Package(s) not found: orders_report
 ```
 *Diagnosis:* confirm whether an install (editable or otherwise) was
 ever actually performed for this src-layout project. *Root cause:* a
-src layout genuinely requires an install step; nothing about having
-the source files on disk alone makes the package importable outside
-`src/` (§5, §18 scenario 5). *Fix:* perform the install.
+src layout is not importable from the project root merely because the
+source exists under `src/`; normal development commonly uses an install
+(such as an editable install), although other deliberate path
+configuration can also make `src/` importable (§5, §18 scenario 5).
+*Fix:* perform the install.
 
 **4. Incorrect relative import**
 ```python
@@ -1859,9 +1884,8 @@ directly with `python tests/test_processing.py`.
 runner like pytest is typically configured (via `pyproject.toml` or an
 install) to correctly resolve the package under test, while directly
 executing a test file as a bare script is not. *Root cause:* relying
-on an implicit, tool-specific mechanism for resolving imports, rather
-than a real (even if editable) installation that would work
-identically regardless of how a specific file happens to be invoked.
+on an implicit, tool-specific mechanism for resolving imports, rather than a real (even if editable) installation that makes imports
+far more consistent however a specific file happens to be invoked.
 *Fix:* ensure the project has a real (editable) install configured, so
 imports resolve consistently across every invocation style, not just
 the one the test runner happens to handle specially.
@@ -1913,20 +1937,22 @@ the one the test runner happens to handle specially.
    because it directly determines how imports resolve, how easily
    code can be tested in isolation, and how easily a reader can find
    the code responsible for any given behavior (§1, §25).
-2. A module is a single importable `.py` file; a package is a
+2. A module is a named, importable unit of Python code (most commonly
+   a single `.py` file); a package is a
    directory of related modules with its own namespace; a project is
    the entire collection — one or more packages, plus tests,
    configuration, and metadata (§2).
 3. Flat layout places the package directly at the project root; src
    layout nests it inside a `src/` directory. The src layout prevents
    a local, uninstalled package from being accidentally importable
-   directly from the project root, forcing development and testing to
-   go through a real (typically editable) installation instead (§4–§5).
-4. Without an editable install, nothing on `sys.path` makes a
-   src-layout package importable outside `src/` at all; an editable
-   install registers a pointer back to the source files, letting
-   `import mypackage` work from anywhere while still reflecting live
-   edits (§5).
+   directly from the project root, encouraging development and testing
+   to go through a real (typically editable) installation instead
+   (§4–§5).
+4. Without an editable install (or other deliberate path setup),
+   nothing on `sys.path` makes a src-layout package importable outside
+   `src/`; an editable install registers a pointer back to the source
+   files, letting `import mypackage` work from most directories while
+   still reflecting live edits (§5).
 5. `__init__.py` marks a directory as an importable package, and its
    top-level code runs once, the first time anything in the package is
    imported; it may be left empty because marking the directory as a
@@ -1958,10 +1984,12 @@ the one the test runner happens to handle specially.
     installable package itself, which is why it belongs at the root
     that contains everything, not inside the package (§12).
 11. `sys.path` (which determines what's importable) is populated
-    differently depending on the current working directory and how
-    Python was invoked; running the same command from two different
-    directories can produce two different `sys.path` contents, and
-    therefore two different import outcomes (§17).
+    depending on how Python was invoked, the environment (installed
+    packages, `PYTHONPATH`, tool configuration) and, in some
+    invocations, the current working directory; running the same
+    command from two different directories can produce two different
+    `sys.path` contents, and therefore two different import outcomes
+    (§17).
 12. An absolute import spells out a module's full path and works the
     same regardless of the importing file's own location; a relative
     import is expressed relative to the importing file's position
@@ -2082,17 +2110,19 @@ __all__ = ["run_pipeline"]
    root, which is already on `sys.path` for commands run from there;
    a src layout deliberately keeps the package *out* of that
    automatically-searched location, so nothing except a real
-   installation makes it importable — this is precisely the mechanism
-   that prevents accidental local-import shadowing (§4–§5).
+   installation (or other deliberate path setup) makes it importable —
+   this is precisely the mechanism that substantially reduces
+   accidental local-import shadowing (§4–§5).
 3. `widget_tool/widget_tool/` (inside `src/`) is the package; `src/`
    itself is likely **not** importable on its own (only what's inside
    it is meant to become importable, via installation); `pyproject.toml`
    is the project metadata (§5, §12).
-4. No — with a src layout and no installation performed, `src/` isn't
-   automatically added to `sys.path` by running from the project root,
-   so `widget_tool` (which lives inside `src/`) isn't importable from
-   there at all; it would need either an install or execution from
-   inside `src/` itself (§5, §17–§18).
+4. No — with a src layout and no installation or other path
+   configuration, `src/` isn't automatically added to `sys.path` by
+   running from the project root, so `widget_tool` (which lives inside
+   `src/`) isn't importable from there; it would need an install (the
+   recommended approach) or `src/` placed on `sys.path` deliberately,
+   e.g. by running from inside `src/` (§5, §17–§18).
 5. It tells you `run_pipeline` is the package's intended, stable public
    entry point (`from mypackage import run_pipeline`), and that
    everything else inside `core.py` (and any other module in the
@@ -2141,8 +2171,8 @@ __all__ = ["run_pipeline"]
       historically-accumulated purpose.
 
 **Imports**
-- [ ] Imports are predictable regardless of working directory —
-      typically because the package is properly (often editably)
+- [ ] Imports are predictable and do not depend on a particular working
+      directory — typically because the package is properly (often editably)
       installed, not just run from a specific directory by convention.
 - [ ] Import-time side effects are minimal to none (per
       [01-imports-modules-and-main.md](01-imports-modules-and-main.md)'s
@@ -2155,7 +2185,7 @@ __all__ = ["run_pipeline"]
 - [ ] Business logic has no dependency on the CLI layer at all.
 
 **Tests**
-- [ ] `tests/` sits outside the package's own source tree, mirroring
+- [ ] `tests/` conventionally sits outside the package's own source tree, mirroring
       its internal structure where useful.
 - [ ] Business logic (validation, processing) is testable without
       invoking the CLI or argparse.

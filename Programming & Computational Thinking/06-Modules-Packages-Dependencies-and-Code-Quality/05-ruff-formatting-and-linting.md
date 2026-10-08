@@ -25,8 +25,8 @@ By the end of this chapter you will be able to:
   safe, mechanical fixes and changes that deserve manual review.
 - Configure Ruff in `pyproject.toml`, including `line-length`,
   `target-version`, `exclude`/`extend-exclude`,
-  `lint.select`/`lint.ignore`/`lint.extend-select`/
-  `lint.extend-ignore`, `lint.per-file-ignores`, and
+    `lint.select`/`lint.ignore`/`lint.extend-select`,
+  `lint.per-file-ignores`, and
   `format.quote-style`/`format.indent-style`/`format.line-ending`.
 - Use inline suppression (`# noqa`, rule-specific `# noqa: CODE`)
   judiciously, and per-file ignores for legitimate exceptions (tests,
@@ -127,8 +127,10 @@ in §6, one modern tool (**Ruff**) that provides both at once.
 ## 2. What Is Code Formatting?
 
 **Formatting** is the visual, textual arrangement of code — spacing,
-indentation, line breaks, quote style — that has **no effect on what
-the code actually does**, only on how it looks to a human reading it.
+indentation, line breaks, quote style — that is
+intended to have **no effect on what the code actually does**, only on
+how it looks to a human reading it. (Ruff's formatter is designed to
+preserve the program's semantics while changing source-code layout.)
 
 In Python specifically, **indentation is not purely cosmetic** — it is
 syntactically meaningful, defining which statements belong to which
@@ -329,7 +331,7 @@ genuinely different tools straight.
 |---|---|---|---|---|
 | **Purpose** | Consistent code layout | Find suspicious/problematic patterns | Verify type consistency | Verify actual behavior |
 | **What it analyzes** | Syntax structure, for layout only | Syntax structure and simple patterns | Declared/inferred types across the codebase | The program's actual runtime behavior |
-| **What it changes** | Rewrites code layout (never behavior) | Nothing, by default (some violations offer fixes, §11) | Nothing — reports only | Nothing — reports only |
+| **What it changes** | Rewrites code layout (designed not to change behavior) | Nothing, by default (some violations offer fixes, §11) | Nothing — reports only | Nothing — reports only |
 | **Typical output** | Reformatted source files | A list of diagnostics (rule + location + message) | A list of type errors | Pass/fail per test, with failure details |
 | **Example tool** | Ruff's formatter | Ruff's linter | mypy, Pyright (not covered in depth here) | pytest |
 | **Limitations** | Says nothing about correctness or logic | Cannot verify actual runtime behavior; some checks are inherently pattern-based, not semantic | Cannot catch every logic error; only catches what's expressible as a type mismatch | Only catches what's actually exercised by a written test |
@@ -342,10 +344,12 @@ does not perform deep type inference across a whole codebase to verify
 that a function is always called with arguments of the correct type —
 that is a type checker's specific, more involved job (§32 draws this
 line precisely). **Linting ≠ testing**: a linter can flag "this
-variable is never used"; it cannot tell you "this function computes
-the wrong average" — only running the function against known inputs
-and checking the output (a test) can establish that (§31 works through
-a concrete example).
+variable is never used"; it cannot establish that "this function
+computes the right average" — static linting cannot generally establish
+whether business logic produces the intended runtime result. That takes
+execution, tests, review, or other behavioral verification, and running
+the function against known inputs and checking the output (a test) is
+one of the primary ways (§31 works through a concrete example).
 
 **A realistic development pipeline**, showing how these tools
 complement, rather than duplicate, each other:
@@ -467,7 +471,7 @@ and in CI), never needed for the application to actually *run* in
 production, exactly the same reasoning already established for
 `pytest` in the previous chapter. **Project dependency** — this
 command updates the project's own `pyproject.toml` (adding `ruff` to
-its development dependency group) and `uv.lock` (recording the exact
+its `dev` dependency group, shown below) and `uv.lock` (recording the exact
 resolved Ruff version), giving Ruff the same reproducibility guarantee
 every other dependency in the project already has, per
 [03-pyproject-lock-files-and-uv.md](03-pyproject-lock-files-and-uv.md)'s
@@ -481,6 +485,18 @@ layout decision — producing exactly the "works on my machine, fails
 in CI" confusion this whole module has been building tools and habits
 to prevent. Pinning Ruff's version through `uv.lock`, exactly like any
 other dependency, closes this gap completely.
+
+```toml
+[dependency-groups]
+dev = [
+    "ruff>=0.5",
+]
+```
+
+`[dependency-groups]` holds development dependency groups, which is
+what `uv add --dev` manages; `[project.optional-dependencies]` is a
+different mechanism, used for published optional dependencies (extras)
+of the project itself.
 
 Once added, Ruff is run through the project's managed environment,
 exactly as
@@ -571,7 +587,7 @@ easy to conflate:**
 |---|---|
 | **Checking** (`ruff check`) | Report lint violations; change nothing |
 | **Formatting** (`ruff format`) | Rewrite files to match the formatter's style |
-| **Automatic fixing** (`ruff check --fix`, §11) | Rewrite code to resolve *lint* violations that have a known-safe fix |
+| **Automatic fixing** (`ruff check --fix`, §11) | Rewrite code to resolve *lint* violations that have a fix Ruff classifies as safe (by default) |
 | **Format verification** (`ruff format --check`) | Report whether formatting is already correct; change nothing |
 
 ## 9. Ruff Rules
@@ -808,9 +824,10 @@ not just detecting).
 **What kinds of fixes can be considered safe**: removing a genuinely
 unused import; rewriting `object`-inheriting class syntax to modern,
 implicit-`object` syntax; rewriting an old-style `%`-format string to
-an f-string where the transformation is unambiguous. Each of these
-changes code in a way that's mechanically verifiable to preserve
-behavior.
+an f-string where the transformation is unambiguous. Ruff classifies
+fixes like these as **safe**: it considers the transformation safe to
+apply automatically, and safe fixes are intended to preserve runtime
+behavior (that is a design intent, not a proof).
 
 **Why not every violation should be automatically fixed**: some
 violations require genuine *judgment* about intent — an unused
@@ -820,6 +837,18 @@ add that usage back, not remove the variable. Ruff is conservative
 about which fixes it applies automatically for exactly this reason —
 but "conservative" does not mean "risk-free": **always review what
 `--fix` actually changed** before trusting it, per the workflow below.
+
+**Safe vs. unsafe fixes**: by default, `ruff check --fix` applies only
+the fixes Ruff considers safe. Fixes that could change runtime behavior
+or remove comments are classified as **unsafe**, and Ruff does not apply
+them unless you explicitly opt in:
+```bash
+uv run ruff check --fix --unsafe-fixes .
+```
+Unsafe fixes warrant greater semantic review and are not the default
+workflow. Ruff applies safe fixes by default; some fixes are classified
+as unsafe and require explicit opt-in; and even safe automatic fixes
+should be reviewed in the resulting diff.
 
 **Reviewing generated changes — the essential habit:**
 ```bash
@@ -833,7 +862,7 @@ automated fix did what you expected, rather than trusting it blindly.
 **The engineering principle underlying this entire section**:
 **automate repetitive, mechanical changes; review semantic changes
 manually.** Removing a genuinely unused import is mechanical — there's
-no judgment call involved, the import is provably unused. Deciding
+usually no judgment call involved, the import is clearly unused. Deciding
 whether an unused variable represents dead code or a hidden bug is
 semantic — it requires understanding *intent*, something no purely
 static analysis can fully recover on its own. Ruff's own fix
@@ -978,21 +1007,20 @@ building toward since §8.
 
 **A realistic local workflow:**
 ```bash
-uv run ruff format .
 uv run ruff check --fix .
+uv run ruff format .
+uv run ruff check .
 ```
 
-**Why the order can matter, depending on project configuration**:
-running the formatter first ensures every file is already in a
-consistent layout before the linter runs — some lint fixes (§11) can
-themselves produce code that then benefits from a formatting pass
-(e.g., `--fix` reorganizing imports, per §12, may leave spacing the
-formatter would otherwise adjust). Running `ruff format` before
-`ruff check --fix` is the generally recommended order for exactly this
-reason, though a project's own configuration and specific rule
-selection can occasionally make the reverse order more appropriate —
-this is worth verifying for your own project's specific setup rather
-than assumed universally.
+**Why the order matters**: lint fixes (§11) rewrite code, and the
+rewritten code may not be laid out the way the formatter would lay it
+out (e.g., `--fix` removing or reorganizing imports, per §12, can leave
+spacing the formatter would adjust). Running `ruff check --fix` first
+and `ruff format` afterward lets the formatter have the last word on
+layout; Ruff's own documentation likewise has you run the linter (for
+example, to sort imports) before the formatter, since the formatter does
+not sort imports itself. The final `ruff check .` confirms nothing
+remains to be fixed manually.
 
 ## 15. `pyproject.toml` Configuration
 
@@ -1024,7 +1052,6 @@ extend-include = ["*.pyi"]
 select = ["E", "F", "I", "UP", "B"]
 ignore = ["E501"]
 extend-select = ["SIM"]
-extend-ignore = []
 per-file-ignores = { "tests/*.py" = ["F401"] }
 
 [tool.ruff.format]
@@ -1039,9 +1066,10 @@ line-ending = "auto"
   and (for the relevant lint rules) the linter checks against; a
   common convention is somewhere between 79 and 100+ characters,
   chosen per-project.
-- **`target-version`** — the minimum Python version the project
-  supports (§20), used by Ruff to decide which syntax features/
-  modernization suggestions are actually valid to apply.
+- **`target-version`** — the Python version Ruff should assume when
+  analyzing, formatting, and modernizing code (§20), used to decide which
+  syntax features/modernization suggestions are valid to apply. The
+  project's declared Python compatibility belongs in `requires-python`.
 - **`exclude`** — a list of paths/patterns Ruff should never analyze
   at all (§19) — for a project's own build artifacts, virtual
   environments, or similar.
@@ -1057,8 +1085,10 @@ line-ending = "auto"
 - **`lint.select`** — which rule codes/families are active (§16).
 - **`lint.ignore`** — which rule codes are turned off, project-wide
   (§16).
-- **`lint.extend-select`** / **`lint.extend-ignore`** — add to
-  `select`/`ignore` without replacing them entirely (§16).
+- **`lint.extend-select`** — adds to `select` without replacing it
+  entirely (§16). (An older `lint.extend-ignore` key also exists, but it
+  is deprecated — it is now interchangeable with `lint.ignore`, so use
+  `lint.ignore`.)
 - **`lint.per-file-ignores`** — rule exceptions scoped to specific
   file patterns (§18).
 - **`format.quote-style`** — `"double"` or `"single"` — which quote
@@ -1094,9 +1124,8 @@ older tutorial without checking it still matches.
 ```toml
 [tool.ruff.lint]
 select = ["E", "F", "I"]
-ignore = ["E501"]
+ignore = ["E501", "F401"]
 extend-select = ["UP", "B"]
-extend-ignore = ["F401"]
 ```
 
 - **`select`** — the base set of rule codes/families to enable,
@@ -1106,8 +1135,12 @@ extend-ignore = ["F401"]
 - **`extend-select`** — **adds** additional rules on top of whatever
   `select` already specifies, without needing to repeat the entire
   list.
-- **`extend-ignore`** — **adds** additional ignored rules on top of
-  whatever `ignore` already specifies.
+
+`ignore` is the setting for turning rules off. You may still see an
+`extend-ignore` key in older configurations; it is **deprecated** in
+current Ruff, which now merges it with `ignore` into a single set, so
+new configurations should simply list every ignored rule under
+`ignore`.
 
 **Why projects sometimes exclude specific rules**: a rule might not
 fit a project's own conventions (a team that deliberately allows lines
@@ -1117,8 +1150,8 @@ false positives for a project's specific coding patterns (§36); or a
 project might be in the middle of a gradual migration (§34–§35) and
 deliberately deferring a whole rule family until later.
 
-**Disabling a rule globally** (project-wide, via `ignore`/
-`extend-ignore` in `[tool.ruff.lint]`) vs. **disabling a rule for one
+**Disabling a rule globally** (project-wide, via `ignore`
+in `[tool.ruff.lint]`) vs. **disabling a rule for one
 file** (via `per-file-ignores`, §18) vs. **disabling a rule for one
 category/directory** (also via `per-file-ignores`, using a glob
 pattern matching that directory) vs. **inline suppression** (silencing
@@ -1303,13 +1336,15 @@ target-version = "py312"
 **Why Ruff needs to know the target Python version**: several of
 Ruff's checks and formatting decisions depend directly on *which*
 Python syntax features are actually available and safe to suggest.
-`target-version` tells Ruff "assume this project runs on at least this
-Python version" — directly mirroring
+`target-version` tells Ruff which Python version to target when checking
+syntax and applying Python-version-aware lint/modernization rules. It is
+related to, but not the same as,
 [03-pyproject-lock-files-and-uv.md](03-pyproject-lock-files-and-uv.md)'s
-§6 `requires-python` declaration, though the two are configured
-separately (`requires-python` lives in `[project]`; `target-version`
-lives in `[tool.ruff]`) and, in a well-maintained project, should
-agree with each other.
+§6 `requires-python` declaration: `requires-python` (in `[project]`) is
+the project's declared Python compatibility, while `target-version` (in
+`[tool.ruff]`) is what Ruff assumes. They are configured separately and,
+in a well-maintained project, should agree with each other (if
+`target-version` is omitted, Ruff can infer it from `requires-python`).
 
 **How Python versions affect Ruff's behavior:**
 - **Syntax** — some syntax is only valid on newer Python versions
@@ -1329,7 +1364,7 @@ agree with each other.
   version.
 
 **Connecting this to the project's own dependency compatibility**: if
-`target-version` claims a newer Python than the project's actual
+`target-version` assumes a newer Python than the project's actual
 `requires-python` genuinely supports, Ruff could suggest (or silently
 apply, via `--fix`) modernizations that would break on the project's
 own oldest supported Python version — keeping the two settings
@@ -1542,7 +1577,8 @@ case: if a fix-on-save action rewrites code *while you're still in the
 middle of typing it* (an incomplete expression, a not-yet-finished
 edit), it can interfere with your own in-progress work rather than
 helping it — many developers deliberately enable format-on-save
-(generally safe, since formatting never changes meaning) while being
+(generally safe, since formatting is designed to change layout rather
+than meaning) while being
 more selective about which specific fix categories, if any, apply
 automatically on save versus only when explicitly requested (§11's
 own "review before trusting" discipline, applied here to *when* a fix
@@ -1586,12 +1622,12 @@ and CI checks — three genuinely different enforcement layers:**
 |---|---|---|
 | **Local developer checks** (editor integration, §23) | While actively editing, or manually invoked | Entirely optional — depends on the individual developer's setup and habits |
 | **Pre-commit checks** | Automatically, at `git commit` time | Blocks the commit itself if a check fails — but can, in principle, be bypassed by the developer (e.g. with an explicit override flag) |
-| **CI checks** (§26) | Automatically, on every push/pull request, on a shared, controlled server | The strongest layer — cannot be bypassed by any individual developer's local configuration or choices |
+| **CI checks** (§26) | Automatically, on every push/pull request, on a shared, controlled server | The strongest layer — an independent, shared verification that does not depend on any individual developer's local configuration (repository branch-protection policies can require it to pass before merging) |
 
 Pre-commit is a genuinely valuable *early* layer, but — precisely
 because it runs on each individual developer's own machine, under
 their own control — it is not, by itself, a substitute for the
-independent, un-bypassable verification CI provides (§26).
+independent verification and enforcement layer CI provides (§26).
 
 ## 26. CI/CD Integration
 
@@ -1631,6 +1667,9 @@ environment built from the project's own committed
 [03-pyproject-lock-files-and-uv.md](03-pyproject-lock-files-and-uv.md)'s
 §28), is the one place that verifies code quality **the same way,
 every time, regardless of any individual developer's local setup**.
+For strict lockfile verification, CI installs with `uv sync --locked`,
+which fails if `uv.lock` is out of date, whereas local development can
+use plain `uv sync`.
 
 **Reproducibility, clean builds, failed checks, pull requests, branch
 protection**: CI's Ruff check runs against the exact locked Ruff
@@ -1640,7 +1679,9 @@ produces a clearly failed CI run, visible directly on the pull
 request; and a repository's **branch protection** settings can require
 that CI check to pass before a pull request is even allowed to be
 merged — turning "please run the linter" from a polite request into a
-structurally enforced requirement no pull request can bypass.
+repository-enforced requirement. CI provides an independent verification
+and enforcement layer running in a controlled environment, and branch
+protection can require its checks to pass before merging.
 
 ## 27. Format Checking in CI
 
@@ -1744,9 +1785,9 @@ chapter has covered so far:
 ```
 edit code
     ↓
-ruff format .
-    ↓
 ruff check --fix .
+    ↓
+ruff format .
     ↓
 review git diff
     ↓
@@ -1801,14 +1842,15 @@ This function:
 - **Still contains a genuine logical bug** — it computes the wrong
   answer, off by exactly one, for every single input.
 
-```python
+```pycon
 >>> average([2, 4, 6])
 3.0   # WRONG — the correct average is 4.0
 ```
 
-**Only a test** — actually *running* the function against a known
-input and checking the output against the *expected* result — can
-catch this:
+**A test** — actually *running* the function against a known
+input and checking the output against the *expected* result — is one of
+the primary ways to catch this (Ruff cannot establish that a function
+produces the correct result for arbitrary inputs):
 ```python
 def test_average():
     assert average([2, 4, 6]) == 4.0   # this test would correctly FAIL, exposing the bug
@@ -1927,7 +1969,7 @@ than attempting to enable everything at once:
 
 **Stage 1 — formatter only.** Adopt `ruff format` first, alone.
 Formatting changes are the lowest-risk, easiest-to-review category of
-change (they never alter behavior, per §3), making this the safest
+change (they are designed to alter layout rather than behavior, per §3), making this the safest
 possible first step, and immediately establishing a consistent,
 debate-free baseline across the whole codebase.
 
@@ -2242,7 +2284,7 @@ dependencies = [
     "pydantic>=2.0,<3.0",
 ]
 
-[project.optional-dependencies]
+[dependency-groups]
 dev = ["pytest>=8.0", "ruff>=0.5"]
 
 [tool.ruff]
@@ -2262,9 +2304,9 @@ quote-style = "double"
 
 **Demonstrating the workflow directly against this structure:**
 ```bash
-uv run ruff format .              # consistent layout across src/, tests/, and scripts/
 uv run ruff check .                 # lint the whole project
 uv run ruff check --fix src/           # apply safe fixes, scoped to the core package
+uv run ruff format .              # consistent layout across src/, tests/, and scripts/
 git diff                                 # review exactly what changed
 uv run pytest                              # verify actual behavior, per §31
 ```
@@ -2300,9 +2342,10 @@ merged pull request:
 3. **Configure Ruff** — a deliberate, justified `[tool.ruff]`
    configuration in `pyproject.toml` (§15, §22).
 4. **Write Python code** — the actual application logic.
-5. **Run the formatter** — `uv run ruff format .` (§13).
-6. **Run the linter** — `uv run ruff check .` (§8).
-7. **Apply safe fixes** — `uv run ruff check --fix .` (§11), reviewed.
+5. **Run the linter** — `uv run ruff check .` (§8).
+6. **Apply safe fixes** — `uv run ruff check --fix .` (§11), reviewed.
+7. **Run the formatter** — `uv run ruff format .` (§13), after the
+   fixes, so it has the last word on layout.
 8. **Inspect the Git diff** — `git diff`, confirming every change is
    understood and intended (§11, §30).
 9. **Run tests** — `uv run pytest` (§31) — verifying actual behavior,
@@ -2313,7 +2356,8 @@ merged pull request:
 12. **Pull request** — the change is proposed for review, visible to
     teammates.
 13. **CI runs Ruff** — `ruff format --check` and `ruff check`,
-    independently, in a clean environment (§26–§28).
+    independently, in a clean environment installed with `uv sync
+    --locked` (§26–§28).
 14. **CI runs tests** — the project's full automated test suite.
 15. **Merge** — only once every gate (formatting, linting, tests) has
     passed, per the repository's own branch-protection policy (§26).
@@ -2386,7 +2430,9 @@ orders.py:13:12: SIM201 use `total > 0` instead of `total > 0 == True`
 orders.py:3:1: UP035 `typing.List` is deprecated, use `list` instead
 ```
 
-**Step 3 — apply safe fixes, then review:**
+**Step 3 — apply safe fixes, then review** (in a routine local run
+you would apply `--fix` *before* formatting, per §14; this walkthrough
+runs the commands one at a time purely for teaching):
 ```bash
 uv run ruff check --fix .
 git diff
@@ -2638,9 +2684,9 @@ beyond `sys` worth catching in the same pass.)
    without it, a future reader (including the original author, later)
    has no way to know whether the ignore is still justified or was
    simply never revisited (§16).
-8. `git diff` should show only mechanical, provably-safe changes
-    (e.g. an import removed, syntax modernized) if `--fix` was scoped
-    correctly; anything touching logic or naming, per §11 and §42's
+8. `git diff` should show only mechanical changes of the kind Ruff
+    classifies as safe (e.g. an import removed, syntax modernized) if
+    `--fix` was scoped correctly, with no `--unsafe-fixes` opt-in; anything touching logic or naming, per §11 and §42's
     worked example, still deserves a closer, deliberate look even
     after review, not just a glance.
 9. A reasonable configuration ignores `F401` in `tests/*.py` (fixture
@@ -2670,7 +2716,7 @@ beyond `sys` worth catching in the same pass.)
     encodes deliberate policy" principle as an actual team process.
 13. A reasonable CI sequence:
     ```bash
-    uv sync
+    uv sync --locked
     uv run ruff format --check .
     uv run ruff check .
     uv run pytest
@@ -2681,7 +2727,8 @@ beyond `sys` worth catching in the same pass.)
     pre-commit, reserving the *full*, authoritative check (the complete
     rule selection, plus tests) for CI — reflecting §25's own
     distinction that pre-commit is a fast, locally-bypassable early
-    layer, while CI is the un-bypassable, authoritative one.
+    layer, while CI is the independent, shared, authoritative one (enforceable through
+    branch-protection policies).
 15. A reasonable plan sequences the work across several pull requests
     rather than one enormous change: (1) formatter-only PR; (2) a PR
     fixing/ignoring `F`-family violations; (3) a PR addressing `B`;
@@ -2755,8 +2802,8 @@ to catch).
 
 **Fixing:**
 ```bash
-uv run ruff format .
 uv run ruff check --fix .
+uv run ruff format .
 git diff
 ```
 
@@ -2809,7 +2856,7 @@ git commit -m "Add Ruff; fix formatting, naming, and unused imports; use context
 **A CI-oriented check, as the project's own enforcement layer going
 forward:**
 ```bash
-uv sync
+uv sync --locked
 uv run ruff format --check .
 uv run ruff check .
 uv run pytest
@@ -2877,7 +2924,7 @@ pass.
    editor integration with pre-commit and, critically, CI (§25–§26).
 9. **Skipping CI validation.** *Why it happens:* trusting that local
    checks were "probably" run. *Why problematic:* removes the one
-   enforcement layer that can't be bypassed by an individual
+   enforcement layer that doesn't depend on an individual
    developer's local setup or oversight (§26). *Better approach:*
    always gate merges on an independent CI check.
 10. **Ignoring the target Python version.** *Why it happens:*
@@ -2924,8 +2971,8 @@ pass.
 - [ ] Generated files, vendor code, build output, and virtual
       environments are appropriately excluded (`exclude`/
       `extend-exclude`).
-- [ ] `target-version` is set and kept consistent with the project's
-      own `requires-python`.
+- [ ] `target-version` (what Ruff assumes) is set and kept consistent
+      with the project's declared `requires-python`.
 - [ ] Local checks are readily available to every developer (via
       `uv run ruff format`/`ruff check`, and/or editor integration).
 - [ ] Editor/IDE integration is in place for immediate, in-context
@@ -2985,7 +3032,7 @@ pass.
 **Answer key**
 
 1. The consistent visual/textual arrangement of code (spacing, line
-   breaks, quote style) with no effect on behavior (§2).
+   breaks, quote style) that is intended to leave behavior unchanged (§2).
 2. Static analysis of source code to detect suspicious patterns,
    dead code, and likely mistakes, without executing the program (§4).
 3. A modern Python tool providing both a fast linter and a fast
@@ -3034,7 +3081,7 @@ pass.
     any other code change — combined with a documented team policy for
     when a suppression is (and isn't) appropriate (§16–§17, §36, §44
     exercise 12).
-15. Run `uv sync`, then `ruff format --check .` and `ruff check .`, as
+15. Run `uv sync --locked`, then `ruff format --check .` and `ruff check .`, as
     required, independently-gating steps in the CI pipeline, before
     tests and build/deploy stages (§26–§29).
 16. Exclude it entirely from linting/formatting via `exclude`/
@@ -3134,8 +3181,8 @@ pass.
 
 **Answer key**
 
-1. A formatter changes code's *layout* only, with no effect on
-   behavior; a linter *detects* problems (dead code, likely bugs,
+1. A formatter changes code's *layout*, and is designed to
+   leave behavior unchanged; a linter *detects* problems (dead code, likely bugs,
    style issues) without changing anything, by default (§2–§5).
 2. Static analysis examines source code's text/structure without
    executing it; running a program actually exercises its logic
@@ -3171,8 +3218,9 @@ pass.
 12. A framework running automated checks immediately before a Git
     commit, on the developer's own machine; unlike CI, it runs locally
     and can, in principle, be bypassed by the developer, whereas CI
-    runs on a shared, controlled server and cannot be bypassed by any
-    individual's local choices (§25).
+    runs on a shared, controlled server that doesn't depend on any
+    individual's local choices, and can be required through
+    branch-protection policies (§25).
 13. CI independently re-runs formatting/lint checks (and tests) in a
     clean, reproducible environment, regardless of what any individual
     developer's local setup did or didn't do — this matters because
@@ -3181,12 +3229,12 @@ pass.
 14. Failure — at least one violation exists under the project's
     current rule selection, and the pipeline stage (and typically the
     whole CI run) should be treated as failed (§28–§29).
-15. Edit code → `ruff format .` → `ruff check --fix .` → review
+15. Edit code → `ruff check --fix .` → `ruff format .` → review
     `git diff` → run tests → commit (§30, §41).
 16. A logical bug that produces the wrong output for valid input (e.g.
     an incorrect arithmetic formula) — syntactically and structurally
-    fine, but factually wrong; only running the code against known
-    expected results (a test) reveals it (§31).
+    fine, but factually wrong; running the code against known
+    expected results (a test) is a primary way to reveal it (§31).
 17. A value whose declared type could legitimately be `None` being
     passed to a function that requires a non-`None` value — a
     cross-function type-consistency issue Ruff's linter does not
@@ -3212,7 +3260,8 @@ pass.
 - **Code quality** — how easy a codebase is to read, trust, and change
   safely, as distinct from merely whether it runs (§1).
 - **Auto-fix** — automatically rewriting code to resolve a lint
-  violation with a known-safe correction (`ruff check --fix`, §11).
+  violation with a correction Ruff classifies as safe (`ruff check
+  --fix`; fixes classified as unsafe need `--unsafe-fixes`, §11).
 - **Rule family** — a group of related lint rules sharing a common
   code prefix and origin/category (e.g. `F`, `UP`, `B`) (§9).
 - **Suppression** — silencing one specific occurrence of a violation
@@ -3232,9 +3281,11 @@ pass.
   `0` for success, non-zero for failure, used by automation to gate
   pipelines (§29, connecting to
   [07-standard-streams-and-exit-codes.md](../05-Text-Files-Structured-Data-and-CLI-Programs/07-standard-streams-and-exit-codes.md)).
-- **Target Python version** — the minimum Python version a project
-  supports, configured via `target-version`, affecting which syntax/
-  modernization suggestions Ruff considers valid (§20).
+- **Target Python version** — the Python version Ruff assumes when
+  analyzing and formatting code, configured via `target-version` (the
+  project's own declared compatibility lives in `requires-python`),
+  affecting which syntax/modernization suggestions Ruff considers valid
+  (§20).
 - **Generated code** — code produced automatically by another tool,
   which should generally be excluded from linting/formatting rather
   than manually edited (§18–§19).
@@ -3253,11 +3304,11 @@ pass.
 ```
 WRITE CODE
     ↓
-FORMAT CODE            (consistent layout — protects against style debate and inconsistency)
-    ↓
 LINT CODE                (structural/pattern checks — protects against dead code, likely bugs, style drift)
     ↓
 FIX SAFE ISSUES            (mechanical corrections, always reviewed — protects against repetitive manual toil)
+    ↓
+FORMAT CODE            (consistent layout, applied last — protects against style debate and inconsistency)
     ↓
 REVIEW CHANGES                (git diff — protects against blindly trusting automation)
     ↓
@@ -3267,7 +3318,7 @@ TEST                                (actual behavior verification — protects a
     ↓
 COMMIT                                (a clean, reviewed, atomic unit of change)
     ↓
-CI VALIDATION                            (independent, un-bypassable re-verification of everything above)
+CI VALIDATION                            (independent, shared re-verification of everything above; enforceable via branch protection)
     ↓
 MERGE
     ↓

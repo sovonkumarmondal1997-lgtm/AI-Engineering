@@ -21,8 +21,8 @@ By the end of this chapter you will be able to:
 - Design a `main() -> int` entry point combined with
   `raise SystemExit(main())`, connecting directly to this course's
   prior CLI, exit-code, and logging chapters.
-- Explain import caching and `sys.modules`, and why a module's
-  top-level code runs at most once per process.
+- Explain import caching and `sys.modules`, and why, under normal
+  imports, a module's top-level code runs only once per process.
 - Explain `sys.path` and how Python searches for modules, and diagnose
   `ModuleNotFoundError`/`ImportError` systematically.
 - Use absolute and relative imports correctly, and explain why relative
@@ -60,10 +60,12 @@ prior knowledge of Python's import system is assumed.
 
 ## 1. What Is a Python Module?
 
-The simplest possible starting point: **a Python module is just a
-`.py` file** — but calling it a "module" rather than "a file" signals
-something specific: it's a file whose code is meant to be **imported
-and reused** by other code, not (necessarily) run directly.
+The simplest possible starting point: **a Python module is a named
+unit of Python code managed by the import system**, and a `.py` file is
+the most common way to define one. Calling a `.py` file a "module"
+rather than "a file" signals something specific: it's a file whose code
+is meant to be **imported and reused** by other code, not (necessarily)
+run directly.
 
 ```python
 # math_utils.py
@@ -105,7 +107,8 @@ has been building toward since its very first chapters:
 
 The distinction between "a Python file" and "a Python module" is
 really a distinction of **intent and usage**, not syntax — any `.py`
-file *can* be imported as a module; whether it's *designed* to be
+file *can* be imported as a module (this chapter works exclusively with
+`.py`-file modules); whether it's *designed* to be
 reused that way is a design choice this entire chapter is about
 making deliberately, rather than by accident.
 
@@ -198,17 +201,27 @@ discussion to §11's caching behavior. The actual sequence:
 ```
 1. Python receives an import request        (import module_name)
 2. Python checks sys.modules first            (§11 — already imported?)
-3. If not cached, Python SEARCHES for the module   (§13 — using sys.path)
-4. Python LOADS the module's source
-5. Python EXECUTES the module's top-level code, once, top to bottom
-6. Python creates a module OBJECT holding everything defined during
-   that execution (functions, classes, variables — as attributes)
-7. Python records that module object in sys.modules (the cache)
-8. The name importing code asked for becomes available in ITS
-   namespace, bound to that module object (or a specific name from it)
+3. If not cached, the import system FINDS the module   (§13 — e.g. via sys.path)
+   and produces a "spec" describing how to load it
+4. Python CREATES and initializes an empty module OBJECT
+5. Python places that module object in sys.modules (the cache)
+   BEFORE running any of the module's code
+6. Python EXECUTES the module's top-level code, once, top to bottom;
+   everything defined during that execution (functions, classes,
+   variables) becomes an attribute of the module object
+7. If execution succeeds, the import completes
+8. The import statement binds the requested name(s) in the IMPORTING
+   code's namespace (the module itself, or a specific name from it)
 ```
 
-A concrete example makes step 5 — "executes the module's top-level
+The ordering of steps 4–6 matters: the module object exists, and is
+already visible in `sys.modules`, *while* its own top-level code is
+still running. §19 relies on exactly this fact to explain circular
+imports. (If the module's code raises an exception during step 6,
+Python removes the half-built module from `sys.modules` again, so a
+failed import does not leave a broken cached module behind.)
+
+A concrete example makes step 6 — "executes the module's top-level
 code" — vivid:
 
 ```python
@@ -240,7 +253,8 @@ execution does), rather than merely making its text available for
 later use. §10 builds directly on this fact to explain why unexpected
 module-level side effects are dangerous.
 
-The **module object** created in step 6 is the thing `import greeting`
+The **module object** created in step 4 (and filled in during step 6)
+is the thing `import greeting`
 actually binds to the name `greeting` in `main.py` — every function,
 class, and variable `greeting.py` defines at its top level becomes an
 **attribute** of that one object, which is exactly why
@@ -288,7 +302,7 @@ own module's name.
 ## 5. Module Attributes
 
 Because a module is an ordinary Python **object** once imported
-(§3's step 6), it can have **attributes** beyond just the names you
+(§3's step 4), it can have **attributes** beyond just the names you
 explicitly defined — Python automatically populates several special
 ones for you.
 
@@ -304,7 +318,7 @@ print(math.__doc__)    # the module's docstring, if any
 | `__name__` | The module's name as known to the import system (or `"__main__"` — §6) |
 | `__file__` | The filesystem path the module was loaded from (absent for some built-in/frozen modules) |
 | `__doc__` | The module's docstring — the string literal, if any, at the very top of the file |
-| `__package__` | The name of the package this module belongs to (empty string for a top-level, non-package module) |
+| `__package__` | The package context the module belongs to: `""` for an *imported* top-level module, the package name (e.g. `"mypackage"`) for a module inside a package, and `None` for a file run directly as a script (see below) |
 | `__spec__` | A `ModuleSpec` object describing how this module was found and loaded (its origin, loader, and more) — mainly consulted by the import system itself and by tools that introspect it |
 
 ```python
@@ -321,6 +335,16 @@ print(greeting.__doc__)     # A tiny greeting module.
 print(greeting.__file__)    # /path/to/greeting.py
 print(greeting.__package__) # '' (empty — greeting.py is a top-level module, not inside a package)
 ```
+
+`__package__` also depends on *how* a file is run, not only where it
+lives (verified on CPython 3.14):
+
+| How it runs | `__name__` | `__package__` | `__spec__` |
+|---|---|---|---|
+| `import greeting` (top-level module) | `"greeting"` | `""` | a `ModuleSpec` |
+| `import mypackage.cli` | `"mypackage.cli"` | `"mypackage"` | a `ModuleSpec` |
+| `python file.py` | `"__main__"` | `None` | `None` |
+| `python -m mypackage.cli` | `"__main__"` | `"mypackage"` | a `ModuleSpec` |
 
 These attributes are not obscure CPython trivia — `__name__` (§6) is
 central to the entire `__main__` pattern this chapter builds toward;
@@ -348,7 +372,7 @@ Run it two different ways:
 $ python greeting.py
 __name__ is: '__main__'
 ```
-```python
+```text
 >>> import greeting
 __name__ is: 'greeting'
 ```
@@ -412,7 +436,9 @@ if __name__ == "__main__":
 - **Imported elsewhere:** `import greeting` → `greeting.py`'s
   `__name__` is `"greeting"`, not `"__main__"` → the `if` block does
   **not** execute → only `greet` becomes available as `greeting.greet`,
-  with no side effect from the import itself.
+  with no side effect from the guarded code. (The guard only protects
+  the code placed *inside* it; any other module-level statement outside
+  the guard still runs during import — see §10.)
 
 **Why this pattern exists**, restated precisely: it lets a single file
 serve **two roles at once** — a **reusable module** (its functions and
@@ -455,9 +481,13 @@ actually launching the program as a subprocess.
 
 Placing significant executable logic directly inside the
 `if __name__ == "__main__":` block itself works, but scales poorly the
-moment that logic grows beyond a couple of lines — every local variable
-inside that block pollutes the module's own namespace, and none of it
-can be called, tested, or reused as a unit.
+moment that logic grows beyond a couple of lines. An `if` block does
+**not** create a new scope in Python, so any variable assigned directly
+inside `if __name__ == "__main__":` is an ordinary module-level (global)
+name — it lives in the module's namespace like any other. By contrast, a
+variable assigned inside `main()` is local to that function and
+disappears when it returns. On top of that, none of the logic inside the
+guard can be called, tested, or reused as a unit.
 
 The standard fix: wrap the entry-point logic in its own function,
 conventionally named `main()`, and call *that* from the guard:
@@ -512,7 +542,7 @@ right default.
 
 Every statement at a module's top level — not just function/class
 definitions — executes the moment that module is imported (§3, step
-5). This includes things far more consequential than a `print()`
+6). This includes things far more consequential than a `print()`
 statement.
 
 **Bad — real side effects at import time:**
@@ -572,19 +602,24 @@ if __name__ == "__main__":
 
 Now, `import app` (from a test, or from any other module wanting to
 reuse `connect_to_database` in isolation) executes **only the function
-definitions themselves** — genuinely side-effect-free — and none of the
-actual database connection, file read, or startup message happens
+definitions themselves** — so this module has no import-time side
+effects — and none of the actual database connection, file read, or startup message happens
 unless `main()` is explicitly called (which only happens automatically
 when `app.py` is run directly, per §8). This is the concrete,
 practical payoff of the `__main__` guard: it's not a stylistic
 convention, it's what keeps importing a module a safe, predictable, and
-cheap operation.
+cheap operation. Note the limit of that guarantee: the guard only keeps
+the code *inside* it from running on a normal import. Module-level code
+*outside* the guard still executes during import, so keeping it free of
+side effects remains the module author's responsibility.
 
 ## 11. Import Caching
 
-A module's top-level code — including whatever side effects it might
-have (§10) — runs **at most once per Python process**, no matter how
-many different files import it.
+Under normal import behavior, a module's top-level code — including
+whatever side effects it might have (§10) — runs **once per Python
+process**, no matter how many different files import it. (The only
+ways to run it again are explicit ones, such as `importlib.reload()`,
+§27, or loading the same source under a different module name.)
 
 ```python
 # counted.py
@@ -619,6 +654,13 @@ useful pattern) would be visible to every other part that imported the
 same module, precisely because there's only ever one instance of it
 per process.
 
+Two caveats keep this model honest. `importlib.reload()` (§27)
+deliberately re-executes a module's code on request. And the cache is
+keyed by module *name*: if the same source file ends up loaded under two
+different names (for example, a file run as `__main__` that is also
+imported by its normal name), Python treats them as two separate module
+objects, each executing the code once.
+
 ## 12. `sys.modules`
 
 The cache §11 described is a real, inspectable object:
@@ -638,7 +680,7 @@ any of the searching or loading work described in §3 and §13 — if a
 module name is already a key in `sys.modules`, Python simply returns
 that cached object immediately, skipping the search/load/execute steps
 entirely. This is the concrete mechanism behind "a module's top-level
-code runs at most once."
+code runs once per process under normal imports."
 
 `sys.modules` is genuinely useful to **inspect** — printing
 `list(sys.modules.keys())` during debugging can reveal exactly what's
@@ -653,8 +695,11 @@ import hooks), not everyday application logic.
 ## 13. `sys.path`
 
 When Python needs to import a module it hasn't already cached (§12),
-it has to **search** the filesystem for it — and `sys.path` is exactly
-the list of locations it searches, in order.
+it has to **find** it — and for ordinary source-file modules, `sys.path`
+is the list of locations it searches, in order. (Python's import
+machinery uses `sys.path` as an important set of search locations; the
+full import system is more general and can use different finders and
+loaders as well, which this chapter does not need to go into.)
 
 ```python
 import sys
@@ -701,9 +746,9 @@ one you're looking at narrows the diagnosis significantly.
   narrower failures: the module *was* found, but a specific name you
   tried to import *from* it doesn't exist there (e.g.
   `from math import not_a_real_function`), or the module's own code
-  raised an exception while executing (§3's step 5).
+  raised an exception while executing (§3's step 6).
 
-```python
+```text
 >>> import definitely_not_a_real_module
 ModuleNotFoundError: No module named 'definitely_not_a_real_module'
 
@@ -740,9 +785,13 @@ ImportError: cannot import name 'not_a_real_function' from 'math'
 import sys
 print(sys.path)                 # is the expected directory even in here?
 print(sys.executable)           # which Python interpreter is actually running?
-import subprocess; print(subprocess.run(["pip", "show", "package_name"]))  # is it installed HERE?
+import subprocess
+subprocess.run([sys.executable, "-m", "pip", "show", "package_name"], check=False)   # is it installed HERE?
 ```
-Checking `sys.path` directly (does it contain what you expect?) and
+Invoking pip as `[sys.executable, "-m", "pip", ...]` (or `python -m pip`
+in a shell) guarantees it inspects the *same* interpreter that runs your
+application, which a bare `pip` command on `PATH` does not. Checking
+`sys.path` directly (does it contain what you expect?) and
 `sys.executable` (is this genuinely the Python/virtual environment you
 think it is?) resolves the large majority of real-world
 `ModuleNotFoundError` confusion — most such errors turn out to be "the
@@ -833,10 +882,11 @@ directly — this is exactly the naming pattern behind `__name__` (§6)
 for any module living inside a package: its `__name__` would be
 `"mypackage.utils"`, not just `"utils"`.
 
-**`__init__.py`** is what (historically, and still very commonly)
-marks a directory as a genuine Python package rather than just an
+**`__init__.py`** is what marks a directory as a **regular package**
+(the traditional, and still most common, kind) rather than just an
 ordinary directory that happens to contain `.py` files — §17 covers
-its role in full. **Namespace packages**, at a purely conceptual
+its role in full. It is *not* required for every package, though:
+**namespace packages**, at a purely conceptual
 level worth knowing the name of: modern Python (3.3+) also supports
 packages *without* an `__init__.py` file at all, called **namespace
 packages**, primarily useful for splitting a single logical package's
@@ -854,11 +904,12 @@ subject of the very next chapter in this module.
 `__init__.py` is a file placed directly inside a package directory,
 and it plays two closely related roles.
 
-**Marking a directory as a package** — historically, and still the
-clearest, most explicit signal — the presence of `__init__.py` (even
-if completely empty) tells Python "treat this directory as an
-importable package," making `from mypackage.utils import helper`
-possible at all.
+**Marking a directory as a regular package** — historically, and still
+the clearest, most explicit signal — the presence of `__init__.py` (even
+if completely empty) tells Python "treat this directory as a regular
+importable package." `__init__.py` is used for regular packages and is
+optional for namespace packages (§16), but for the code you write in
+this course, including it is the standard, clearest choice.
 
 **Package initialization** — `__init__.py`'s own top-level code runs
 (§3) exactly once, the first time *any* module inside that package is
@@ -960,39 +1011,60 @@ chain of other imports) imports module A right back.
 
 ```python
 # a.py
-import b
+from b import function_b
 
 def function_a():
-    return b.function_b()
+    return "A"
 ```
 ```python
 # b.py
-import a
+from a import function_a
 
 def function_b():
-    return a.function_a()
+    return function_a()
 ```
 
 ```bash
-$ python a.py
+$ python -c "import a"
 ```
-This can raise `ImportError` (commonly something like
-`ImportError: cannot import name 'function_a' from partially
-initialized module 'a'`), or, depending on the exact order things are
-imported and used, may appear to "work" in some cases and fail
-mysteriously in others.
+This raises an `ImportError`. Its representative form is:
 
-**Why this happens**, connecting directly to §3 and §11: when `a.py`
-starts running (say, directly, as `__main__`) and hits `import b`,
-Python begins executing `b.py`'s top-level code — but `b.py`
-immediately hits `import a`. Since `a` is **already in the process of
-being imported** (it's only partway through executing, per §3's step
-5 — its module object exists in `sys.modules`, per §11–§12, but not
-every name inside it has been defined yet), Python does **not**
-re-run `a.py` from scratch (that would infinite-loop); it instead
-returns the **partially initialized** module object it already has —
-which, at that point, might not yet have `function_a` defined on it at
-all, producing exactly the "cannot import name" error above.
+```text
+ImportError: cannot import name 'function_a' from partially initialized
+module 'a' (most likely due to a circular import)
+```
+
+The exact wording varies between Python versions (some versions append a
+file path or a "consider renaming" hint instead), so rely on the
+*meaning* — "the name isn't there yet, because the module is only
+partially initialized" — rather than on an exact string. Not every
+circular-looking layout fails: plain `import a` / `import b` at the top
+of both files, with the other module's names used only inside function
+bodies, usually imports without error (the names are looked up later,
+when the functions are called). The failure above happens because
+`from ... import name` needs the name to exist *at import time*.
+(Run it as `import a` rather than `python a.py`: running `a.py` as the
+script makes it `__main__`, so `b`'s `from a import ...` imports `a` a
+second time under the name `a`, and the error then names `function_b`
+instead — a small demonstration of the "same source, different module
+identity" caveat from §11.)
+
+**Why this happens**, connecting directly to §3 and §11, step by step
+for `import a`:
+
+1. Python creates module `a`, puts it in `sys.modules` (§3 step 5), and
+   starts executing `a.py`'s top-level code.
+2. The first line of `a.py`, `from b import function_b`, begins
+   importing `b`, so Python starts executing `b.py`.
+3. The first line of `b.py`, `from a import function_a`, asks for
+   `function_a` from `a`.
+4. `a` is **already in `sys.modules`**, so Python does **not** re-run
+   `a.py` (that would loop forever); it uses the module object it has.
+5. But `a` has not finished executing — it is still stuck on line 1 —
+   so `def function_a` has not run yet, and `function_a` does not exist
+   on the module object.
+6. Python therefore reports that it cannot import `function_a` from a
+   **partially initialized module** — the error shown above.
 
 **Symptoms worth recognizing**: an `ImportError` mentioning "partially
 initialized module"; behavior that changes depending on which of the
@@ -1148,8 +1220,8 @@ ways that matter, once packages (§16) are involved.
 `app.py`'s own containing directory to the *front* of `sys.path`
 (§13) — meaning `app.py` can freely import sibling files in that same
 directory with plain `import` statements — but `app.py` itself has
-**no package context** at all (its `__package__` is empty, and its
-`__name__` is `"__main__"`, per §6). This is exactly why a relative
+**no package context** at all (its `__package__` is `None` and its
+`__spec__` is `None`, while its `__name__` is `"__main__"`, per §6). This is exactly why a relative
 import (§15) inside a file run this way fails: there is no package for
 `.` or `..` to be relative *to*.
 
@@ -1160,7 +1232,9 @@ entry point. Because it's located through the actual package/import
 system, it genuinely has package context — `__package__` is correctly
 set to `"package"`, and relative imports inside it work exactly as
 they would if it had been imported normally from elsewhere in the
-project.
+project. Its `__name__` is still `"__main__"` (it *is* the entry
+point); the package context comes from `__package__`, not from
+`__name__`.
 
 A concrete project structure makes the difference vivid:
 
@@ -1357,8 +1431,11 @@ remain more readable, more easily analyzed by tooling (linters, IDEs),
 and simpler to reason about for the overwhelming majority of code.
 
 **`importlib.reload()`** re-executes an *already-imported* module's
-top-level code, replacing its existing entry in `sys.modules` (§12)
-with a freshly re-run version — most commonly encountered in
+top-level code. It does **not** create a new module object or replace the
+entry in `sys.modules` (§12): the existing module object is normally
+reused, and running the source again updates that same object's
+namespace in place (so `importlib.reload(mymodule) is mymodule` is
+`True`). It is most commonly encountered in
 interactive development (a REPL, or a Jupyter-style notebook) when
 you've edited a module's source file and want the running session to
 pick up the change without restarting the whole process:
@@ -1369,15 +1446,17 @@ import mymodule
 
 # ... edit mymodule.py on disk ...
 
-importlib.reload(mymodule)   # re-executes mymodule's top-level code
+importlib.reload(mymodule)   # re-executes mymodule's top-level code, updating the same module object
 ```
 
 **This is explicitly a development/debugging convenience, not a normal
 application architecture technique.** Production code should not rely
-on `reload()` to pick up changes at runtime — reloading a module that
-other already-imported modules hold references to can leave a program
-in an inconsistent state (some code holding the *old* version of a
-function or class, other code holding the *new* one), and a normal
+on `reload()` to pick up changes at runtime — because reload updates
+the module's namespace but cannot reach other code that already holds
+references to the *old* functions, classes, or objects (for example, anything bound earlier with
+`from mymodule import some_function`), a program can end up in an
+inconsistent state — some code holding the *old* version of a function
+or class, other code holding the *new* one — and a normal
 deployment process (restarting the actual process to run updated code)
 is the correct, reliable way to apply code changes in any real system.
 
@@ -1391,7 +1470,9 @@ process, yields the *same* underlying object — verifiable directly
 with `is` (`sys.modules["math"] is math` is `True`) — a fact worth
 knowing mainly because it explains why module-level state (§11's
 closing point) is genuinely shared, process-wide, not duplicated per
-importer.
+importer. (The identity is per module *name*: the same source loaded
+under a different name, as in the `__main__` case from §11, produces a
+separate module object.)
 
 ## 28. Debugging Import Problems
 
@@ -1434,8 +1515,9 @@ imports the package normally (absolute import) rather than being a
 file *inside* the package that's executed directly.
 
 **4. Circular import**
-```
+```text
 ImportError: cannot import name 'function_a' from partially initialized module 'a'
+(exact wording varies by Python version)
 ```
 *Diagnosis:* trace the actual import chain (§19) — which module
 imports which, and in what order, at the point of failure. *Root
@@ -1454,15 +1536,16 @@ level instead of inside `main()` (or another function), unguarded.
 `if __name__ == "__main__":`.
 
 **6. Wrong Python environment**
-A package installs successfully (`pip install somepackage`) but
+A package installs successfully (a bare `pip install somepackage`) but
 `import somepackage` still fails inside the actual project.
 *Diagnosis:* `print(sys.executable)` and compare it against which
 Python/virtual environment the install command actually targeted —
 they frequently turn out to be two different interpreters, especially
 with multiple virtual environments or a system Python installed
 alongside them. *Fix:* activate the correct virtual environment before
-both installing and running, and confirm with `sys.executable` that
-they now match.
+both installing and running, install with `python -m pip install ...`
+(so the same interpreter is used), and confirm with `sys.executable`
+that they now match.
 
 **7. Duplicate module name shadowing a standard-library or third-party
 module**
@@ -1520,7 +1603,7 @@ print(__name__)
 ```bash
 $ python demo.py     # prints: __main__
 ```
-```python
+```text
 >>> import demo       # prints: demo
 ```
 
@@ -1906,9 +1989,11 @@ checker (a later chapter in this module) across all three files.
    depending on invocation) — the exact entry and its meaning should
    be explained by referencing §13 and confirmed by testing where the
    script actually is relative to that path.
-10. The exact error should resemble
+10. The error should resemble
     `ImportError: cannot import name '...' from partially initialized
-    module '...'` (§19, §28 scenario 4); the fix should introduce a
+    module '...'` (exact wording varies by Python version) — which
+    requires each file to use `from other import name` at the top, as
+    in §19's example (§19, §28 scenario 4); the fix should introduce a
     third `shared.py` module neither original file needs to import the
     other for; the explanation should note that reordering imports
     only delays the problem or makes it fragile to future changes,
@@ -1975,8 +2060,8 @@ ImportError: attempted relative import with no known parent package
 ```
 *Diagnosis:* this file is being executed directly, not run with
 package context. *Root cause:* §15/§23 — running a file inside a
-package directly gives it no `__package__` for the relative import to
-resolve against. *Fix:* `python -m mypackage.cli`.
+package directly leaves its `__package__` as `None`, so there is no
+package for the relative import to resolve against. *Fix:* `python -m mypackage.cli`.
 
 **4. Circular import**
 ```python
@@ -2021,16 +2106,18 @@ explicit imports that don't depend on this ambiguity.
 
 **7. Wrong environment**
 ```bash
-$ pip install requests
+$ pip install requests        # a bare `pip` may belong to a different Python
 $ python app.py
 ModuleNotFoundError: No module named 'requests'
 ```
 *Diagnosis:* `print(sys.executable)` inside `app.py`, and compare it
 against which Python `pip` actually installed into (`pip --version`
-often shows this too). *Root cause:* `pip install` and `python app.py`
+shows this, and `python -m pip --version` is the form tied to the
+interpreter you intend to run). *Root cause:* `pip install` and `python app.py`
 used two different Python installations/virtual environments. *Fix:*
-activate the same virtual environment for both the install and the run
-(§28 scenario 6).
+activate the same virtual environment for both the install and the run,
+or install with `python -m pip install requests` so the same
+interpreter is used for both (§28 scenario 6).
 
 **8. Duplicate module name**
 A project has its own `email.py` at the top level; `import email`
@@ -2087,15 +2174,17 @@ third-party) module name.
 
 **Answer key**
 
-1. A module *is* a Python file, but the term specifically signals that
-   the file is designed to be imported and reused by other code — the
-   distinction is one of intent and design, not a different file type
-   (§1).
-2. Python checks `sys.modules` first; if not cached, it searches
-   `sys.path` for the module, loads its source, executes its top-level
-   code once, builds a module object from what that execution defined,
-   caches that object in `sys.modules`, and binds the requested name in
-   the importing code's own namespace (§3).
+1. A module is a named unit of Python code managed by the import
+   system; a `.py` file is the most common way to define one. The term
+   specifically signals that the file is designed to be imported and
+   reused by other code — the distinction is one of intent and design,
+   not a different file type (§1).
+2. Python checks `sys.modules` first; if not cached, the import system
+   finds the module (e.g. via `sys.path`), creates the module object,
+   places it in `sys.modules` *before* running any of its code, then
+   executes the module's top-level code once; if that succeeds, the
+   import completes and the requested name is bound in the importing
+   code's own namespace (§3).
 3. Because importing genuinely *executes* the module's code (once,
    with real side effects if any exist) and produces a distinct module
    object with its own namespace — it is not textual substitution, and
@@ -2123,11 +2212,12 @@ third-party) module name.
    into an actual OS exit status), making `main()` callable and
    assertable directly in tests without risking early process
    termination (§9).
-9. Import caching means a module's top-level code runs at most once
-   per process; `sys.modules` is the actual dictionary Python checks
-   first (before searching/loading) and stores the result in, which is
-   what makes repeated imports of the same module cheap and consistent
-   (§11–§12).
+9. Import caching means that, under normal imports, a module's
+   top-level code runs only once per process (`importlib.reload()`
+   re-runs it explicitly); `sys.modules` is the actual dictionary Python
+   checks first (before searching/loading) and stores the result in,
+   which is what makes repeated imports of the same module cheap and
+   consistent (§11–§12).
 10. `sys.path` is the ordered list of locations Python searches when
     looking for a module to import; Python checks each entry in order
     until it finds a match or exhausts the list, at which point a
@@ -2144,8 +2234,9 @@ third-party) module name.
     known parent package" if that file has no real package context —
     most commonly because it was executed directly rather than run via
     `-m` or imported normally (§15, §23).
-13. `__init__.py` marks a directory as an importable package and runs
-    once, the first time anything inside that package is imported;
+13. `__init__.py` marks a directory as a regular importable package
+    (namespace packages can exist without it) and runs once, the first
+    time anything inside that package is imported;
     it's often empty because marking the directory as a package is
     sufficient on its own — re-exporting names to shorten import paths
     is a deliberate, optional choice, not a requirement (§17).
@@ -2193,9 +2284,10 @@ third-party) module name.
     dynamic scenarios (e.g. a plugin system choosing among modules by
     name), but not a default replacement for ordinary, statically
     readable `import` statements (§27).
-22. Because reloading an already-imported module can leave other code
-    that already holds references to its old functions/classes in an
-    inconsistent state, and because a real deployment simply restarts
+22. Because `reload()` re-executes the module's code into the same module
+    object, other code that already holds references to its old
+    functions/classes (e.g. from `from module import name`) keeps the
+    old versions, leaving the program in an inconsistent state, and because a real deployment simply restarts
     the process to run updated code reliably — `reload()` is a
     convenience for interactive development sessions, not a technique
     a running production system should depend on (§27).
@@ -2258,10 +2350,10 @@ import once
    defined inside one module's namespace is accessed only through that
    module's own name (`module.name`), so two same-named functions in
    different modules simply never occupy the same slot at all (§4).
-2. Because executing the top-level code *is* how Python builds the
-   module object in the first place — defining functions and classes,
-   and creating module-level variables, are all things that only
-   happen by actually running that code once; there's no other
+2. Because executing the top-level code *is* how the module object gets
+   populated — defining functions and classes, and creating
+   module-level variables, are all things that only happen by actually
+   running that code once; there's no other
    mechanism by which those names could come to exist (§3).
 3. Run directly: prints `Loading: __main__`, then (because the guard
    matches) `Running`. Imported (as `import mystery`): prints
@@ -2278,8 +2370,8 @@ import once
    `sys.modules`; the second and third `import once` statements find it
    already cached and simply reuse that object, with no re-execution
    (§11–§12).
-6. Running the file directly gives it no package context at all (no
-   `__package__`), so a relative import inside it has nothing to
+6. Running the file directly gives it no package context at all
+   (`__package__` is `None`), so a relative import inside it has nothing to
    resolve `.` or `..` against, whereas `python -m` locates it through
    the real import system, which does establish that context (§15,
    §23).
@@ -2334,8 +2426,8 @@ import once
 - [ ] Package-based projects are run with `python -m package.module`
       where relative imports or package context are needed, not a bare
       `python package/module.py`.
-- [ ] `__init__.py` is present where a directory is meant to be a real
-      package, and contains only deliberate re-exports (or nothing) —
+- [ ] `__init__.py` is present where a directory is meant to be a
+      regular package, and contains only deliberate re-exports (or nothing) —
       not substantial, side-effect-bearing logic.
 
 **Testability**

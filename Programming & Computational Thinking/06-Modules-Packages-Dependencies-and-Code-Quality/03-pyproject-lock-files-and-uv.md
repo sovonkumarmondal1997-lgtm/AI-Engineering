@@ -92,9 +92,10 @@ Installed packages / application
   requirements, plus every dependency's *own* requirements
   (transitive dependencies, §9), and works out one specific, mutually
   compatible set of exact versions that satisfies all of them at once.
-- **`uv.lock`** records **exactly which resolved versions** that
-  process produced — not what the project merely *requires*, but the
-  *precise, reproducible answer* the resolver already worked out.
+- **`uv.lock`** records **which resolved versions** that process
+  produced — not what the project merely *requires*, but the *precise,
+  reproducible answer* the resolver already worked out, for the
+  environments the project supports.
 - The **environment** (a virtual environment, §12) is where those
   exact, locked versions actually get installed, ready for the
   application to import and run.
@@ -124,7 +125,11 @@ import requests   # this import statement is only possible if `requests` is inst
 
 **Library/package** — a `requests`-style piece of published code your
 project imports and calls into. **Direct dependency** — something
-*your own project* explicitly imports and relies on. **Transitive
+*your own project* explicitly declares and relies on (most often because
+its code imports it). A literal `import` is the common case, not the
+universal definition: a plugin, a runtime-discovered component, a
+command-line tool, or a framework integration can also be a direct
+dependency without any simple static `import` of it. **Transitive
 dependency** — something *one of your dependencies* itself relies on,
 which your project therefore also needs, without ever importing it
 directly:
@@ -176,9 +181,14 @@ its API in ways the project's code doesn't expect.
 - **Incompatible packages** — two of the project's dependencies might
   each require conflicting versions of a *third*, shared dependency
   (§11 works through this concretely).
-- **Accidental upgrades** — running `pip install` again, weeks later,
-  can silently pull in a newer version of something already installed,
-  changing behavior with no corresponding code change to explain why.
+- **Accidental upgrades** — installing without a recorded set of
+  versions means a *new* environment (or a newly installed package) gets
+  whatever is newest at that moment, and an unreviewed `pip install
+  --upgrade` (or a new dependency that requires a newer version) can
+  change something already installed — changing behavior with no
+  corresponding code change to explain why. (A plain `pip install
+  package` does not upgrade a package that is already installed and
+  satisfies the request.)
 - **Missing packages** — a developer manually `pip install`s something
   to make their own environment work, forgets to record it anywhere,
   and the next person's environment is missing it entirely.
@@ -459,8 +469,11 @@ TRANSITIVE:
 my-project → requests → urllib3
 ```
 
-A **direct** dependency is one `my-project` itself explicitly imports
-and lists in its own `dependencies` array. A **transitive** dependency
+A **direct** dependency is one `my-project` itself explicitly declares
+(lists in its own `dependencies` array) because it needs it — typically
+because its code imports it, though plugins, runtime discovery, or
+command-line/framework integration can also make a package direct
+without a literal `import`. A **transitive** dependency
 is one that a direct dependency itself needs, pulled in automatically
 without `my-project` ever mentioning it by name.
 
@@ -613,11 +626,16 @@ precisely as possible:
 - **`pyproject.toml`** = **what the project requires** — a
   human-authored statement of intent (`requests>=2.0`), deliberately
   loose enough to allow reasonable version flexibility.
-- **`uv.lock`** = **the resolved dependency state** — one exact,
-  specific answer (`requests==2.31.0`, plus every transitive
-  dependency's own exact version) that the resolver determined
-  satisfies every requirement, recorded so it can be reproduced
-  identically, anywhere, without re-running resolution from scratch.
+- **`uv.lock`** = **the resolved dependency state** — a specific
+  answer (`requests==2.31.0`, plus every transitive dependency's own
+  resolved version) that the resolver determined satisfies every
+  requirement, recorded so it can be reproduced without re-running
+  resolution from scratch. The lock file records the resolved
+  dependency graph for the project's supported environments: in the
+  common case that is one version per package, but when different
+  Python versions, operating systems, or architectures need different
+  versions, the same package can appear more than once, each variant
+  tied to an environment marker.
 
 **Declared requirements vs. resolved versions**: `requests>=2.0` in
 `pyproject.toml` could be satisfied by many different actual versions
@@ -627,11 +645,12 @@ recording one specific answer, valid until the lock file is
 deliberately regenerated (§14, §26).
 
 **Reproducibility and deterministic installation**: given the *same*
-`uv.lock`, installing dependencies on any machine, at any later time,
-produces the **exact same** set of package versions — this is what
-makes "it worked on my machine" a solvable problem rather than a
-recurring mystery: everyone, and every environment (CI, a container,
-production), installs from the identical, already-resolved lock file,
+`uv.lock` (used as-is, see §23), installing dependencies on a machine
+within the supported environments, at any later time, selects the same
+locked versions for that environment — this is what makes "it worked
+on my machine" a solvable problem rather than a recurring mystery:
+everyone, and every environment (CI, a container, production), installs
+from the same already-resolved lock file,
 rather than each independently re-running resolution against
 potentially-different available package versions.
 
@@ -645,18 +664,22 @@ cover exactly when).
 `pyproject.toml` — it exists specifically to record one resolved
 answer to whatever `pyproject.toml` currently declares. **Resolved and
 transitive dependencies**: `uv.lock` records not just the project's
-direct dependencies' exact versions, but *every* transitive
-dependency's exact version too — the complete, resolved dependency
-graph from §10, fully pinned down.
+direct dependencies' resolved versions, but *every* transitive
+dependency's resolved version too — the complete, resolved dependency
+graph from §10, pinned down. Because the lock file is cross-platform,
+a package that needs different versions on different Python versions
+or platforms is recorded once per variant, with the environment
+marker that selects it.
 
-**Reproducibility**: as long as `uv.lock` exists and is used
-(via `uv sync`, §23), every environment set up from it gets the exact
-same dependency versions, regardless of when or where it's set up.
+**Reproducibility**: as long as `uv.lock` exists and is used as-is
+(via `uv sync --locked`, or `uv sync` while the lock is up to date, §23),
+every environment set up from it gets the locked versions for its
+platform and Python version, regardless of when it's set up.
 
 **Why it should normally be committed to version control for
 application projects**: an application (§30) is typically deployed
 as a specific, whole, working unit — committing `uv.lock` means every
-developer, CI run, and deployment installs the *exact same*,
+developer, CI run, and deployment installs the *same locked*,
 already-verified-to-work-together set of dependency versions, rather
 than each independently re-resolving and potentially arriving at
 subtly different results.
@@ -694,18 +717,19 @@ or hypothetical) manifests as a confusing, hard-to-reproduce bug that
 "only happens for Developer B."
 
 **With a lock file in place**, this scenario simply cannot happen:
-`uv.lock` records `pandas`'s exact resolved version once; every
-subsequent `uv sync` (§23), by anyone, at any time, installs *that
-exact* recorded version — Developer A and Developer B both get
-`pandas` 2.1 (or whatever the lock file currently says), full stop,
-regardless of when each of them happens to set up their environment.
+`uv.lock` records `pandas`'s resolved version; every subsequent
+`uv sync` (§23) against an unchanged, up-to-date lock file, by anyone,
+at any time, installs *that* recorded version for their environment —
+Developer A and Developer B both get `pandas` 2.1 (or whatever the lock
+file currently says), regardless of when each of them happens to set up
+their environment.
 
 **Connecting this to every stage of a real project's lifecycle:**
 
 - **Local development** — every teammate's environment matches, from
   day one.
-- **CI/CD** (§28) — the exact dependencies tested in CI are the exact
-  dependencies that will be deployed; no "it passed CI but failed in
+- **CI/CD** (§28) — the locked dependencies tested in CI are the ones
+  that will be deployed; no "it passed CI but failed in
   production because of a version difference."
 - **Containers** (§29) — a container image built from the locked
   dependencies is reproducible across every build, not just "whatever
@@ -720,9 +744,9 @@ regardless of when each of them happens to set up their environment.
 |---|---|---|
 | **Purpose** | Declares what the project requires | Records exactly which versions were resolved |
 | **Human-edited?** | Yes — written and edited directly (or via `uv add`/`uv remove`) | No — generated and maintained by `uv`; not hand-edited |
-| **Declares requirements?** | Yes — version ranges, minimums, etc. | No — no ranges, only exact resolved versions |
-| **Records resolved versions?** | No | Yes — every direct and transitive dependency, pinned exactly |
-| **Reproducibility** | Allows flexibility (different resolutions possible at different times) | Guarantees reproducibility (the same file always yields the same install) |
+| **Declares requirements?** | Yes — version ranges, minimums, etc. | No — no ranges, only resolved versions |
+| **Records resolved versions?** | No | Yes — every direct and transitive dependency, pinned (per environment marker where needed) |
+| **Reproducibility** | Allows flexibility (different resolutions possible at different times) | Provides reproducible dependency selection for the environments it covers |
 | **Committed to version control?** | Always, for both applications and libraries | Recommended for applications (§14, §30); often less central for libraries |
 | **Contains project metadata (name, version, etc.)?** | Yes | No — purely dependency-resolution data |
 
@@ -864,8 +888,23 @@ and should never need to be installed on a production machine just to
 uv add --dev pytest ruff mypy
 ```
 
-This adds `pytest`, `ruff`, and `mypy` to a **separate** dependency
-group specifically for development use — conceptually and practically
+This adds `pytest`, `ruff`, and `mypy` to the **`dev` dependency
+group** — a `[dependency-groups]` table in `pyproject.toml`:
+
+```toml
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.5",
+    "mypy>=1.10",
+]
+```
+
+A dependency group is for *development workflows*; it is **not** part
+of the project's published metadata and is not something end users can
+request. That makes it different from the optional dependencies
+(extras) of §22, which are optional *features* of the project itself.
+A dev group is conceptually and practically
 distinct from the main `dependencies` list, so that a production
 install (or a minimal container image, §29) can skip installing them
 entirely, since they serve no purpose once the application is actually
@@ -884,7 +923,11 @@ developed.
 
 Sometimes a project supports **optional features**, each requiring its
 own additional dependencies that most users won't need. **Optional
-dependencies** (also called **extras**) let a project declare these
+dependencies** (also called **extras**, declared under
+`[project.optional-dependencies]`) are part of the project's published
+metadata, and are *not* the same mechanism as the development
+dependency groups of §21 (`[dependency-groups]`). They let a project
+declare these
 without forcing every installation to include them by default.
 
 ```toml
@@ -917,17 +960,46 @@ reducing their exposure to a dependency they don't actually use.
 uv sync
 ```
 
-`uv sync` reads the project's current requirements
-(`pyproject.toml`) and its lock file (`uv.lock`), and brings the
-project's virtual environment **into alignment** with exactly what's
-recorded there — installing anything missing, and (depending on
-configuration) removing anything present that shouldn't be, so the
-actual, installed environment matches the locked, resolved state
-precisely.
+`uv sync` works in two steps:
+
+```
+uv sync
+    ↓
+ensure the lock state is usable/current   (re-lock if pyproject.toml changed)
+    ↓
+synchronize the environment to the lock
+```
+
+It reads the project's current requirements (`pyproject.toml`) and its
+lock file (`uv.lock`). If the lock file is missing or no longer matches
+`pyproject.toml`, plain `uv sync` **updates `uv.lock` first** and then
+brings the project's virtual environment **into alignment** with the
+result — installing anything missing, and removing anything present that
+shouldn't be (including extraneous packages), so the installed
+environment matches the locked state.
+
+When the intent is *"use the existing lock file as-is, and fail if it is
+not already up to date"*, use the strict form:
+
+```bash
+uv sync --locked     # error instead of updating uv.lock
+```
+
+(`--frozen` goes further and skips checking whether the lock file is up
+to date at all.) The chapter's convention is:
+
+```
+Development:            uv sync
+CI (strict):            uv sync --locked
+Production (strict):    uv sync --locked --no-dev
+```
+
+Plain `uv sync` also installs the `dev` group (§21); `--no-dev` excludes
+it.
 
 This is the command you run: after cloning a project someone else set
 up (to get your own local environment matching their locked
-dependencies exactly); after pulling changes that modified
+dependencies); after pulling changes that modified
 `pyproject.toml` or `uv.lock`; or simply to confirm your environment
 is currently correct and up to date. `uv sync` is what makes §15's
 promise concrete and actionable — it's the specific command that
@@ -951,12 +1023,18 @@ because `uv run` handles it).
 run`, might silently execute against your *system* Python (or whatever
 environment happens to be currently active in your shell) — potentially
 missing the project's own dependencies entirely, or picking up the
-wrong versions of them. `uv run python app.py` guarantees the command
-executes with exactly the project's resolved, locked dependencies
-available, every time, regardless of what else might be active in your
-shell at that moment. The same guarantee applies to `uv run pytest` —
-the test suite runs against the project's actual dependencies, not
-whatever happens to be globally available.
+wrong versions of them. `uv run python app.py` executes the command in the project's own
+managed environment, with the project's resolved dependencies
+available, regardless of what else might be active in your shell at
+that moment. The same applies to `uv run pytest` — the test suite runs
+against the project's actual dependencies, not whatever happens to be
+globally available.
+
+Like `uv sync`, `uv run` makes sure the lock file and environment are
+up to date before running, which means it can **update `uv.lock`** if
+`pyproject.toml` has changed. Plain `uv run` is the normal development
+form; when the existing lock file must be accepted as-is, use
+`uv run --locked ...`, which fails instead of updating it.
 
 ## 25. Adding / Removing / Updating Dependencies
 
@@ -966,7 +1044,7 @@ The core dependency-lifecycle commands, gathered together:
 uv add requests            # add a new runtime dependency
 uv add --dev pytest         # add a new development dependency (§21)
 uv remove requests            # remove a dependency, updating pyproject.toml and uv.lock together
-uv sync                         # bring the environment in line with the current lock file (§23)
+uv sync                         # bring the environment in line with the lock file, re-locking first if needed (§23)
 ```
 
 Each of these commands keeps `pyproject.toml` and `uv.lock` **in
@@ -1005,6 +1083,7 @@ precisely:
 ```bash
 uv lock       # re-run resolution and update uv.lock, WITHOUT touching the environment
 uv sync       # install/synchronize the environment to match the (possibly just-updated) lock file
+              # (plain `uv sync` would also re-lock if needed; `uv sync --locked` never does)
 ```
 
 **Why changing `pyproject.toml` and changing `uv.lock` are related but
@@ -1039,24 +1118,27 @@ pyproject.toml     (checked into version control — declares requirements)
     ↓
 uv.lock              (checked into version control — records the exact resolution)
     ↓
-uv sync                (run by anyone, anywhere, anytime)
+uv sync                (run by anyone, anywhere, anytime; `--locked` in CI/deploy)
     ↓
-same resolved dependency environment, every time
+the same locked dependency versions for each supported environment
 ```
 
 **Onboarding**: a new team member clones the repository and runs `uv
-sync` — one command, and their environment exactly matches everyone
-else's, with no manual "here's the list of packages you need to
+sync` — one command, and their environment matches everyone
+else's (for the same platform and Python version), with no manual "here's the list of packages you need to
 install" documentation required at all (the `pyproject.toml`/`uv.lock`
 pair *is* that documentation, in exact, executable form).
 
 **CI** (§28), **deployment**, and **container builds** (§29) each
-perform the same `uv sync` step, against the same committed
-`uv.lock` — meaning the dependency versions actually tested in CI are,
-by construction, the exact same versions that end up deployed to
-production. This is the concrete, mechanical realization of §15's
-promise: reproducibility isn't a hope or a convention here, it's a
-direct consequence of every stage reading from the same lock file.
+perform a strict `uv sync --locked` step, against the same committed
+`uv.lock` — meaning the dependency versions actually tested in CI are
+the same locked versions that end up deployed to production (for the
+same platform and Python version). Strictness matters: plain `uv sync`
+would quietly re-lock a stale `uv.lock`, whereas `--locked` turns that
+situation into an error. This is the concrete, mechanical realization
+of §15's promise: reproducibility isn't a hope or a convention here,
+it's a direct consequence of every stage reading from the same lock
+file.
 
 ## 28. CI/CD Use
 
@@ -1068,11 +1150,11 @@ explicit:
 ```
 checkout code
     ↓
-install/sync environment       ←  uv sync  (reads the COMMITTED uv.lock)
+install/sync environment       ←  uv sync --locked  (uses the COMMITTED uv.lock; fails if stale)
     ↓
-run tests                       ←  uv run pytest
+run tests                       ←  uv run --locked pytest
     ↓
-run lint/type checks              ←  uv run ruff check .  /  uv run mypy .
+run lint/type checks              ←  uv run --locked ruff check .  /  uv run --locked mypy .
     ↓
 build/deploy
 ```
@@ -1084,20 +1166,23 @@ than installing from a committed lock file) risks testing against
 locally, or than what will eventually be deployed — reintroducing
 exactly the "works on my machine, fails somewhere else" problem this
 entire chapter exists to solve, just relocated to "works in CI, fails
-in production" instead. Using `uv sync` against the committed
-`uv.lock` in CI closes this gap: the exact same resolved dependencies
-are used at every single stage, from a developer's laptop through CI
-to production.
+in production" instead. Using `uv sync --locked` against the
+committed `uv.lock` in CI closes this gap: the same resolved
+dependencies are used at every stage, from a developer's laptop through
+CI to production, and a `pyproject.toml` change that was committed
+without updating `uv.lock` fails the build instead of being silently
+re-locked. (`uv run --locked ...` applies the same strictness to each
+command; plain `uv run` is for local development.)
 
 ## 29. Containers and Deployment
 
 Conceptually, a containerized application's build process benefits
-from the exact same lock-file discipline as CI:
+from the same strict lock-file discipline as CI:
 
 ```
 copy pyproject.toml + uv.lock into the image
         ↓
-uv sync   (installs the EXACT locked dependencies into the image)
+uv sync --locked --no-dev   (installs the locked runtime dependencies into the image; skips the dev group)
         ↓
 copy application source code
         ↓
@@ -1106,11 +1191,14 @@ build the final image
 
 Because dependency installation is driven by the already-resolved
 `uv.lock` rather than re-running resolution fresh inside the container
-build, **every image built from the same lock file gets the identical
-set of dependency versions** — a container built today and one built
-six months from now, from an unchanged `uv.lock`, install exactly the
-same package versions, regardless of what newer versions might have
-been published to package indexes in the meantime. This chapter
+build (and `--locked` makes a stale lock file an error rather than a
+silent re-lock), **every image built for the same platform and Python
+version from the same lock file gets the same dependency versions** — a
+container built today and one built six months from now, from an
+unchanged `uv.lock`, install the same package versions, regardless of
+what newer versions might have been published to package indexes in the
+meantime. `--no-dev` leaves out the development group (§21), which a
+production image does not need. This chapter
 deliberately stops at this conceptual level — writing an actual
 `Dockerfile` and the full mechanics of container builds are outside
 this chapter's scope; what matters here is understanding *why* the
@@ -1251,8 +1339,8 @@ everything reflexively with no review at all.
 9. **Confusing direct and transitive dependencies.** *Why:* manually
    adding a transitive dependency as if it were a direct one duplicates
    information the resolver already derives automatically, and can go
-   stale (§9). *Fix:* declare only what your own code actually
-   imports directly; let resolution handle the rest.
+   stale (§9). *Fix:* declare only what your own project directly needs (typically what
+its code imports); let resolution handle the rest.
 10. **Installing packages manually, without declaring them.** *Why:*
     a package installed by hand (outside of `uv add`) exists in *your*
     environment only — nothing records it in `pyproject.toml` or
@@ -1351,16 +1439,17 @@ runtime `dependencies` list (§21).
 uv sync
 ```
 Brings the environment into alignment with the current
-`pyproject.toml`/`uv.lock` state (§23) — the command to run after
-cloning a project, or after pulling changes to either file.
+`pyproject.toml`/`uv.lock` state, re-locking first if the lock file is
+stale (§23) — the command to run after cloning a project, or after
+pulling changes to either file.
 
 **11. `uv run`**
 ```bash
 uv run python -m demo.cli
 uv run pytest
 ```
-Runs each command inside the project's own managed environment,
-guaranteeing the correct, resolved dependencies are used (§24).
+Runs each command inside the project's own managed environment, so the
+project's resolved dependencies are used (§24).
 
 **12. Removing and updating a dependency**
 ```bash
@@ -1379,8 +1468,10 @@ version = "2.31.0"
 name = "urllib3"
 version = "2.0.7"
 ```
-This is `uv.lock`'s job made concrete: exact versions, for every
-package, direct and transitive alike (§14).
+This is `uv.lock`'s job made concrete: resolved versions, for every
+package, direct and transitive alike (§14). (The real file also carries
+environment markers, so one package can appear at several versions when
+different Python versions or platforms need them.)
 
 **14. A reproducible project setup, from scratch, on a new machine**
 ```bash
@@ -1394,12 +1485,13 @@ dependency-resolved, tested environment (§27).
 
 **15. A CI-oriented workflow**
 ```bash
-uv sync
-uv run pytest
-uv run ruff check .
-uv run mypy .
+uv sync --locked
+uv run --locked pytest
+uv run --locked ruff check .
+uv run --locked mypy .
 ```
-Every step runs inside the exact same locked environment (§28) —
+Every step runs inside the same locked environment, and fails rather
+than silently re-locking if `uv.lock` is stale (§28) —
 directly extending
 [07-standard-streams-and-exit-codes.md](../05-Text-Files-Structured-Data-and-CLI-Programs/07-standard-streams-and-exit-codes.md)'s
 §23 CI-pipeline discussion with the dependency-installation step made
@@ -1445,7 +1537,7 @@ dependencies = [
     "pydantic>=2.0,<3.0",
 ]
 
-[project.optional-dependencies]
+[dependency-groups]
 dev = [
     "pytest>=8.0",
     "ruff>=0.5",
@@ -1453,13 +1545,10 @@ dev = [
 ]
 ```
 
-(A dedicated `[dependency-groups]`/`--dev`-managed development group,
-per §21, is an equally valid modern alternative to the
-`optional-dependencies`-based `dev` extra shown here — the exact
-mechanism your installed `uv` version favors is worth confirming via
-`uv --help`, per this chapter's stated approach; the conceptual
-separation between runtime and development dependencies is what
-matters, and is correctly reflected either way.)
+The development tools live in a `[dependency-groups]` `dev` group — the
+same mechanism `uv add --dev` manages (§21) — not in
+`[project.optional-dependencies]`, which is reserved for optional
+features of the project itself (§22).
 
 **Project setup, from a fresh clone:**
 ```bash
@@ -1481,8 +1570,10 @@ committed to version control.
 
 **Environment synchronization:** every subsequent `uv sync` (by any
 developer, by CI, during a container build) reads that already-
-resolved `uv.lock` and installs exactly those versions — no
-re-resolution, no drift, no surprises.
+resolved `uv.lock` and installs those locked versions for its
+environment. Developers use plain `uv sync`; CI and container builds use
+`uv sync --locked` so that a stale `uv.lock` is an error rather than a
+silent re-resolution.
 
 **Running the application:**
 ```bash
@@ -1496,25 +1587,25 @@ uv run pytest
 
 **Reproducibility:** because `uv.lock` is committed, a teammate
 cloning this repository six months from now, and CI running against
-tomorrow's commit, both get the **exact same** `pydantic` (and its
+tomorrow's commit, both get the **same locked** `pydantic` (and its
 transitive dependencies) that were originally resolved and tested
 against — not whatever happens to be the latest available version at
 whatever moment they happen to run `uv sync`.
 
 **CI/CD usage:**
 ```bash
-uv sync
-uv run pytest
-uv run ruff check .
-uv run mypy .
+uv sync --locked
+uv run --locked pytest
+uv run --locked ruff check .
+uv run --locked mypy .
 ```
-Each CI run installs from the exact same locked dependencies a
-developer's local `uv sync` would produce — closing the "works in CI,
-fails elsewhere" gap directly (§28).
+Each CI run installs from the committed lock file as-is (and fails if
+it is stale) — closing the "works in CI, fails elsewhere" gap directly
+(§28).
 
 **Production considerations:** a production deployment (or a container
-build, §29) performs the same `uv sync` step against the same
-committed `uv.lock`, and — per §21's separation — need not install the
+build, §29) runs `uv sync --locked --no-dev` against the same
+committed `uv.lock`, and — per §21's separation — does not install the
 `dev` group at all, since `pytest`/`ruff`/`mypy` serve no purpose once
 the application is actually deployed and running.
 
@@ -1585,8 +1676,9 @@ the application is actually deployed and running.
    often expressed as flexible version ranges); `uv.lock` records
    exactly which versions were *resolved* to satisfy those
    requirements, for reproducible installation (§13, §16).
-4. It reads the project's current requirements and lock file, and
-   updates the project's virtual environment to match exactly —
+4. It makes sure the lock file is current (re-locking if
+   `pyproject.toml` changed, unless `--locked`/`--frozen` is given),
+   then updates the project's virtual environment to match it —
    installing anything missing and aligning versions with what's
    locked (§23).
 5. `uv add "httpx>=0.27"` (§20).
@@ -1602,16 +1694,16 @@ the application is actually deployed and running.
    `uv run` is the safer, more reliable choice for any project-related
    command (§24).
 9. `dependencies` are always installed for anyone using the project;
-   `optional-dependencies` define named, opt-in groups of extra
-   dependencies (needed only for specific optional features, or for
-   development, §21–§22) that aren't installed unless specifically
-   requested.
+   `optional-dependencies` (extras) define named, opt-in groups of extra
+   dependencies for specific optional *features* (§22) that aren't
+   installed unless specifically requested. Development tools belong in
+   a separate mechanism, `[dependency-groups]` (§21), not in extras.
 10. A reasonable workflow: `git clone <repo>`, `cd <repo>`, `uv sync`
     — each step's guarantee: cloning gets the exact committed
-    `pyproject.toml`/`uv.lock`; `uv sync` installs the exact locked
-    dependency versions, guaranteeing this new environment matches
-    every other team member's exactly, with zero manual dependency
-    installation steps (§27).
+    `pyproject.toml`/`uv.lock`; `uv sync` installs the locked
+    dependency versions, so this new environment matches every other
+    team member's (for the same platform and Python version), with zero
+    manual dependency installation steps (§27).
 11. Risky because `uv.lock` is meant to be a generated, internally
     consistent artifact — hand-editing one entry can leave it
     describing a state the resolver never actually verified as
@@ -1639,15 +1731,15 @@ the application is actually deployed and running.
     of your own declared version constraints are more restrictive than
     genuinely necessary — never force an override past a real,
     unresolved conflict (§11).
-14. A reasonable pipeline: `uv sync` (install exactly the locked
-    dependencies, ensuring the same versions used in development are
-    used here too) → `uv run pytest` (verify correctness against those
-    exact dependencies) → `uv run ruff check .` / `uv run mypy .`
-    (additional quality gates, run in the same correctly-resolved
-    environment) — each step deliberately runs *after* `uv sync`, and
-    every command uses `uv run` rather than a bare `python`/tool
-    invocation, so every stage is guaranteed to use the exact same,
-    reproducible dependency set (§28, §24).
+14. A reasonable pipeline: `uv sync --locked` (install the locked
+    dependencies, failing if `uv.lock` is stale, so the versions used in
+    development are used here too) → `uv run --locked pytest` (verify
+    correctness against those dependencies) → `uv run --locked ruff
+    check .` / `uv run --locked mypy .` (additional quality gates, run
+    in the same environment) — each step deliberately runs *after* the
+    sync, and every command uses `uv run` rather than a bare
+    `python`/tool invocation, so every stage uses the same locked
+    dependency set (§28, §24).
 
 ## 36. Debugging Lab
 
@@ -1693,16 +1785,20 @@ $ uv run python -c "import myapp"
 ModuleNotFoundError: No module named 'myapp'
 ```
 despite `myapp` clearly being part of the project.
-*Diagnosis:* confirm the project itself is actually installed
-(editably) into its own managed environment, per
+*Diagnosis:* confirm the project's own package is actually installed
+(editably) into its managed environment (e.g. check `uv pip list` or
+`uv run python -c "import sys; print(sys.path)"`), per
 [02-project-layout-and-package-structure.md](02-project-layout-and-package-structure.md)'s
 §5 src-layout discussion. *Root cause:* a src-layout project's own
 package needs to be part of the resolved/installed project, not just
 its dependencies — depending on project configuration, this may
 require confirming the project itself (not merely its dependencies)
-is correctly set up for editable use. *Fix:* verify with `uv --help`/
-current documentation the correct way your `uv` version handles
-installing the project's own package as part of `uv sync`.
+is correctly set up for editable use. Whether `uv sync` installs the
+project itself depends on the project's configuration (for example,
+whether it is set up as a package with a `[build-system]`) and the `uv`
+version, so *fix* it by verifying with `uv --help`/current
+documentation how your `uv` version handles installing the project's
+own package as part of `uv sync`.
 
 **5. `pyproject.toml` changed but the environment is stale**
 A teammate added a new dependency to `pyproject.toml` by hand, but
@@ -1810,8 +1906,8 @@ for.
 **Answer key**
 
 1. A dependency is external code a project needs but doesn't write
-   itself; a direct dependency is one the project explicitly imports
-   and declares; a transitive dependency is one a direct dependency
+   itself; a direct dependency is one the project explicitly declares
+   because it needs it (typically because its code imports it); a transitive dependency is one a direct dependency
    itself needs, pulled in automatically (§1, §9).
 2. It's a standardized project configuration file holding not just
    dependency declarations, but also project metadata, build
@@ -1861,9 +1957,11 @@ for.
     dependencies), updates `uv.lock` with the resolved versions, and
     synchronizes the project's virtual environment to match — all in
     one command (§20).
-13. It reads the project's current requirements and lock file and
-    brings the actual installed environment into alignment with them;
-    run it after cloning a project, after pulling changes to
+13. It makes sure the lock file is current (re-locking if
+    `pyproject.toml` changed, unless `--locked`/`--frozen` is used) and
+    brings the actual installed environment into alignment with it; the
+    strict `uv sync --locked` form fails instead of re-locking, and
+    `--no-dev` skips the development group; run it after cloning a project, after pulling changes to
     `pyproject.toml`/`uv.lock`, or to confirm your environment is
     currently correct (§23).
 14. It executes a given command inside the project's own managed
@@ -1875,22 +1973,23 @@ for.
     touching the installed environment; `uv sync` installs/aligns the
     actual environment to match whatever the current lock file (freshly
     updated or not) specifies (§26).
-16. Using `uv add --dev <package>`; development dependencies (test
+16. Using `uv add --dev <package>`, which records it in the `dev`
+    dependency group (`[dependency-groups]`); development dependencies (test
     runners, linters, type checkers) are needed only while developing,
     never to actually run the finished application, so keeping them
     separate avoids installing unnecessary packages (and their own
     transitive dependencies and potential vulnerabilities) into
     production (§21).
 17. Named, opt-in groups of additional dependencies for optional
-    features, declared under `[project.optional-dependencies]`; they
-    exist so a project can support extra functionality without forcing
+    features, declared under `[project.optional-dependencies]` (distinct
+    from development dependency groups); they exist so a project can support extra functionality without forcing
     every user to install dependencies they don't need (§22).
-18. Because each of these environments needs to behave identically to
-    the others for confidence that "it works" actually means it will
-    keep working after deployment — reproducibility (via a shared,
-    committed lock file) is what guarantees development, CI, and
-    production are all running the exact same dependency versions
-    (§27–§29).
+18. Because each of these environments needs to behave like the
+    others for confidence that "it works" actually means it will keep
+    working after deployment — reproducibility (via a shared, committed
+    lock file used strictly in CI and production) is what keeps
+    development, CI, and production on the same locked dependency
+    versions for their platform (§27–§29).
 19. An application controls its own deployment environment entirely,
     so exact reproducibility via a committed lock file is highly
     valuable and carries no downside; a library's dependencies get
@@ -1970,10 +2069,11 @@ for.
    constraint; `uv.lock` — updated to include `flask`'s newly resolved
    exact version, along with any of its own transitive dependencies'
    resolved versions (§20).
-6. Confirm that CI is actually running `uv sync` against the exact,
-   committed `uv.lock` (rather than some separate, possibly stale
-   cached environment, or accidentally re-resolving fresh instead of
-   installing from the lock file) — a resolution error appearing only
+6. Confirm that CI is actually using the committed `uv.lock` as-is
+   (`uv sync --locked`, rather than plain `uv sync`, which re-locks a
+   stale file, or some separate, possibly stale cached environment, or
+   accidentally re-resolving fresh instead of installing from the lock
+   file) — a resolution error appearing only
    in CI despite an identical lock file strongly suggests CI isn't
    actually consuming that lock file the way it appears to be (§28,
    §36 scenario 6).
@@ -1996,8 +2096,8 @@ for.
       project is actually tested against.
 
 **Dependency declarations**
-- [ ] Every runtime dependency the code actually imports is declared
-      in `dependencies` — nothing relied upon that isn't declared.
+- [ ] Every runtime dependency the project needs (typically everything
+      its code imports) is declared in `dependencies` — nothing relied upon that isn't declared.
 - [ ] Direct dependencies are distinguished from transitive ones; only
       genuinely direct dependencies are listed explicitly.
 - [ ] Version constraints are deliberate (bounded ranges or justified
@@ -2012,15 +2112,16 @@ for.
 
 **Reproducibility**
 - [ ] A fresh clone plus `uv sync` reliably reproduces a working
-      environment, with no undocumented manual installation steps.
+      environment for the supported platforms, with no undocumented manual installation steps.
 - [ ] Virtual environment isolation is used consistently (via `uv`),
       never a global/system Python install.
 
 **Runtime vs. development dependencies**
 - [ ] Test/lint/type-check tools are declared as development
-      dependencies, separate from runtime `dependencies`.
+      dependencies (a `[dependency-groups]` `dev` group), separate from
+      runtime `dependencies` and from optional-dependency extras.
 - [ ] Production/deployment installs skip development dependencies
-      entirely.
+      entirely (e.g. `uv sync --locked --no-dev`).
 
 **Secrets**
 - [ ] No secrets are declared or embedded anywhere in
@@ -2036,9 +2137,10 @@ for.
       never applied at all.
 
 **CI/CD and deployment**
-- [ ] CI installs dependencies via `uv sync` against the committed
-      `uv.lock`, not a fresh, independent resolution.
-- [ ] Every CI/build/deployment stage uses `uv run` (or an equivalent
+- [ ] CI installs dependencies via `uv sync --locked` against the
+      committed `uv.lock`, not a fresh, independent resolution.
+- [ ] Every CI/build/deployment stage uses `uv run` (with `--locked`
+      where the lock file must be accepted as-is, or an equivalent
       environment-correct invocation), not a bare command that might
       resolve to the wrong environment.
 - [ ] Container/deployment builds install from the same locked
