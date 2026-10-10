@@ -959,9 +959,11 @@ Python commonly follows a behavioral approach:
 Example:
 
 ```python
-def send_notification(sender: object, message: str) -> None:
+def send_notification(sender, message: str) -> None:
     sender.send(message)
 ```
+
+The `sender` parameter is deliberately left unannotated to show runtime duck typing. Annotating it as `object` would be misleading, because `object` does not declare a `send()` method. When a static contract is wanted, a small `Protocol` can describe it (see the Protocol section below).
 
 Objects with a compatible `send()` behavior may work:
 
@@ -1180,6 +1182,8 @@ class StripePaymentProcessor(PaymentProcessor):
 A `Protocol` is primarily a structural typing mechanism.
 
 A class may satisfy the protocol based on its shape without explicitly inheriting from it.
+
+A `Protocol` describes a structural type contract that is primarily used by static type checkers. It does not automatically enforce the complete contract at runtime: Python will not stop a call just because an object does not match the protocol.
 
 ## Duck typing
 
@@ -1776,6 +1780,13 @@ Lower coupling can improve:
 
 But "loose coupling" does not mean "zero coupling." Components must still communicate through meaningful contracts.
 
+## Cohesion
+
+Coupling describes how much components depend on each other. **Cohesion** asks whether the responsibilities inside one component belong together.
+
+- **High cohesion:** closely related responsibilities are kept together.
+- **Low cohesion:** unrelated responsibilities are bundled into one component.
+
 ---
 
 # 27. Single Responsibility and Composition
@@ -1825,6 +1836,8 @@ OrderNameValidator
 Creating dozens of tiny classes can make the system harder to understand.
 
 The design target is meaningful responsibility boundaries, not maximum class count.
+
+A useful way to think about a responsibility is as a reason for change: things that change for the same reason can live together, and things that change for different reasons are candidates for separation. Single Responsibility does not mean "one class = one method" or that every class must be tiny.
 
 ---
 
@@ -3047,6 +3060,8 @@ Each dependency can be replaced with a fake.
 
 The example is deliberately simplified. Real payment systems require additional concerns such as transaction semantics, idempotency, durable state, provider error handling, and operational diagnostics. Those are system concerns layered on top of the OOP principles shown here.
 
+In particular, this flow does not provide atomic consistency across payment, persistence, and notification. If `charge()` succeeds but `repository.save()` fails, the customer may be charged while the order is not recorded as paid. Handling that safely is outside the scope of this simplified example.
+
 ---
 
 # 44. Testing OOP Designs
@@ -3414,7 +3429,7 @@ Write `calculate_total()` so callers do not need to know the internal calculatio
 ### Solution
 
 ```python
-def calculate_total(items: list[dict[str, float]]) -> float:
+def calculate_total(items: list[dict[str, int | float]]) -> float:
     return sum(
         item["price"] * item["quantity"]
         for item in items
@@ -3752,10 +3767,25 @@ class FakePayment:
 Then:
 
 ```python
-payment = FakePayment()
-service = OrderService(payment=payment)
+class FakeRepository:
+    def save(self, order: Order) -> None:
+        pass
 
-service.checkout(100.0)
+
+class FakeNotifier:
+    def send(self, message: str) -> None:
+        pass
+
+
+payment = FakePayment()
+service = OrderService(
+    payment=payment,
+    repository=FakeRepository(),
+    notifier=FakeNotifier(),
+)
+
+order = Order([OrderItem(name="Keyboard", price=50.0, quantity=2)])
+service.checkout(order)
 
 assert payment.amounts == [100.0]
 ```
@@ -3899,7 +3929,7 @@ Testing the internal private field or helper function instead of the public resu
 
 ---
 
-## Exercise 18 — Property-Based Boundary Thinking
+## Exercise 18 — Boundary-Value Testing for Properties
 
 ### Problem
 

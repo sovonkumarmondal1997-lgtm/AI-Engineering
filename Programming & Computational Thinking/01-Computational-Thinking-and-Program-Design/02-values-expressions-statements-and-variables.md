@@ -38,7 +38,7 @@ By the end of this lesson, you will be able to:
 | **Statement** | A syntactic unit in a Python program that represents an action or other operation (some statements contain expressions), such as `total = 3 + 4` or `print(total)`. |
 | **Variable** | A name that refers to an object (a value), so you can use that value again later by name instead of retyping it. |
 | **Assignment** | The act of connecting a name to a value using `=`, such as `age = 25`. |
-| **Reassignment** | Pointing a variable's name at a *new* value, replacing what it pointed to before. |
+| **Reassignment** | Rebinding a variable's name so it refers to a different object, replacing what it referred to before. |
 | **Mutation** | Changing the state of an existing mutable object in place — only possible for certain data types, like lists. |
 
 ## Step-by-step explanation
@@ -213,9 +213,9 @@ print(balance)
   it looks like an equation that can never be true ("balance equals
   balance minus 30"?). Remember: `=` is not equality. Python evaluates the
   right-hand side first, using `balance`'s *current* value: `100 - 30`
-  equals `70`. Then it reassigns `balance` to point to this new value,
-  `70`. The old value, `100`, is not changed — it's simply no longer
-  referred to by anything.
+  equals `70`. Then it reassigns `balance`, so the name now refers to
+  this result, `70`. The object `100` is not changed; only what the name
+  `balance` refers to is different.
 - `balance = balance - 15` repeats the same idea: it reads the current
   value of `balance` (`70`), subtracts `15` to get `55`, and reassigns
   `balance` to `55`.
@@ -227,6 +227,8 @@ print(balance)
 
 This example is the hardest of the three, because it puts reassignment and
 mutation side by side so you can see they are genuinely different actions.
+The strings are demonstration-only placeholders: the example is about
+aliasing (two names for one list), not about how to store passwords.
 
 ```python
 password_attempts = []
@@ -304,13 +306,22 @@ print(backup_attempts)            # ['qwerty', 'letmein', 'hunter2']
    print(x, y)
    ```
    Explain in your own words why `y` did or did not change.
+   *Success criteria:* your prediction is written down before running; it
+   matches the actual output; your explanation says that `x` was
+   reassigned while `y` still refers to the original value.
 2. Create a variable `cart` pointing to an empty list. Use `.append(...)`
    to add three grocery item names to it. Then create a second variable
    `also_cart` pointing at `cart`, and add one more item using
    `also_cart.append(...)`. Print both variables and explain what you see.
-3. Write three lines of code that start a variable called `steps_taken` at
+   *Success criteria:* `cart` has three items before `also_cart` is
+   created; both printed lists show all four items; your explanation says
+   both names refer to the same list.
+3. Write four lines of code that start a variable called `steps_taken` at
    `0`, then increase it by `1000` twice using reassignment (not
    mutation), ending with the correct total printed.
+   *Success criteria:* four lines; `steps_taken` starts at `0`; each
+   increase uses reassignment (`steps_taken = ...`), not mutation; the
+   printed result is `2000`.
 4. Without running any code, write out on paper what each line of the
    following snippet does, then check yourself by running it:
    ```python
@@ -319,6 +330,9 @@ print(backup_attempts)            # ['qwerty', 'letmein', 'hunter2']
    name = "grace"
    print(name, shout_name)
    ```
+   *Success criteria:* you wrote a description for every line before
+   running; your predicted output matches the actual output; you can say
+   why `shout_name` did not change when `name` was reassigned.
 
 ## Summary
 
@@ -328,8 +342,8 @@ print(backup_attempts)            # ['qwerty', 'letmein', 'hunter2']
 - A **variable** is a name that refers to an object (a value), created with an
   **assignment** statement (`=`), which is not the same as mathematical
   equality.
-- **Reassignment** points a variable's name at a new object, leaving the
-  older object itself unchanged.
+- **Reassignment** rebinds a variable's name to a different object, leaving
+  the older object itself unchanged.
 - **Mutation** changes the state of an existing mutable object in place,
   without reassigning any name; only certain types (like lists) can be mutated.
 - Two variable names can refer to the *same* mutable value at once, so a

@@ -149,10 +149,12 @@ conditions, and thinking through edge cases for text input, as covered in
 
 **Completion checklist:**
 
-- [ ] I wrote down my exact password rules before coding.
+- [ ] I wrote down my exact password rules, and whether I check all
+      rules or stop at the first failure, before coding.
 - [ ] I wrote pseudocode for checking each rule.
 - [ ] I tested a password that passes every rule.
-- [ ] I tested a password that fails each rule, one at a time.
+- [ ] I tested a password that fails each rule, one at a time, and
+      confirmed my program's behavior follows the rules I documented.
 - [ ] I tested an empty password and a password exactly at my length
       boundary.
 - [ ] I can explain my code aloud, line by line.
@@ -207,11 +209,13 @@ allowed next.
 **Completion checklist:**
 
 - [ ] I listed all three states and the valid transitions between them
-      before coding.
+      before coding, and documented which transition model I chose (fixed
+      next state, or accepting/rejecting requested transitions).
 - [ ] I wrote pseudocode for how a transition request is checked.
 - [ ] I tested a full valid cycle (red → green → yellow → red).
-- [ ] I tested at least one invalid transition and confirmed the state did
-      not change.
+- [ ] I tested the behavior my model defines. If my design accepts
+      requested transitions, I tested at least one invalid request and
+      confirmed the state did not change.
 - [ ] I can explain my code aloud, line by line.
 
 ---
@@ -377,6 +381,8 @@ following the decomposition habit from
 - [ ] I tested that `"Cat"` and `"cat"` are correctly counted as the same
       word.
 - [ ] I tested an empty sentence and a one-word sentence.
+- [ ] I tested a sentence with extra spaces between words, and the word
+      counts match my documented normalization rules.
 - [ ] I can explain my code aloud, line by line.
 
 ---

@@ -85,23 +85,24 @@ tools), a flowchart can be written using simple ASCII arrows and labels:
 [Set total = 0]
    |
    v
-[For each expense in expenses] <---------+
-   |                                     |
-   v                                     |
-[Add expense to total] ------------------+
-   |
-   v
-(all expenses processed)
-   |
-   v
-[Return total]
-   |
-   v
-[End]
+<More expenses?> <-------------------+
+   |            |                     |
+  Yes           No                    |
+   |            |                     |
+   v            v                     |
+[Take next   [Return total]           |
+ expense]       |                     |
+   |            v                     |
+   v          [End]                   |
+[Add expense to total] ---------------+
 ```
 
-The loop is shown by the arrow that curves back up to "For each expense" —
-this is exactly the repeating behavior of a `for` loop. This particular
+The loop is shown by the arrow that goes back up to the "More expenses?"
+decision. The **Yes** path takes the next expense, adds it to the total,
+and returns to the question; the **No** path leaves the loop and returns
+the total. This is exactly the repeating behavior of a `for` loop. If the
+list is empty, the answer to the first "More expenses?" is **No**, so the
+total returned is `0`. This particular
 example shows a loop; a decision would be drawn as a diamond (or a labelled
 branch) wherever the plan has a condition. Flowcharts are especially useful
 for problems with multiple branches or repeated paths, where seeing the
@@ -299,11 +300,22 @@ print(count_positive_and_negative([3, -1, 5, -2, 0]))
    `RETURN` / `END` style from Example 1) for a function that returns the
    largest number in a list, without using Python's built-in `max()`.
    Only after the pseudocode looks right to you, translate it into Python.
+   Assume the list is non-empty (it contains at least one number).
+   *Success criteria:* the function returns the largest value for a
+   non-empty list; it handles negative values correctly; it does not use
+   `max()`.
 2. Draw a text-based flowchart (using boxes and arrows, like the one in
    step 3 above) for a program that asks a user for a password and prints
    whether it is at least 8 characters long.
+   *Success criteria:* the flowchart separates inputs shorter than 8
+   characters from inputs of 8 or more; exactly 8 characters is handled
+   correctly; every branch and outcome is clearly labeled.
 3. Perform a full dry run, using a trace table, of the following code, and
-   predict its final printed output before running it to check:
+   predict its final printed output before running it to check.
+   *Success criteria:* your trace table follows the loop's execution
+   order, with the relevant variable values; it records how `result`
+   changes for even and for odd values; your predicted output is written
+   down before you run the code:
    ```python
    values = [1, 2, 3, 4]
    result = 0
@@ -324,6 +336,10 @@ print(count_positive_and_negative([3, -1, 5, -2, 0]))
                count = count
        return count
    ```
+   *Success criteria:* you explain why `count = count` does not increase
+   the counter; you propose a minimal correction; you check a word that
+   meets the length condition and one that does not; the behavior
+   matches the intended counting rule.
 
 ## Summary
 

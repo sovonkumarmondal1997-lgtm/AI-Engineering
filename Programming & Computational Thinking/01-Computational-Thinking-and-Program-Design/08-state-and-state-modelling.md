@@ -191,9 +191,11 @@ print(current_state)                       # red
   way for the caller to request an arbitrary next state, because it never
   asks "what state do you want to go to?" It returns only the next state
   allowed by this simplified model for the recognized current state.
-  (This simplified function assumes `state` is one of the three recognized
-  traffic-light states; an unrecognized state would fall through and
-  return `None`.)
+  (This simplified function expects `state` to be one of the three
+  recognized traffic-light states: `"red"`, `"green"`, or `"yellow"`. An
+  unrecognized state is outside the function's stated precondition; it
+  would fall through and return `None`, which is not a valid
+  traffic-light state.)
 
 ### Example 3 — An elevator that rejects invalid requested transitions
 
@@ -201,6 +203,11 @@ This example is harder: instead of always moving to one fixed next state,
 it must check whether a **requested** transition is valid, and reject it
 if not — closer to how many real systems work, where an external request
 might ask for something disallowed.
+
+Note that this is a simplified state-machine example meant to demonstrate
+transition validation. It does not model actual floors, movement
+completion, stopping conditions, or door-safety interlocks, and it is not
+a complete or safety-certified elevator controller.
 
 ```python
 def is_transition_allowed(state, requested_state):
@@ -295,19 +302,37 @@ print(current_state)                                          # still door_open 
    simple login system: `logged_out`, `logging_in`, `logged_in`. Decide
    what should happen if a `logged_out` user tries to jump directly to
    `logged_in`.
+   *Success criteria:* all three states are identified; the allowed
+   transitions are explicitly listed; the direct `logged_out` →
+   `logged_in` transition is classified as allowed or disallowed; your
+   rules treat that direct request consistently.
 2. Implement your login system from exercise 1 as a small function
    `is_transition_allowed(state, requested_state)`, following the pattern
    of Example 3 (returning `True` or `False`).
+   *Success criteria:* it returns `True` for transitions your model
+   allows and `False` for those it disallows; the direct-login request
+   gives the result your chosen rules require; its behavior agrees with
+   your model from exercise 1.
 3. Extend the `advance` function from Example 2: add a separate counter
    variable that increases by one every time the light returns to `"red"`
    after having left it (count each completed red → green → yellow → red
    cycle once). Call `advance` ten times in a row (reassigning
    `current_state` and updating the counter each time) and print how many
    full cycles have happened.
+   *Success criteria:* `current_state` and the counter are updated
+   consistently; a cycle is counted only after a complete red → green →
+   yellow → red sequence; starting at red does not count as a completed
+   cycle; intermediate transitions do not increase the count; the printed
+   number reflects the full cycles completed after ten calls.
 4. Using the functions from Example 3, write a small test that calls
    `request_transition` with an invalid request from every state, and
    confirms (using `print` for now) that `current_state` truly never
    changes when a request is rejected.
+   *Success criteria:* you test at least one invalid request from every
+   defined state; each test checks the validation result using
+   `is_transition_allowed` and `request_transition`; the current state is
+   recorded or printed before and after each rejected request; it is
+   unchanged after every one.
 
 ## Summary
 

@@ -121,7 +121,11 @@ print(average([]))             # crashes
 **Plain-English explanation:**
 
 - `average(numbers)` has a hidden **precondition**: `numbers` must not be
-  empty, because the last line divides by `len(numbers)`.
+  empty, because the last line divides by `len(numbers)`. A non-empty list
+  is necessary but not sufficient: the function also assumes that
+  `numbers` is an iterable that can be traversed, that its elements are
+  compatible with the arithmetic used (`total + number`), and that numeric
+  values are the intended input for this example.
 - The first call, `average([10, 20, 30])`, meets that precondition, and
   runs correctly, printing `20.0`.
 - The second call, `average([])`, violates the precondition, because
@@ -223,6 +227,10 @@ for case in test_cases:
   `"a"` eight times) and the maximum (64 characters); a value just past
   the boundary (65 characters); and **invalid input** that isn't even text
   (the plain number `12345678`).
+- The password-like strings are demonstration data only. A `"valid"`
+  result means only that the input passed the specific rules in this
+  example; these rules do not establish that a password is secure. Never
+  print or log real passwords, because doing so can expose credentials.
 - The `for case in test_cases:` loop calls the function once per case, and
   `repr(case)` prints the value in a form that makes empty strings and
   numbers visually easy to tell apart in the output (`''` for an empty
@@ -267,20 +275,34 @@ for case in test_cases:
    list correctly? What about a list containing a negative number (a
    refund)? Decide whether that should be considered valid or invalid, and
    why.
+   *Success criteria:* you stated the assumptions the function needs and
+   the result it promises; you explained how an empty list behaves; you
+   decided, and wrote down, whether negative values are valid for your
+   application.
 2. Write a function `first_positive(numbers)` that returns the first
    positive number in a list. Before coding, list at least four edge cases
    you should test (include an empty list and a list with no positive
    numbers at all). Decide and document what the function should return
    when no positive number exists. Then implement the function and test it
    against your list.
+   *Success criteria:* you listed at least four edge cases before coding;
+   your tests include an empty list and a list with no positive numbers;
+   the function returns the first positive number when one exists; the
+   no-positive behavior is defined and tested.
 3. Write a function `remove_duplicates(items)` that returns a new list with
    duplicate values removed, keeping the first occurrence of each value.
    Test it on a list with no duplicates, a list that is all duplicates of
    one value, and an empty list.
+   *Success criteria:* the result is a new list; duplicates are removed;
+   the first occurrence of each value is kept in its original order; you
+   tested all three cases above.
 4. Take `validate_password` from Example 3 and add one more rule of your
    choice (for example, requiring at least one digit). Update the test
    cases to include a new edge case that specifically targets your new
    rule.
+   *Success criteria:* the new rule is part of `validate_password`; your
+   test cases include an input aimed at the new rule; you checked inputs
+   that pass and inputs that fail it.
 
 ## Summary
 

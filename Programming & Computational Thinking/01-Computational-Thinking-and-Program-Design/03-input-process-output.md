@@ -244,31 +244,54 @@ if total > 100:
   possibility — you will learn how, properly, in Module 1.3 when you study
   exceptions; for now, just be aware that user input is not automatically
   "safe."
+  *Self-check:* which of `"42"`, `"3.5"`, `"abc"`, and `"nineteen"` can
+  `float()` convert into a number? Predict what happens for the ones that
+  cannot, then try them in the interpreter. You should see a `ValueError`
+  for the invalid text; you do not need to handle it yet.
 - **Doing too much in one line.** Combining many operations into a single
   dense line (`print(int(input())*float(input())+1)`) makes code hard to
   read and hard to debug. Prefer separate, clearly named steps like
   Examples 2 and 3.
-- **Confusing "process" with "output."** A calculation that is never
-  printed or returned has no visible effect. Beginners sometimes compute
-  the right answer but forget the `print(...)` (or, later, `return`)
-  statement that actually shows or uses it.
+- **Confusing "process" with "output."** A calculated value that is
+  never displayed or otherwise used to produce an observable result will
+  not be visible to the user, even though it may be used later in the
+  program. Beginners sometimes compute the right answer but forget the
+  `print(...)` (or, later, `return`) statement that actually shows or
+  uses it.
 
 ## Try it yourself
 
 1. Write a program that asks the user for their birth year, calculates
    their approximate current age (assume the current year is `2026`), and
    prints a sentence containing that age.
+   *Success criteria:*
+   - The birth year comes from user input.
+   - The age is calculated using `2026`.
+   - A sentence containing the calculated age is printed.
 2. Write a program that asks for a temperature in Celsius and prints the
    equivalent in Fahrenheit. (Formula: `F = C * 9 / 5 + 32`.) Identify, in
    a comment above your code, which lines are input, which are process,
    and which are output.
+   *Success criteria:*
+   - The formula `F = C * 9 / 5 + 32` is used correctly.
+   - The resulting Fahrenheit temperature is displayed.
+   - Comments identify the input, process, and output parts.
 3. Write a program that reads three numbers of test scores from the user,
    computes the average, and prints `"Pass"` if the average is 40 or above
    and `"Fail"` otherwise (you can use the small `if` preview from
    Example 3, even without fully understanding selection yet).
+   *Success criteria:*
+   - Three scores are collected.
+   - The average uses all three scores.
+   - An average of 40 or above prints `"Pass"`.
+   - An average below 40 prints `"Fail"`.
 4. Take Example 3 and add a fourth expense input, updating the rest of the
    program so the average is still calculated correctly. Predict the
    output first, then run it.
+   *Success criteria:*
+   - The fourth expense is included in the total.
+   - The average accounts for all four expenses.
+   - Your predicted output has been compared with the actual output.
 
 ## Summary
 

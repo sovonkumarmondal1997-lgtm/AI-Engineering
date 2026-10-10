@@ -242,6 +242,9 @@ print_password_report(passwords_to_check)
   calling `has_a_digit("abc")` directly should return `False`), which
   would be far harder if all this logic were mashed into a single
   40-line block.
+- The passwords here are fake demonstration data, and the example is
+  meant to teach decomposition and function composition. Never print or
+  log real passwords, because doing so can expose credentials.
 
 ## Common beginner mistakes
 
@@ -259,9 +262,12 @@ print_password_report(passwords_to_check)
   you don't yet understand its job well enough to build it).
 - **Letting functions quietly depend on details of other functions'
   internals**, instead of only on their inputs and return values. This
-  creates unwanted **coupling**: changing one function's internal
-  implementation shouldn't ever require changing another function that
-  merely calls it.
+  creates unwanted **coupling**. Callers should depend on a function's
+  interface and promised behavior, not its implementation details: if the
+  interface and externally observable behavior stay compatible, changing
+  a function's internals shouldn't require changing the functions that
+  call it. Changing the interface, return values, side effects, or
+  promised behavior may still require updating callers.
 
 ## Try it yourself
 
@@ -269,17 +275,33 @@ print_password_report(passwords_to_check)
    responsibilities you would turn into functions, before writing any
    code: "Read a list of exam scores, work out how many students passed
    (60 or above), calculate the class average, and print a short report."
+   *Success criteria:* you listed the responsibilities before writing
+   code; reading/collecting scores, counting passes, calculating the
+   average, and producing the report are kept separate; you can explain
+   why they are separate.
 2. Implement the functions you listed in step 1, then compose them into a
    short main sequence that prints the report.
+   *Success criteria:* the pass count is correct; the class average is
+   correct; the report is built from the results of the smaller
+   functions; you decided and defined what happens for an empty score
+   list.
 3. Look back at Example 3 in
    [topic 4](04-sequence-selection-iteration-and-abstraction.md)
    (`is_password_long_enough` and `count_signs`). Add a third small,
    separate function of your own — for example, one that checks whether a
    password contains no spaces — and compose it into `check_password`
    from this topic's Example 3.
+   *Success criteria:* the new function has one clear responsibility; it
+   is used inside `check_password`; you tested inputs that satisfy and
+   fail the new rule; you can explain how it fits the existing
+   decomposition.
 4. Take any one function you have written so far in this module and try to
    describe its job in a single sentence without using the word "and." If
    you cannot, decide how you would split it, and write the split version.
+   *Success criteria:* you identified a function with an unclear or
+   combined responsibility; you proposed a split where appropriate; the
+   resulting functions have distinct responsibilities and meaningful
+   names; you can explain why the split improves clarity.
 
 ## Summary
 

@@ -79,6 +79,12 @@ else:
     print("It's cool.")
 ```
 
+Boundary behavior: at exactly `15`, the first two conditions are false
+(`15 > 30` and `15 > 15`), so the output is "It's cool." At exactly `30`,
+`30 > 30` is false but `30 > 15` is true, so the output is "It's warm."
+Values above `30` give "It's hot.", values above `15` up to and including
+`30` give "It's warm.", and values at or below `15` give "It's cool."
+
 Python checks each condition top to bottom and runs the *first* block whose
 condition is true, then skips the rest. If none of the `if`/`elif`
 conditions are true, the `else` block runs. `else` has no condition of its
@@ -298,6 +304,9 @@ print("Positive:", positives, "Negative:", negatives, "Zero:", zeros)
   decides which message to print based on the `True`/`False` result.
   Notice this reuses the same function on three completely different
   pieces of data, without repeating the length-check logic three times.
+  These strings are demonstration examples only. The function shows a
+  length check, and passing a length check does not mean a password is
+  secure.
 - `positives, negatives, zeros = count_signs([4, -2, 0, 7, -9, 0, 1])` calls
   the second function on a specific list, and immediately unpacks the three
   returned values into three separate variable names, in the same order
@@ -338,16 +347,30 @@ print("Positive:", positives, "Negative:", negatives, "Zero:", zeros)
    even and `False` otherwise. (Hint: `number % 2` gives the remainder
    after dividing by 2.) Test it by calling it on at least four different
    numbers.
+   *Success criteria:* the function returns a Boolean (`True` or
+   `False`); it is correct for both even and odd integers; you tested at
+   least four numbers, including both even and odd ones.
 2. Using a `for` loop, write a program that prints every number from 1 to
    20 that is divisible by 3, without printing the others.
+   *Success criteria:* the loop examines every integer from 1 through 20
+   inclusive; only multiples of 3 are printed; you can check the output
+   against the multiples of 3 in that range.
 3. Write a `while` loop that starts a counter at `1` and keeps doubling it
    (`counter = counter * 2`) until it is greater than `1000`, printing the
    counter's value each time it changes.
+   *Success criteria:* the counter is doubled repeatedly until it is
+   greater than `1000`; the loop terminates; each value produced by a
+   doubling is printed (printing the starting `1` is optional, since it
+   is not the result of a change).
 4. Combine the ideas above into a function `traffic_light_message(color)`
    that takes a string (`"red"`, `"yellow"`, or `"green"`) and returns an
    appropriate instruction such as `"Stop"`, `"Prepare to stop"`, or
    `"Go"`. Call it in a loop over the list
    `["green", "yellow", "red", "green"]` and print each message.
+   *Success criteria:* the function returns an appropriate instruction
+   for `"red"`, `"yellow"`, and `"green"`; you call it for each item in
+   the list above; you can check each printed message against the
+   instruction expected for that color.
 
 ## Summary
 
