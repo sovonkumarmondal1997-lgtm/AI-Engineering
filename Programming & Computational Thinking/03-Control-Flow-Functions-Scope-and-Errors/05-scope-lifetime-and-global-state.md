@@ -84,9 +84,12 @@ later:
   names are available only inside that function, and only while that call
   is running.
 - **Global scope** (also called **module scope**): the names created
-  **outside** every function, directly in the file. They exist for as
-  long as the program keeps running, and can be *read* from almost
-  anywhere in that file, including from inside a function.
+  **outside** every function, directly in the file. They live in the
+  module's namespace, so they are available while their bindings remain
+  present — in an ordinary beginner script, that is commonly for the whole
+  run, though a name's scope is not a guarantee that its binding stays
+  unchanged. They can be *read* from almost anywhere in that file,
+  including from inside a function.
 
 Every time a function runs, it gets its own **fresh** local scope — even
 if the same function is called five times, each call gets its own
@@ -646,24 +649,40 @@ one.
 1. Write a function that creates a local variable, prints it inside the
    function, and then try to print that same variable name outside the
    function. Write down the type of error Python raises and why.
+   *Success criteria:* you observe the expected error (`NameError`) when
+   accessing the local variable outside the function, and you briefly
+   explain why the name is unavailable outside its local scope.
 2. Create a global variable `discount_rate` and a function that reads it
    (without a parameter) to calculate a discounted price. Confirm the
    function works correctly, then confirm `discount_rate` is unchanged
    afterward.
+   *Success criteria:* the function calculates the discounted price using
+   the global `discount_rate`, and you verify that `discount_rate` is
+   unchanged after the call.
 3. Write a function that assigns to a global-sounding name without a
    `global` statement or a parameter (for example, `total = total + 1`)
    and observe the `UnboundLocalError` for yourself. Then fix it two
    ways: once using `global`, and once using a parameter and a return
    value.
+   *Success criteria:* the first version raises the expected
+   `UnboundLocalError`, and both corrected versions (one with `global`,
+   one with a parameter and return value) work.
 4. Create a global list of `favorite_books` and write two versions of a
    function that adds a book to it: one that mutates the global list
    directly, and one that accepts the list as a parameter and returns
    the updated list. Compare their signatures and decide which one you
    would rather use in a larger program, and why.
+   *Success criteria:* both versions produce the intended updated list,
+   and you compare the two signatures and explain which makes its
+   dependency more explicit.
 5. Write a function `apply_interest(balance, rate)` that returns a new
    balance, and call it three times in a row, each time using the
    previous result as the next call's input, printing the balance after
    each call.
+   *Success criteria:* you call `apply_interest(balance, rate)` three
+   times, passing each returned balance into the next call; you display
+   the balance after each call; and the sequence follows the interest
+   calculation you chose.
 
 ## Summary
 

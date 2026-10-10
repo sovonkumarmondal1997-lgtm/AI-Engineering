@@ -507,7 +507,7 @@ tuple behind the scenes. Capturing the whole call in one variable
 directly into `lowest, highest` — the exact tuple-unpacking pattern from
 Module 1.2 — immediately gives each value its own clear name, which is
 almost always clearer to read than working with an unnamed tuple
-afterward.
+afterward. This example assumes that `numbers` contains at least one item, because `min()` and `max()` raise a `ValueError` for an empty collection.
 
 ### 11. Docstrings
 
@@ -725,6 +725,7 @@ print(f"Highest score: {highest}")
   pattern first previewed in Module 1.1 and formalized in
   [Tuples and Unpacking](../02-Python-Core-Language-and-Data-Types/06-tuples-and-unpacking.md),
   now shown as a genuinely useful, reusable function.
+- This example assumes that `numbers` contains at least one item, because `min()` and `max()` raise a `ValueError` for an empty collection.
 
 **Expected output:**
 

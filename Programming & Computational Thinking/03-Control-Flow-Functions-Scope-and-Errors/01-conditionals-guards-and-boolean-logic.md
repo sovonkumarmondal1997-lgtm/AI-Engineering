@@ -50,12 +50,12 @@ By the end of this lesson, you will be able to:
 |---|---|
 | **Control flow** | The order in which a program's statements actually run, including any choices about which statements to skip or repeat. |
 | **Branch** | One possible path a program can take when it reaches a decision point. |
-| **Boolean expression** | An expression that evaluates to exactly `True` or `False`. |
-| **Condition** | A Boolean expression used to decide whether a block of code should run. |
+| **Boolean expression** | An expression whose result is a Boolean value, `True` or `False`, such as `5 > 3`. |
+| **Condition** | An expression used to decide whether a block of code should run; Python truth-tests its result, so it does not have to be exactly `True` or `False`. |
 | **`if` statement** | A statement that runs a block of code only when its condition is `True`. |
 | **`elif`** | Short for "else if"; introduces another condition to check only if every condition above it was `False`. |
 | **`else`** | Introduces a block that runs only when every `if`/`elif` condition above it was `False`; it has no condition of its own. |
-| **Boolean operator** | `and`, `or`, or `not`: an operator that combines or inverts `True`/`False` values. |
+| **Boolean operator** | `and`, `or`, or `not`: an operator that combines or inverts conditions. With `True`/`False` operands they give `True`/`False`, but `and` and `or` can also return one of their operands. |
 | **Short-circuit evaluation** | Python's habit of stopping partway through `and`/`or` as soon as the final result is already certain, without checking the remaining parts. |
 | **Guard condition** | A condition, usually checked early, that handles an invalid or special-case input so the rest of the code can assume "normal" data. |
 | **Nested code** | Code placed inside another block, which is itself inside another block, and so on; too much nesting makes code hard to follow. |
@@ -137,8 +137,10 @@ runs
 ```
 
 Common falsey values are `False`, `None`, `0`, `""` (the empty string),
-and empty collections such as `[]`. Almost everything else is truthy,
-including non-empty strings like `"hello"`.
+and empty collections such as `[]`. For common built-in values, almost
+everything else is truthy, including non-empty strings like `"hello"`.
+(Custom objects can define their own truth-value behavior, so this is a
+rule of thumb for built-in values rather than a universal rule.)
 
 ### 3. `if` statements
 
@@ -613,6 +615,10 @@ short1 -> Error: password must be at least 8 characters long.
 longenoughbutnodigits -> Error: password must contain at least one digit.
 hunter22 -> Password meets all the rules.
 ```
+
+These password rules are illustrative: they exist to demonstrate guard
+chains and conditional logic, not to define a complete or production-ready
+password-security policy.
 
 ### Example 3 — Traffic light instructions with `match`
 

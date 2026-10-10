@@ -714,6 +714,9 @@ one.
    version that reads `width` and `height` from global variables instead.
    Change the global values between two calls to the impure version and
    observe how its result silently changes.
+   *Success criteria:* the pure function calculates its result from its
+   explicit arguments; changing the global values can change the impure
+   function's result; you can explain the difference in behavior.
 2. Write a function `remove_duplicates_unsafe(numbers)` that mutates its
    input list in place to remove duplicates (hint: you may need to build
    a new list internally and then copy the values back), preserving the
@@ -721,20 +724,35 @@ one.
    version, `remove_duplicates_safe(numbers)`, that returns a brand-new
    list instead. Confirm, by printing the original list afterward, which
    version leaves the caller's data untouched.
+   *Success criteria:* both versions remove duplicates, keeping the
+   original order and the first occurrence of each value; the unsafe
+   version changes the caller's original list; the safe version returns a
+   new list and leaves the original unchanged.
 3. Take a function that only `print()`s a formatted price, and rewrite it
    to `return` the formatted text instead. Then write two different
    lines of code that each use the returned value differently (for
    example, printing it, and combining it with other text).
+   *Success criteria:* the function returns the formatted text instead of
+   printing it internally, and the returned value is used in two distinct
+   ways.
 4. Write a pure function `is_valid_score(score)` that returns `True` or
    `False`, and keep every `print(...)` statement about it completely
    separate, in a loop that calls the function and reports the result
    for several scores.
+   *Success criteria:* the function returns the correct `True`/`False`
+   result for several test scores; it does not print; the loop handles
+   the reporting. The exercise does not specify a validity rule, so define
+   one yourself and apply it consistently.
 5. Find (or write) a function that mutates a dictionary it was given,
    name it clearly to reflect that (for example, `apply_discount_to_profile`),
    and then write a second, pure version that returns a new dictionary
    instead, using `.copy()` from Module 1.2. Use a flat dictionary (top-level
    values that are not nested lists or dictionaries), since `.copy()` does
    not copy nested mutable objects.
+   *Success criteria:* the mutating version changes the supplied
+   dictionary as intended; the pure version returns the intended updated
+   dictionary; the original dictionary is unchanged after the pure call;
+   you used a flat dictionary.
 
 ## Summary
 

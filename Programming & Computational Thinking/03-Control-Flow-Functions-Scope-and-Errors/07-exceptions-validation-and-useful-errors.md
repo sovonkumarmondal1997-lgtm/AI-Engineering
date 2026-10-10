@@ -288,11 +288,15 @@ it falls within an allowed **range**, it is not unexpectedly **empty**,
 and any **required keys** actually exist.
 
 ```python
+import math
+
 def validate_price(price):
     if not isinstance(price, (int, float)):
         return "Price must be a number."
     if isinstance(price, bool):
         return "Price must be a number."
+    if not math.isfinite(price):
+        return "Price must be a finite number."
     if price <= 0:
         return "Price must be greater than zero."
     return None
@@ -319,7 +323,10 @@ This reuses the guard-style `if` chain from
 each check handles one specific way the input could be invalid, and
 `None` means "no problem found." (`isinstance(price, bool)` is checked
 separately because, in Python, `bool` is technically a kind of `int` —
-without this check, `True` would incorrectly pass as a valid price.)
+without this check, `True` would incorrectly pass as a valid price.
+`math.isfinite(price)` rejects `float("nan")` and `float("inf")`, which
+would otherwise slip past the `price <= 0` comparison. So a valid price
+here is a non-Boolean number that is finite and greater than zero.)
 Every message states **what** was wrong and, where possible, **what was
 expected instead** — never just "invalid input."
 
@@ -777,9 +784,13 @@ Result: 42
 ### Example 3 — Validating a price by raising specific exceptions
 
 ```python
+import math
+
 def validate_price(price):
     if not isinstance(price, (int, float)) or isinstance(price, bool):
         raise TypeError(f"Invalid price: {price!r}. Expected a number.")
+    if not math.isfinite(price):
+        raise ValueError(f"Invalid price: {price}. Price must be a finite number.")
     if price <= 0:
         raise ValueError(f"Invalid price: {price}. Price must be greater than zero.")
 
@@ -797,8 +808,10 @@ for price in prices_to_check:
 
 - `validate_price` **raises** two different, specific exception types
   for two genuinely different problems: the wrong *type* of value raises
-  `TypeError`, while a validly-typed but out-of-range value raises
-  `ValueError` — each name accurately describes the actual problem.
+  `TypeError`, while a validly-typed but unacceptable value (not finite,
+  such as `float("nan")` or `float("inf")`, or not greater than zero)
+  raises `ValueError` — each name accurately describes the actual
+  problem.
 - `except (TypeError, ValueError) as error:` lists both expected
   exception types together in a tuple, catching either one — this is
   still precise and intentional, unlike a bare `except:`, because both
@@ -955,7 +968,7 @@ Light is now yellow.
 def validate_registration(data):
     errors = []
 
-    if "name" not in data or data["name"] == "":
+    if "name" not in data or data["name"].strip() == "":
         errors.append("Name is required.")
 
     if "age" not in data:
@@ -968,7 +981,8 @@ def validate_registration(data):
         except ValueError:
             errors.append(f"Age must be a whole number, got '{data['age']}'.")
 
-    if "email" not in data or "@" not in data.get("email", ""):
+    email = data.get("email", "")
+    if "@" not in email or email.startswith("@") or email.endswith("@"):
         errors.append("A valid email address is required.")
 
     return errors
@@ -995,9 +1009,13 @@ for submission in submissions:
   value**, an **invalid type/format** (caught with `try`/`except
   ValueError` around `int(...)`), and an **out-of-range value** — all at
   the boundary, before any registration is actually accepted.
-- The example assumes `data` is a dictionary, `data["age"]` is a value
-  that `int(...)` can try to convert (such as text like `"30"`), and
-  `data["email"]` is a string.
+- The example assumes `data` is a dictionary, `data["name"]` is a
+  string, `data["age"]` is a value that `int(...)` can try to convert
+  (such as text like `"30"`), and `data["email"]` is a string. A name that
+  is missing, empty, or only whitespace counts as not provided.
+- The email check is deliberately simple: it only requires an `@` that is
+  not the first or last character, so it rejects obviously malformed
+  values like `"@"`. It does not fully validate email addresses.
 - Rather than raising on the first problem found, it **collects every
   error into a list** and keeps checking the remaining fields — this
   reports all of a submission's problems in one pass, instead of forcing

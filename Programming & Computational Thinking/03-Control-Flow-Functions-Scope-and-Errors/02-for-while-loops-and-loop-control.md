@@ -55,7 +55,7 @@ By the end of this lesson, you will be able to:
 | Term | Plain-English definition |
 |---|---|
 | **Iteration** | Repeating a block of statements, either once per item in a collection or until a condition becomes false. |
-| **`for` loop** | A loop that runs its block once for each item in an iterable, in order. |
+| **`for` loop** | A loop that runs its block once for each item in an iterable, following that iterable's iteration order. |
 | **`while` loop** | A loop that keeps running its block for as long as a condition stays `True`. |
 | **Loop variable** | The name a `for` loop assigns each item to, one at a time, as it repeats. |
 | **Iterable** | Anything a `for` loop can step through one item at a time — a string, list, tuple, dictionary, or set are all examples. |
@@ -341,8 +341,9 @@ Total after those days: 355
 
 Here, nobody can say in advance exactly how many days it will take to
 reach `$300` in total sales — it depends entirely on the data itself.
-`while total_so_far < 300 and ...` naturally expresses "keep going until
-this becomes true," which a `for` loop over a fixed `range()` cannot
+`while total_so_far < 300 and ...` naturally expresses "keep going while
+this stays true," and the loop ends when the condition becomes false,
+which a `for` loop over a fixed `range()` cannot
 express nearly as directly. The extra `day_index < len(daily_sales)` check
 means the loop stops when either the target is reached or there are no
 more days available, so it can never run past the end of the list.
@@ -371,9 +372,10 @@ forever without ever stopping by itself.
 running program safely and get your terminal back. This does not damage
 anything — it simply stops the program where it currently is.
 
-**How to prevent one:** always make sure something inside the loop body
-genuinely moves the condition toward becoming `False`, on every single
-pass, with no way to skip that update:
+**How to prevent one:** a loop meant to finish needs a reliable way to
+end. When its termination depends on state updated inside the loop body,
+make sure something in the body genuinely moves the condition toward
+becoming `False` on every pass, with no way to skip that update:
 
 ```python
 count = 0

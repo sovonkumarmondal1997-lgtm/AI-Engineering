@@ -15,6 +15,9 @@ decorators, recursion, comprehensions, or external libraries). The only
 `class` in this entire file is the one minimal custom exception the
 roadmap explicitly asks for.
 
+The examples require Python 3.10 or later, because this file uses
+`match`/`case`.
+
 Try to solve each question yourself — in plain English first, then in
 Python — before reading its solution.
 
@@ -150,7 +153,9 @@ Comparisons, `and`, and short-circuit evaluation (Topic 01, Section 6).
 1. Put `len(scores) > 0` **first** in an `and` expression.
 2. Only if that is `True` does Python evaluate the average comparison,
    thanks to short-circuiting.
-3. Print the result for both an empty and a non-empty list.
+3. Use `elif` to tell an empty list apart from a non-empty list whose
+   average is below the threshold, so each of the three outcomes (no
+   scores, below the threshold, meets the threshold) gets its own message.
 
 #### Complete runnable Python solution
 
@@ -160,13 +165,17 @@ scores_b = [70, 85, 90]
 
 if len(scores_a) > 0 and sum(scores_a) / len(scores_a) >= 75:
     print("Group A meets the threshold.")
+elif len(scores_a) == 0:
+    print("Group A has no scores.")
 else:
-    print("Group A has no scores, or is below the threshold.")
+    print("Group A is below the threshold.")
 
 if len(scores_b) > 0 and sum(scores_b) / len(scores_b) >= 75:
     print("Group B meets the threshold.")
+elif len(scores_b) == 0:
+    print("Group B has no scores.")
 else:
-    print("Group B has no scores, or is below the threshold.")
+    print("Group B is below the threshold.")
 ```
 
 #### Explanation
@@ -177,11 +186,15 @@ else:
 - For `scores_b`, `len(scores_b) > 0` is `True`, so Python evaluates the
   second half: `(70 + 85 + 90) / 3 = 81.67`, which is `>= 75`, so the
   first branch runs.
+- If a non-empty group's average were below `75`, the combined condition
+  would be `False` but the list would not be empty, so the final `else`
+  branch would report that it is below the threshold. The `elif` branch
+  is reached only for an empty list, and it never evaluates the division.
 
 #### Example output
 
 ```text
-Group A has no scores, or is below the threshold.
+Group A has no scores.
 Group B meets the threshold.
 ```
 
