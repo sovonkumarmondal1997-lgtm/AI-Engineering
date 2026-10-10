@@ -990,17 +990,25 @@ Validation should enforce semantic correctness, not only syntactic correctness.
 ### Example with timeout
 
 ```python
+import math
+
+
 def parse_timeout(raw: str) -> float:
     try:
         value = float(raw)
     except ValueError as exc:
         raise ValueError("TIMEOUT must be a number") from exc
 
+    if not math.isfinite(value):
+        raise ValueError("TIMEOUT must be a finite number")
+
     if value <= 0:
         raise ValueError("TIMEOUT must be greater than zero")
 
     return value
 ```
+
+`float()` accepts strings such as `"nan"` and `"inf"`. `NaN <= 0` is `False`, so `NaN` would slip past the positive check, and infinity passes it as well. `math.isfinite()` rejects both.
 
 ---
 
@@ -1839,7 +1847,7 @@ def load_config() -> AppConfig:
         os.getenv("APP_ENV", "development")
     )
 
-    port = parse_port(os.getenv("PORT", "8000"))
+    port = read_port()  # reads PORT (default 8000) and validates it; see Section 15
     timeout = parse_timeout(os.getenv("MODEL_TIMEOUT", "30"))
     log_level = os.getenv("LOG_LEVEL", "INFO")
 
@@ -2296,9 +2304,11 @@ summary = SafeConfigSummary(
     environment=config.environment,
     port=config.port,
     log_level=config.log_level,
-    api_key_configured=bool(config.api_key),
+    api_key_configured=config.api_key is not None and bool(config.api_key.strip()),
 )
 ```
+
+Here "configured" uses the same rule as the required-value helper in Section 19: a value that is missing, empty, or whitespace-only counts as not configured. "Configured" does not mean "valid" (for example, that the key is accepted by the provider); only the presence rule is reported, and the key value itself is never included.
 
 ### Important principle
 
@@ -2693,6 +2703,8 @@ app_env = os.getenv("APP_ENV", "development")
 model_name = os.getenv("MODEL_NAME", "local-model")
 model_timeout_raw = os.getenv("MODEL_TIMEOUT", "30")
 batch_size_raw = os.getenv("BATCH_SIZE", "16")
+max_retries_raw = os.getenv("MAX_RETRIES", "3")
+log_level = os.getenv("LOG_LEVEL", "INFO")
 api_key = os.getenv("API_KEY")
 ```
 
@@ -2701,6 +2713,8 @@ api_key = os.getenv("API_KEY")
 ```python
 model_timeout = float(model_timeout_raw)
 batch_size = int(batch_size_raw)
+max_retries = int(max_retries_raw)
+log_level = log_level.strip().upper()
 ```
 
 ### Step 3 — validate
@@ -2722,9 +2736,22 @@ if model_timeout <= 0:
 if batch_size <= 0:
     raise ValueError("BATCH_SIZE must be positive")
 
-if app_env == "production" and not api_key:
+if not model_name.strip():
+    raise ValueError("MODEL_NAME must not be empty")
+
+if max_retries < 0:
+    raise ValueError("MAX_RETRIES must not be negative")
+
+if log_level not in {"DEBUG", "INFO", "WARNING", "ERROR"}:
+    raise ValueError("Invalid LOG_LEVEL")
+
+# Same policy as required() in Section 19: missing, empty, or
+# whitespace-only values are treated as not provided.
+if app_env == "production" and (api_key is None or not api_key.strip()):
     raise ValueError("API_KEY is required in production")
 ```
+
+The error messages name the setting but never include the API key value.
 
 ### Step 4 — construct configuration
 
@@ -2738,6 +2765,8 @@ class AppConfig:
     model_name: str
     model_timeout: float
     batch_size: int
+    max_retries: int
+    log_level: str
     api_key: str | None
 ```
 
@@ -2749,6 +2778,8 @@ config = AppConfig(
     model_name=model_name,
     model_timeout=model_timeout,
     batch_size=batch_size,
+    max_retries=max_retries,
+    log_level=log_level,
     api_key=api_key,
 )
 ```
@@ -3183,7 +3214,7 @@ Do not read the model answer to an exercise until you have attempted your own im
 
 ## 49. Mini-Project
 
-# Mini-Project — Production-Ready Python Configuration System
+### Mini-Project — Production-Ready Python Configuration System
 
 Build a small, self-contained configuration subsystem documented entirely in this chapter.
 

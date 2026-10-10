@@ -124,17 +124,11 @@ Comparison
 ```
 
 | Situation | Likely mistake | Measurement question |
-
 | --- | --- | --- |
-
 | A loop looks expensive | Optimize the loop immediately | How much total time is actually inside the loop? |
-
 | A tiny function is very fast | Ignore it because one call is cheap | How many times is it called? |
-
 | A parser is complex | Assume parser is the bottleneck | What does the profiler show? |
-
 | A batch job feels slow | Measure only one record | How does runtime scale with realistic batch sizes? |
-
 | An AI pipeline is slow | Optimize prompt construction first | How much time is spent waiting on external inference? |
 
 ## 5. What Is a Bottleneck?
@@ -150,15 +144,10 @@ Never infer the bottleneck from code appearance alone.
 ## 6. Types of Performance Problems
 
 | Type | Typical symptoms | First questions |
-
 | --- | --- | --- |
-
 | CPU-bound | High CPU usage; expensive computation | Which functions consume CPU? Is the algorithm appropriate? |
-
 | I/O-bound | Process spends time waiting | How much time is spent on file/database/network waits? |
-
 | Memory-related | Large resident memory, allocation growth, swapping risk | What objects are being allocated or retained? |
-
 | Mixed | Several resource types interact | Which resource is currently limiting the target metric? |
 
 ```python
@@ -187,15 +176,10 @@ Both operations consume wall-clock time, but their resource stories are differen
 ## 7. Measurement vs Benchmarking vs Profiling
 
 | Concept | Main question | Typical tool |
-
 | --- | --- | --- |
-
 | Measurement | How long did this operation or phase take? | `perf_counter()` |
-
 | Benchmarking | How does a small operation behave under repeatable conditions? | `timeit` |
-
 | Profiling | Where is the program spending execution time? | `cProfile` + `pstats` |
-
 | Memory profiling | Where is Python memory being allocated or changing? | `tracemalloc` |
 
 Think of the tools as complementary.
@@ -206,7 +190,7 @@ A profiler and a benchmark answer different questions; neither replaces the othe
 
 ## 8. Basic Timing with Python
 
-For elapsed-duration measurement, start and end around the work you actually want to measure. `time.perf_counter()` is designed for measuring short durations using a high-resolution performance counter. Its absolute reference point is not meaningful; the difference between readings is what matters. The clock includes time spent sleeping, which makes it appropriate for elapsed wall-clock timing. citeturn130118search0
+For elapsed-duration measurement, start and end around the work you actually want to measure. `time.perf_counter()` is designed for measuring short durations using a high-resolution performance counter. Its absolute reference point is not meaningful; the difference between readings is what matters. The clock includes time spent sleeping, which makes it appropriate for elapsed wall-clock timing. ([docs: `time.perf_counter()`](https://docs.python.org/3/library/time.html#time.perf_counter))
 
 ## 9. `time.perf_counter()`
 
@@ -324,7 +308,31 @@ duration = timeit.timeit(calculate, number=10_000)
 print(f"total_seconds={duration:.6f}")
 ```
 
-Callable benchmarking avoids embedding a function call inside an `exec` string. `timeit` accepts a callable plus positional and keyword arguments in versions where the API supports them, but passing a zero-argument callable is an easy beginner pattern.
+Callable benchmarking avoids embedding a function call inside an `exec` string. `timeit.timeit()` and `timeit.Timer` call the callable with **no arguments**; they do not take arguments to forward to it. To benchmark a function that needs arguments, wrap the call in a zero-argument callable:
+
+```python
+import timeit
+from functools import partial
+
+def calculate(count: int, *, mode: str = "sum") -> int:
+    return sum(range(count))
+
+value = 1000  # prepared once, outside the measured call
+
+with_lambda = timeit.timeit(
+    lambda: calculate(value, mode="fast"),
+    number=10_000,
+)
+with_partial = timeit.timeit(
+    partial(calculate, value, mode="fast"),
+    number=10_000,
+)
+
+print(f"lambda_seconds={with_lambda:.6f}")
+print(f"partial_seconds={with_partial:.6f}")
+```
+
+Creating `value` happens outside the measurement. What is measured is each call of the zero-argument callable, which includes the call to `calculate(...)` (and, for the lambda, a small wrapper-call overhead).
 
 ## 15. `timeit.repeat()`
 
@@ -455,7 +463,7 @@ print(f"wall_elapsed={wall_elapsed:.4f}s")
 print(f"cpu_elapsed={cpu_elapsed:.4f}s")
 ```
 
-`perf_counter()` measures elapsed duration and includes time spent sleeping. `process_time()` measures CPU time consumed by the current process and does not advance during sleep. The two readings therefore answer different questions. citeturn130118search0
+`perf_counter()` measures elapsed duration and includes time spent sleeping. `process_time()` measures CPU time consumed by the current process and does not advance during sleep. The two readings therefore answer different questions. ([docs: `time.perf_counter()`](https://docs.python.org/3/library/time.html#time.perf_counter), [`time.process_time()`](https://docs.python.org/3/library/time.html#time.process_time))
 
 For I/O-bound programs, wall-clock time captures user-visible waiting. CPU time can help determine whether the process itself is actually consuming CPU or mostly waiting.
 
@@ -519,7 +527,7 @@ Neither should be used as a substitute for the other.
 
 **Key Takeaway:** Optimize for the workload you actually care about, then verify that the observed improvement matters.
 
-# Profiling
+## Profiling
 
 ## 24. Profiling
 
@@ -553,7 +561,7 @@ If this program becomes slow, timing only `main()` tells you the total duration.
 
 ## 26. Deterministic Profiling
 
-Python's `cProfile` provides deterministic profiling: it records statistics about function calls and timing while the program runs. The standard library describes `cProfile` as the implementation recommended for most users, while noting that profiling itself has overhead. citeturn130118search7
+Python's `cProfile` provides deterministic profiling: it records statistics about function calls and timing while the program runs. The standard library describes `cProfile` as the implementation recommended for most users, while noting that profiling itself has overhead. ([docs: profilers](https://docs.python.org/3/library/profile.html))
 
 “Deterministic” here means instrumentation records execution events in a deterministic fashion; it does not mean the measured program has deterministic runtime.
 
@@ -585,7 +593,7 @@ From a shell, the standard command-line form is:
 python -m cProfile script.py
 ```
 
-The module interface can also profile a module with `-m`, and profiling results can be written to a file with `-o` for later inspection. Python's current documentation supports these command-line forms. citeturn130118search7
+The module interface can also profile a module with `-m`, and profiling results can be written to a file with `-o` for later inspection. Python's current documentation supports these command-line forms. ([docs: profilers](https://docs.python.org/3/library/profile.html))
 
 ## 29. `python -m cProfile`
 
@@ -821,7 +829,7 @@ Sorting by cumulative time is a good first investigation because it surfaces fun
 
 ## 45. `pstats`
 
-`pstats` is the standard-library module used to analyze and format profiling statistics. A `pstats.Stats` object can be created from an in-memory `Profile` object or from profile-data files. citeturn130118search4
+`pstats` is the standard-library module used to analyze and format profiling statistics. A `pstats.Stats` object can be created from an in-memory `Profile` object or from profile-data files. ([docs: `cProfile.Profile` and `pstats`](https://docs.python.org/3/library/profile.html#profile.Profile))
 
 ## 46. `pstats.Stats`
 
@@ -1343,15 +1351,10 @@ For a full process-memory picture, use operating-system or runtime-level monitor
 ## 77. CPU Bottleneck vs Memory Bottleneck
 
 | Question | Useful first action |
-
 | --- | --- |
-
 | Which functions consume execution time? | Run `cProfile` and inspect `pstats`. |
-
 | How long does this tiny operation take? | Use `timeit`. |
-
 | Where are traced Python allocations increasing? | Compare `tracemalloc` snapshots. |
-
 | What is total process RSS? | Use an appropriate OS/process measurement tool in the environment. |
 
 ## 78. Time/Space Trade-offs
@@ -1710,19 +1713,12 @@ This is a simple conceptual budget check, not a reliable CI benchmark by itself.
 ## 94. Optimization Decision-Making
 
 | Question | Why it matters |
-
 | --- | --- |
-
 | Did the target metric improve? | Optimization must solve the stated problem. |
-
 | Is correctness preserved? | A faster wrong result is not an improvement. |
-
 | Is the change robust? | Fragile gains may disappear under realistic workloads. |
-
 | Did memory usage change? | Time and space can trade off. |
-
 | Did complexity rise? | Maintenance has a real engineering cost. |
-
 | Does the gain matter? | A tiny local gain may have no system-level effect. |
 
 ## 95. Premature Optimization
@@ -2010,27 +2006,16 @@ Before writing benchmark code, write one sentence:
 ## 118. Anti-Patterns
 
 | Anti-pattern | Why it is dangerous | Better approach |
-
 | --- | --- | --- |
-
 | Optimize before measuring | May solve the wrong problem | Measure first |
-
 | Time once | High noise can dominate | Repeat |
-
 | Benchmark setup + target together | Misleading result | Isolate target |
-
 | Ignore input size | Results may not scale | Use realistic workloads |
-
 | Trust one benchmark number | Environment varies | Compare repeated measurements |
-
 | Optimize for fewer lines | Code size ≠ runtime | Measure |
-
 | Sacrifice readability blindly | Maintenance cost | Justify with evidence |
-
 | Ignore memory | CPU may improve while memory worsens | Measure both when relevant |
-
 | Assume Big-O tells everything | Constants and workload matter | Combine analysis + measurement |
-
 | Treat profiler output as perfect truth | Profiling has overhead | Interpret diagnostically |
 
 ## 119. Applied AI Engineering Examples
@@ -2147,7 +2132,7 @@ Use this workflow whenever performance becomes a real engineering concern:
 
 **Key Takeaway:** The final proof is not “the code looks better.” The proof is that the measured workload improved in the desired dimension while correctness and acceptable engineering properties remained intact.
 
-# Complete Production-Oriented Example
+## Complete Production-Oriented Example
 
 ## 121. Exercises
 
@@ -2170,11 +2155,23 @@ The program prints one elapsed duration and the computed result.
 **Solution**
 
 ```python
-print("Implement the exercise using the required tools and verify the expected behavior.")
+import time
+
+def sum_integers(n):
+    return sum(range(n))
+
+n = 1_000_000  # setup stays outside the measured region
+
+start = time.perf_counter()
+result = sum_integers(n)
+elapsed = time.perf_counter() - start
+
+print(f"result={result}")
+print(f"elapsed_seconds={elapsed:.6f}")
 ```
 
 **Explanation**  
-The measurement shows one execution under the current conditions.
+The measurement shows one execution under the current conditions. The timed region contains only the call to `sum_integers(n)`; creating `n` and printing are outside it.
 
 **Common mistakes**  
 Do not optimize before confirming what the measurement actually includes.
@@ -2795,6 +2792,7 @@ The CLI still returns its normal result.
 ```python
 import cProfile
 import pstats
+import traceback
 
 def parse(rows):
     return [int(row) for row in rows]
@@ -2813,6 +2811,7 @@ try:
     result = profiler.runcall(main)
     print(result)
 except Exception:
+    traceback.print_exc()  # keep the original failure diagnosable
     exit_code = 1
 finally:
     pstats.Stats(profiler).sort_stats("cumulative").print_stats(15)
@@ -2843,11 +2842,20 @@ Print size/runtime pairs.
 **Solution**
 
 ```python
-print("Implement the exercise using the required tools and verify the expected behavior.")
+import time
+
+def sum_squares(n):
+    return sum(i * i for i in range(n))
+
+for size in (10_000, 100_000, 1_000_000):
+    start = time.perf_counter()
+    sum_squares(size)
+    elapsed = time.perf_counter() - start
+    print(f"size={size:>9} seconds={elapsed:.6f}")
 ```
 
 **Explanation**  
-You connect complexity to empirical scaling.
+You connect complexity to empirical scaling. Timings depend on the machine and on noise, so your numbers will differ; a handful of measurements does not prove an algorithm's asymptotic complexity.
 
 **Common mistakes**  
 Do not optimize before confirming what the measurement actually includes.
@@ -3085,14 +3093,19 @@ def profile(func, values):
     return result
 
 def memory_measure(func, values):
+    # Returns (current, peak) traced bytes. The result is dropped before
+    # returning so one implementation's output is not kept alive while the
+    # next one is measured.
     tracemalloc.start()
-    tracemalloc.reset_peak()
+    try:
+        tracemalloc.reset_peak()
+        result = func(values)
+        current, peak = tracemalloc.get_traced_memory()
+    finally:
+        tracemalloc.stop()  # also runs if func() raises
 
-    result = func(values)
-
-    current, peak = tracemalloc.get_traced_memory()
-    tracemalloc.stop()
-    return result, current, peak
+    del result
+    return current, peak
 
 def main():
     values = list(range(100_000))
@@ -3101,6 +3114,7 @@ def main():
     optimized_result, optimized_seconds = measure(optimized, values)
 
     assert baseline_result == optimized_result
+    del baseline_result, optimized_result  # do not keep results alive during memory measurement
 
     baseline_times = timeit.repeat(
         lambda: baseline(values),
@@ -3116,8 +3130,8 @@ def main():
     profile(baseline, values)
     profile(optimized, values)
 
-    _, baseline_current, baseline_peak = memory_measure(baseline, values)
-    _, optimized_current, optimized_peak = memory_measure(optimized, values)
+    baseline_current, baseline_peak = memory_measure(baseline, values)
+    optimized_current, optimized_peak = memory_measure(optimized, values)
 
     print("\nMeasured comparison")
     print(f"baseline wall time:  {baseline_seconds:.6f}s")
@@ -3126,6 +3140,9 @@ def main():
     print(f"optimized timeit:    {optimized_times}")
     print(f"baseline memory:     current={baseline_current}, peak={baseline_peak}")
     print(f"optimized memory:    current={optimized_current}, peak={optimized_peak}")
+    # current = traced bytes still allocated when measured (the result is still alive);
+    # peak = the highest traced total during the call. Both cover Python allocations
+    # traced by tracemalloc only, not total process memory or resident set size.
 
 if __name__ == "__main__":
     main()
@@ -3418,8 +3435,6 @@ Answer these without looking back first.
 
 ## 127. Completion Checklist
 
-## Completion Checklist
-
 ### Foundations
 - [ ] I understand what performance means in software.
 - [ ] I can distinguish latency and throughput.
@@ -3508,7 +3523,7 @@ Answer these without looking back first.
 - [ ] I can explain when detailed profiling belongs in development versus production.
 
 
-# Final Mental Model
+## Final Mental Model
 
 When someone says:
 
@@ -3583,13 +3598,13 @@ OPTIMIZE
 
 **Final principle:** performance engineering begins with evidence. A performance improvement is valuable when the right workload becomes measurably better, correctness remains intact, and the trade-offs remain acceptable.
 
-# References and Version Notes
+## References and Version Notes
 
 The examples in this chapter use Python standard-library behavior. For exact version-specific semantics, consult the Python documentation for your installed interpreter.
 
-The current Python 3.14.7 documentation was used as an accuracy reference for `time.perf_counter()`, `time.process_time()`, the profiling interfaces, and `tracemalloc`. citeturn130118search0turn130118search4turn130118search7
+The current Python 3.14.7 documentation was used as an accuracy reference for `time.perf_counter()`, `time.process_time()`, the profiling interfaces, and `tracemalloc`. See the Python documentation for [`time.perf_counter()`](https://docs.python.org/3/library/time.html#time.perf_counter), [`time.process_time()`](https://docs.python.org/3/library/time.html#time.process_time), the [profilers and `pstats`](https://docs.python.org/3/library/profile.html), and [`tracemalloc`](https://docs.python.org/3/library/tracemalloc.html).
 
-# Self-Review
+## Self-Review
 
 ### Coverage
 - Validation of the requested scope against the specification.

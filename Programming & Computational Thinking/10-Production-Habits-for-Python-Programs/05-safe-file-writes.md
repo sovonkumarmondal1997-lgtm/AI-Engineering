@@ -965,9 +965,12 @@ temporary = work area
 ```python
 from __future__ import annotations
 
+import logging
 import os
 import tempfile
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 
 def safe_write_text(
@@ -1005,9 +1008,14 @@ def safe_write_text(
     finally:
         if temp_path is not None:
             try:
-                temp_path.unlink()
-            except FileNotFoundError:
-                pass
+                temp_path.unlink(missing_ok=True)
+            except OSError:
+                # Do not let a cleanup failure replace the original error.
+                logger.warning(
+                    "could not remove temporary file %s",
+                    temp_path,
+                    exc_info=True,
+                )
 ```
 
 ### Line-by-line reasoning
@@ -1033,6 +1041,31 @@ def safe_write_text(
 Setting `temp_path = None` means replacement has consumed the candidate path.
 
 The `finally` block cleans up a candidate that was not successfully published.
+
+### Cleanup-error policy
+
+When the `finally` block runs, a write or replacement failure is already propagating. If removing the candidate then also fails, the helper logs a warning (with the cleanup traceback) and lets the **original** exception continue to the caller. This way a secondary cleanup error neither masks the real failure nor disappears silently. It only catches `OSError` from the cleanup call, not every exception. The same policy is used in the other helpers in this chapter that stage a candidate file.
+
+### What `durable=True` requests
+
+`durable=True` calls `os.fsync()` on the candidate file after `flush()` and before `os.replace()`. That asks the operating system to synchronize the candidate's **contents** to storage. These are separate steps with separate meanings:
+
+- Python buffering: `write()` data may sit in the file object's buffer until `flush()`.
+- `flush()`: hands buffered data to the operating system.
+- `fsync()` on the file: requests that the OS synchronize that file's contents.
+- `os.replace()`: atomically swaps the directory entry (atomicity is about what readers see, not about storage).
+- Directory-entry durability: making the rename itself survive a crash generally requires synchronizing the parent directory as well. This helper does **not** do that, and directory synchronization is platform-specific (it is possible on POSIX systems by opening the directory and calling `fsync()` on it, and not generally available on Windows).
+
+So `durable=True` does not, by itself, guarantee that the replacement survives every crash or power loss, and `fsync()` is never a guarantee against every storage or hardware failure.
+
+### Permissions of the replaced file
+
+`os.replace()` publishes the candidate file itself, so the destination ends up with the **candidate's** metadata, not the old destination's. `tempfile.NamedTemporaryFile` creates the candidate with private permissions (`0600` on POSIX). Therefore:
+
+- New destination: it is created with the candidate's private permissions.
+- Existing destination: its previous permissions (for example `0644`) are **not** preserved; the file becomes private (`0600` on POSIX).
+
+This helper's policy is "private by default, no preservation". If other users or services must read the file, the caller must set the intended permissions explicitly (for example with `os.chmod()` on the candidate before `os.replace()`). Ownership and permission behavior differs on other operating systems, so do not assume the same result everywhere.
 
 ### Guarantees
 
@@ -1208,9 +1241,12 @@ A reusable pattern:
 from __future__ import annotations
 
 import csv
+import logging
 import os
 import tempfile
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 
 def safe_write_csv(
@@ -1247,10 +1283,20 @@ def safe_write_csv(
         temporary_path = None
     finally:
         if temporary_path is not None:
-            temporary_path.unlink(missing_ok=True)
+            try:
+                temporary_path.unlink(missing_ok=True)
+            except OSError:
+                # Do not let a cleanup failure replace the original error.
+                logger.warning(
+                    "could not remove temporary file %s",
+                    temporary_path,
+                    exc_info=True,
+                )
 ```
 
 The final CSV is published only after all rows have been produced.
+
+Cleanup failures are logged without replacing the original error (see Section 26). The replaced file also takes the candidate's private permissions rather than preserving the old destination's permissions (see Section 26).
 ## 30. Safe Configuration and State File Updates
 
 Configuration and state files are examples where a half-written document can break the next program invocation.
@@ -1740,7 +1786,14 @@ def validate_state(state: dict) -> None:
     if not isinstance(state, dict):
         raise TypeError("state must be a dictionary")
 
-    if state.get("status") not in {
+    job_id = state.get("job_id")
+
+    if not isinstance(job_id, str) or not job_id.strip():
+        raise ValueError("job_id must be a non-empty string")
+
+    status = state.get("status")
+
+    if not isinstance(status, str) or status not in {
         "pending",
         "running",
         "completed",
@@ -1750,7 +1803,8 @@ def validate_state(state: dict) -> None:
 
     count = state.get("processed_records")
 
-    if not isinstance(count, int):
+    # bool is a subclass of int, so reject it explicitly.
+    if isinstance(count, bool) or not isinstance(count, int):
         raise TypeError("processed_records must be an integer")
 
     if count < 0:
@@ -1804,7 +1858,8 @@ def validate_state(state: dict) -> None:
     if not isinstance(job_id, str) or not job_id.strip():
         raise ValueError("job_id must be a non-empty string")
 
-    if state.get("status") not in {
+    status = state.get("status")
+    if not isinstance(status, str) or status not in {
         "pending",
         "running",
         "completed",
@@ -1813,7 +1868,8 @@ def validate_state(state: dict) -> None:
         raise ValueError("invalid status")
 
     count = state.get("processed_records")
-    if not isinstance(count, int):
+    # bool is a subclass of int, so reject it explicitly.
+    if isinstance(count, bool) or not isinstance(count, int):
         raise TypeError("processed_records must be an integer")
 
     if count < 0:
@@ -1865,8 +1921,18 @@ def save_state(
 
     finally:
         if temporary_path is not None:
-            temporary_path.unlink(missing_ok=True)
+            try:
+                temporary_path.unlink(missing_ok=True)
+            except OSError:
+                # Do not let a cleanup failure replace the original error.
+                logger.warning(
+                    "could not remove temporary file %s",
+                    temporary_path,
+                    exc_info=True,
+                )
 ```
+
+If removing the candidate fails during cleanup, the warning is logged and the original error still propagates (see Section 26). The replaced state file takes the candidate's private permissions; see Section 26 for the permission policy.
 
 ### Problem being solved
 
@@ -2131,7 +2197,7 @@ candidate write fails
 old valid file remains
 ```
 
-A controlled test double can simulate the failure:
+The helper below is an **isolated demonstration** of the invariant. It does not call `safe_write_text()`, so it is not a regression test for the production helper:
 
 ```python
 from pathlib import Path
@@ -2161,7 +2227,37 @@ def test_old_file_survives_failure(tmp_path):
     assert path.read_text(encoding="utf-8") == "OLD\n"
 ```
 
-This does not simulate physical power loss. It verifies a critical software-level invariant:
+The demonstration above only shows the invariant on a stand-in function. To test the actual `safe_write_text()` helper, inject a failure at the publication boundary by making `os.replace` fail:
+
+```python
+import os
+import pytest
+
+def test_safe_write_text_keeps_old_file_when_publish_fails(tmp_path, monkeypatch):
+    path = tmp_path / "state.txt"
+    path.write_text("OLD\n", encoding="utf-8")
+
+    def failing_replace(source, destination):
+        raise OSError("simulated failure before replacement")
+
+    monkeypatch.setattr(os, "replace", failing_replace)
+
+    with pytest.raises(OSError, match="simulated"):
+        safe_write_text(path, "NEW\n")
+
+    assert path.read_text(encoding="utf-8") == "OLD\n"
+
+    leftovers = [
+        item.name
+        for item in tmp_path.iterdir()
+        if item.name.startswith(".state.txt.")
+    ]
+    assert leftovers == []
+```
+
+This exercises the real helper: the candidate is fully written, publication fails, the old destination is unchanged, and the candidate is cleaned up.
+
+This does not simulate physical power loss and does not prove any filesystem durability guarantee. It verifies a critical software-level invariant:
 
 > **Failure before publication does not modify the destination.**
 ## 45. Testing Temporary-File Cleanup
@@ -2227,17 +2323,25 @@ def test_success_publishes_new_version(tmp_path):
 Failure test:
 
 ```python
-def test_failure_before_publish_keeps_old_version(tmp_path):
+import os
+import pytest
+
+def test_failure_before_publish_keeps_old_version(tmp_path, monkeypatch):
     path = tmp_path / "state.txt"
     path.write_text("OLD\n", encoding="utf-8")
 
-    try:
-        write_candidate_then_fail(path, "NEW\n")
-    except OSError:
-        pass
+    def failing_replace(source, destination):
+        raise OSError("simulated failure before replacement")
+
+    monkeypatch.setattr(os, "replace", failing_replace)
+
+    with pytest.raises(OSError):
+        safe_write_text(path, "NEW\n")
 
     assert path.read_text(encoding="utf-8") == "OLD\n"
 ```
+
+This version exercises the real `safe_write_text()` helper (the `write_candidate_then_fail()` function from Section 44 is only an isolated demonstration).
 
 Test the **invariant**, not the specific temporary filename or internal implementation sequence.
 ## 47. Testing JSON and CSV Outputs
@@ -2434,11 +2538,17 @@ ALLOWED_STATUS = {
 
 
 def validate_state(state: JobState) -> None:
-    if not state.job_id.strip():
-        raise ValueError("job_id must not be empty")
+    if not isinstance(state.job_id, str) or not state.job_id.strip():
+        raise ValueError("job_id must be a non-empty string")
 
-    if state.status not in ALLOWED_STATUS:
+    if not isinstance(state.status, str) or state.status not in ALLOWED_STATUS:
         raise ValueError("invalid status")
+
+    # bool is a subclass of int, so reject it explicitly.
+    if isinstance(state.processed_records, bool) or not isinstance(
+        state.processed_records, int
+    ):
+        raise TypeError("processed_records must be an integer")
 
     if state.processed_records < 0:
         raise ValueError("processed_records must be non-negative")
@@ -2496,9 +2606,14 @@ def save_state(
     finally:
         if temporary_path is not None:
             try:
-                temporary_path.unlink()
-            except FileNotFoundError:
-                pass
+                temporary_path.unlink(missing_ok=True)
+            except OSError:
+                # Do not let a cleanup failure replace the original error.
+                logger.warning(
+                    "could not remove temporary file %s",
+                    temporary_path,
+                    exc_info=True,
+                )
 ```
 
 ### How the program flows
@@ -2538,6 +2653,10 @@ The destination points to the complete candidate.
 ### What happens if replacement fails?
 
 The destination may remain the old version; the candidate is cleaned up when possible, and the caller gets the failure.
+
+### Durability and permissions
+
+`durable=True` only requests `fsync()` of the candidate file's contents before replacement; it does not synchronize the parent directory, so it is not a universal crash or power-loss guarantee. Replacement also gives the destination the candidate's private permissions. Cleanup failures are logged without masking the original error. See Section 26 for details.
 
 ### What this example does not solve
 
@@ -2798,10 +2917,13 @@ def validate_state(state: JobState) -> None:
     if not isinstance(state.job_id, str) or not state.job_id.strip():
         raise ValueError("job_id must be a non-empty string")
 
-    if state.status not in ALLOWED_STATUS:
+    if not isinstance(state.status, str) or state.status not in ALLOWED_STATUS:
         raise ValueError("invalid status")
 
-    if not isinstance(state.processed_records, int):
+    # bool is a subclass of int, so reject it explicitly.
+    if isinstance(state.processed_records, bool) or not isinstance(
+        state.processed_records, int
+    ):
         raise TypeError("processed_records must be an integer")
 
     if state.processed_records < 0:
@@ -2859,7 +2981,15 @@ def save_state(
 
     finally:
         if temporary_path is not None:
-            temporary_path.unlink(missing_ok=True)
+            try:
+                temporary_path.unlink(missing_ok=True)
+            except OSError:
+                # Do not let a cleanup failure replace the original error.
+                logger.warning(
+                    "could not remove temporary file %s",
+                    temporary_path,
+                    exc_info=True,
+                )
 ```
 
 ### Testing Strategy

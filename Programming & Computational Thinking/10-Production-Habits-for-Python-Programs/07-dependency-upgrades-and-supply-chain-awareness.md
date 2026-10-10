@@ -2656,6 +2656,23 @@ uv audit
 
 as a project dependency audit command. The output and coverage of any security tool can change over time, so treat it as one layer in the security process rather than as the sole source of truth.
 
+> **Preview feature:** according to the official `uv` documentation, `uv audit` is a preview feature (listed as `audit-command` under [preview features](https://docs.astral.sh/uv/concepts/preview/)). Its availability, flags, and behavior can depend on your installed `uv` version and preview configuration, and may change. Check the [`uv` CLI reference](https://docs.astral.sh/uv/reference/cli/) for the version you use.
+
+First check which version you have, then consult the documentation for that version:
+
+```bash
+uv --version
+```
+
+If your version still treats the command as a preview feature, the official preview-features documentation shows two ways to opt in, for example:
+
+```bash
+uv audit --preview-features audit-command
+uv audit --preview
+```
+
+The first enables only the `audit-command` feature and the second enables all preview features (the `UV_PREVIEW_FEATURES` and `UV_PREVIEW` environment variables work similarly). These invocations are illustrative: flag names, the feature name, and whether the opt-in is still needed can differ between `uv` versions, so confirm them against the documentation for your installed version.
+
 Your engineering investigation must still determine:
 
 > “What does that mean for this application?”
@@ -3693,13 +3710,13 @@ Package naming is not proof of identity.
 
 ## 102. Mini-Project — Python Dependency Health and Upgrade Workflow
 
-## Project Goal
+### Project Goal
 
 Create a small production-oriented application whose dependency lifecycle can be inspected, tested, upgraded, and rolled back.
 
 The project is described here but must remain self-contained inside this Markdown chapter.
 
-## Requirements
+### Requirements
 
 The project should contain conceptually:
 
@@ -3726,7 +3743,7 @@ pytest
 ruff
 ```
 
-## Architecture
+### Architecture
 
 ```text
 Developer
@@ -3746,39 +3763,39 @@ tests
 application
 ```
 
-## Step 1 — Initialize
+### Step 1 — Initialize
 
 ```bash
 uv init dependency-health-demo
 cd dependency-health-demo
 ```
 
-## Step 2 — Add runtime dependency
+### Step 2 — Add runtime dependency
 
 ```bash
 uv add pydantic
 ```
 
-## Step 3 — Add development tools
+### Step 3 — Add development tools
 
 ```bash
 uv add --dev pytest
 uv add --dev ruff
 ```
 
-## Step 4 — Inspect
+### Step 4 — Inspect
 
 ```bash
 uv tree
 ```
 
-## Step 5 — Synchronize
+### Step 5 — Synchronize
 
 ```bash
 uv sync
 ```
 
-## Step 6 — Write tests
+### Step 6 — Write tests
 
 Test:
 
@@ -3789,14 +3806,14 @@ serialization
 CLI behavior if added
 ```
 
-## Step 7 — Perform a targeted upgrade
+### Step 7 — Perform a targeted upgrade
 
 ```bash
 uv lock --upgrade-package pydantic
 uv sync
 ```
 
-## Step 8 — Review
+### Step 8 — Review
 
 Inspect:
 
@@ -3807,7 +3824,7 @@ uv tree
 test results
 ```
 
-## Step 9 — Record rollback
+### Step 9 — Record rollback
 
 Your release notes for the project should say:
 
@@ -3821,7 +3838,7 @@ sync clean environment
 run tests
 ```
 
-## Expected Learning Outcome
+### Expected Learning Outcome
 
 You should be able to explain the complete lifecycle:
 
@@ -3838,7 +3855,7 @@ declare
 → rollback
 ```
 
-## Production Improvements
+### Production Improvements
 
 For a larger real system, add:
 
@@ -4281,11 +4298,7 @@ This is useful when diagnosing a runtime environment, but the report should be t
 - [ ] I can investigate a dependency conflict.
 - [ ] I can roll back to a known-good dependency graph.
 
-## 109. Final Self-Review and File-Scope Verification
-
-## Self-Review
-
-The chapter was reviewed against the requested scope.
+## 109. Final Self-Review
 
 ### Content coverage
 
@@ -4350,18 +4363,6 @@ The chapter was reviewed against the requested scope.
 - Supply-chain discussion is defensive and does not provide exploitation instructions.
 - No current package vulnerability is asserted as fact without a current advisory source.
 
-### File-scope verification
-
-This task's intended modification is only:
-
-```text
-Programming & Computational Thinking/
-└── 10-Production-Habits-for-Python-Programs/
-    └── 07-dependency-upgrades-and-supply-chain-awareness.md
-```
-
-No additional Markdown, Python, project, configuration, or folder artifacts are intentionally created by this chapter-generation task.
-
 **Final Mental Model**
 
 ```text
@@ -4395,7 +4396,7 @@ A production Python engineer does not merely know how to install a package.
 A production Python engineer knows how to **operate dependency state responsibly over time**.
 
 
-# Official References Consulted
+## Official References Consulted
 
 For version-sensitive packaging and `uv` behavior, consult the current official documentation:
 

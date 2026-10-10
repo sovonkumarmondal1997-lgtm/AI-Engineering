@@ -824,7 +824,7 @@ Output:
 running
 ```
 
-Python's `Enum` provides named symbolic members bound to values. citeturn695273search11
+Python's `Enum` provides named symbolic members bound to values. ([docs: `enum.Enum`](https://docs.python.org/3/library/enum.html#enum.Enum))
 
 A state should have a clear meaning.
 
@@ -1014,7 +1014,7 @@ The next lesson, `05-safe-file-writes.md`, focuses on crash-safe file writing. T
 
 > **What should happen to an output file when the job runs again?**
 
-Python's `Path.write_text()` similarly overwrites an existing file with the same path under ordinary semantics. citeturn695273search4
+Python's `Path.write_text()` similarly overwrites an existing file with the same path under ordinary semantics. ([docs: `Path.write_text()`](https://docs.python.org/3/library/pathlib.html#pathlib.Path.write_text))
 
 ---
 
@@ -1060,7 +1060,7 @@ output_path.read_text(encoding="utf-8")
 output_path.write_text("data", encoding="utf-8")
 ```
 
-`Path.exists()` checks whether a path exists, while `Path.is_file()` checks whether it refers to a regular file. citeturn695273search5
+`Path.exists()` checks whether a path exists, while `Path.is_file()` checks whether it refers to a regular file. ([docs: `Path.exists()`](https://docs.python.org/3/library/pathlib.html#pathlib.Path.exists), [`Path.is_file()`](https://docs.python.org/3/library/pathlib.html#pathlib.Path.is_file))
 
 Stable paths improve predictability, but they do not by themselves provide atomic or crash-safe writes.
 
@@ -2210,10 +2210,15 @@ class ResultStore:
 
 
 def validate(transaction: Transaction) -> None:
-    if not transaction.transaction_id.strip():
+    if (
+        not isinstance(transaction.transaction_id, str)
+        or not transaction.transaction_id.strip()
+    ):
         raise ValidationError("transaction_id is required")
 
-    if not isinstance(transaction.amount, int):
+    if isinstance(transaction.amount, bool) or not isinstance(
+        transaction.amount, int
+    ):
         raise ValidationError("amount must be an integer")
 
     if transaction.amount < 0:
@@ -2575,7 +2580,7 @@ Path.read_text()
 Path.write_text()
 ```
 
-`Path.read_text()` reads decoded text from a path and `Path.write_text()` writes text to a path, overwriting an existing file with the same name under ordinary semantics. citeturn695273search4
+`Path.read_text()` reads decoded text from a path and `Path.write_text()` writes text to a path, overwriting an existing file with the same name under ordinary semantics. ([docs: `Path.write_text()`](https://docs.python.org/3/library/pathlib.html#pathlib.Path.write_text))
 
 ### Collections and state
 
@@ -3114,7 +3119,7 @@ assert len(results) == 3
 
 ## 49. Mini Project
 
-# Repeatable and Idempotent Data Processing CLI
+### Repeatable and Idempotent Data Processing CLI
 
 Build a self-contained job around:
 
@@ -3421,7 +3426,7 @@ Then the operating-system boundary is:
 sys.exit(main())
 ```
 
-`sys.exit()` raises `SystemExit`; when that exception reaches the interpreter without being intercepted, the process terminates with the requested exit status. An integer `0` conventionally represents successful termination and a non-zero status represents failure. citeturn695273search0turn695273search1
+`sys.exit()` raises `SystemExit`; when that exception reaches the interpreter without being intercepted, the process terminates with the requested exit status. An integer `0` conventionally represents successful termination and a non-zero status represents failure. ([docs: `sys.exit()`](https://docs.python.org/3/library/sys.html#sys.exit))
 
 For automation, keeping `main()` responsible for returning an integer makes the reusable application logic easier to test than calling `sys.exit()` deep inside processing functions.
 
@@ -3495,10 +3500,15 @@ class Job:
 
 
 def validate(transaction: Transaction) -> None:
-    if not transaction.transaction_id.strip():
+    if (
+        not isinstance(transaction.transaction_id, str)
+        or not transaction.transaction_id.strip()
+    ):
         raise ValidationError("transaction_id is required")
 
-    if not isinstance(transaction.amount, int):
+    if isinstance(transaction.amount, bool) or not isinstance(
+        transaction.amount, int
+    ):
         raise ValidationError("amount must be an integer")
 
     if transaction.amount < 0:

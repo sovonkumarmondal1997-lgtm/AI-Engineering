@@ -1866,6 +1866,9 @@ def validate_headers(headers: list[str]) -> None:
 ## Row validation
 
 ```python
+import math
+
+
 def validate_row(row: dict[str, str], row_number: int) -> None:
     record_id = row.get("id", "").strip()
 
@@ -1884,11 +1887,18 @@ def validate_row(row: dict[str, str], row_number: int) -> None:
             f"row {row_number}: amount must be numeric"
         ) from exc
 
+    if not math.isfinite(amount):
+        raise ValueError(
+            f"row {row_number}: amount must be a finite number"
+        )
+
     if amount < 0:
         raise ValueError(
             f"row {row_number}: amount must be non-negative"
         )
 ```
+
+`float()` also accepts `"nan"`, `"inf"` and `"-inf"`. `NaN` is neither negative nor non-negative in comparisons, so it would pass the check below without the finite test.
 
 Notice how the error identifies the row number without dumping the entire row.
 
@@ -2933,6 +2943,7 @@ from __future__ import annotations
 import argparse
 import csv
 import logging
+import math
 import sys
 from enum import IntEnum
 from pathlib import Path
@@ -2973,6 +2984,9 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def validate_args(args: argparse.Namespace) -> None:
+    if not math.isfinite(args.minimum_total):
+        raise ValueError("minimum total must be a finite number")
+
     if args.minimum_total < 0:
         raise ValueError("minimum total must be non-negative")
 
@@ -3040,6 +3054,11 @@ def process_rows(rows: list[dict[str, str]]) -> float:
             raise InputDataError(
                 f"row {row_number}: amount must be numeric"
             ) from exc
+
+        if not math.isfinite(amount):
+            raise InputDataError(
+                f"row {row_number}: amount must be a finite number"
+            )
 
         if amount < 0:
             raise InputDataError(
@@ -4171,7 +4190,7 @@ The model output is treated as external data until validation establishes a stro
 
 # 48. Mini Project
 
-# Production-Style Validated Data Processing CLI
+## Production-Style Validated Data Processing CLI
 
 ## Project Goal
 
@@ -4348,6 +4367,7 @@ from __future__ import annotations
 import argparse
 import csv
 import logging
+import math
 import sys
 from enum import IntEnum
 from pathlib import Path
@@ -4465,6 +4485,11 @@ def process_rows(rows: list[dict[str, str]]) -> float:
             raise InputDataError(
                 f"row {row_number}: amount must be numeric"
             ) from exc
+
+        if not math.isfinite(amount):
+            raise InputDataError(
+                f"row {row_number}: amount must be a finite number"
+            )
 
         if amount < 0:
             raise InputDataError(

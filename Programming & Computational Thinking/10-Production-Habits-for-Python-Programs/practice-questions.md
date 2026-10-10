@@ -83,6 +83,8 @@ def read_model_name() -> str:
 print(read_model_name())
 ```
 ### Explanation
+This snippet demonstrates validation only: a missing or empty value raises `ValueError` instead of continuing into business logic. Turning that exception into a clear `stderr` message and a non-zero exit status belongs at the CLI boundary (for example in `main()`), which this snippet does not show.
+
 The important idea is separating retrieval from validation. `os.environ["MODEL_NAME"]` is valid Python but it raises `KeyError` when the key is absent. A production program should decide what that missing configuration means and communicate it intentionally.
 
 ### Key Takeaway
@@ -579,12 +581,13 @@ Moderate
 A data job has:
 
 ```python
-try:
-    config = load_config()
-    process(config)
-except ConfigurationError:
-    logger.error("config failed")
-    return
+def run_job():
+    try:
+        config = load_config()
+        process(config)
+    except ConfigurationError:
+        logger.error("config failed")
+        return
 ```
 
 ### Task
@@ -705,22 +708,25 @@ import tempfile
 from pathlib import Path
 
 def safe_write_json(path: Path, state: dict) -> None:
-    with tempfile.NamedTemporaryFile(
-        mode="w",
-        encoding="utf-8",
-        dir=path.parent,
-        prefix=f".{path.name}.",
-        suffix=".tmp",
-        delete=False,
-    ) as temp:
-        temp_path = Path(temp.name)
-        json.dump(state, temp, indent=2, sort_keys=True)
-        temp.flush()
+    temp_path: Path | None = None
 
     try:
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            encoding="utf-8",
+            dir=path.parent,
+            prefix=f".{path.name}.",
+            suffix=".tmp",
+            delete=False,
+        ) as temp:
+            temp_path = Path(temp.name)
+            json.dump(state, temp, indent=2, sort_keys=True)
+            temp.flush()
+
         os.replace(temp_path, path)
     finally:
-        temp_path.unlink(missing_ok=True)
+        if temp_path is not None:
+            temp_path.unlink(missing_ok=True)
 ```
 ### Explanation
 The key distinction is atomicity versus durability. Temporary-file plus replacement protects the destination from being replaced by an incomplete candidate; `flush()` and `fsync()` have different roles and requirements.
@@ -1142,22 +1148,25 @@ import os
 import tempfile
 
 def publish_results(path: Path, results: dict[str, dict]) -> None:
-    with tempfile.NamedTemporaryFile(
-        mode="w",
-        encoding="utf-8",
-        dir=path.parent,
-        prefix=f".{path.name}.",
-        suffix=".tmp",
-        delete=False,
-    ) as temp:
-        temp_path = Path(temp.name)
-        json.dump(results, temp, indent=2, sort_keys=True)
-        temp.flush()
+    temp_path: Path | None = None
 
     try:
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            encoding="utf-8",
+            dir=path.parent,
+            prefix=f".{path.name}.",
+            suffix=".tmp",
+            delete=False,
+        ) as temp:
+            temp_path = Path(temp.name)
+            json.dump(results, temp, indent=2, sort_keys=True)
+            temp.flush()
+
         os.replace(temp_path, path)
     finally:
-        temp_path.unlink(missing_ok=True)
+        if temp_path is not None:
+            temp_path.unlink(missing_ok=True)
 ```
 ### Explanation
 Idempotency answers “is this the same logical work?” Safe file writes answer “can I publish the new state without exposing an incomplete destination?” Both are required for a robust rerunnable batch result.
@@ -1498,21 +1507,24 @@ import tempfile
 from pathlib import Path
 
 def safe_update_state(path: Path, state: dict) -> None:
-    with tempfile.NamedTemporaryFile(
-        mode="w",
-        encoding="utf-8",
-        dir=path.parent,
-        prefix=f".{path.name}.",
-        delete=False,
-    ) as temp:
-        temp_path = Path(temp.name)
-        json.dump(state, temp, indent=2, sort_keys=True)
-        temp.flush()
+    temp_path: Path | None = None
 
     try:
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            encoding="utf-8",
+            dir=path.parent,
+            prefix=f".{path.name}.",
+            delete=False,
+        ) as temp:
+            temp_path = Path(temp.name)
+            json.dump(state, temp, indent=2, sort_keys=True)
+            temp.flush()
+
         os.replace(temp_path, path)
     finally:
-        temp_path.unlink(missing_ok=True)
+        if temp_path is not None:
+            temp_path.unlink(missing_ok=True)
 ```
 ### Explanation
 Atomic replacement moves the risky write away from the published destination. It improves update integrity but should not be described as an absolute guarantee against every hardware or filesystem failure.
@@ -1697,12 +1709,15 @@ Advanced
 Two workers execute:
 
 ```python
-if operation_id in processed:
-    return
+def handle(operation_id):
+    if operation_id in processed:
+        return
 
-perform_side_effect()
-processed.add(operation_id)
+    perform_side_effect()
+    processed.add(operation_id)
 ```
+
+(The function wrapper only makes the snippet valid Python; the check-then-act sequence is still not atomic.)
 
 The process can also crash between the side effect and the completion marker.
 

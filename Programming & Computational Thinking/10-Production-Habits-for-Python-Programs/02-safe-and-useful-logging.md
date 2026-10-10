@@ -970,8 +970,10 @@ import logging
 
 class JobFilter(logging.Filter):
     def filter(self, record: logging.LogRecord) -> bool:
-        return record.name.startswith("app.job")
+        return record.name == "app.job" or record.name.startswith("app.job.")
 ```
+
+The check matches the exact name `app.job` and its dotted descendants such as `app.job.worker`. A bare `startswith("app.job")` would also match unrelated names such as `app.jobless` or `app.job_extra`.
 
 Use it:
 
@@ -1949,7 +1951,7 @@ Sometimes an application needs to reason about a sensitive value without logging
 
 ```python
 def redacted(value: str | None) -> str:
-    if value is None:
+    if value is None or not value.strip():
         return "<missing>"
 
     return "<configured>"
@@ -1969,6 +1971,8 @@ Output:
 ```text
 Model credentials status=<configured>
 ```
+
+`None`, an empty string, and a whitespace-only string are all reported as `<missing>`. `<configured>` means only that a non-empty value is present; it does not prove the credential is valid or that authentication will succeed. The value itself is never returned or logged.
 
 ### Better than partial secrets
 
@@ -3050,10 +3054,10 @@ def test_job_id_is_logged(caplog):
 A strong test can ensure a sensitive value is absent.
 
 ```python
-def safe_auth_log(api_key: str) -> None:
+def safe_auth_log(api_key: str | None) -> None:
     logger.info(
         "Authentication configured=%s",
-        bool(api_key),
+        api_key is not None and bool(api_key.strip()),
     )
 ```
 
@@ -3352,12 +3356,8 @@ def process_record(record: str, config: JobConfig) -> str:
 
         except TimeoutError:
             if attempt > config.max_retries:
-                logger.exception(
-                    "Record failed after retries "
-                    "job_id=%s attempt=%d",
-                    config.job_id,
-                    attempt,
-                )
+                # Final failure: propagate it. The top-level boundary in
+                # main() logs the traceback once, so it is not logged here.
                 raise
 
             logger.warning(
@@ -3473,13 +3473,13 @@ Retries are `WARNING` because a problem occurred but recovery is possible.
 
 #### 5. Final failure
 
-The top-level boundary uses:
+`process_record()` does not log the final exception; it re-raises it. The top-level boundary uses:
 
 ```python
 logger.exception(...)
 ```
 
-to preserve traceback information.
+to preserve traceback information, so the same failure is logged once rather than at every layer it passes through. Recoverable retries remain visible as `WARNING` records.
 
 #### 6. User-facing output
 
@@ -4299,7 +4299,7 @@ private documents
 
 ## 41. Mini Project
 
-# Mini-Project — Production-Style Data Processing CLI with Safe Logging
+### Mini-Project — Production-Style Data Processing CLI with Safe Logging
 
 Build a small CLI-oriented processing program.
 

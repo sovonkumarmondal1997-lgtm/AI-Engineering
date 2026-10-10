@@ -2059,7 +2059,7 @@ The following exercises progress from beginner documentation work to release and
 
 **Solution:**
 
-```markdown
+````markdown
 # CSV Summary Tool
 
 ## Overview
@@ -2088,7 +2088,7 @@ python -m csv_summary --input input.csv --output output.json
 ```bash
 pytest
 ```
-```
+````
 
 **Explanation:** The README now answers the first operational questions without exposing implementation details.
 
@@ -2152,7 +2152,7 @@ python -m app --help
 
 **Solution:**
 
-```markdown
+````markdown
 ### ModuleNotFoundError
 
 **Symptom:** Import fails when starting the application.
@@ -2169,7 +2169,7 @@ python -c "import sys; print(sys.executable)"
 **Resolution:** Use the project's documented environment and dependency-sync command.
 
 **Verification:** Re-run the documented import/start command.
-```
+````
 
 **Common mistakes:** saying “reinstall everything” without diagnosis.
 
@@ -2582,7 +2582,7 @@ Observed incident
 
 ## 75. Mini-Project
 
-# Production Readiness Documentation Pack
+### Production Readiness Documentation Pack
 
 Create, conceptually, a documentation pack for a Python application named `expense_processor`.
 
@@ -2901,8 +2901,6 @@ It transfers the context needed to operate the change safely.
 
 ## 79. Completion Checklist
 
-## Completion Checklist
-
 ### Production Fundamentals
 
 - [ ] I understand what production-ready means in context.
@@ -2986,18 +2984,6 @@ Before calling this chapter complete, confirm:
 
 
 ---
-
-# Final File-Scope Verification
-
-This chapter is intended to be the only artifact created or changed for this task:
-
-```text
-08-readmes-runbooks-and-release-basics.md
-```
-
-No other Markdown, Python, project, configuration, or directory should be modified by the chapter-generation process.
-
-The `/mnt/data` working area used for the downloadable artifact is not assumed to be the user's Git repository. Where no repository is mounted, an actual Git working-tree diff cannot be truthfully reported. The important scope control for this task is that this generation step writes only the requested target artifact.
 
 ## Final quality summary
 
