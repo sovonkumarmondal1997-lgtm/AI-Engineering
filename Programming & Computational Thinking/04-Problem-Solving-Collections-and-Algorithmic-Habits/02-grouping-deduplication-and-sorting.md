@@ -24,6 +24,9 @@ By the end of this chapter you will be able to:
 - Recognize and avoid the classic bugs in each pattern, and debug them
   systematically when they occur.
 
+This chapter assumes Python 3.7 or later, because it relies on dictionaries
+keeping insertion order and on `dataclasses`.
+
 ## 2. Why These Patterns Matter
 
 Consider one small dataset:
@@ -68,7 +71,7 @@ These three appear everywhere real data is processed: databases group
 rows with `GROUP BY`; data engineers deduplicate records ingested from
 unreliable sources; backend APIs sort search results; log processors
 group errors by service; ML pipelines deduplicate training examples
-before deduplicated, duplicate examples silently bias a model. Learn
+because duplicate examples can silently bias a model. Learn
 these three patterns in plain Python first, and every one of those
 systems will make more sense, because they are all doing the same thing
 this chapter teaches — just at a larger scale.
@@ -434,7 +437,7 @@ for key, value in records:
 as_unique = defaultdict(set)
 for key, value in records:
     as_unique[key].add(value)
-# {'A': {10, 20}, 'B': {30}}
+# {'A': {10, 20}, 'B': {30}}   (a set guarantees uniqueness, not order)
 
 # Minimum / maximum per group requires a small comparison inside the loop:
 minimums = {}
@@ -708,12 +711,13 @@ users = [{"id": 1, "name": "Alice"}, {"id": 2, "name": "Bob"}]
 set(users)   # TypeError: unhashable type: 'dict'
 ```
 
-Dictionaries (and lists) are **mutable**, and Python does not allow
-mutable objects to be used as set elements or dictionary keys, because
-their contents — and therefore their identity for hashing purposes —
-could change after being added. Only **hashable** values (numbers,
-strings, tuples of hashable values, frozensets) can go in a set or serve
-as a dictionary key. This is exactly why `dict.fromkeys()` from §13.2
+Built-in dictionaries and lists are **unhashable**, so Python does not
+allow them to be used directly as set elements or dictionary keys. A set
+element or dictionary key must be **hashable**: it needs a hash value that
+stays stable while it is in the collection, and objects that compare equal
+must have equal hashes. Lists and dictionaries can change their contents,
+which is why they do not provide that. Common hashable values include
+numbers, strings, tuples of hashable values, and frozensets. This is exactly why `dict.fromkeys()` from §13.2
 only worked for plain numbers — it would fail the same way on a list of
 dictionaries.
 
@@ -1300,7 +1304,11 @@ print(dict(customers_by_country))
 country groups its customers (`defaultdict`'s job), and each group is a
 `set`, so a customer ID appearing twice for the same country — as `C1`
 does — is only stored once (the `set`'s job). This is the natural result
-of choosing a set as the per-group accumulator, as previewed in §8.
+of choosing a set as the per-group accumulator, as previewed in §8. A set
+guarantees uniqueness, not order: the iteration and display order of a
+set (such as the order of `'C1'` and `'C3'` above) is not guaranteed and
+may differ, so do not rely on it. Sort the set (for example with
+`sorted(...)`) when you need a predictable order.
 
 ## 29. Grouping + Deduplication + Aggregation
 
@@ -1809,6 +1817,19 @@ def test_sorting():
     assert sorted([5]) == [5]                                     # one item
     assert sorted(["Bob", "alice"], key=str.lower) == ["alice", "Bob"]  # custom key
 ```
+
+Defining a test function does not run it. To execute all three tests, call
+them after the definitions above:
+
+```python
+test_grouping()
+test_deduplication()
+test_sorting()
+print("All tests passed.")
+```
+
+If every `assert` holds, nothing is raised and the last line prints. A
+failing `assert` raises an `AssertionError` pointing at the failing line.
 
 ## 39. Progressive Coding Exercises
 

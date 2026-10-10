@@ -1048,11 +1048,15 @@ skipping entries that cannot.
 ### Step 1 — Decide what "cleanable" means
 
 Work in three stages: **normalize** known formatting (surrounding
-whitespace, thousands commas, a leading currency symbol among `$`, `€`,
-`£`), **validate** the result against a simple numeric grammar (an
-optional sign, then digits with an optional decimal part), and only then
-**convert** to `float`. Anything that does not fit the grammar is
-skipped — arbitrary characters are never blindly deleted.
+whitespace, correctly grouped thousands commas, a leading currency
+symbol among `$`, `€`, `£`), **validate** the result against a simple
+numeric grammar (an optional sign, then digits with an optional decimal
+part), and only then **convert** to `float`. Anything that does not fit
+the grammar is skipped — arbitrary characters are never blindly
+deleted. Commas are only removed after checking that they form valid
+thousands groups (a group of one to three digits, then groups of exactly
+three), so a malformed value like `"1,2"` is rejected rather than turned
+into `12.0`.
 
 ### Step 2 — Implement
 
@@ -1060,13 +1064,18 @@ skipped — arbitrary characters are never blindly deleted.
 import re
 
 AMOUNT_PATTERN = re.compile(r"[+-]?(?:\d+(?:\.\d+)?|\.\d+)")
+GROUPED_PATTERN = re.compile(r"[+-]?\d{1,3}(?:,\d{3})+(?:\.\d+)?")
 
 def clean_amounts(raw_values):
     cleaned = []
 
     for value in raw_values:
-        normalized = value.strip().replace(",", "")
-        normalized = normalized.lstrip("$€£").strip()
+        normalized = value.strip().lstrip("$€£").strip()
+
+        if "," in normalized:
+            if not GROUPED_PATTERN.fullmatch(normalized):
+                continue   # malformed thousands grouping, e.g. "1,2"
+            normalized = normalized.replace(",", "")
 
         if not AMOUNT_PATTERN.fullmatch(normalized):
             continue
@@ -1079,7 +1088,7 @@ def clean_amounts(raw_values):
 ## Explanation
 
 Normalization removes only the known formatting characters (outer
-whitespace, commas, a leading currency symbol). Validation is then a
+whitespace, correctly grouped commas, a leading currency symbol). Validation is then a
 separate step: `AMOUNT_PATTERN.fullmatch()` checks that what remains is
 genuinely a number, so malformed values like `"1.2.3"` or `"abc123"`
 are rejected instead of being "repaired" into a different number.
@@ -1105,6 +1114,9 @@ preferred when exact decimal monetary representation is required.
 - `"invalid"` and `"abc123"` → fail validation (alphabetic content), so
   they are skipped.
 - `"1.2.3"` → fails validation (malformed number), so it is skipped.
+- `"1,2"` and `"1,2,3"` → the commas do not form valid thousands groups,
+  so they are skipped (not converted to `12.0` or `123.0`); `"1,200"`
+  and `"1,200,300"` are accepted.
 - An empty list of raw values → returns `[]`.
 
 ---
@@ -1887,8 +1899,9 @@ def audit_report():
 
 No single structure satisfies all four requirements efficiently at
 once: a list alone would make membership checks and lookups O(n); a
-dictionary alone has no ordering guarantee suitable for FIFO expiry
-without an additional structure; a set alone cannot store session data
+dictionary preserves insertion order, but it does not directly provide
+the efficient oldest-item removal that a `deque`'s `popleft()` gives
+for FIFO expiry; a set alone cannot store session data
 or preserve creation order for iteration. Each of the three structures
 here is assigned to exactly the requirement it is naturally efficient
 at, following the module's own repeated principle that real systems
@@ -2149,9 +2162,9 @@ of `n` from `0` up to the original input is computed exactly once.
 ## Problem
 
 The following function is intended to return the total number of
-leaves (non-list elements) in a possibly nested list, but it always
-returns `0`. Find the bug, explain why it produces `0` in every case,
-and fix it.
+leaves (non-list elements) in a possibly nested list, but it does not
+count leaves inside nested lists. Find the bug, explain why nested
+leaves are missing from the total, and fix it.
 
 ```python
 def count_leaves(items):
@@ -2192,10 +2205,10 @@ This is a direct instance of the "forgetting to use a recursive call's
 result" mistake: the recursive call's computation is entirely correct
 in isolation, but because its result is never incorporated into
 `total`, every nested list's contribution is silently lost — only
-top-level, non-nested items ever get counted, and if every top-level
-item happens to itself be a list (as in many realistic nested inputs),
-the function returns `0` for the *entire* structure, exactly as
-reported.
+top-level, non-nested items ever get counted. A flat list is counted
+correctly, and a structure whose top-level items are all lists happens to
+return `0`, but in general the function simply omits every nested
+leaf.
 
 ## Complexity
 
@@ -2214,7 +2227,7 @@ reported.
   flat inputs were tested).
 - `count_leaves_fixed([[1, 2], [3, [4, 5]]])` → returns `5`, correctly
   counting leaves at every depth, unlike the original buggy version,
-  which would incorrectly return `0`.
+  which would count only the top-level leaves (here, `0`).
 - An empty list at any level → contributes `0` leaves, correctly,
   since the loop over it runs zero times.
 
@@ -2386,6 +2399,13 @@ def build_full_report(raw_text):
 
 ## Explanation
 
+Blank lines are intentionally ignored by the parser: `total_lines` counts
+every line returned by `splitlines()`, including blank ones, while
+`parsed_count` and `unparseable_count` count only non-blank lines. So
+`total_lines` can be larger than `parsed_count + unparseable_count`; for
+input that is just a newline, `total_lines` is `1` while both other counts
+are `0`.
+
 The report contract: `total_lines`, `parsed_count`, `unparseable_count`
 and `deduplicated_count` cover "total records processed, successfully
 parsed, deduplicated"; `severity_counts` is the requested severity
@@ -2436,6 +2456,9 @@ itself grounds for treating two records as duplicates of each other.
   land in `errors_by_transaction` under that key, since grouping (unlike
   the earlier deduplication stage) is intentionally designed to
   collect every matching record together, not to discard any of them.
+- Blank lines mixed with valid lines → skipped by the parser (counted in
+  `total_lines` only), so valid and malformed non-blank lines are
+  handled exactly as before.
 - Completely empty `raw_text` → every count in the resulting report is
   `0`, and both dictionaries in the result are empty, with no errors
   raised.

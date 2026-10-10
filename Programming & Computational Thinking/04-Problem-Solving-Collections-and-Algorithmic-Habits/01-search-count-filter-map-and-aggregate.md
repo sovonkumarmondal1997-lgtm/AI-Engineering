@@ -23,6 +23,9 @@ By the end of this chapter you will be able to:
 - Spot the classic beginner mistakes for each pattern before they cause a
   bug, and know how to debug them systematically when they do.
 
+The examples in this chapter require Python 3.8 or later, because they use
+`math.prod()`.
+
 ## 2. Why These Patterns Matter
 
 Consider one small collection of numbers:
@@ -78,6 +81,12 @@ doing something at each step. You already met `for` loops in Module 03;
 this section reviews exactly what happens on the inside so search, count,
 filter, map, and aggregate all read as small variations on the same
 skeleton.
+
+Treat the manual loop as a useful baseline mental model for understanding
+the patterns, not as a literal description of how every operation runs.
+Python's built-in operations and data structures may use optimized
+internal mechanisms; for example, set and dictionary membership generally
+use hashing rather than a simple sequential scan (see §17).
 
 ### 3.1 The vocabulary
 
@@ -379,14 +388,27 @@ print(first_large)   # {"amount": 250}
 The general shape is always:
 
 ```python
-for item in collection:
-    if condition(item):
-        return item   # or: result = item; break
+def find_first(collection, condition):
+    for item in collection:
+        if condition(item):
+            return item   # found: leave the function immediately
+    return None           # loop finished without a match: not found
+
+
+def is_large(n):
+    return n > 100
+
+
+print(find_first([5, 250, 40], is_large))   # 250   (a match)
+print(find_first([5, 20, 40], is_large))    # None  (not found)
 ```
 
-Inside a function, `return item` does exactly what `break` does inside a
-bare loop — it stops the search the instant an answer is found, but it
-also hands the value straight back to the caller.
+`return` is only valid inside a function: it exits the whole function,
+stopping the search the instant an answer is found and handing the value
+straight back to the caller. `break` only exits the current loop. In a
+bare loop (outside a function) you would use `result = item` followed by
+`break`, with `result = None` set before the loop as the explicit
+not-found value.
 
 ### 4.9 `any()` — "is at least one item true?"
 
@@ -1020,8 +1042,8 @@ sum([])    # 0    — safe: 0 is the "identity" for addition (adding it changes 
 ```
 
 ```python
-min([])    # ValueError: min() arg is an empty sequence
-max([])    # ValueError: max() arg is an empty sequence
+min([])    # raises ValueError (the exact message varies by Python version)
+max([])    # raises ValueError (the exact message varies by Python version)
 ```
 
 Why the difference? `sum()` has a sensible, safe answer for "no items":
@@ -1547,7 +1569,11 @@ examples = [
 - *Extract just the text field for tokenization.* → **MAP**
   `[ex["text"] for ex in examples if ex["text"] != ""]`
 - *Average text length across the clean dataset.* → **FILTER → MAP → AGGREGATE**
-  `sum(len(ex["text"]) for ex in examples if ex["text"] != "") / sum(ex["text"] != "" for ex in examples)`
+  `usable_lengths = [len(ex["text"]) for ex in examples if ex["text"] != ""]`
+  then `sum(usable_lengths) / len(usable_lengths) if usable_lengths else None`
+  (for the sample above, `14.5`). If there are no usable examples, the
+  average is undefined, so `None` is used as a "no value" marker — it is
+  not a mathematical average, and callers must check for it.
 
 ## 15. Common Mistakes
 
@@ -2042,6 +2068,24 @@ def test_aggregate():
     assert min([3, -1, 2]) == -1
     assert max([], default=None) is None  # empty collection, guarded
 ```
+
+Defining a test function does not run it. For this lesson, call each
+test function yourself, after all the definitions:
+
+```python
+test_search()
+test_count()
+test_filter()
+test_map()
+test_aggregate()
+print("All tests passed.")
+```
+
+If every `assert` holds, nothing is raised and the final line prints. If
+one fails, Python raises an `AssertionError` that points at the failing
+line. A test runner (such as `pytest`) automates this by finding and
+calling functions named `test_...` for you, but direct calls need no extra
+tools.
 
 These small, deliberate tests catch the exact mistakes listed in §15
 before they reach production — notice each test targets one specific

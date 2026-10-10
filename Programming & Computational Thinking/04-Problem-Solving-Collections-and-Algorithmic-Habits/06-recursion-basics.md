@@ -55,6 +55,9 @@ countdown(3)
 Liftoff!
 ```
 
+This example assumes `n` is a non-negative integer; a negative `n` would
+never reach the base case `n == 0`.
+
 **Explaining every line, assuming nothing:**
 
 - `def countdown(n):` — defines a function named `countdown`, taking
@@ -183,7 +186,8 @@ def countdown_iterative(n):
     print("Liftoff!")
 ```
 
-Both produce identical output for the same input. Neither is "wrong" —
+Both produce identical output for the same input (a non-negative
+integer `n`, as above). Neither is "wrong" —
 this is the first of several examples in this chapter designed to make
 that comparison concrete rather than abstract.
 
@@ -205,6 +209,8 @@ def factorial_iterative(n):
         result *= i
     return result
 ```
+
+Both factorial versions assume `n` is a non-negative integer.
 
 ### 3.4 Sum of a list, side by side
 
@@ -377,7 +383,7 @@ Every recursive call has two distinct phases, worth naming explicitly:
   where it left off, uses that returned value to compute its own
   result, and returns *that* result to whichever call is waiting on it.
 
-```python
+```text
 factorial_recursive(3)
   → factorial_recursive(2)
       → factorial_recursive(1)
@@ -539,6 +545,9 @@ def fibonacci(n):
     return fibonacci(n - 1) + fibonacci(n - 2)
 ```
 
+It is meant for non-negative integer `n`; the `n <= 1` base case would
+simply return a negative input unchanged rather than reject it.
+
 This differs from every prior example in one important way: it makes
 **two** recursive calls, not one (§19 develops "multiple recursive
 calls" as its own topic). Tracing `fibonacci(4)`:
@@ -569,7 +578,9 @@ def digit_sum(n):
 Base case: a single-digit number is its own digit sum. Recursive case:
 take the last digit (`n % 10`) and add it to the digit sum of everything
 else (`n // 10`, integer division dropping the last digit) — a smaller
-number, provably closer to a single digit each time.
+number, provably closer to a single digit each time. This example assumes
+`n` is a non-negative integer: for a negative `n`, the `n < 10` check
+returns it unchanged, so it does not compute the usual digit sum.
 
 ## 13. Recursion with Strings
 
@@ -630,7 +641,9 @@ def find_max(numbers):
 
 Base case: a list with exactly one item — its maximum is itself.
 Recursive case: find the maximum of everything *except* the first item,
-then compare that against the first item. (In production code, the
+then compare that against the first item. This example assumes
+`numbers` is a non-empty list; an empty list is outside its supported
+input. (In production code, the
 built-in `max()` from the aggregate chapter's §8.3 would always be
 preferred — this example exists purely to practice the recursive
 pattern on a familiar problem, exactly as `sum_recursive` did in §3.4.)
@@ -871,7 +884,8 @@ three named steps:
 
 The Big-O chapter's §9 introduced binary search **iteratively**.
 Expressed recursively, its divide-and-conquer structure becomes
-explicit:
+explicit. As with the iterative version, `numbers` must be sorted in
+ascending order for the search to be correct:
 
 ```python
 def binary_search(numbers, target, left=0, right=None):
@@ -1450,6 +1464,11 @@ def visit_recursive(node, graph, visited=None):
         visit_recursive(neighbor, graph, visited)
 ```
 
+This example also assumes every neighbor named in a list is itself a key
+in the `graph` dictionary (otherwise `graph[node]` would raise
+`KeyError`). Cycle protection (the `visited` set) and validating the
+adjacency-dictionary representation are separate concerns.
+
 The `visited` **set** (data-structures chapter's §13, chosen precisely
 for its O(1) average-case membership testing) is what makes this safe:
 `if node in visited: return` is an *additional* base case, specifically
@@ -1840,9 +1859,9 @@ Work through each using §28's debugging method (trace the base case in
 isolation, add indented call/return prints, compare against §10's
 two-table trace) and confirm your diagnosis against §29's numbered
 mistake categories: Workshop 1 is missing a base case entirely
-(mistake #1); Workshop 2 never uses its recursive call's result and
-never shrinks toward counting anything (mistakes #3 and #4 combined —
-it always returns `0`); Workshop 3 does not shrink `exponent` on its
+(mistake #1); Workshop 2 does reach its base case and does
+return its recursive call's result, but it never counts the current item
+(there is no `1 + ...`), so it returns `0` for every finite list; Workshop 3 does not shrink `exponent` on its
 recursive call (mistake #4); Workshop 4 uses a mutable default argument
 that is silently shared and accumulated across unrelated calls
 (mistake #6); Workshop 5 is actually correct as written — a useful
@@ -2023,6 +2042,12 @@ shape), build a small tool that:
   still O(n) overall, but not a single pass. **Space** proportional
   to the structure's **maximum depth** for the call stack (§24), plus
   O(n) for the flattened output dictionary itself.
+
+Note on flattened paths: the dotted-path representation assumes that keys
+do not themselves contain the `.` delimiter. A literal key such as
+`"a.b"` would collide with a nested path `a` → `b`, and a production
+implementation would need an escaping or otherwise unambiguous path
+representation.
 
 ### Reference Implementation
 

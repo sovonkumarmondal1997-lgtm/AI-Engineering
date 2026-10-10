@@ -59,6 +59,20 @@ Get parsing wrong, and every later stage — filtering, grouping,
 aggregating (the very things Module 04 has spent five chapters
 teaching) — operates on bad data without ever knowing it.
 
+### Learning Objectives
+
+By the end of this chapter you will be able to:
+
+- Choose an appropriate parsing technique (simple string methods, `csv`,
+  `json`, or regex) for a given input format.
+- Use Python's `csv` module for CSV data and its `json` module for JSON
+  data.
+- Construct and test basic regex patterns.
+- Extract, validate, or transform text using the relevant `re` functions
+  (`search`, `fullmatch`, `findall`, `sub`).
+- Recognize common parsing errors, performance concerns, and regex
+  security risks such as catastrophic backtracking.
+
 ## 3. Raw Text vs Structured Data
 
 **Raw text** is a sequence of characters with no inherent meaning to
@@ -395,27 +409,41 @@ def split_respecting_quotes(text, delimiter=","):
     current = []
     inside_quotes = False   # STATE: tracked across the whole scan
 
-    for char in text:
+    index = 0
+    while index < len(text):
+        char = text[index]
         if char == '"':
-            inside_quotes = not inside_quotes
+            if inside_quotes and text[index + 1:index + 2] == '"':
+                current.append('"')   # a doubled quote inside quotes is one literal quote
+                index += 1
+            else:
+                inside_quotes = not inside_quotes
         elif char == delimiter and not inside_quotes:
             fields.append("".join(current))
             current = []
-            continue
         else:
             current.append(char)
-        if char == '"':
-            continue
-        current.append(char) if False else None  # placeholder removed below
+        index += 1
+
+    if inside_quotes:
+        raise ValueError("Unmatched quote in input")
 
     fields.append("".join(current))
     return fields
+
+
+print(split_respecting_quotes('a,"b,c",d'))        # ['a', 'b,c', 'd']
+print(split_respecting_quotes('a,"say ""hi""",d'))  # ['a', 'say "hi"', 'd']
 ```
 
-The example above is intentionally left slightly rough to make a point
-directly: **manually tracking state character by character is
+This sketch supports exactly three rules: a delimiter inside quotes is
+kept as text, a doubled quote (`""`) inside quotes is one literal quote
+character, and an unmatched quote raises `ValueError`. It supports
+nothing else (no other escape styles, no multi-line fields, no
+dialect options). **Manually tracking state character by character is
 genuinely tricky to get exactly right** (quoted commas, escaped quotes,
-edge cases at the string's start and end) — this is precisely why §19
+edge cases at the string's start and end), and this short sketch is not a
+replacement for a real CSV parser — this is precisely why §19
 exists: the standard library's `csv` module already solves this exact
 problem, correctly and thoroughly, and should be preferred over hand-
 rolled quote-aware splitting in real production code. Manual,
@@ -1457,7 +1485,10 @@ line — the exact "preprocess once, apply many times" case that
 justifies compiling), §49's extraction, and the filter pattern from the
 search/count/filter/map/aggregate chapter's §6 — a complete,
 realistic, small log-processing pipeline built from tools this module
-has now fully introduced.
+has now fully introduced. This example assumes every line matches the
+log format; a non-matching line would make `search()` return `None`, and
+`.groupdict()` on `None` would raise an error. §65's mini project shows
+how to handle non-matching lines.
 
 ## 52. Regex for Data Cleaning
 
@@ -1465,21 +1496,33 @@ has now fully introduced.
 messy_values = ["  100.50  ", "$200.00", "150", "  $75.25"]
 
 def clean_amount(value):
-    cleaned = re.sub(r"[^\d.]", "", value)
+    cleaned = re.sub(r"[\s$]", "", value)            # normalize: drop spaces and "$"
+    if not re.fullmatch(r"\d+(?:\.\d+)?", cleaned):   # validate before converting
+        raise ValueError(f"Not a non-negative amount: {value!r}")
     return float(cleaned)
 
 
 print([clean_amount(v) for v in messy_values])
 # [100.5, 200.0, 150.0, 75.25]
+
+for bad in ["-5", "12.3.4"]:
+    try:
+        clean_amount(bad)
+    except ValueError as error:
+        print(error)
+# Not a non-negative amount: '-5'
+# Not a non-negative amount: '12.3.4'
 ```
 
-`[^\d.]` (a negated character class, §26) matches **any character that
-is not a digit or a period**, and `re.sub()` removes every one of them
-— a single, compact expression that strips currency symbols and
-whitespace regardless of exactly which ones appear, generalizing
-§14/§41's earlier phone-number normalization to a case where an
-explicit list of characters to remove would be harder to fully specify
-in advance.
+`re.sub()` with the character class `[\s$]` (§26) removes whitespace and
+the currency symbol — that is **normalization**, generalizing §14/§41's
+earlier phone-number normalization. The `re.fullmatch()` check is
+**validation**: this example's input domain is non-negative amounts with
+an optional decimal part, so anything else is rejected with `ValueError`
+instead of being silently altered. (An earlier, shorter version that
+deleted every character except digits and periods would have silently
+turned `"-5"` into `5.0` and failed with a confusing error on `"12.3.4"`.)
+Text normalization and numeric validation are different jobs.
 
 ## 53. Regex for Practical Text Processing
 
@@ -1785,10 +1828,13 @@ vulnerability, not a theoretical curiosity.
 - **Always use raw strings for regex patterns** (§34), without
   exception, even for patterns that do not currently contain a
   backslash.
-- **Compile patterns used repeatedly** (§43), especially inside loops
-  processing many lines or records, following the same "preprocess
-  once, apply many times" principle already established for dictionary
-  indexes (Big-O chapter's §24).
+- **Consider compiling patterns used repeatedly** (§43), especially
+  inside loops processing many lines or records, following the same
+  "preprocess once, apply many times" principle already established for
+  dictionary indexes (Big-O chapter's §24). Explicit compilation can
+  improve clarity and may reduce overhead, but the benefit depends on
+  context: Python caches recently used patterns, so compiling is not a
+  guaranteed speedup in every case.
 - **Prefer named groups over numbered ones** (§45) once a pattern has
   more than a couple of capturing groups.
 - **Use `re.VERBOSE` with comments** (§44) for any pattern complex
@@ -2539,6 +2585,39 @@ unstructured). Each tool choice is justified by matching §5's strategy
 table: fixed line boundaries → simple split; a recognizable but
 variable-shaped embedded pattern → regex; genuinely free text → no
 further parsing at all.
+
+A short reference implementation of that design (assuming each ticket
+line looks like `TICKET-<digits> [<priority>] <description>`):
+
+```python
+import re
+
+TICKET_PATTERN = re.compile(
+    r"TICKET-(?P<ticket_id>\d+) \[(?P<priority>\w+)\] (?P<description>.+)"
+)
+
+
+def parse_tickets(text):
+    tickets, unparseable = [], []
+    for line in text.splitlines():            # simple split: fixed line boundaries
+        line = line.strip()
+        if not line:
+            continue
+        match = TICKET_PATTERN.fullmatch(line)  # regex: embedded, variable-shaped fields
+        if match:
+            tickets.append(match.groupdict())   # description stays free text
+        else:
+            unparseable.append(line)            # non-matching input is reported, not crashed on
+    return tickets, unparseable
+
+
+text = "TICKET-101 [high] Login page crashes\nnot a ticket line\nTICKET-102 [low] Typo on footer"
+tickets, unparseable = parse_tickets(text)
+print(tickets)
+# [{'ticket_id': '101', 'priority': 'high', 'description': 'Login page crashes'},
+#  {'ticket_id': '102', 'priority': 'low', 'description': 'Typo on footer'}]
+print(unparseable)   # ['not a ticket line']
+```
 
 ## 69. Final Mental Model
 

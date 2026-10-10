@@ -751,8 +751,12 @@ connects it explicitly to comprehension readability, since it appears
 constantly inside them:
 
 ```python
-for key, value in dictionary.items()   # unpacks each (key, value) pair directly
-for name, score in zip(names, scores)   # unpacks each (name, score) pair directly
+dictionary = {"a": 1, "b": 2}
+names = ["Ada", "Grace"]
+scores = [90, 85]
+
+{key: value for key, value in dictionary.items()}        # unpacks each (key, value) pair directly
+[(name, score) for name, score in zip(names, scores)]     # unpacks each (name, score) pair directly
 ```
 
 **Why unpacking improves readability, specifically inside
@@ -1124,7 +1128,7 @@ This particular example is still perfectly readable — it is shown here
 specifically as the *baseline* to contrast against a genuinely more
 complex pipeline:
 
-```python
+```text
 raw_data → filter → transform → aggregate
 ```
 
@@ -1325,9 +1329,11 @@ list(filter(lambda x: x > 10, numbers))
 `map()`, `filter()` — directly compared against comprehensions in §13.
 
 ```python
-{user["id"]: user for user in users}.items()
-{user["id"]: user for user in users}.keys()
-{user["id"]: user for user in users}.values()
+users_by_id = {user["id"]: user for user in users}   # an existing dictionary
+
+users_by_id.items()
+users_by_id.keys()
+users_by_id.values()
 ```
 `dict.items()`, `dict.keys()`, `dict.values()` — from §11, used
 whenever a comprehension needs to iterate over an *existing*
@@ -1503,6 +1509,19 @@ def test_flatten():
     assert flatten([[], [1]]) == [1]                        # empty inner list handled
 ```
 
+Defining a test function does not run it. To execute the assertions, call
+the three test functions after the definitions above:
+
+```python
+test_double_positive()
+test_names_from_records()
+test_flatten()
+print("All tests passed.")
+```
+
+If every `assert` holds, nothing is raised and the last line prints; a
+failing `assert` raises an `AssertionError`.
+
 This is not a general testing tutorial (that belongs to a later,
 dedicated module) — the point here is only that comprehension-based
 functions deserve exactly the same systematic edge-case coverage as any
@@ -1523,7 +1542,7 @@ transactions = [
 transaction_ids = [transaction["id"] for transaction in transactions]
 ```
 
-**2. Log normalization — filter successful transactions.**
+**2. Transaction filtering — keep completed transactions.**
 ```python
 completed = [
     transaction
@@ -1750,13 +1769,17 @@ firm rule applies directly.
 
 **6. Exception handling.**
 ```python
-result = [int(x) if x.isdigit() else None for x in raw_values]
+result = [int(x) if x.isascii() and x.isdigit() else None for x in raw_values]
 ```
 Decision: **KEEP for this simple case, but watch for growth.** Reason:
-`isdigit()` cleanly avoids ever needing a `try`/`except` here — this is
-a legitimate conditional expression (§6), not a workaround; if the
-validation logic grows more nuanced (e.g., needing to catch a specific
-parsing exception with custom handling), rewrite as a loop per §22.
+for input that is plain ASCII digit text, `x.isascii() and x.isdigit()`
+is a sufficient pre-check, so no `try`/`except` is needed — this is a
+legitimate conditional expression (§6), not a workaround. Note that
+`isdigit()` alone does not guarantee that `int()` succeeds: `"²".isdigit()`
+is `True`, but `int("²")` raises `ValueError`, which is why the ASCII check
+is included. If the validation logic grows more nuanced (e.g., needing to
+catch a specific parsing exception with custom handling), rewrite as a
+loop with `try`/`except ValueError` per §22.
 
 **7. Multiple transformations.**
 ```python

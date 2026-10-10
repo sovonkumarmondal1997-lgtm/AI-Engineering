@@ -1127,13 +1127,13 @@ def fibonacci(n):
 Each call to `fibonacci(n)` (for `n > 1`) makes **two** further
 recursive calls, each of which makes two more, and so on. At a high
 level (without requiring formal recurrence-relation mathematics): the
-total number of calls roughly *doubles* with every additional increase
-in `n`, because the branching factor is 2 at (almost) every level. This
-gives **O(2ⁿ)** — exponential time. Concretely, `fibonacci(30)` already
-requires over a million calls; `fibonacci(40)` requires well over a
-billion — the *same* function, run on an input only 10 larger, needs
-roughly a thousand times more work, because doubling repeatedly grows
-explosively fast. This is exactly why naive recursive Fibonacci is a
+number of calls grows exponentially with `n`, because each call branches
+into two more. The exact call count does not simply double with every
+increase in `n`; **O(2ⁿ)** is a valid, relatively loose upper bound on
+this exponential growth. Concretely, `fibonacci(30)` makes 2,692,537
+calls; `fibonacci(40)` makes 331,160,281 — the *same* function, run on an
+input only 10 larger, needs roughly 123 times more work, because repeated
+branching grows explosively fast. This is exactly why naive recursive Fibonacci is a
 classic textbook example of an algorithm that becomes infeasible far
 sooner than intuition expects.
 
@@ -1145,7 +1145,10 @@ orderings. For `n = 5`, that is 120 permutations — trivial. For `n =
 15`, that is over a trillion — utterly infeasible to generate in full.
 Factorial growth is even faster than exponential growth, which is why
 brute-force approaches that consider "every possible ordering" of
-anything beyond a small `n` are almost never viable in production.
+anything beyond a small `n` are almost never viable in production. Note
+that `n!` counts the permutations; fully producing every complete
+permutation can take Θ(n · n!) time, because each output contains `n`
+elements.
 
 ### 30.3 Why these classes matter
 
@@ -1240,9 +1243,11 @@ Briefly, at a conceptual level, without formal proofs:
   cost grows asymptotically at the same rate, not merely "at most" or
   "at least" (this is about growth rate, not exact operation counts).
 
-For example, linear search's worst case is both O(n) (it never does
-*more* than n comparisons) and Ω(1) (in the best case, it might do as
-little as one comparison) — its best and worst cases differ, so its
+For example, linear search's best case is Θ(1) (the item is first) and
+its worst case is Θ(n) (it must check all `n` items). The worst-case cost
+is both O(n) (it never does *more* than about n comparisons) and Ω(n) (it
+does *at least* about n comparisons when the item is last or absent), so
+that worst case is Θ(n). Its best and worst cases differ, so its
 *overall* behavior does not have a single tight Θ bound across all
 inputs; only specific cases (e.g., "the worst case is Θ(n)") can be
 described that tightly. This chapter, and the vast majority of everyday
@@ -2087,7 +2092,7 @@ comfortably.
 | O(n²) | grows with the square of `n` | comparing every item against every other item | — |
 | O(n³) | grows with the cube of `n` | triple-nested loop over `n` | rarely acceptable in production |
 | O(2ⁿ) | doubles with each additional item | naive recursive Fibonacci | infeasible beyond small `n` |
-| O(n!) | grows faster than exponential | generating all permutations | infeasible beyond very small `n` |
+| O(n!) | grows faster than exponential | generating all permutations (`n!` of them; emitting each in full costs Θ(n · n!) overall) | infeasible beyond very small `n` |
 
 **Practical Python operation reference** (see §19–§22 for full detail
 and caveats):
@@ -2320,7 +2325,7 @@ comparisons in the worst case — **O(m × n)**. Index-based approach:
 O(n) once to build the dictionary, then O(1) average-case per lookup —
 **O(n + m)**, roughly `1,001,000` operations. The index approach costs
 additional O(n) memory for the dictionary but is, in this concrete
-case, on the order of a million times less work overall — a stark,
+case, roughly 1,000 times less work overall (1,000,000,000 ÷ 1,001,000 ≈ 999) — a stark,
 worked illustration of §24's trade-off with realistic numbers plugged
 in.
 

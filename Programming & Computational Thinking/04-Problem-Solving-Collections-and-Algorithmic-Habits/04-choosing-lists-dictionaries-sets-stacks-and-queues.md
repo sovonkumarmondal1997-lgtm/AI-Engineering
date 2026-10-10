@@ -21,6 +21,9 @@ By the end of this chapter you will be able to:
   new problem, and justify that choice in terms of required operations,
   ordering, duplicates, and complexity.
 
+This chapter's statements about dictionary insertion order assume Python
+3.7 or later, where insertion order became a guaranteed language feature.
+
 ## 2. Why Data Structures Matter
 
 Suppose you need to store customer information for a system with these
@@ -711,15 +714,28 @@ method literally named `push()`:
 **Handling an empty stack safely:**
 
 ```python
+EMPTY = object()   # unique sentinel: never equal to any value a caller stores
+
 def safe_pop(stack):
     if not stack:
-        return None
+        return EMPTY
     return stack.pop()
 
 def peek(stack):
     if not stack:
-        return None
+        return EMPTY
     return stack[-1]
+```
+
+These helpers return a unique sentinel, `EMPTY`, instead of `None`,
+because `None` can also be a legitimate stored item. A caller checks
+`result is EMPTY` to tell "the stack was empty" apart from "an item was
+popped, and it happened to be `None`":
+
+```python
+stack = [None]
+print(safe_pop(stack) is EMPTY)   # False — a real stored None was popped
+print(safe_pop(stack) is EMPTY)   # True  — now the stack is empty
 ```
 
 Calling `.pop()` or indexing `stack[-1]` on an **empty** list raises
@@ -847,11 +863,17 @@ Mapping the conventional queue vocabulary directly onto `deque`:
 **Handling an empty queue safely**, mirroring §18's stack guard:
 
 ```python
+EMPTY = object()   # the same unique sentinel idea as in §18
+
 def safe_dequeue(queue):
     if not queue:
-        return None
+        return EMPTY
     return queue.popleft()
 ```
+
+As in §18, the sentinel (rather than `None`) lets a caller distinguish an
+empty queue from a dequeued item that is itself `None`: check
+`result is EMPTY`.
 
 **Double-ended behavior when needed:** because `deque` supports both
 ends equally well, `queue.appendleft(x)` and `queue.pop()` are also
@@ -1050,6 +1072,8 @@ Real systems rarely use just one structure — they typically use
 together:
 
 ```python
+from collections import deque
+
 transactions = []               # LIST — preserves arrival order
 transactions_by_id = {}         # DICT — fast lookup by transaction ID
 seen_ids = set()                 # SET — fast duplicate detection
@@ -1193,8 +1217,17 @@ def process_documents():
         document = pending_documents.popleft()
         doc_id = document["id"]
         processed_document_ids.add(doc_id)
-        ordered_output.append(document)
+        metadata = document_metadata[doc_id]   # dict lookup by document ID
+        ordered_output.append({"id": doc_id, "metadata": metadata})
 ```
+
+Each processed document is looked up by ID in `document_metadata`, and
+the retrieved metadata is returned in the ordered output alongside the
+ID. For example, after `submit_document({"id": "d1", "metadata": {"lang": "en"}})`
+and `submit_document({"id": "d2", "metadata": {"lang": "fr"}})`, calling
+`process_documents()` leaves `ordered_output` as
+`[{"id": "d1", "metadata": {"lang": "en"}}, {"id": "d2", "metadata": {"lang": "fr"}}]`
+— processed in first-in, first-out order.
 
 This example is deliberately built from the exact same five structures
 as §31 and §32 — standard Python only, no `pandas`, `numpy`, or ML
@@ -1254,9 +1287,11 @@ Connecting directly to
 
 **Assumptions, stated explicitly, per the Big-O chapter's accuracy
 standard (§18 there):** dictionary and set figures are **average-case**,
-relying on hashing behaving well for the given keys; list `append` and
-dictionary/set insertion are **amortized**, not a flat guarantee on
-every single call (Big-O chapter's §34); deque's O(1) end-operations
+relying on hashing behaving well for the given keys. Separately, list
+`append` and dictionary/set insertion are **amortized**: an individual
+insertion can occasionally cost more when the underlying table resizes,
+and amortized analysis describes the cost averaged across a sequence of
+operations, not a guarantee on every single call (Big-O chapter's §34); deque's O(1) end-operations
 are a property of its specific internal implementation, not a universal
 law of "queues" in the abstract. None of these figures should be
 treated as an unconditional guarantee independent of these assumptions.
@@ -1387,7 +1422,7 @@ treated as an unconditional guarantee independent of these assumptions.
 | Duplicate values | Fully supported and preserved | Duplicate **keys** are impossible — a repeated key simply overwrites the previous value (§11); duplicate **values** are fine | Impossible by definition — duplicates silently collapse (§15, mistake #11) | Duplicates fully supported (it is just a list) | Duplicates fully supported (it is just a deque) |
 | Missing dictionary keys | N/A | `dict[key]` raises `KeyError`; `dict.get(key)` returns `None`/default safely (§10) | N/A | N/A | N/A |
 | Removing an absent value | `remove(value)` raises `ValueError` | `del dict[key]` raises `KeyError`; `dict.pop(key, default)` is safe | `remove(x)` raises `KeyError`; `discard(x)` is safe (§14) | N/A (stack only removes the top, which is always present unless empty) | N/A (queue only removes the front, which is always present unless empty) |
-| `None` values | A list can hold `None` as a legitimate element | `None` can be a legitimate *value* (but never as a set element check confusion — see previous chapter's §16) | `None` is a valid, hashable set element | `None` can be pushed/popped like any other value | `None` can be enqueued/dequeued like any other value |
+| `None` values | A list can hold `None` as a legitimate element | `None` can be a legitimate *value* (but never as a set element check confusion — see previous chapter's §16) | `None` is a valid, hashable set element | `None` can be pushed/popped like any other value — which is why §18's helpers return a sentinel, not `None`, when empty | `None` can be enqueued/dequeued like any other value — which is why §23's helper returns a sentinel, not `None`, when empty |
 | Large collections | Indexed access and end-operations stay cheap; front operations get proportionally more expensive as size grows (§8) | Lookup/insert/delete stay O(1) average-case regardless of size | Membership/add/remove stay O(1) average-case regardless of size | Push/pop stay O(1) regardless of size | Enqueue/dequeue stay O(1) regardless of size |
 | Mutation during iteration | Can silently skip or repeat items (previous chapter's §32, mistake #3) | Raises `RuntimeError: dictionary changed size during iteration` if keys are added/removed mid-loop | Same `RuntimeError` risk as dict, for the same underlying reason | Same list-mutation risk if iterating while pushing/popping | Same risk if iterating while enqueuing/dequeuing |
 
@@ -2017,7 +2052,19 @@ def contains_list(collection, target):
 
 def contains_set(collection, target):
     return target in collection   # O(1) average-case, IF collection is a set
+
+
+ids_list = [101, 102, 103, 104]
+ids_set = set(ids_list)           # the same data, stored as a set
+
+print(contains_list(ids_list, 103))   # True  — scans the list: O(n) worst case
+print(contains_set(ids_set, 103))     # True  — hash lookup: O(1) average-case
+print(contains_list(ids_list, 999))   # False
+print(contains_set(ids_set, 999))     # False
 ```
+
+Both calls return the same answers for the same data; only the cost
+differs.
 For a large `collection`, `target in some_list` may scan every element
 (O(n) worst case), while `target in some_set` uses hashing to check in
 O(1) average-case — for repeated checks against the same collection,
@@ -2067,16 +2114,28 @@ reasonable minimum is `list` (arrival log) + `dict` (ID lookup) + `set`
 (duplicate detection), with `deque` added if FIFO processing is also
 required and a stack added if undo is also required, exactly as §40's
 mini project demonstrates when all five requirements are present at
-once.
+once. To check your design: the `list` keeps the arrival log in order;
+the `dict` returns a transaction by ID in one lookup; the `set` rejects a
+repeated ID; a `deque` (if you included FIFO processing) hands back the
+oldest pending item first; and a stack (if you included undo) hands back
+the most recent action first. Test with a repeated ID, an unknown ID, and
+an empty queue or stack.
 
 **19.** This should closely resemble §33's worked example — `set` for
 unique document IDs, `dict` for metadata lookup, `deque` for FIFO
-processing, `list` for the final ordered output.
+processing, `list` for the final ordered output. To check your design:
+submitting a repeated ID is rejected; looking up an ID returns its
+metadata; documents are processed in submission order; the output list
+reflects that order; and processing an empty queue does nothing.
 
 **20.** This should closely resemble §32's worked example — `set` for
 deduplication (per-source or globally, depending on whether IDs are
 unique across sources or only within one), `dict` for per-source
 metadata lookup, and `list` for the final, ordered, processed output.
+To check your design: a duplicate record is skipped, a known source ID
+gets its metadata, an unknown source ID is handled deliberately (for
+example a `None` default) rather than crashing, and the final list keeps
+the processing order.
 Alternatives considered and rejected: a single list for everything
 (rejected — O(n) lookup and O(n²) naive deduplication, per the Big-O
 chapter's §41 mini project); a dictionary alone (rejected — no natural
