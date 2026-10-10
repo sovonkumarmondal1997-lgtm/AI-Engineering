@@ -132,7 +132,7 @@ used precisely for the rest of this chapter.
   *position* in the command, not by a name. In `cp source.txt dest.txt`,
   both `source.txt` and `dest.txt` are positional.
 - **Optional argument** — an argument the user may or may not supply,
-  usually (but not always — see §16) introduced by an option string
+  usually (but not always — see §17) introduced by an option string
   like `--format`.
 
 A few concrete commands, annotated:
@@ -153,7 +153,7 @@ means (§9).
 python app.py data.csv --verbose
 ```
 One positional argument (`data.csv`) plus one flag (`--verbose`) — a
-boolean option that is either present or absent (§11).
+boolean option that is either present or absent (§12).
 
 ```
 python app.py --input data.csv --output result.json
@@ -233,7 +233,7 @@ The shell expands `*.csv` into every matching filename in the current
 directory *before* Python starts. If there are three matching files,
 `sys.argv` will contain three separate tokens. If there are none, most
 shells pass the literal string `*.csv` through unchanged — a common
-source of confusion (§59).
+source of confusion (§58).
 
 The rule to internalize: **argparse never parses shell syntax.**
 Quoting, globbing, variable expansion, pipes, and redirection are the
@@ -280,7 +280,7 @@ Key facts about `sys.argv`:
   `python app.py 42` gives you `sys.argv[1] == "42"`, a string, not the
   integer `42`. Every numeric or boolean interpretation you want has to
   be done deliberately (this is exactly what `type=` in argparse
-  automates — §13).
+  automates — §14).
 - If no arguments are given beyond the program name, `sys.argv[1:]` is
   an empty list, `[]` — not `None`, not an error.
 
@@ -388,7 +388,7 @@ Line by line:
   see §9). It is required by default.
 - `args = parser.parse_args()` — reads `sys.argv[1:]` (implicitly),
   matches it against everything you declared, converts types, applies
-  defaults, and returns a `Namespace` object (§29) holding the result.
+  defaults, and returns a `Namespace` object (§30) holding the result.
   If something is missing or invalid, this call prints an error and
   usage message and terminates the process — you never reach the next
   line.
@@ -437,12 +437,12 @@ parser = argparse.ArgumentParser(
 | `prog` | Name shown in usage/help (historically `sys.argv[0]`'s basename; since Python 3.14, a program started with `python -m module` shows `python -m module`) | Set explicitly for consistent help output regardless of how the script is invoked |
 | `usage` | Overrides the auto-generated usage line entirely | Rarely needed; auto-generation is usually better and stays in sync as you add arguments |
 | `description` | Text shown above the argument list in `--help` | Explains what the tool *does* |
-| `epilog` | Text shown *below* the argument list in `--help` | Good place for usage examples (§24) |
-| `parents` | A list of other `ArgumentParser` objects whose arguments are copied in | Used to share common arguments across parsers (§33) |
-| `formatter_class` | Controls how help text is wrapped/rendered | See §25 |
+| `epilog` | Text shown *below* the argument list in `--help` | Good place for usage examples (§25) |
+| `parents` | A list of other `ArgumentParser` objects whose arguments are copied in | Used to share common arguments across parsers (§34) |
+| `formatter_class` | Controls how help text is wrapped/rendered | See §26 |
 | `prefix_chars` | Characters that introduce optional arguments | Default `"-"`; changing it is unusual (§49) |
 | `add_help` | Whether to auto-add `-h`/`--help` | Default `True`; set `False` only if you want to define help yourself |
-| `allow_abbrev` | Whether unambiguous long-option prefixes are accepted | Default `True`; see §49 for why production CLIs often disable it |
+| `allow_abbrev` | Whether unambiguous long-option prefixes are accepted | Default `True`; see §50 for why production CLIs often disable it |
 | `exit_on_error` | Whether parse errors call `sys.exit()` or raise `ArgumentError` | Added in Python 3.9; default `True`; see §55 |
 | `suggest_on_error` | Whether to suggest close matches for mistyped choices/subcommands | Added in Python 3.14; default `True` starting with Python 3.15 |
 | `color` | Whether help/error output is colorized | Added in Python 3.14; output can vary by terminal/environment |
@@ -457,8 +457,8 @@ that all of them live on the constructor and can be combined freely.
 A caveat worth stating early: **`ArgumentParser` objects are mutable
 and stateful.** Calling `add_argument()` mutates the parser in place
 and returns an `Action` object (mostly ignored in simple scripts, but
-occasionally useful — §38 uses the subparser equivalent). Build the
-parser once, typically inside a `build_parser()` function (§39), rather
+occasionally useful — §36 uses the subparser equivalent). Build the
+parser once, typically inside a `build_parser()` function (§40), rather
 than constructing it inline in `main()` — this makes it independently
 testable and reusable.
 
@@ -470,16 +470,16 @@ optional — that the parser should recognize. Its general shape:
 ```python
 parser.add_argument(
     "name_or_flags",          # one name (positional) or one/more flags (optional)
-    action=...,                # what to do when this argument is seen (§12)
-    nargs=...,                 # how many values to consume (§18)
-    const=...,                 # a fixed value for certain actions/nargs (§19)
-    default=...,                # value used when argument is absent (§15)
-    type=...,                   # conversion function applied to the raw string (§13)
-    choices=...,                 # restrict to a fixed set of values (§17)
-    required=...,                # for optionals only — force presence (§16)
-    help=...,                    # help text shown in --help (§22)
-    metavar=...,                  # name shown for the value in help/usage (§20)
-    dest=...,                     # Namespace attribute name (§21)
+    action=...,                # what to do when this argument is seen (§13)
+    nargs=...,                 # how many values to consume (§19)
+    const=...,                 # a fixed value for certain actions/nargs (§20)
+    default=...,                # value used when argument is absent (§16)
+    type=...,                   # conversion function applied to the raw string (§14)
+    choices=...,                 # restrict to a fixed set of values (§18)
+    required=...,                # for optionals only — force presence (§17)
+    help=...,                    # help text shown in --help (§23)
+    metavar=...,                  # name shown for the value in help/usage (§21)
+    dest=...,                     # Namespace attribute name (§22)
 )
 ```
 
@@ -512,7 +512,7 @@ parser.add_argument("input_file")
 Key properties:
 
 - **Required by default.** Unless `nargs="?"` or `nargs="*"` is used
-  (§18), omitting a positional argument is a parse error.
+  (§19), omitting a positional argument is a parse error.
 - **Order matters.** Positional arguments are matched to values in the
   order they were declared, matching the order values appear on the
   command line.
@@ -567,15 +567,15 @@ Both forms populate `args.input`. Conventions worth following:
   conveniences for frequently-typed flags; not every option needs one.
 - When both are given, argparse infers the destination attribute from
   the **first long option** (or the short one, if no long option is
-  given) — see §21 for the exact rule and how to override it.
+  given) — see §22 for the exact rule and how to override it.
 - Optional arguments can appear **in any order** relative to each
-  other and (with caveats — §28) relative to positional arguments.
+  other and (with caveats — §29) relative to positional arguments.
   This is their main usability advantage over positional arguments
   once a program has more than a couple of required inputs.
 
 By default, an optional argument is — despite the name "optional
 argument" referring to the *argparse category* — not required to be
-present (§16 covers making one mandatory anyway, and explains why that
+present (§17 covers making one mandatory anyway, and explains why that
 should be the exception, not the rule).
 
 ## 12. Flags
@@ -642,7 +642,7 @@ behavior for specific purposes.
 | `"count"` | Count how many times the flag appears | `-vvv` for increasing verbosity |
 | `"extend"` | Like `append`, but extends the list with each value (works naturally with `nargs`) | Collecting values across multiple repeated multi-value flags — added in Python 3.8 |
 | `"help"` | Print help and exit (this is what `-h`/`--help` uses internally) | You will rarely add this yourself |
-| `"version"` | Print a version string and exit | `--version` (§47) |
+| `"version"` | Print a version string and exit | `--version` (§48) |
 
 Examples, each showing the resulting `Namespace`:
 
@@ -699,7 +699,7 @@ Mechanically, argparse calls `type(raw_string)` and catches
 `try`/`except` this yourself.
 
 Common built-in types used this way: `int`, `float`, and
-`pathlib.Path` (§41):
+`pathlib.Path` (§42):
 
 ```python
 parser.add_argument("--threshold", type=float)
@@ -707,7 +707,7 @@ parser.add_argument("--input", type=Path)
 ```
 
 `type=` runs **once per raw string value**, before `choices` is
-checked (§17) and before the value is stored — so by the time your
+checked (§18) and before the value is stored — so by the time your
 code sees `args.count`, it is already the right Python type, not a
 string you have to convert yourself.
 
@@ -748,7 +748,7 @@ Why this matters:
 - Keep custom type functions narrow: syntactic conversion and simple,
   self-contained validation only ("is this a positive integer",
   "does this path exist"). Business rules that depend on *other*
-  arguments (§42) belong after parsing, not inside a `type=` function,
+  arguments (§43) belong after parsing, not inside a `type=` function,
   because `type=` functions only ever see one raw string in isolation.
 
 ## 16. `default=`
@@ -767,7 +767,7 @@ python app.py --format csv  # args.format == "csv"
 
 Notes:
 
-- Positional arguments with `nargs` other than the default (§18) can
+- Positional arguments with `nargs` other than the default (§19) can
   also have defaults; a plain required positional (`nargs` unset)
   cannot meaningfully have one, since it must always be supplied.
 - If the default value is a **string**, argparse applies the `type=`
@@ -781,10 +781,10 @@ Notes:
   of being set to `None` or some other default). This is useful when
   you want to distinguish "user didn't mention this" from "user
   explicitly set this to some falsy value," typically so a later
-  configuration-merging step (§58) can tell the two apart.
+  configuration-merging step (§59) can tell the two apart.
 - Think of `default=` as the last, lowest-priority layer in a broader
   configuration precedence — command line, then environment variables,
-  then a config file, then hardcoded defaults (§58) — rather than the
+  then a config file, then hardcoded defaults (§59) — rather than the
   only place defaults can come from.
 
 ## 17. `required=`
@@ -816,7 +816,7 @@ mandatory and have no safe default.
 
 Note the asymmetry with positional arguments: a positional argument is
 inherently required *unless* you loosen it with `nargs="?"` (optional,
-single value) or `nargs="*"` (optional, zero-or-more values) — see §18.
+single value) or `nargs="*"` (optional, zero-or-more values) — see §19.
 
 ## 18. `choices=`
 
@@ -1023,7 +1023,7 @@ Guidelines:
   automatically, but a wall of text per argument makes `--help` output
   hard to scan.
 - Mention defaults explicitly in the text (`"(default: json)"`) *or*
-  use `ArgumentDefaultsHelpFormatter` (§25) to have argparse append
+  use `ArgumentDefaultsHelpFormatter` (§26) to have argparse append
   them automatically — don't do both, or defaults will be printed
   twice.
 - For flags, describe the *effect* of setting them: `"Enable verbose
@@ -1116,7 +1116,7 @@ parser = argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter)
 |---|---|
 | `HelpFormatter` | The default: wraps and re-flows `description`, `epilog`, and each `help=` string |
 | `RawDescriptionHelpFormatter` | Leaves `description` and `epilog` exactly as written (preserves line breaks); still wraps individual `help=` strings |
-| `RawTextHelpFormatter` | Leaves *everything* — description, epilog, and every `help=` string — exactly as written |
+| `RawTextHelpFormatter` | Preserves whitespace and line breaks in the description, epilog, and every `help=` string as written (the text is still indented under its argument, and repeated blank lines may be normalized) |
 | `ArgumentDefaultsHelpFormatter` | Automatically appends `(default: ...)` to each argument's help text |
 | `MetavarTypeHelpFormatter` | Shows each argument's `type.__name__` (e.g. `int`, `str`) as its metavar instead of the destination name |
 
@@ -1155,7 +1155,7 @@ parser = argparse.ArgumentParser(formatter_class=HelpFormatter)
 ## 27. `parse_args()`
 
 `parse_args()` is the method that actually runs the parser against a
-list of arguments and returns a `Namespace` (§29).
+list of arguments and returns a `Namespace` (§30).
 
 ```python
 args = parser.parse_args()          # reads sys.argv[1:] implicitly
@@ -1167,7 +1167,7 @@ Behavior:
 - With no argument, it parses `sys.argv[1:]` — the normal, real-world
   invocation path.
 - Given an explicit list of strings, it parses *that* instead, ignoring
-  `sys.argv` entirely. This is the basis of all CLI testing (§60): a
+  `sys.argv` entirely. This is the basis of all CLI testing (§61): a
   test can call `parser.parse_args(["--input", "data.csv"])` directly,
   with no subprocess, no real command line, and no dependency on how
   the test runner itself was invoked.
@@ -1176,7 +1176,7 @@ Behavior:
   argument, invalid choice, etc.), it prints a usage message and an
   error to stderr and calls `sys.exit(2)` — by default, this **raises
   `SystemExit`**, which will propagate up and terminate the process
-  (or the test, if not caught — §60 shows how to assert on this
+  (or the test, if not caught — §61 shows how to assert on this
   deliberately with `pytest.raises(SystemExit)`).
 - `-h`/`--help` and `--version` (if defined) also exit the process,
   with status `0`, after printing their respective output.
@@ -1289,11 +1289,11 @@ unpacking into a function call.
 in tests — `assert args == argparse.Namespace(verbose=True, input_file="data.csv")`),
 and attributes can be set on them manually before or after parsing
 (`args.extra = "value"`) — though doing so outside of `set_defaults()`
-(§38) is unusual and generally a sign the value belongs somewhere else
+(§39) is unusual and generally a sign the value belongs somewhere else
 in your design.
 
 Do not treat a `Namespace` as a long-lived data structure to pass deep
-into application code — §59 covers why converting it into an explicit,
+into application code — §60 covers why converting it into an explicit,
 typed configuration object at the boundary is the better production
 pattern.
 
@@ -1313,7 +1313,7 @@ Why this matters, concretely:
 
 - **Testing.** A pytest test can construct exactly the argument list it
   wants to exercise, with no subprocess, no monkey-patching of
-  `sys.argv`, and no dependency on how pytest itself was invoked (§60).
+  `sys.argv`, and no dependency on how pytest itself was invoked (§61).
 - **Embedding.** A library that wants to offer CLI-style configuration
   internally (e.g., parsing a config string split into tokens) can
   reuse the same parser without a real command line ever existing.
@@ -1322,7 +1322,7 @@ Why this matters, concretely:
   logic directly and predictably.
 
 This is also the reasoning behind the `main(argv=None)` pattern
-(§39, §63): accepting an optional `argv` parameter that defaults to
+(§40, §62): accepting an optional `argv` parameter that defaults to
 `None` (meaning "use real `sys.argv`") makes the *entire program*, not
 just the parser, testable the same way.
 
@@ -1437,7 +1437,7 @@ This pays off most clearly in multi-command tools: instead of
 repeating `--verbose`, `--config`, and `--dry-run` in every subcommand
 definition (and risking them drifting out of sync), define them once
 and pass `parents=[common]` to every `subparsers.add_parser(...)` call
-(§37).
+(§34).
 
 ## 35. Subcommands
 
@@ -1499,7 +1499,7 @@ Key parameters specific to `add_parser()` itself:
   subparser's *own* `description`, which appears in
   `tool.py ingest --help`).
 - **`description`** — shown at the top of `tool.py ingest --help`.
-- **`aliases`** — alternate names for the same subcommand (§37).
+- **`aliases`** — alternate names for the same subcommand (§38).
 - **`parents`** — shared arguments, as in §34.
 - **`formatter_class`** — per-subcommand help formatting, independent
   of the parent parser's own formatter.
@@ -1604,7 +1604,7 @@ build_parser()          # pure construction, no side effects, fully testable alo
     ↓
 parser.parse_args(argv) # parsing
     ↓
-validate(args)          # cross-argument checks argparse itself can't express (§42)
+validate(args)          # cross-argument checks argparse itself can't express (§43)
     ↓
 args.func(args)         # dispatch to the chosen subcommand's handler
     ↓
@@ -1651,7 +1651,7 @@ of it. Notice that `build_parser()` has **no side effects** (it only
 constructs and returns a parser) and `main()` accepts an *optional*
 `argv`, defaulting to `None` (meaning "use the real command line" —
 argparse itself treats `None` as "read `sys.argv[1:]`"). Both choices
-exist purely to make this code trivially testable (§60, §63) without
+exist purely to make this code trivially testable (§61, §62) without
 subprocesses or `sys.argv` monkey-patching.
 
 ## 41. Input Validation
@@ -1667,8 +1667,8 @@ The boundary types worth handling explicitly:
   needs a custom function (§15's `positive_int` pattern, generalized).
 - **File/directory existence** — a `type=Path` argument is still just
   a `Path` object; whether it points to a real, readable file is a
-  separate check (§43's `existing_file` example).
-- **Enumerated values** — `choices=` (§17) covers the simple case;
+  separate check (§67.2's `existing_file` example).
+- **Enumerated values** — `choices=` (§18) covers the simple case;
   more complex enumerations (case-insensitive matching, aliases) need
   a custom `type=` function.
 - **Required combinations** — "if `--format csv`, then `--output` must
@@ -1781,7 +1781,7 @@ application-level "stop now" logic is better expressed by simply
 `if __name__ == "__main__": raise SystemExit(main())` be the *one*
 place in the program that turns a status into an actual process exit.
 Scattering `parser.exit()` (or bare `sys.exit()`) calls throughout
-business logic makes that logic harder to test (§60) — a test calling
+business logic makes that logic harder to test (§61) — a test calling
 a function directly does not want it to unexpectedly kill the test
 process — and harder to compose if it's ever called from something
 other than a top-level script.
@@ -1932,7 +1932,7 @@ Caveats:
   a single token containing spaces).
 - This behavior is customizable — see §52.
 - Treat argument files the same as any other untrusted input if their
-  contents come from outside your control (§71) — there is nothing
+  contents come from outside your control (§73) — there is nothing
   inherently dangerous about `@file` expansion itself (it does not
   execute anything), but a file supplying unexpected flags is still a
   form of user-controlled input to your program.
@@ -1981,7 +1981,7 @@ With `argparse.SUPPRESS` as the global default, any argument not
 explicitly given on the command line is simply **absent from the
 resulting `Namespace`** — no attribute is set for it at all — rather
 than defaulting to `None`. This is useful when a later configuration-
-merging step (§58) needs to distinguish "the user didn't touch this"
+merging step (§59) needs to distinguish "the user didn't touch this"
 from "the user explicitly set it," across every argument, without
 repeating `default=argparse.SUPPRESS` on each `add_argument()` call.
 
@@ -2277,6 +2277,17 @@ argparse's design — accepting an explicit list in `parse_args()` (§31)
 — makes CLI code some of the most naturally testable code you will
 write. No subprocess, no monkey-patched `sys.argv`, no I/O.
 
+**These are test templates, not standalone runnable examples.** They
+assume an application package `mytool` whose `mytool/cli.py` exposes
+`build_parser()` and `main(argv)` (§62), and a parser with: a positional
+input file; `--format` (`choices=["json", "csv"]`, default `"json"`);
+`--verbose` and `--quiet` as a mutually exclusive pair; and an `ingest`
+subcommand taking a source path, whose handler is attached with
+`set_defaults(func=...)` (§39), returns `0`, and prints text containing
+"Ingesting". That combined parser is not defined in this chapter
+(§67.2 builds a smaller one); adapt the argument lists and assertions to
+your own parser.
+
 ```python
 import argparse
 import pytest
@@ -2360,9 +2371,12 @@ def test_missing_argument_exit_code():
 ## 62. Testing `main(argv)`
 
 Everything in §61 tests the *parser*. Testing the whole program means
-testing `main(argv)` (§40) the same way:
+testing `main(argv)` (§40) the same way. As in §61, this template
+assumes `mytool.cli.main` and the same `ingest` subcommand:
 
 ```python
+import pytest
+
 from mytool.cli import main
 
 
@@ -2442,7 +2456,7 @@ order rather than guessing:
   leading `--` turns what you meant as a named flag into a positional
   argument instead (and vice versa).
 - **Too many required flags** — degrades toward the same UX problems as
-  a long list of positional arguments (§17).
+  a long list of positional arguments (§10).
 - **Poor help text** — `help="file"` instead of a description that
   actually says what the file is for (§23).
 - **Not defining sensible defaults** where a reasonable one exists,
@@ -2454,7 +2468,7 @@ order rather than guessing:
 - **Relying on abbreviation** (§50) in scripts — an unambiguous prefix
   today can become ambiguous the moment a new option is added.
 - **Mixing parsing and business logic** in one function — makes both
-  harder to test and harder to reuse (§40, §60).
+  harder to test and harder to reuse (§40, §61).
 - **Passing raw `Namespace` objects deep into application code**
   instead of converting to a typed configuration object at the
   boundary (§60).
@@ -2703,13 +2717,15 @@ def handle_convert(args: argparse.Namespace) -> int:
     with args.input.open("r", newline="", encoding="utf-8") as handle:
         reader = csv.DictReader(handle)
         rows = list(reader)
+        fieldnames = reader.fieldnames
+
+    exit_if_no_header(fieldnames)   # a header-only CSV is valid: zero rows, not an error
 
     if args.format == "json":
         args.output.write_text(json.dumps(rows, indent=2), encoding="utf-8")
     else:
-        parser_error_if_empty(rows)
         with args.output.open("w", newline="", encoding="utf-8") as handle:
-            writer = csv.DictWriter(handle, fieldnames=rows[0].keys())
+            writer = csv.DictWriter(handle, fieldnames=fieldnames)
             writer.writeheader()
             writer.writerows(rows)
 
@@ -2717,9 +2733,13 @@ def handle_convert(args: argparse.Namespace) -> int:
     return 0
 
 
-def parser_error_if_empty(rows: list[dict]) -> None:
-    if not rows:
-        raise SystemExit("error: input file has no rows to convert")
+def exit_if_no_header(fieldnames: Sequence[str] | None) -> None:
+    # Application-level failure (the file's *content* is unusable), not a
+    # command-line usage error, so this is a deliberate SystemExit with a
+    # message (printed to stderr, exit status 1) rather than parser.error()
+    # (usage text, exit status 2).
+    if not fieldnames:
+        raise SystemExit("error: input file is empty (no header row)")
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -2735,6 +2755,14 @@ if __name__ == "__main__":
 This introduces subcommands (§35–§39), a custom validating type
 function (§15), `choices=` (§18), and `set_defaults()`-based dispatch
 (§39) — no `if/elif` chain, even with more subcommands to come.
+
+**Empty-input policy:** a CSV with a header but no data rows is a valid,
+empty dataset, so it converts successfully (JSON output `[]`; CSV output
+containing just the header). A completely empty file has no header row
+to preserve, so it is rejected. That is a problem with the file's
+content rather than with how the command was invoked, which is why
+`exit_if_no_header()` exits with a message instead of calling
+`parser.error()` (§44), which is reserved for usage errors.
 
 ### 67.3 Advanced: Data Pipeline CLI (architecture sketch)
 
@@ -2785,7 +2813,7 @@ Note that `parents=[common]` is passed **both** to the top-level parser
 (so `pipeline ingest --verbose ...` also works) — a deliberate design
 decision about which command levels should accept shared flags, not an
 argparse requirement. This sketch intentionally stops short of a full
-implementation — §72's Mini-Project 4 asks you to build the rest.
+implementation — §74's Mini-Project 4 asks you to build the rest.
 
 ## 68. Production CLI Architecture
 
@@ -2865,7 +2893,7 @@ business logic inline is a sign the separation has eroded.
 
 | Parameter | Purpose | Section |
 |---|---|---|
-| `prog`, `usage`, `description`, `epilog` | Text shown in help/usage | §8, §24 |
+| `prog`, `usage`, `description`, `epilog` | Text shown in help/usage | §8, §25 |
 | `formatter_class` | Help-text rendering | §26 |
 | `prefix_chars` | Optional-argument prefix character(s) | §49 |
 | `add_help` | Whether `-h`/`--help` is auto-added | §8 |
@@ -3404,11 +3432,14 @@ print(args.input_file)  # this one is actually fine —
 ```
 A variant that *is* broken:
 ```python
+parser = argparse.ArgumentParser()
 parser.add_argument("--input-file", dest="input")
+args = parser.parse_args(["--input-file", "data.csv"])
 print(args.input_file)  # AttributeError — dest was overridden to "input"
 ```
 *Diagnose:* an explicit `dest=` overrides argparse's automatic
 derivation; code reading the `Namespace` must match whichever name won.
+The parsed value is available as `args.input`, not `args.input_file`.
 
 **9. Broken custom validator (swallows the real error)**
 ```python

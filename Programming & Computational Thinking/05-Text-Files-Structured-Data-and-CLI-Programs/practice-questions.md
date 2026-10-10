@@ -18,8 +18,10 @@ input validation.
   that way — that reasoning is the actual point of the exercise.
 - **Modify the examples and run them locally.** Change a value, break
   something on purpose, add a case the original didn't cover. Every
-  code sample here is runnable Python (standard library only) — copy
-  it into a file and experiment.
+  code sample here is runnable Python using only the standard library,
+  except the `pytest` test examples (notably Question 35, which requires
+  the third-party `pytest` package to be installed) — copy it into a
+  file and experiment.
 
 Questions progress from **Basic** (1–9) through **Moderate** (10–18)
 and **Hard** (19–27) to **Advanced** (28–36). Difficulty increases
@@ -560,10 +562,14 @@ def main() -> int:
         print(f"error: file not found: {args.csv_file}", file=sys.stderr)
         return 2
 
-    with args.csv_file.open("r", newline="", encoding="utf-8") as handle:
-        reader = csv.reader(handle)
-        next(reader, None)          # skip the header row
-        row_count = sum(1 for _ in reader)
+    try:
+        with args.csv_file.open("r", newline="", encoding="utf-8") as handle:
+            reader = csv.reader(handle)
+            next(reader, None)          # skip the header row
+            row_count = sum(1 for _ in reader)
+    except OSError as exc:              # is_file() above does not guarantee the open succeeds
+        print(f"error: cannot read {args.csv_file}: {exc}", file=sys.stderr)
+        return 2
 
     print(row_count)
     return 0
@@ -584,7 +590,11 @@ rows without holding the whole file in memory. `main()` returns an
 `int` status, and `raise SystemExit(main())` is the boundary that
 turns that return value into the process's actual exit status —
 keeping `main()` itself trivially callable and testable, per the
-pattern from 07.
+pattern from 07. The `is_file()` check is only a convenience: a path can
+pass it and still fail to open (permissions, the file being removed in
+between, an I/O error), so the `open()` call is also wrapped in
+`except OSError` to keep the same stderr message and exit status `2`
+instead of a traceback.
 
 ### Concepts Tested
 
@@ -1440,6 +1450,11 @@ def validate_records(path: Path) -> tuple[int, list[str]]:
             except json.JSONDecodeError:
                 errors.append(f"line {line_number}: invalid JSON")
                 continue
+            if not isinstance(record, dict):
+                errors.append(
+                    f"line {line_number}: record must be a JSON object, got {type(record).__name__}"
+                )
+                continue
             if "customer_id" not in record:
                 errors.append(f"line {line_number}: missing 'customer_id'")
                 continue
@@ -1627,6 +1642,9 @@ order") and propose the correct fix.
 ### Solution
 
 ```python
+import os
+
+
 def resolve_port(cli_value: int | None) -> int:
     if cli_value is not None:
         return cli_value
@@ -1735,9 +1753,14 @@ def process_orders(path: Path) -> dict:
                 logger.warning("Line %d: missing 'order_id'", line_number)
                 invalid_rows += 1
                 continue
+            raw_amount = row.get("amount")
+            if raw_amount is None or not raw_amount.strip():   # short row (None) or empty value
+                logger.warning("Line %d: missing 'amount' for order %s", line_number, row.get("order_id"))
+                invalid_rows += 1
+                continue
             try:
-                amount = float(row["amount"])
-            except (KeyError, ValueError):
+                amount = float(raw_amount)
+            except ValueError:
                 logger.warning("Line %d: invalid 'amount' for order %s", line_number, row.get("order_id"))
                 invalid_rows += 1
                 continue
@@ -1757,7 +1780,11 @@ def main(argv: list[str] | None = None) -> int:
         print(f"error: file not found: {args.orders_file}", file=sys.stderr)
         return 4
 
-    summary = process_orders(args.orders_file)
+    try:
+        summary = process_orders(args.orders_file)
+    except OSError as exc:   # is_file() passing does not guarantee the open/read succeeds
+        print(f"error: cannot read {args.orders_file}: {exc}", file=sys.stderr)
+        return 4
     print(json.dumps(summary))
 
     return 0 if summary["invalid_rows"] == 0 else 3
@@ -1781,7 +1808,14 @@ stderr with exit `4`, and the function distinguishes "ran successfully
 but found bad data" (`3`) from complete success (`0`). This distinction
 matters for automation: a pipeline stage downstream can react
 differently to "the file wasn't there at all" versus "the file was
-there but some rows were bad."
+there but some rows were bad." Note that the `is_file()` check is only a
+convenience: a file that passes it can still fail to open or read, so
+`main()` also catches `OSError` around `process_orders()` and reports it
+the same way (stderr, exit `4`) rather than with a traceback. A short
+CSV row makes `DictReader` supply `None` for the missing column, so
+`amount` is checked for `None`/empty before `float()` is called; missing,
+empty, and non-numeric amounts are all counted as invalid rows and
+processing continues.
 
 ### Concepts Tested
 
@@ -1816,14 +1850,14 @@ result as an immutable configuration object.
 import argparse
 import os
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 
 @dataclass(frozen=True)
 class AppConfig:
     port: int
     log_level: str
-    api_key: str
+    api_key: str = field(repr=False)   # omitted from the generated repr()
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -1873,7 +1907,11 @@ is `frozen=True` so nothing downstream can accidentally mutate it, and
 every `print`/log call in the rest of the program only ever references
 specific, named, non-sensitive fields — never `config` as a whole,
 which would risk exposing `api_key` if the dataclass's default `repr`
-were ever logged.
+were ever logged. As a second layer, `field(repr=False)` keeps
+`api_key` out of the generated `repr()`/`print(config)` output. That is
+defense in depth only: the value is still stored on the object, so
+`config.api_key` and `vars(config)` (and any serializer that reads the
+fields directly) still expose it.
 
 ### Concepts Tested
 
@@ -2157,13 +2195,18 @@ whole. **Structural fix:** the custom `__repr__` is an *allowlisted*
 representation: it explicitly exposes only the approved non-secret
 fields and masks `api_secret`. It does not detect secrets
 automatically — if a future field is added, it will not appear in the
-representation unless someone deliberately adds it. That means *any*
-future code that logs, prints, or otherwise reprs the whole object — including code a
-teammate writes later without knowing this history — is protected by
-default, rather than depending on every future call site remembering
-to cherry-pick safe fields individually. This is a stronger guarantee
-than "remember not to log the secret," because it doesn't rely on
-memory or code review catching every future instance.
+representation unless someone deliberately adds it. That means code
+that logs, prints, or otherwise reprs the whole object — including code
+a teammate writes later without knowing this history — will not show
+the secret by default. **This is defense in depth only, not complete
+protection:** a masked `repr` does not stop direct attribute access
+(`payment_config.api_secret`), and it does nothing for `vars(payment_config)`,
+`dataclasses.asdict()`, or any other introspection or serialization path
+that reads the fields directly — the original flagged call used
+`vars()`, which bypasses `__repr__` entirely. The reliable protection is
+the immediate fix: log only explicitly chosen, known-safe fields by
+name (the allowlisted approach), with the masked `repr` as a backstop
+for accidental whole-object logging.
 
 ### Concepts Tested
 
@@ -2359,6 +2402,8 @@ ever asserts on or prints the actual `API_KEY` value.
 - Use an explicit `argv` list in every call to `build_config()`.
 - Explain, in a comment, why none of the tests print or assert the
   literal secret value.
+- Prerequisite: this question requires the third-party `pytest`
+  package (not part of the standard library).
 
 ### Solution
 
@@ -2451,7 +2496,8 @@ practices around secrets (09 and 07's testing sections combined).
 You are asked to design (not necessarily fully implement) the
 architecture for a production CLI, `pipeline_gate.py`, used as one
 step in an automated data pipeline. It reads a CSV of sensor readings,
-validates and cleans them, writes a cleaned CSV and a JSON summary,
+validates and cleans them, writes a cleaned CSV and prints a JSON
+summary to stdout,
 reads its behavior (thresholds, output paths, log level) from a
 combination of environment variables and CLI flags, logs safely to
 both console and a rotating file, and must produce an exit code an
@@ -2473,10 +2519,11 @@ short illustrative stub).
 ### Solution
 
 *(This is an illustrative reference implementation, not a complete
-production system: for brevity, input-file validation and output
+production system: for brevity, input-file validation and the cleaned-CSV
 writing are done inline in `build_config()` and `process_readings()`
 rather than in the separate functions the diagram names, and row
-validation is limited to converting `value` to `float`.)*
+validation is limited to checking that `value` is present and converts to
+`float`.)*
 
 **Architecture:**
 
@@ -2490,7 +2537,7 @@ Environment variables (os.getenv) } → build_config() → AppConfig (frozen dat
                                                               ↓
                                     process_readings(config)  — CSV read/validate/clean [csv]
                                                               ↓
-                              write_outputs(config, cleaned_rows, summary)  — CSV + JSON out
+                              cleaned CSV written (inline in process_readings)  — [csv]
                                                               ↓
                                                   logger.info(summary)  [stderr + rotating file]
                                                               ↓
@@ -2533,6 +2580,8 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
+VALID_LOG_LEVELS = {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}
+
 
 @dataclass(frozen=True)
 class AppConfig:
@@ -2545,7 +2594,7 @@ class AppConfig:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Validate and clean sensor readings.")
     parser.add_argument("input_path", type=Path)
-    parser.add_argument("--output", type=Path, default=Path("cleaned.csv"))
+    parser.add_argument("--output", type=Path, default=None)   # falls back to OUTPUT_PATH, then cleaned.csv
     parser.add_argument("--max-invalid-percent", type=float, default=None)
     return parser
 
@@ -2566,11 +2615,20 @@ def build_config(argv: list[str] | None = None) -> AppConfig:
         print(f"error: max-invalid-percent must be between 0 and 100, got {max_invalid}", file=sys.stderr)
         raise SystemExit(4)
 
+    output_path = (
+        args.output
+        if args.output is not None
+        else Path(os.getenv("OUTPUT_PATH", "cleaned.csv"))
+    )
+
     log_level = os.getenv("LOG_LEVEL", "INFO").strip().upper()
+    if log_level not in VALID_LOG_LEVELS:
+        print(f"error: LOG_LEVEL must be one of {sorted(VALID_LOG_LEVELS)}, got {log_level!r}", file=sys.stderr)
+        raise SystemExit(4)
 
     return AppConfig(
         input_path=args.input_path,
-        output_path=args.output,
+        output_path=output_path,
         max_invalid_percent=max_invalid,
         log_level=log_level,
     )
@@ -2605,9 +2663,14 @@ def process_readings(config: AppConfig) -> dict:
         reader = csv.DictReader(handle)
         for line_number, row in enumerate(reader, start=2):
             total += 1
+            raw_value = row.get("value")
+            if raw_value is None or not raw_value.strip():   # short row (None) or empty value
+                logger.warning("Line %d: missing 'value', dropping", line_number)
+                invalid += 1
+                continue
             try:
-                row["value"] = float(row["value"])
-            except (KeyError, ValueError):
+                row["value"] = float(raw_value)
+            except ValueError:
                 logger.warning("Line %d: invalid 'value', dropping", line_number)
                 invalid += 1
                 continue
@@ -2640,8 +2703,12 @@ def main(argv: list[str] | None = None) -> int:
     configure_logging(config.log_level)
     logger.info("Starting pipeline_gate: max_invalid_percent=%s", config.max_invalid_percent)
 
-    summary = process_readings(config)
-    print(json.dumps(summary))
+    try:
+        summary = process_readings(config)
+    except OSError as exc:   # is_file() passing does not guarantee reading/writing succeeds
+        logger.error("I/O failure while processing %s: %s", config.input_path, exc)
+        return 4
+    print(json.dumps(summary))   # the JSON summary goes to stdout (not to a file)
 
     return 0 if summary["passed"] else 3
 
@@ -2660,7 +2727,10 @@ invocation needed at all. **Why one `build_config()`:** every setting
 this program needs — from three different sources (CLI, environment,
 built-in default) — is resolved in exactly one place, with an explicit
 precedence (`args.max_invalid_percent if ... is not None else
-os.getenv(...)`), eliminating the "configuration read from multiple
+os.getenv(...)`; the output path likewise: `--output`, then
+`OUTPUT_PATH`, then `cleaned.csv`; `LOG_LEVEL` is environment-only and
+is validated against the standard logging level names, so an unsupported
+value exits `4` before logging is configured), eliminating the "configuration read from multiple
 places" bug class from earlier in this set. **Why a frozen
 `AppConfig`:** once built and validated, nothing later in the run
 should be able to silently reassign its fields (`frozen=True` is not
@@ -2675,7 +2745,11 @@ enough information to decide, automatically, whether to retry (a
 config problem might be fixable and worth retrying), alert a human (a
 genuine data-quality failure), or simply proceed (success) — without
 ever needing to parse this program's printed output to make that
-decision.
+decision. The JSON summary is emitted on stdout (the cleaned CSV is the
+only file output), and an `OSError` while reading the input or writing
+the cleaned CSV is reported through the logger with exit `4` rather than
+a traceback; short rows (`value` is `None`), empty values, and
+non-numeric values are all counted as invalid and processing continues.
 
 ### Concepts Tested
 

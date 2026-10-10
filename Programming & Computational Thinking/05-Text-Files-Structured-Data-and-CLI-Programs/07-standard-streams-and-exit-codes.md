@@ -792,10 +792,11 @@ real-time visibility genuinely matters), not a reflex added to every
 ## 15. TTY and `isatty()`
 
 A **TTY** ("teletypewriter," a name inherited from actual hardware
-terminals decades ago) is the technical term for an **interactive
-terminal** — a program is running with a TTY attached when a human is
-directly typing into it and watching its output live, as opposed to
-its input or output being a file or a pipe.
+terminals decades ago) is the technical term for a **terminal device**
+— a stream is "a TTY" when it is connected to one, as opposed to being
+connected to a file or a pipe. That connection can support interactive
+behavior, but it does not by itself prove that a human is present,
+watching, or typing.
 
 ```python
 import sys
@@ -1121,8 +1122,13 @@ non-zero if it finds lint violations; `mypy` (a type checker) exits
 non-zero on type errors; build and deployment tools exit non-zero on
 their own respective failures. A CI system's job, at the level that
 matters here, is simple: **run each command, check its exit status,
-and stop (or mark the whole pipeline failed) the moment any command
-returns non-zero.**
+and act on it** — typically stopping or marking the pipeline failed
+when a command returns non-zero. An exit status only *signals* a
+command's outcome; whether and how that failure stops or fails the
+whole pipeline depends on the CI runner, the shell, how the script is
+structured, and its error-handling configuration (for example, a shell
+script does not automatically stop after a failed command unless it is
+set up to).
 
 Exactly *which* non-zero value each of these tools uses, and for
 precisely which condition, is specific to that tool's own documented
@@ -2691,17 +2697,22 @@ from pathlib import Path
 
 def main(argv: list[str] | None = None) -> int:
     argv = argv if argv is not None else sys.argv[1:]
+    if not argv:
+        print("error: missing path argument", file=sys.stderr)
+        return 2
     path = Path(argv[0])
 
+    rows = 0
     problems = 0
     with path.open("r", newline="", encoding="utf-8") as handle:
         reader = csv.DictReader(handle)
         for i, row in enumerate(reader, start=1):
+            rows = i
             if not row.get("id"):
                 print(f"warning: row {i} missing 'id'", file=sys.stderr)
                 problems += 1
 
-    print(f"validated: {i} rows, {problems} problems")
+    print(f"validated: {rows} rows, {problems} problems")
     return 0 if problems == 0 else 3
 
 
@@ -2710,7 +2721,11 @@ if __name__ == "__main__":
 ```
 Diagnostics per row go to stderr as they're found; a single summary
 line goes to stdout; the exit code (using the §25 example convention's
-`3 = input/data problem`) reflects whether any problems were found.
+`3 = input/data problem`) reflects whether any problems were found. An
+empty file or a header-only CSV has zero data rows, so it reports
+`validated: 0 rows, 0 problems` and exits `0`; a missing path argument
+is reported on stderr and exits `2` rather than failing with an
+accidental `IndexError`.
 
 **3. JSON transformation pipeline stage**
 ```python
@@ -3017,7 +3032,7 @@ build_parser()          — argparse: optional path, --json-summary flag
         ↓
 open_input(path)         — file or stdin (§31)
         ↓
-iter_records(handle)      — yields (line_number, parsed_or_None, raw_line)
+iter_records(handle)      — yields (line_number, parsed_or__MALFORMED, raw_line)
         ↓
 validate_record(record)    — pure function: list of error strings
         ↓
@@ -3068,7 +3083,11 @@ def validate_record(record: object) -> list[str]:
     return errors
 
 
-def iter_records(handle) -> Iterator[tuple[int, dict | None, str]]:
+_MALFORMED = object()   # sentinel: JSON null parses to None, so None cannot mean "malformed"
+
+
+def iter_records(handle) -> Iterator[tuple[int, object, str]]:
+    # yields (line_number, parsed JSON value or _MALFORMED, original raw line)
     for line_number, raw_line in enumerate(handle, start=1):
         stripped = raw_line.strip()
         if not stripped:
@@ -3076,9 +3095,9 @@ def iter_records(handle) -> Iterator[tuple[int, dict | None, str]]:
         try:
             record = json.loads(stripped)
         except json.JSONDecodeError:
-            yield line_number, None, stripped
+            yield line_number, _MALFORMED, raw_line
             continue
-        yield line_number, record, stripped
+        yield line_number, record, raw_line
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -3092,7 +3111,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         for line_number, record, raw_line in iter_records(handle):
             total += 1
 
-            if record is None:
+            if record is _MALFORMED:
                 print(f"line {line_number}: not valid JSON", file=sys.stderr)
                 failed += 1
                 continue
@@ -3104,7 +3123,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 continue
 
             if not args.json_summary:
-                print(raw_line)
+                sys.stdout.write(raw_line)   # the original line, byte-for-byte as read
     finally:
         if handle is not sys.stdin:
             handle.close()
@@ -3146,10 +3165,31 @@ line 3: not valid JSON
 
 **Expected exit code:** `3` (two of four records failed).
 
+Valid records are written back exactly as they were read (including any
+leading/trailing whitespace and a missing final newline); only the copy
+used for parsing is stripped. "Unchanged" means the same text, not merely
+semantically equivalent JSON. (Text mode's universal newlines can still
+translate `\r\n` to `\n` on read.) A line containing the valid JSON
+value `null` is not a syntax error: it parses successfully and is then
+rejected by `validate_record()` as "record must be a JSON object".
+
 **Pipeline usage:**
 ```bash
 cat data.jsonl | python dq_check.py 2> problems.log | python next_stage.py
-echo "$?"
+echo "$?"                    # NOT dq_check.py's status: Bash reports the LAST command's
+echo "${PIPESTATUS[1]}"      # (run immediately instead) dq_check.py's own status
+```
+In Bash, a pipeline's exit status (`$?`) is by default that of the **last**
+command, here `next_stage.py`, so a validator failure is hidden if the
+later stage succeeds. To retrieve a *specific* stage's status, read
+Bash's `PIPESTATUS` array immediately after the pipeline (`${PIPESTATUS[1]}`
+is the second stage); to detect that *any* stage failed, run
+`set -o pipefail` first, after which the pipeline's status is the
+rightmost non-zero status among its stages (or `0` if all succeeded):
+```bash
+set -o pipefail
+cat data.jsonl | python dq_check.py 2> problems.log | python next_stage.py
+echo "$?"                    # 3 if dq_check.py failed, even if next_stage.py succeeded
 ```
 Only the valid records reach `next_stage.py`'s stdin (§11); every
 problem is captured separately in `problems.log` (§10) without
@@ -3211,6 +3251,29 @@ def test_json_summary_mode(tmp_path, capsys):
     summary = json.loads(captured.out.strip())
     assert summary == {"total": 2, "failed": 1}
     assert status == 3
+
+
+def test_null_is_valid_json_but_fails_schema_not_syntax(tmp_path, capsys):
+    input_file = tmp_path / "data.jsonl"
+    input_file.write_text("null\nnot json\n", encoding="utf-8")
+
+    status = main([str(input_file)])
+    captured = capsys.readouterr()
+
+    assert status == 3
+    assert "line 1: record must be a JSON object" in captured.err
+    assert "line 2: not valid JSON" in captured.err
+
+
+def test_valid_record_is_passed_through_unchanged(tmp_path, capsys):
+    input_file = tmp_path / "data.jsonl"
+    # leading/trailing whitespace, and no newline after the final record
+    input_file.write_text('  {"id": 1,  "value": "a"}  \n{"id": 2, "value": "b"}', encoding="utf-8")
+
+    main([str(input_file)])
+    captured = capsys.readouterr()
+
+    assert captured.out == '  {"id": 1,  "value": "a"}  \n{"id": 2, "value": "b"}'
 ```
 
 **Production improvements worth naming, not implementing here:**

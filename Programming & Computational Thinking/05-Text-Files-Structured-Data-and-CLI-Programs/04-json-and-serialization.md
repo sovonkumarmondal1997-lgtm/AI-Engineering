@@ -65,8 +65,8 @@ gets its fullest treatment, because JSON's flexibility (arbitrary
 nesting, arbitrary structure) makes "syntactically valid but
 semantically wrong" a genuinely common, genuinely dangerous failure
 mode — one that matters especially once JSON is something an AI model,
-not just a human or another well-behaved system, is producing (§35,
-§46).
+not just a human or another well-behaved system, is producing (§38,
+§39).
 
 This chapter assumes the file-I/O foundations from
 [01-reading-and-writing-text-files.md](01-reading-and-writing-text-files.md)
@@ -105,17 +105,17 @@ you can read directly, with a small, precisely defined set of rules
 continued dominance today rests on the same qualities CSV's §3.3
 described for tabular data, extended to nested data: it requires no
 special tooling to read or write, it maps naturally onto data
-structures every mainstream language already has (§14), and it is
+structures every mainstream language already has (§17), and it is
 supported, essentially universally, by web APIs, configuration systems,
 databases, and countless other tools.
 
 ### 3.4 Where JSON is used today
 
-Web APIs (request and response bodies, §33); configuration files (§32);
+Web APIs (request and response bodies, §36); configuration files (§35);
 application and service logs; inter-service messages in distributed
 systems; machine-learning experiment metadata and evaluation results
-(§34); and, increasingly, **structured output from AI models
-themselves** (§35) — a program asking a large language model to return
+(§37); and, increasingly, **structured output from AI models
+themselves** (§38) — a program asking a large language model to return
 "an answer as JSON" is relying on exactly the format this chapter
 teaches.
 
@@ -173,7 +173,7 @@ object) or an array. Real-world JSON documents assume, by convention,
 that keys within a single object are **unique** — the JSON
 specification itself does not strictly forbid duplicate keys, but a
 well-formed document should never rely on them, and most parsers
-(including Python's, §13) silently keep only the *last* occurrence if
+(including Python's, §25.2) silently keep only the *last* occurrence if
 duplicates do appear, exactly mirroring
 [03-csv-files.md](03-csv-files.md)'s §34.1 duplicate-header lesson.
 **JSON keys must always be strings** — there is no JSON equivalent of a
@@ -218,7 +218,7 @@ zero-based indexing you already know.
 Because an object's values and an array's elements can themselves be
 objects or arrays, JSON structures can nest to arbitrary depth —
 exactly the property that lets JSON represent data CSV's flat,
-row-and-column shape fundamentally cannot (§21's type-mapping table,
+row-and-column shape fundamentally cannot (§17's type-mapping table,
 and the CSV chapter's own §38.2, both return to this).
 
 ## 5. JSON Syntax
@@ -291,8 +291,9 @@ data = {
 }
 ```
 
+The equivalent JSON text:
+
 ```json
-// The equivalent JSON text
 {
     "name": "Alice",
     "active": true,
@@ -313,15 +314,15 @@ data = {
 
 **Tuples** — a Python `tuple` has no JSON equivalent; when serialized,
 it becomes an ordinary JSON array, and comes back from deserialization
-as a `list`, **not** a `tuple` (§63.2 makes this a concrete round-trip
+as a `list`, **not** a `tuple` (§48.2 makes this a concrete round-trip
 example). **Sets** — a Python `set` has no JSON equivalent at all, and
-attempting to serialize one raises an error outright (§22.1
+attempting to serialize one raises an error outright (§21.1
 demonstrates this). **Arbitrary objects** — a custom class instance has
-no built-in JSON representation; §18–§19 build exactly the mechanism
+no built-in JSON representation; §21–§22 build exactly the mechanism
 needed to handle this deliberately. **Dictionary keys of any hashable
 type** — Python dictionaries can use integers, tuples, or other
 hashable values as keys; JSON object keys must always be strings (§4.2)
-— §37 covers what happens when this collides.
+— §32.1 covers what happens when this collides.
 
 ### 6.3 Integer vs. float
 
@@ -330,7 +331,7 @@ JSON's single "number" type does not make this distinction
 syntactically the same way — but Python's `json` module *does*
 faithfully preserve the distinction on conversion: `42` (no decimal
 point) becomes Python `int`; `42.0` or `4.2e1` (a decimal point or
-exponent present) becomes Python `float` — §21 covers this mapping
+exponent present) becomes Python `float` — §17 covers this mapping
 precisely.
 
 ### 6.4 The standing rule this entire chapter is built on
@@ -342,7 +343,7 @@ free — it is a deliberate operation, with a name: **serialization**
 (Python → JSON) and **deserialization** (JSON → Python), exactly what
 §7 and §8 build out fully. `json.dumps(data)` where `data` is *already*
 a Python `dict`, and `json.loads(text)` where `text` is *already* a
-JSON string, are the correct directions — reversing them (§64) is one
+JSON string, are the correct directions — reversing them (§50) is one
 of the most common beginner mistakes this chapter addresses directly.
 
 ## 7. Serialization and Deserialization
@@ -412,17 +413,17 @@ file / network → JSON text → deserialize (json.loads/json.load) → Python o
 
 **APIs** — a request body sent to a server, and the response body sent
 back, are both typically JSON text, serialized on one end and
-deserialized on the other (§33). **Databases** — many modern databases
+deserialized on the other (§36). **Databases** — many modern databases
 store and query JSON-shaped columns directly. **Caches** — a value
 computed once and cached (in memory, or in a caching service) is often
 serialized to JSON first, since a cache frequently stores things as
 text or bytes, not live Python objects. **Configuration** — an
-application's settings, read once at startup (§32). **Distributed
+application's settings, read once at startup (§35). **Distributed
 systems** — separate processes, potentially on separate machines,
 exchanging structured messages need a shared, unambiguous
 representation — JSON is an extremely common choice. **Message queues**
 — messages passed between producers and consumers are frequently JSON.
-**ML metadata and AI applications** — §34 and §35 develop this fully.
+**ML metadata and AI applications** — §37 and §38 develop this fully.
 
 ## 8. Python `json` Module
 
@@ -447,10 +448,10 @@ json.detect_encoding()                -- a low-level, rarely-used helper (§8.3)
 
 `json.dumps()`, `json.loads()`, `json.dump()`, and `json.load()` (§9–§16)
 are what the overwhelming majority of real code uses directly, every
-day. `json.JSONEncoder`/`json.JSONDecoder` (§19–§20) become relevant
+day. `json.JSONEncoder`/`json.JSONDecoder` (§22–§23) become relevant
 the moment you need custom serialization/deserialization behavior
 beyond what the four top-level functions' keyword parameters already
-provide. `json.JSONDecodeError` (§29.2) is relevant any time you handle
+provide. `json.JSONDecodeError` (§32.3) is relevant any time you handle
 JSON coming from *outside* your program — which, per this chapter's
 central "treat it as untrusted input" theme, should be essentially
 always. `json.detect_encoding()` is a low-level helper, historically
@@ -481,12 +482,12 @@ print(text)
 ```
 
 **Input:** any JSON-serializable Python object — most commonly a
-`dict` or `list`, but technically any of §21's mapped types. **Return
+`dict` or `list`, but technically any of §17's mapped types. **Return
 value:** a plain Python `str` containing valid JSON text. **No file is
 created** — `dumps` (plural "s" for "string") only ever produces a
 string value in memory; writing it to disk, if desired, is a separate,
-explicit step (§10 shows exactly how to combine the two, and §11
-introduces `json.dump()` — no `s` — which does both at once).
+explicit step (§13 introduces `json.dump()` — no `s` — which does
+both at once).
 
 ## 10. `json.dumps()` Parameters
 
@@ -515,46 +516,46 @@ json.dumps(
 `json.dumps({"a": 1})`.
 
 **`skipkeys`** — what to do about a dictionary key that is not a valid
-JSON key type (§21, §37). Default `False` raises `TypeError`;
+JSON key type (§17, §32.1). Default `False` raises `TypeError`;
 `skipkeys=True` silently omits such keys instead. Production
-implication: silently dropping data is dangerous — §37 develops this
+implication: silently dropping data is dangerous — §32.1 develops this
 fully.
 
 **`ensure_ascii`** — whether non-ASCII characters are escaped as
 `\uXXXX` sequences (`True`, the default) or written directly as their
 real characters (`False`). Example: `json.dumps({"city": "Kolkata"},
-ensure_ascii=False)`. §27 covers this fully.
+ensure_ascii=False)`. §30 covers this fully.
 
 **`check_circular`** — whether the encoder actively checks for circular
 references (an object that, directly or indirectly, contains itself)
-before they cause a crash. Default `True`. §38 develops this fully.
+before they cause a crash. Default `True`. §32.2 develops this fully.
 
 **`allow_nan`** — whether Python's non-standard `NaN`/`Infinity`/
 `-Infinity` float values are permitted to be serialized at all
-(`True`, the default) or raise `ValueError` instead (`False`). §26
+(`True`, the default) or raise `ValueError` instead (`False`). §29
 develops this fully.
 
 **`cls`** — a custom `JSONEncoder` subclass to use instead of the
-default encoder. Example: `json.dumps(data, cls=MyEncoder)`. §19
+default encoder. Example: `json.dumps(data, cls=MyEncoder)`. §22
 develops this fully.
 
 **`indent`** — how much (and whether) to pretty-print the output, with
 line breaks and indentation. Default `None` (compact, single line).
-§28 develops this fully.
+§31 develops this fully.
 
 **`separators`** — the exact item/key-value separator strings used.
-Default depends on whether `indent` is set (§28.3). §28 develops this
+Default depends on whether `indent` is set (§31.3). §31 develops this
 fully.
 
 **`default`** — a function called for any object the encoder does not
 already know how to serialize, expected to return something
-serializable instead. Example: `json.dumps(obj, default=str)`. §18
+serializable instead. Example: `json.dumps(obj, default=str)`. §21.2
 develops this fully, including why `default=str` specifically is a
 convenient but potentially dangerous shortcut.
 
 **`sort_keys`** — whether object keys are sorted alphabetically in the
 output (`True`) or kept in their original insertion order (`False`,
-the default). §28 develops this fully.
+the default). §31 develops this fully.
 
 ## 11. `json.loads()`
 
@@ -607,25 +608,25 @@ json.loads(
 **`s`** — the JSON text to parse.
 
 **`cls`** — a custom `JSONDecoder` subclass to use instead of the
-default decoder (§20).
+default decoder (§23).
 
 **`object_hook`** — a function called with every decoded JSON *object*
 (as a plain `dict`), letting you transform it into something else
-during decoding (§21).
+during decoding (§24).
 
 **`object_pairs_hook`** — like `object_hook`, but receives the raw
 ordered list of key-value pairs, before they are collapsed into a
-`dict` (§22).
+`dict` (§25).
 
 **`parse_float`** — a function used to convert JSON number text
 containing a decimal point or exponent, instead of the default `float`
-(§24).
+(§27).
 
 **`parse_int`** — a function used to convert JSON integer-looking
-number text, instead of the default `int` (§23).
+number text, instead of the default `int` (§26).
 
 **`parse_constant`** — a function used to handle the special,
-non-standard tokens `NaN`, `Infinity`, and `-Infinity` (§25).
+non-standard tokens `NaN`, `Infinity`, and `-Infinity` (§28).
 
 ### 12.3 A first small example, previewing several at once
 
@@ -668,7 +669,7 @@ with open("config.json", "w", encoding="utf-8") as f:
 file object**, rather than returning a string — a combination of what
 `json.dumps()` would produce, immediately written out via the file
 object's own `write()` calls, without ever building the entire JSON
-string as a separate, standalone Python value first. `indent=2` (§28)
+string as a separate, standalone Python value first. `indent=2` (§31)
 makes the output human-readable — omitted, the output would be one
 compact line, exactly as `json.dumps()`'s own default.
 
@@ -753,7 +754,7 @@ it, in one call, without you needing a separate `f.read()` step first.
 
 Exactly as with `json.dump()`, always open with explicit
 `encoding="utf-8"`. If the file's content is not valid JSON,
-`json.load()` raises `json.JSONDecodeError` (§29) — exactly the same
+`json.load()` raises `json.JSONDecodeError` (§32.3) — exactly the same
 exception `json.loads()` raises for malformed text, since `json.load()`
 is, internally, essentially "read the file's full text, then parse it
 exactly as `json.loads()` would."
@@ -775,7 +776,7 @@ exactly as `json.loads()` would."
 `dumps` = "dump to a **s**tring." The versions *without* the trailing
 `s` work with an already-open file object instead. This single
 mnemonic resolves the single most common beginner confusion in this
-entire chapter (§64 returns to it directly): reaching for `json.load()`
+entire chapter (§50 returns to it directly): reaching for `json.load()`
 when you actually have a string in hand (not a file object), or
 `json.loads()` when you actually have a file object in hand (not a
 string), each raises a `TypeError` or otherwise fails, because the
@@ -833,7 +834,7 @@ types.
 `Enum`, and any custom class instance have **no entry in this table on
 the encode side** — attempting to serialize one directly raises
 `TypeError`, not because of a bug, but because the `json` module
-genuinely has no built-in rule for representing them. §18's entire
+genuinely has no built-in rule for representing them. §21's entire
 purpose is teaching exactly how you supply that missing rule yourself,
 deliberately.
 
@@ -891,14 +892,14 @@ first_order_amount = data["customer"]["orders"][0]["amount"]
 
 Every additional level of nesting means one more `[...]` your code
 must chain through to reach a value — beyond a certain depth, this
-becomes genuinely hard to read, hard to validate completely (§30–§31),
+becomes genuinely hard to read, hard to validate completely (§33–§34),
 and fragile against structural change (a level being added, removed, or
 renamed somewhere in the middle breaks every access chain that passes
 through it). Deeply nested JSON is a real, common source of
 maintenance difficulty in production systems — a fact worth
-anticipating, not discovering the hard way; §31's schema-validation
+anticipating, not discovering the hard way; §34's schema-validation
 habits and, in more advanced designs, converting deeply nested JSON
-into flatter, purpose-built domain objects (§43) are both direct
+into flatter, purpose-built domain objects (§46) are both direct
 responses to this problem.
 
 ## 19. Safe JSON Access
@@ -915,7 +916,7 @@ This is the same `dict` access behavior you already know from
 [Dictionaries and Lookups](../02-Python-Core-Language-and-Data-Types/07-dictionaries-and-lookups.md)
 — JSON does not introduce anything new here; it is simply the context
 in which this choice becomes especially important, because JSON data
-frequently comes from *outside* your program (§30), where a missing
+frequently comes from *outside* your program (§33.1), where a missing
 key is a genuinely expected possibility, not a programmer error.
 
 ### 19.2 Why blindly chaining access is risky
@@ -927,7 +928,7 @@ city = data["customer"]["profile"]["address"]["city"]
 
 If `"profile"`, or `"address"`, or `"city"` is missing at *any* point
 in this chain — because the source system omitted it, because the data
-is from an older schema version (§40), or because it is simply
+is from an older schema version (§43), or because it is simply
 malformed — this raises `KeyError`, with an error message naming only
 the *specific missing key*, not which level of the chain it was, making
 the failure harder to diagnose than it needs to be.
@@ -959,7 +960,7 @@ predictable `None`/default at the end, at each step defaulting to an
 *empty dict* rather than `None`, specifically so the *next* `.get()`
 call in the chain does not itself raise `AttributeError` on `None`.
 The small `get_nested` helper generalizes this into one reusable,
-testable function — exactly the kind of small utility §42's reusable-
+testable function — exactly the kind of small utility §45's reusable-
 functions section builds further.
 
 ## 20. Encoder/Decoder Concepts
@@ -971,7 +972,7 @@ functions section builds further.
 classes: `json.JSONEncoder` and `json.JSONDecoder`. §17.3 already
 established that some Python types have **no built-in JSON
 representation** — the encoder/decoder classes are exactly *where*
-that gap gets filled in, deliberately, by you. §18–§26 build this out
+that gap gets filled in, deliberately, by you. §21–§28 build this out
 fully; this short section previews the shape of the whole picture.
 
 ### 20.2 The core idea
@@ -984,8 +985,8 @@ json.loads(text)  ≈  JSONDecoder().decode(text)     (using the default decoder
 Every keyword parameter §10 and §12 already introduced
 (`default=`, `object_hook=`, `parse_float=`, and the rest) is,
 underneath, either configuring the *default* encoder/decoder's
-behavior, or being routed to a *custom* one you supply via `cls=`. §19
-and §20 make this relationship concrete.
+behavior, or being routed to a *custom* one you supply via `cls=`. §22
+and §23 make this relationship concrete.
 
 ## 21. Custom Serialization
 
@@ -1032,7 +1033,7 @@ text is not guaranteed to be a **structured, reconstructable**
 representation of the original data; it is whatever that object's
 `__str__` happens to produce, which can be lossy, inconsistent across
 Python versions or library versions, or simply not the shape your
-application actually needs on the way back in (§63.2 develops exactly
+application actually needs on the way back in (§48.2 develops exactly
 this as a round-trip limitation). `default=str` is a reasonable choice
 for **debugging output or logging**, where a human-readable
 approximation is genuinely all that's needed — it is a risky default
@@ -1053,7 +1054,7 @@ json.dumps({"timestamp": datetime.now()}, default=serialize_value)
 
 This is deliberately more explicit than bare `default=str`: it converts
 `datetime` specifically to a well-defined, standard, **reconstructable**
-format (`.isoformat()`, §60), and re-raises `TypeError` for anything
+format (`.isoformat()`, §46.7), and re-raises `TypeError` for anything
 else unexpected — surfacing a genuine gap loudly, rather than silently
 `str()`-ing every unanticipated type into an ambiguous, possibly
 lossy string.
@@ -1325,7 +1326,7 @@ example) — `parse_int` is the mechanism that makes that substitution
 possible during decoding itself, rather than as a separate post-
 processing pass. This chapter deliberately keeps this example simple —
 `parse_int` is used far less often in everyday code than `parse_float`
-(§27), whose Decimal use case (§59) is a genuinely common, important
+(§27), whose Decimal use case (§46.6) is a genuinely common, important
 production pattern.
 
 ## 27. `parse_float`
@@ -1373,8 +1374,10 @@ print(type(data["price"]))
 would normally become a `float`, call `Decimal(raw_text)` instead" —
 because `Decimal` is constructed directly from the *original digit
 text*, not from an already-imprecise `float`, this avoids introducing
-floating-point representation error during decoding at all. §59
-develops `Decimal`'s serialization side (the reverse direction) fully.
+floating-point representation error during decoding at all. Note that
+this applies to JSON number tokens only, not to numbers already written
+as quoted strings. §46.6 develops `Decimal`'s serialization side (the
+reverse direction) fully.
 
 ### 27.3 Why financial systems specifically care
 
@@ -1564,11 +1567,11 @@ print(json.dumps(data, indent=4))
 ```
 
 `indent=None` (the default) produces the smallest, single-line output
-— appropriate for machine-to-machine payloads (§33) where a human is
+— appropriate for machine-to-machine payloads (§36) where a human is
 not expected to read the raw text, and every extra byte has a real,
 if small, transmission cost. `indent=2` or `indent=4` produce
 genuinely human-readable, multi-line output — appropriate for
-human-maintained configuration files (§32) and anywhere a person may
+human-maintained configuration files (§35) and anywhere a person may
 need to open and directly read or edit the JSON.
 
 ### 31.2 `separators`
@@ -1620,7 +1623,7 @@ regardless of the order keys happened to be inserted into the source
 dictionary — valuable for **stable diffs** (comparing two JSON outputs
 in version control, where key-order-only differences would otherwise
 create meaningless noise), for **tests** asserting exact expected
-output (§44), and for any workflow relying on comparing or hashing
+output (§47.5), and for any workflow relying on comparing or hashing
 serialized output for equality/caching purposes.
 
 ### 31.5 What `sort_keys=True` does *not* guarantee
@@ -1645,10 +1648,16 @@ limit, not assuming `sort_keys=True` alone has fully solved
 ```python
 data = {1: "one", "two": 2}
 
-json.dumps(data)                       # raises TypeError: keys must be str, int, float, bool or None, not ...
+json.dumps(data)
 ```
 
-Wait — this needs a genuinely invalid key type to demonstrate:
+```text
+{"1": "one", "two": 2}
+```
+
+This does **not** raise: the integer key `1` is a supported key type, and
+`json.dumps()` converts it to the JSON object key `"1"`. A key type JSON
+genuinely cannot represent is needed to demonstrate `skipkeys`:
 
 ```python
 data = {(1, 2): "tuple key"}
@@ -1673,13 +1682,14 @@ json.dumps(data, skipkeys=True)
 **Default behavior (`skipkeys=False`):** a dictionary key of a type
 JSON cannot represent (anything other than `str`, `int`, `float`,
 `bool`, or `None` — note that non-string keys of these allowed types
-are automatically converted to their string form, §37 covers this)
+are automatically converted to their string form, as the `1` → `"1"`
+example above shows)
 raises `TypeError` immediately. **`skipkeys=True`:** the offending
 key-value pair is **silently omitted** from the output instead. **Why
 production code should be cautious:** silently dropping data is
 dangerous — exactly
 [01-reading-and-writing-text-files.md](01-reading-and-writing-text-files.md)'s
-§18.4 and
+§27.3 and
 [03-csv-files.md](03-csv-files.md)'s §19.3 principle, restated here —
 `skipkeys=True` should be a deliberate, documented choice for a
 specific, known reason, never a reflexive fix for an inconvenient
@@ -1734,7 +1744,7 @@ raised for any syntactically malformed JSON text. Its `.msg`, `.doc`
 (the full original text), `.pos` (the character offset), `.lineno`, and
 `.colno` attributes together give you precisely *where* the problem is
 — genuinely useful diagnostic information, well worth reporting rather
-than discarding (§40 builds an entire debugging workflow directly
+than discarding (§49 builds an entire debugging workflow directly
 around reading these attributes).
 
 ## 33. JSON Validation
@@ -1781,7 +1791,7 @@ program, of what fields are **required**, what fields are **optional**,
 what **type** each field should have, what **constraints** apply (an
 age must be a non-negative integer, for example), how **nested
 structures** should look, and how the schema itself may **version**
-over time (§40).
+over time (§43).
 
 ### 34.2 A simple, explicit Python validation function
 
@@ -1792,7 +1802,8 @@ def validate_config(data: object) -> None:
 
     if "version" not in data:
         raise ValueError("Config missing required field: version")
-    if not isinstance(data["version"], int):
+    # bool is a subclass of int in Python, so True/False must be rejected explicitly.
+    if isinstance(data["version"], bool) or not isinstance(data["version"], int):
         raise ValueError("Config field 'version' must be an integer")
 
     if "application" not in data:
@@ -1800,7 +1811,13 @@ def validate_config(data: object) -> None:
     app = data["application"]
     if not isinstance(app, dict) or "name" not in app:
         raise ValueError("Config field 'application' must be an object with a 'name' field")
+    if not isinstance(app["name"], str):
+        raise ValueError("Config field 'application.name' must be a string")
 ```
+
+Note the `bool` check: `isinstance(True, int)` is `True` in Python, so
+`isinstance(value, int)` alone would accept `{"version": true}` as a
+valid integer version.
 
 This is deliberately written using **plain Python control flow and
 `isinstance()` checks** — no external schema library. It is explicit
@@ -1862,7 +1879,7 @@ for this §35.1 example, that means checking `raw["app"]["name"]` and
 `"application"` fields (the validation pattern is identical; only the
 field names differ).
 **Versioning** — checking a `"version"`/`"schema_version"` field before
-trusting the rest of the structure — is §40's own, fuller subject.
+trusting the rest of the structure — is §43's own, fuller subject.
 **Environment overrides** (letting an environment variable override a
 specific config value) are mentioned here only conceptually — the full
 treatment belongs to
@@ -2116,10 +2133,10 @@ datasets** distributed as one record per line.
 ```python
 import json
 from pathlib import Path
-from typing import Iterator
+from typing import Any, Iterable, Iterator
 
 
-def read_json_lines(path: Path) -> Iterator[dict]:
+def read_json_lines(path: Path) -> Iterator[Any]:
     with path.open("r", encoding="utf-8") as f:
         for line in f:
             line = line.strip()
@@ -2127,12 +2144,19 @@ def read_json_lines(path: Path) -> Iterator[dict]:
                 yield json.loads(line)
 
 
-def write_json_lines(path: Path, records: Iterator[dict]) -> None:
+def write_json_lines(path: Path, records: Iterable[Any]) -> None:
     with path.open("w", encoding="utf-8") as f:
         for record in records:
             f.write(json.dumps(record))
             f.write("\n")
 ```
+
+Each line may hold **any valid JSON value** (an object, array, string,
+number, `true`/`false`, or `null`), which is why the annotations use
+`Any`; this example does not require records to be JSON objects. If your
+pipeline requires objects only, check `isinstance(record, dict)` for
+each record and reject anything else. The writer accepts any iterable of
+records (a list, a generator, and so on), not only an iterator.
 
 This simple reader stops at the first malformed line, because
 `json.loads()` raises `json.JSONDecodeError`. A production ingestion
@@ -2187,6 +2211,7 @@ This is exactly
 ```
 
 ```python
+import json
 from pathlib import Path
 
 
@@ -2245,6 +2270,9 @@ correctly to each.
 ```
 
 ```python
+import json
+from pathlib import Path
+
 SUPPORTED_VERSIONS = {1, 2}
 
 
@@ -2322,6 +2350,7 @@ actually justifies.
 ### 45.1 A small, focused function set
 
 ```python
+import json
 from pathlib import Path
 from typing import Any
 
@@ -2346,7 +2375,7 @@ def serialize_config(config: dict[str, Any]) -> str:
 **Separation of I/O and serialization** — `serialize_config` does
 **not** touch the filesystem at all; it is pure text conversion,
 independently testable with a plain dictionary and no file involved
-(§44's testing chapter equivalent relies on exactly this). `load_json`/
+(§47's testing chapter equivalent relies on exactly this). `load_json`/
 `save_json` handle the I/O, using
 [02-pathlib-and-portable-paths.md](02-pathlib-and-portable-paths.md)'s
 `Path.read_text()`/`.write_text()` (already the correct integration
@@ -2433,6 +2462,11 @@ top.
 def user_from_dict(data: dict) -> User:
     if "id" not in data or "name" not in data:
         raise ValueError(f"Invalid user data: {data}")
+    # bool is a subclass of int, so True/False must be rejected for `id`.
+    if isinstance(data["id"], bool) or not isinstance(data["id"], int):
+        raise ValueError(f"User 'id' must be an integer: {data}")
+    if not isinstance(data["name"], str):
+        raise ValueError(f"User 'name' must be a string: {data}")
     return User(id=data["id"], name=data["name"])
 
 
@@ -2442,7 +2476,9 @@ user = user_from_dict(json.loads(text))
 
 **`json.loads()` alone never produces a `User` — only a plain `dict`.**
 Turning that `dict` into a real, validated domain object is a separate,
-deliberate step — exactly `object_hook`'s purpose (§24.2), or, as
+deliberate step (here, `user_from_dict` checks that `id` and `name` are
+present and have the types `User` documents: an integer `id` and a
+string `name`) — exactly `object_hook`'s purpose (§24.2), or, as
 shown here, a simple, explicit factory function called *after*
 `json.loads()` completes. The explicit function form is often clearer
 for a *single*, specific target type; `object_hook` becomes more useful
@@ -2488,7 +2524,7 @@ directly mirrors your Python code's own identifier, which can be more
 convenient internally but is a less natural fit for external
 consumers. Whichever you choose, the **reverse** conversion
 (`Status("active")` or `Status["ACTIVE"]`) must use the matching one —
-a mismatch here silently breaks round-tripping (§63).
+a mismatch here silently breaks round-tripping (§48).
 
 ### 46.6 `Decimal`
 
@@ -2512,6 +2548,38 @@ TypeError: Object of type Decimal is not JSON serializable
 associated precision risk) is the correct, deliberate approach —
 **never** convert a `Decimal` through `float()` on the way to JSON, as
 that reintroduces exactly the precision loss `Decimal` exists to avoid.
+
+**Two different contracts — keep them matched.**
+
+*Contract A — the `Decimal` is a JSON string.* With the `default=`
+function above, `Decimal("19.99")` is written as `{"price": "19.99"}`.
+The value is now a quoted JSON **string**, so `parse_float=Decimal`
+does **not** apply to it; the application must convert explicitly on
+the way back in:
+
+```python
+def encode_decimal(obj):
+    if isinstance(obj, Decimal):
+        return str(obj)
+    raise TypeError(f"Object of type {type(obj).__name__} is not JSON serializable")
+
+
+text = json.dumps({"price": Decimal("19.99")}, default=encode_decimal)
+# '{"price": "19.99"}'
+
+data = json.loads(text)
+price = Decimal(data["price"])          # explicit application-level conversion
+assert price == Decimal("19.99") and isinstance(price, Decimal)
+```
+
+*Contract B — the `Decimal` is a JSON number.* `parse_float=Decimal`
+(§27.2) applies only to JSON **number tokens** containing a decimal
+point or exponent, such as `{"price": 19.99}`; it never reconstructs a
+quoted string. `json.dumps()` has no built-in way to emit a `Decimal` as
+a bare number, so Contract B is mainly relevant for JSON produced by
+*other* systems that you decode with `parse_float=Decimal` to avoid
+`float` precision loss. Do not assume `default=str` and
+`parse_float=Decimal` form a symmetric round trip: they do not.
 
 ### 46.7 `datetime`
 
@@ -2605,6 +2673,14 @@ to whatever `str(path)` happens to produce by accident.
 Exactly the same principle established throughout this module: JSON
 file tests should use `pytest`'s `tmp_path` fixture, never real project
 files.
+
+**Shared setup for the examples in this section:** they are not
+independently runnable snippets. Assume `import json`, `import pytest`,
+and `from datetime import datetime` at the top of the test module, plus
+the helper functions defined earlier in this chapter: `load_json`
+(§45.1), `get_nested` (§19.3), `validate_config` (§34.2),
+`read_json_lines` (§41.3), and `load_versioned` (§43.2). `tmp_path` is a
+built-in `pytest` fixture and needs no import.
 
 ### 47.2 Testing valid and invalid JSON
 
@@ -2733,10 +2809,11 @@ rules.** A round-trip test for a `datetime` or `Decimal` field (§46.6–
 `str` directly against the original `datetime` object will always
 fail, correctly, since they are genuinely different types. **Numeric
 representation** — a `Decimal("19.99")` serialized via `default=str`
-and then decoded back with plain `json.loads()` (no `parse_float=`)
-becomes a plain `str`, not a `Decimal` — round-tripping through
-`Decimal` correctly requires *both* the encode-side and decode-side
-custom handling to be present and matched. **Ordering assumptions** —
+and then decoded back with `json.loads()` becomes a plain `str`, not a
+`Decimal` — and adding `parse_float=Decimal` would not change that,
+because the value is a quoted JSON string rather than a number token.
+Round-tripping through `Decimal` correctly requires the application to
+call `Decimal(text)` itself on decode (§46.6). **Ordering assumptions** —
 comparing two *dictionaries* for equality in Python does not care about
 key order at all (`{"a": 1, "b": 2} == {"b": 2, "a": 1}` is `True`) —
 but comparing the *serialized text* directly (`json.dumps(a) ==
@@ -2967,8 +3044,18 @@ def _validate(data: Any) -> None:
         raise ConfigError("Config must contain an 'app' object")
     if "name" not in data["app"] or not isinstance(data["app"]["name"], str):
         raise ConfigError("Config 'app.name' must be a string")
-    if "version" not in data["app"] or not isinstance(data["app"]["version"], int):
+    if "version" not in data["app"]:
+        raise ConfigError("Config 'app.version' is required")
+    version = data["app"]["version"]
+    # bool is a subclass of int, so True/False must be rejected explicitly.
+    if isinstance(version, bool) or not isinstance(version, int):
         raise ConfigError("Config 'app.version' must be an integer")
+    if "features" in data:
+        features = data["features"]
+        if not isinstance(features, dict):
+            raise ConfigError("Config 'features' must be an object")
+        if "logging" in features and not isinstance(features["logging"], bool):
+            raise ConfigError("Config 'features.logging' must be a boolean")
 
 
 def load_config(path: Path) -> dict:
@@ -3048,8 +3135,10 @@ def save_experiment(path: Path, metadata: ExperimentMetadata) -> None:
 def load_experiment(path: Path) -> ExperimentMetadata:
     raw = json.loads(path.read_text(encoding="utf-8"))
 
-    if raw.get("schema_version") != SCHEMA_VERSION:
-        raise ValueError(f"Unsupported experiment schema version: {raw.get('schema_version')!r}")
+    # Version gate only -- this does NOT validate the rest of the payload.
+    version = raw.get("schema_version")
+    if isinstance(version, bool) or version != SCHEMA_VERSION:
+        raise ValueError(f"Unsupported experiment schema version: {version!r}")
 
     data = raw["data"]
     return ExperimentMetadata(
@@ -3066,8 +3155,12 @@ rule this specific data shape needs (§21.4's pattern); `asdict()`
 fields, while `_encode` (via `default=`) handles the fields `asdict()`
 alone cannot serialize (§46.3); `save_experiment` uses the safe
 write-then-replace pattern (§42.2); `load_experiment` checks
-`schema_version` before trusting anything else in the payload (§43.2),
-and reconstructs every custom-typed field using the *matching* inverse
+`schema_version` before trusting anything else in the payload (§43.2) —
+a version gate only, not complete payload validation: the fields
+under `"data"` are not type-checked here beyond what the reconstruction
+calls (`UUID(...)`, `datetime.fromisoformat(...)`, `Path(...)`) happen
+to reject, and a production loader would validate them explicitly
+(§34.2) — and reconstructs every custom-typed field using the *matching* inverse
 operation (`UUID(...)`, `datetime.fromisoformat(...)`, `Path(...)`) —
 directly satisfying §48.2's round-trip-correctness requirement. This
 example uses **only the standard library** — `dataclasses`, `json`,
@@ -3681,8 +3774,10 @@ print(json.dumps({"b": 1, "a": 2}, sort_keys=True))
    specifically risks reintroducing precision error, exactly what
    `Decimal` exists to avoid). Deliberate-and-precise: an explicit
    `default=` function converting `Decimal` to `str(value)` — preserving
-   the exact digit text — paired with `parse_float=Decimal` on the
-   decode side (§27.2) to reconstruct it correctly.
+   the exact digit text — paired with an explicit `Decimal(text)`
+   conversion on the decode side (§46.6), because the value is now a
+   JSON string and `parse_float=Decimal` (§27.2) applies only to JSON
+   number tokens such as `19.99`.
 9. It is a poor example of "invalid JSON" because it is not invalid at
    all — `{"age": "hello"}` is perfectly well-formed, syntactically
    valid JSON; what's wrong with it is purely a matter of application-

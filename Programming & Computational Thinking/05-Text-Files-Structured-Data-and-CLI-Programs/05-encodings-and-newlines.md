@@ -108,7 +108,7 @@ A byte is the smallest addressable unit of computer memory and storage
 physically, nothing but a sequence of bytes. There is no separate
 "character storage" mechanism in computer hardware — text is always,
 ultimately, bytes, interpreted according to some agreed-upon rule.
-§9–§10 name that rule precisely: **encoding**.
+§10 name that rule precisely: **encoding**.
 
 ### 3.4 The two-layer model this entire chapter is built on
 
@@ -177,7 +177,7 @@ Unicode defines *what characters exist and what number identifies
 each one* — it does not, by itself, define how those numbers are
 stored as bytes.** That second, separate question — "given this
 character's Unicode identity, which actual bytes represent it on
-disk?" — is answered by an **encoding** (§9), and there is more than
+disk?" — is answered by an **encoding** (§10), and there is more than
 one valid answer (§11–§15 cover several). Confusing "Unicode" with "a
 specific encoding" (most often, informally, with UTF-8) is an extremely
 common source of imprecise thinking — this chapter deliberately keeps
@@ -233,7 +233,7 @@ same way — `é` is `U+00E9`, exactly as precisely and unambiguously as
 - **Code point** — Unicode's own precise, numeric identity for that
   character (`U+0041` for `A`).
 - **Encoded bytes** — the actual bytes stored on disk or sent over a
-  network, produced by applying a *specific encoding* (§9) to a code
+  network, produced by applying a *specific encoding* (§10) to a code
   point — the same code point can produce *different* bytes under
   different encodings (§11 and §13 make this concrete for `é`
   specifically).
@@ -267,7 +267,7 @@ Because a Python `str` is not tied to any particular byte encoding,
 you can build, manipulate, compare, and reason about text — in any
 mixture of scripts — entirely without thinking about bytes at all,
 until the specific moment you need to write that text somewhere
-external (a file, a network connection) — exactly the moment §9's
+external (a file, a network connection) — exactly the moment §10's
 "encoding" step applies. Many older languages and systems conflated
 "string" with "a specific byte encoding" directly, which made correctly
 handling multiple languages' text in a single program genuinely
@@ -282,7 +282,7 @@ A single code point is not always what a person visually perceives as
 one character; some visually-single characters are actually built from
 *multiple* code points (an accented letter formed by combining a base
 letter with a separate combining accent mark, for example, or certain
-emoji). **§40 develops this "grapheme cluster" caveat fully** — it is
+emoji). **§43 develops this "grapheme cluster" caveat fully** — it is
 introduced here only so you do not walk away from this section assuming
 Python's `str` model is a perfectly simple "one code point equals one
 visible character" system in every case.
@@ -390,7 +390,7 @@ fluency in.
 7-bit character encoding, defined decades before Unicode, covering
 exactly 128 characters (code points `0`–`127`): unaccented uppercase
 and lowercase English letters, digits, common punctuation, and a
-handful of control characters (§29 covers two of these — CR and LF —
+handful of control characters (§27 covers two of these — CR and LF —
 specifically).
 
 ### 9.2 ASCII's limitations
@@ -557,9 +557,13 @@ for text in examples:
 ```text
 'A': 1 character(s), 1 byte(s)
 'é': 1 character(s), 2 byte(s)
-'বাংলা': 4 character(s), 12 byte(s)
+'বাংলা': 5 character(s), 15 byte(s)
 '🙂': 1 character(s), 4 byte(s)
 ```
+
+Here "character(s)" means Python code points: `len(str)` counts code points, not
+user-perceived grapheme clusters (§43). `বাংলা` is five code points,
+each three bytes in UTF-8.
 
 ### 11.4 `len(text)` vs. `len(text.encode("utf-8"))` — why they differ
 
@@ -607,10 +611,15 @@ character boundary, even if it starts reading from an arbitrary point
 in the middle of a byte stream** — it simply looks backward or forward
 until it finds a byte that is *not* a continuation byte. This
 "self-synchronizing" property is a genuinely important, deliberate
-design choice — it is part of why UTF-8 handles partial reads, byte-
-stream corruption detection (§21), and random access into the *middle*
-of a large text stream far more gracefully than some fixed-width or
-less self-describing encodings.
+design choice — it is part of why UTF-8 handles partial reads, recovery
+after a damaged byte, and random access into the *middle* of a large
+text stream far more gracefully than some fixed-width or less
+self-describing encodings. The same byte structure also lets a decoder
+detect *many* malformed UTF-8 sequences (for example, a stray
+continuation byte). **UTF-8 is not a general data-integrity or
+corruption-detection mechanism**, though: arbitrary corruption can turn
+bytes into a *different but still valid* UTF-8 sequence, which decodes
+without any exception (§21 shows how wrong text can appear silently).
 
 ### 12.4 A worked example: `é`, byte by byte
 
@@ -664,7 +673,7 @@ focus on.)
 ### 13.3 Why the plain `"utf-16"` output includes a BOM
 
 `text.encode("utf-16")` (with no explicit byte-order suffix) picks the
-**native byte order of the encoding machine** (§24 explains "byte
+**native byte order of the encoding machine** (§23.2 explains "byte
 order" precisely) and **prepends a BOM** (§23) specifically so that
 whatever later reads these bytes can determine which byte order was
 actually used. `"utf-16-le"` and `"utf-16-be"` instead commit to a
@@ -687,9 +696,11 @@ mechanism differs meaningfully from UTF-8's own variable-length scheme.
 
 ### 14.1 What UTF-32 is
 
-**UTF-32** represents **every** Unicode code point using a **fixed** 4
-bytes, with no exceptions and no surrogate-pair mechanism needed at
-all — the simplest possible encoding scheme to reason about, at the
+**UTF-32** represents every Unicode **scalar value** (every code point
+except the surrogate range `U+D800`–`U+DFFF`, as in §11.2) using a
+**fixed** 4 bytes, with no surrogate-pair mechanism needed at all.
+Surrogate code points are not valid scalar values, and Python's strict
+UTF-32 encoder rejects them with `UnicodeEncodeError`. It is the simplest possible encoding scheme to reason about, at the
 direct cost of using considerably more space for ordinary text.
 
 ```python
@@ -832,7 +843,7 @@ str.encode(encoding="utf-8", errors="strict")
 
 **`encoding`** — which named encoding scheme to apply; defaults to
 `"utf-8"` in modern Python (a version-relevant default worth knowing
-explicitly rather than assuming, §34). **`errors`** — what to do when a
+explicitly rather than assuming, §25). **`errors`** — what to do when a
 character cannot be represented under the chosen encoding at all
 (§19–§20 develop this fully).
 
@@ -872,7 +883,7 @@ Not every character can be represented under every encoding (§9.3's
 encoding (§18.3's reverse example). Something must decide what happens
 when this occurs — Python's `errors=` parameter is exactly that
 decision point, and it applies identically to `str.encode()`,
-`bytes.decode()`, and `open()`'s own `errors=` (§26).
+`bytes.decode()`, and `open()`'s own `errors=` (§25.3).
 
 ### 19.2 The standard error handlers
 
@@ -913,7 +924,7 @@ it) was silently discarded entirely. **This is precisely why
 `errors="ignore"` should be treated with real caution in production
 code**: unlike a raised exception, silently dropped data gives you no
 signal at all that anything went wrong — the output simply looks
-"fine," while being subtly, silently incorrect. §58 makes this contrast
+"fine," while being subtly, silently incorrect. §19.5 makes this contrast
 directly, with a corrected alternative.
 
 ### 19.5 `strict` as the correct default
@@ -997,7 +1008,7 @@ print(corrupted)
 ```
 
 ```text
-café
+cafÃ©
 ```
 
 `é`'s two UTF-8 bytes (`\xc3\xa9`) were each **individually,
@@ -1020,7 +1031,7 @@ characteristic pattern of corruption; Windows-1252 (or Latin-1) bytes
 decoded as UTF-8 produces a *different* characteristic pattern (often
 raising `UnicodeDecodeError` outright, since not every byte sequence a
 single-byte encoding can produce is valid UTF-8) — §21.2 works through
-both directions concretely.
+the first direction concretely (UTF-8 bytes decoded as Latin-1).
 
 ### 21.4 How to diagnose and avoid it
 
@@ -1053,7 +1064,8 @@ system** — what software or system generated this file, and what
 encoding does *it* default to, or document using? **Metadata** — does
 the file, protocol, or surrounding context carry explicit encoding
 information (an HTTP `Content-Type` header's `charset=` parameter,
-§40.2; JSON exchanged between systems being required to be UTF-8 by RFC 8259, per
+§40.2; RFC 8259 requires JSON text exchanged between systems that are
+not part of a closed ecosystem to be UTF-8, per
 [04-json-and-serialization.md](04-json-and-serialization.md)'s §25.3)?
 **Protocol specification** — does the format itself mandate a specific
 encoding (JSON, notably, is specified to always be Unicode, almost
@@ -1126,7 +1138,7 @@ it, without needing that information from anywhere else.
 
 **A BOM is a specific marker, at the start of a file, indicating byte
 order and/or encoding — it is not itself a distinct encoding.**
-`"utf-8-sig"` (§25) is Python's name for "UTF-8, plus recognize and
+`"utf-8-sig"` (§24) is Python's name for "UTF-8, plus recognize and
 correctly strip a leading BOM if present" — a *behavior*, built on top
 of the UTF-8 encoding, not a fundamentally different way of encoding
 text. UTF-16 and UTF-32 use their BOM specifically to resolve byte
@@ -1199,7 +1211,7 @@ Every prior chapter in this module has already established the
 practice; this chapter now gives it its full justification: **always
 specify `encoding=` explicitly.** Omitting it does not mean "no
 encoding is used" — it means Python silently falls back to a
-**platform- and configuration-dependent default** (§34 develops exactly
+**platform- and configuration-dependent default** (§36 develops exactly
 what that default is, and why it can genuinely differ between
 machines) — the exact same code can behave correctly on your machine
 and incorrectly on a colleague's, or a deployment server's, purely
@@ -1214,7 +1226,7 @@ with open("data.txt", "r") as f:   # no encoding= specified
 
 On one machine, this might quietly use UTF-8, and behave identically
 to specifying it explicitly. On another — a machine with a different
-locale configuration (§34) — it might use a different default entirely,
+locale configuration (§36) — it might use a different default entirely,
 producing mojibake (§21) or a `UnicodeDecodeError` (§20.2) on the
 *exact same file*, with the *exact same code*. Python versions before
 3.15 generally use the locale encoding unless UTF-8 mode is enabled;
@@ -1433,7 +1445,7 @@ compiled programs, compressed archives — anything where interpreting
 the bytes *as characters* would be meaningless or actively harmful
 (directly extending
 [01-reading-and-writing-text-files.md](01-reading-and-writing-text-files.md)'s
-§1.4 text-vs-binary distinction). It is also occasionally the correct
+§5 text-vs-binary distinction). It is also occasionally the correct
 choice for text data specifically when you need to perform §18's
 encoding/decoding operations **entirely manually and deliberately** —
 for example, when the encoding is not yet known and must be determined
@@ -1514,7 +1526,7 @@ print(text.splitlines(keepends=True))
 ```
 
 `keepends=True` retains each line's original terminator character(s)
-in the returned pieces, rather than stripping them — §35 develops
+in the returned pieces, rather than stripping them — §33 develops
 exactly why this matters.
 
 ### 32.3 `splitlines()`'s broader-than-expected line-boundary set
@@ -1567,6 +1579,8 @@ reliably guarantee.
 ### 34.1 CSV — `newline=""`, restated with full understanding
 
 ```python
+import csv
+
 with open("data.csv", "r", newline="", encoding="utf-8") as f:
     reader = csv.reader(f)
 ```
@@ -1604,6 +1618,8 @@ specifically may include a UTF-8 BOM, requiring `encoding="utf-8-sig"`
 ### 34.3 Multilingual CSV, in practice
 
 ```python
+import csv
+
 with open("customers.csv", "r", newline="", encoding="utf-8") as f:
     reader = csv.DictReader(f)
     for row in reader:
@@ -1618,6 +1634,8 @@ special-casing needed beyond getting these two parameters right.
 ### 34.4 JSON — why `newline=""` is *not* needed
 
 ```python
+import json
+
 with open("data.json", "r", encoding="utf-8") as f:
     data = json.load(f)
 ```
@@ -1638,6 +1656,9 @@ with.
 ### 34.5 JSON pretty-printing and cross-platform portability
 
 ```python
+import json
+
+data = {"name": "Alice"}   # any JSON-serializable value, e.g. loaded as in §34.4
 json.dumps(data, indent=2)
 ```
 
@@ -2063,12 +2084,12 @@ comparable directly with `==` afterward.
 ### 42.4 When normalization is useful — and when it is not something to apply unconditionally
 
 Normalization is genuinely valuable before comparing, searching,
-deduplicating (§42.4), or using text as an identifier or lookup key,
+deduplicating (§42.1), or using text as an identifier or lookup key,
 where two differently-encoded-but-visually-identical strings should be
 treated as "the same." **It should not be applied unconditionally,
 without consideration, to every piece of text your program handles** —
 NFKC/NFKD's compatibility normalization specifically can discard real,
-sometimes meaningful, distinctions (§42.4 returns to this trade-off
+sometimes meaningful, distinctions (§42.3 returns to this trade-off
 directly) — normalization is a deliberate choice, made for a specific,
 understood reason, not a reflexive "always apply this" habit.
 
@@ -2167,7 +2188,7 @@ zero-width space, a zero-width joiner used outside its intended emoji-
 combination context, or various formatting-control characters. **Risk:**
 two strings that *look* completely identical to a human reader can
 differ by the presence of one of these invisible characters, causing
-`==` comparisons, search matches, or "duplicate" detection (§46) to
+`==` comparisons, search matches, or "duplicate" detection (§45.2) to
 behave in genuinely surprising, hard-to-diagnose ways.
 
 ### 45.3 Non-breaking spaces and control characters
@@ -2186,7 +2207,7 @@ behavior in display, comparison, or downstream processing.
 For any system accepting free-text identifiers from untrusted sources
 — usernames, search queries, display names — being aware that
 **"looks the same" is not the same claim as "is the same string"** is
-a genuine, practical engineering concern (§46 develops the
+a genuine, practical engineering concern (§41.2 develops the
 data-quality angle of this directly), worth explicit validation and
 testing, not an obscure theoretical curiosity.
 
@@ -2563,7 +2584,7 @@ def ingest_text_file(
     path: Path,
     output_path: Path,
     *,
-    declared_encoding: str | None = "utf-8",
+    declared_encoding: str | None = None,   # no silent default: caller must declare, unless a UTF-8 BOM is present
     normalize: bool = True,
 ) -> IngestResult:
     # READ BYTES
@@ -2614,7 +2635,10 @@ laid out, stage by stage, with each stage's exact responsibility
 visible directly in the code's own comments and function boundaries.
 **Explicit encoding and error policy:** `decide_encoding` refuses to
 silently guess (§22.3) when no real evidence is available, raising a
-clear, specific exception instead; decoding uses `errors="strict"`
+clear, specific exception instead (so `declared_encoding` deliberately
+defaults to `None`, not `"utf-8"`: a caller must either declare the
+encoding or supply a file with a UTF-8 BOM, the one signal this example
+recognizes); decoding uses `errors="strict"`
 explicitly (§19.5), never `"ignore"`. **Newline policy:** the pipeline
 deliberately normalizes to a single, consistent `\n`-based output
 (`"\n".join(lines) + "\n"`), regardless of the input's original
@@ -2857,7 +2881,7 @@ pipelines:** this is precisely the shape real log-processing and
 streaming data-ingestion code takes — one line, fully decoded and
 newline-normalized, at a time, exactly matching
 [01-reading-and-writing-text-files.md](01-reading-and-writing-text-files.md)'s
-§20.5's own "streaming" example, now understood with the full
+§15's own "streaming" example, now understood with the full
 encoding/newline mechanics behind *why* it works correctly across
 files of any origin and any platform's line-ending convention.
 

@@ -68,6 +68,20 @@ specific concept in this chapter — `open()`, file objects, modes,
 cursors, context managers, encoding — is explained from first
 principles, starting from "what is a file" and building upward.
 
+### First-pass study guide
+
+This chapter is long. On a first pass, follow this core route and treat
+the rest as reference to return to later:
+
+- **Opening files and modes:** §4–§9 (especially §8.10 and §9.2).
+- **Reading and writing text:** §10–§19 (reading, cursor basics in §16, writing, appending).
+- **Context managers:** §20–§21.
+- **Basic encoding and error handling:** §25–§27 and §29.
+- **Reusable functions and basic testing:** §22–§23, §38–§40.
+
+Come back later for streaming and chunked reading (§30–§31), buffering
+(§32–§33), concurrency (§43), and production-oriented design (§42).
+
 ## 3. Why Text-File I/O Matters
 
 Every program you have written so far has had exactly one weakness:
@@ -134,10 +148,12 @@ after the variable that would normally hold it disappears.
 ### 4.3 Persistent vs. in-memory (temporary) data
 
 Every variable you have written holds **in-memory** (or *volatile*)
-data — it lives in RAM, and RAM is wiped the instant your program (or
-your computer) stops running. A file holds **persistent** data — it
-lives on disk, which is specifically built to keep its contents with no
-power at all. This is the entire reason file I/O exists: **programs
+data — it lives in RAM, and that state is no longer available to your
+program once the program stops running (and RAM itself does not keep
+its contents when the computer loses power). A file holds
+**persistent** data — it lives on disk, which is specifically built to
+keep its contents with no power at all, so a later run can read it
+back. This is the entire reason file I/O exists: **programs
 need a way to remember things between runs, and to exchange information
 with other programs, humans, and systems.**
 
@@ -939,7 +955,7 @@ scope.
 with open("example.txt", "r", encoding="utf-8") as f:
     print(f.tell())          # 0  -- at the very start
     print(f.readline())       # 'First line\n'
-    print(f.tell())            # 11 -- moved forward past the first line
+    print(f.tell())            # e.g. 11 (illustrative; opaque value) -- moved forward
     f.seek(0)                  # reset the cursor back to the start
     print(f.readline())        # 'First line\n'  -- the same line, read again
 ```
@@ -956,11 +972,11 @@ First line
 **Explaining the output line by line:** the cursor starts at `0`.
 `readline()` reads the first line and prints it (with its `\n`, hence
 the blank line after it in the output). `tell()` now reports a new,
-non-zero position — `11` for this particular simple ASCII file, which
-happens to match the length of `'First line\n'`, but that match is a
-coincidence of this example, not something to rely on for text files in
-general. What matters is that this value could be saved and handed to
-`seek()` later. `seek(0)`
+non-zero position — `11` here, shown only as an illustration: the exact
+value can depend on the environment and text-stream behavior (§16.2),
+and its match with the length of `'First line\n'` is a coincidence of
+this simple example, not something to rely on. What matters is that
+this value could be saved and handed back to `seek()` later. `seek(0)`
 explicitly resets the cursor back to the very start. The following
 `readline()` therefore reads the *same* first line again, from the
 beginning, rather than continuing on to the second line.
@@ -2501,6 +2517,8 @@ def read_text_file(path: str) -> str:
 def process_text(text: str) -> str:
     lines = text.splitlines()
     cleaned = [line.strip().upper() for line in lines if line.strip()]
+    if not cleaned:
+        return ""
     return "\n".join(cleaned) + "\n"
 
 
@@ -2519,6 +2537,18 @@ def run(input_path: str, output_path: str) -> None:
 involved at all, and therefore testable directly with in-memory strings
 (§39.2's pattern, applied here with no file needed whatsoever for this
 particular function).
+
+Its contract: non-blank input comes back uppercased, one cleaned line
+per line, ending in a single `"\n"`; empty input (`""`) and input that
+contains only blank or whitespace-only lines both return `""`, so no
+stray newline is written for "nothing to output". Each of these can be
+checked directly with in-memory strings:
+
+```python
+assert process_text("") == ""
+assert process_text("  \n\n \t \n") == ""
+assert process_text(" a \n\n b\n") == "A\nB\n"
+```
 
 ### 40.3 Why this improves testability, reuse, debugging, and maintainability
 
@@ -3015,9 +3045,11 @@ with open("data.txt", "r", encoding="utf-8") as f:
 **H. Debugging scenarios**
 13. A program raises `UnicodeDecodeError` on one specific file but not
     others. What is the most likely first thing to check?
-14. A function that should count 100 lines returns 0 every time. Given
-    §37 mistake 15's advice, what is the first thing you should do
-    before guessing at a fix?
+14. A function that should count 100 lines returns 0 every time, with
+    no exception raised. Using §38's workflow (and §16 on the file
+    cursor), what should you do before guessing at a fix — for example,
+    reproduce it with a small known input, check your assumptions,
+    inspect the cursor position, and verify the counting logic?
 
 **I. Small coding tasks**
 15. Write a function `last_line(path)` that returns a file's last line

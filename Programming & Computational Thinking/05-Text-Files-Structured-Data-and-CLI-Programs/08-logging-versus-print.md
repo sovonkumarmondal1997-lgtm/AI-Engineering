@@ -526,10 +526,14 @@ with **no manual naming required, and no risk of two unrelated modules
 accidentally colliding on the same logger name.**
 
 **Propagation** is what connects this hierarchy to actual output: by
-default, a `LogRecord` that passes a logger's own level check is
-*also* passed up to that logger's parent (and its parent's parent, and
-so on, up to the root), and **every handler attached anywhere along
-that chain** gets a chance to process it. This is why a real
+default, a `LogRecord` that passes the **originating** logger's own
+level check is *also* passed up to that logger's parent (and its
+parent's parent, and so on, up to the root), and **the handlers
+attached to each of those ancestor loggers** get a chance to process
+it. Only the originating logger's level (and filters) are checked;
+propagation hands the record straight to the ancestors' *handlers*, so
+the ancestor **loggers'** own levels and filters are not applied again.
+Each receiving **handler's** own level and filters still apply. This is why a real
 application commonly configures handlers **only on the root logger**
 (via `basicConfig()` or `dictConfig()`, §12) and simply calls
 `logging.getLogger(__name__)` everywhere else in its own code — every
@@ -541,6 +545,28 @@ something with them.
 logger = logging.getLogger("app.io")
 logger.propagate  # True by default — records flow up to "app", then to root
 ```
+
+```python
+import logging
+
+parent = logging.getLogger("app")
+parent.setLevel(logging.ERROR)                 # ancestor logger level: NOT re-checked
+handler = logging.StreamHandler()
+handler.setLevel(logging.INFO)                 # handler level: still checked
+parent.addHandler(handler)
+
+child = logging.getLogger("app.io")
+child.setLevel(logging.DEBUG)                  # originating logger level: checked first
+
+child.debug("dropped by the handler (DEBUG < INFO)")
+child.info("emitted: passes the child's level and the handler's level, "
+           "even though the parent logger's level is ERROR")
+```
+
+To predict whether a child's record reaches an ancestor handler, ask
+two questions: does the record pass the **child** logger's level, and
+does it pass that **handler's** level? The ancestor logger's level does
+not enter into it.
 
 Setting `logger.propagate = False` stops this — used deliberately when
 a specific logger should *not* have its records also handled by
@@ -1102,13 +1128,27 @@ correlation or debugging, but must not be fully exposed:
 
 ```python
 def mask(value: str, keep: int = 4) -> str:
+    # `keep` is how many trailing characters stay visible; it must be >= 0.
+    if keep < 0:
+        raise ValueError("keep must be non-negative")
     if len(value) <= keep:
         return "*" * len(value)
-    return "*" * (len(value) - keep) + value[-keep:]
+    return "*" * (len(value) - keep) + value[len(value) - keep:]   # not value[-keep:], which breaks for keep=0
 
 logger.info("Processing card ending in %s", mask(card_number))
 # Processing card ending in ************1234
+
+assert mask("") == ""                   # empty stays empty
+assert mask("123") == "***"             # shorter than `keep`: fully masked
+assert mask("1234567890", 4) == "******7890"
+assert mask("1234567890", 0) == "**********"   # keep=0 masks everything
+# mask("1234567890", -1) raises ValueError
 ```
+
+This helper is illustrative: it shows the idea of partial masking, but
+on its own it does not guarantee that a sensitive value never leaks
+into logs (the unmasked value can still be logged elsewhere, and what
+is safe to reveal depends on the data).
 
 A `Filter` (§11) is a reasonable place to apply masking consistently,
 across every log call, rather than remembering to call a masking
@@ -1557,7 +1597,9 @@ main(argv)                 — wires it together; print()s the final summary;
 **Data flow:** JSON Lines file → `process_file()` reads and validates
 each record → valid/invalid counts accumulate → a summary dict is
 built → `main()` prints that summary (stdout, the actual result) →
-returns `0` (all valid) or `3` (some records invalid), per the
+returns `0` (all valid) or `3` (some records invalid), or `2` if the
+input file is missing or cannot be read (the `is_file()` check is only
+a convenience: the file can still fail to open or decode later), per the
 exit-code convention established in
 [07-standard-streams-and-exit-codes.md](07-standard-streams-and-exit-codes.md).
 
@@ -1682,7 +1724,15 @@ def main(argv: Sequence[str] | None = None) -> int:
         logger.error("Input file not found: %s", args.input_file)
         return 2
 
-    summary = process_file(args.input_file)
+    try:
+        summary = process_file(args.input_file)
+    except (OSError, UnicodeDecodeError) as exc:
+        # Expected operational failures (permissions, I/O error, file replaced
+        # after the is_file() check, undecodable bytes) -- not programming errors.
+        # Anything else is deliberately NOT caught here.
+        logger.error("Could not read %s: %s", args.input_file, exc)
+        return 2
+
     print(json.dumps(summary))   # the actual result — stdout, clean, machine-readable
 
     return 0 if summary["invalid"] == 0 else 3
@@ -1697,7 +1747,26 @@ if __name__ == "__main__":
 import json
 import logging
 
+import pytest
+
 from process_records import main, process_file, validate_record
+
+
+@pytest.fixture(autouse=True)
+def restore_root_logger():
+    # main() -> dictConfig() replaces the root logger's handlers and level.
+    # Put back whatever was there before each test (including the handlers
+    # pytest installed for caplog) so one test cannot affect the next.
+    root = logging.getLogger()
+    saved_handlers, saved_level = root.handlers[:], root.level
+    yield
+    for handler in root.handlers[:]:
+        root.removeHandler(handler)
+        if handler not in saved_handlers:
+            handler.close()
+    for handler in saved_handlers:
+        root.addHandler(handler)
+    root.setLevel(saved_level)
 
 
 def test_validate_record():
@@ -1729,17 +1798,54 @@ def test_invalid_record_logged_as_warning(tmp_path, caplog):
 
     assert summary == {"valid": 0, "invalid": 1}
     assert any("invalid record" in record.message for record in caplog.records)
+
+
+def test_unreadable_input_returns_2(tmp_path, monkeypatch, capsys):
+    input_file = tmp_path / "data.jsonl"
+    input_file.write_text('{"id": 1, "value": "a"}\n', encoding="utf-8")
+
+    def deny(path):
+        raise PermissionError("denied")
+
+    monkeypatch.setattr("process_records.process_file", deny)
+
+    status = main([str(input_file), "--log-file", str(tmp_path / "app.log")])
+
+    assert status == 2
+    assert capsys.readouterr().out == ""      # nothing on stdout
+
+
+def test_unexpected_error_is_not_swallowed(tmp_path, monkeypatch):
+    input_file = tmp_path / "data.jsonl"
+    input_file.write_text("{}\n", encoding="utf-8")
+
+    def bug(path):
+        raise RuntimeError("programming error")
+
+    monkeypatch.setattr("process_records.process_file", bug)
+
+    with pytest.raises(RuntimeError):
+        main([str(input_file), "--log-file", str(tmp_path / "app.log")])
 ```
 
 (`caplog` is pytest's built-in fixture for asserting on logging output
 directly — the logging-specific counterpart to `capsys` for stdout/
-stderr text.)
+stderr text. Because `dictConfig()` replaces the root logger's handlers,
+the autouse `restore_root_logger` fixture above restores the root
+logger's handlers and level after every test, so tests that call
+`main()` cannot leave the logging state changed for the tests that
+follow.)
 
 **Debugging scenarios:** if the log file never appears, check whether
 `configure_logging()` is actually being called before `process_file()`
-logs anything (§12's "called too late" pitfall, applied to
-`dictConfig()` too — configuration must happen before any logging call
-it's meant to affect); if `DEBUG`-level per-record detail is missing
+logs anything (configure deliberately and early — but note the two APIs
+differ: §12's "called too late" pitfall is specific to `basicConfig()`,
+which does nothing once the root logger already has handlers, whereas
+`dictConfig()` applies the new configuration even if logging was
+already configured, and may replace the root logger's existing handlers
+or disable existing loggers depending on its settings. If the file is
+missing, first check that `configure_logging()` actually ran and that
+the file handler's path and level are what you expect); if `DEBUG`-level per-record detail is missing
 from the console but expected, check `--log-level` was passed as
 `DEBUG` explicitly, since `INFO` is the default; if a malformed
 line is unexpectedly absent from the log, check that the
@@ -2195,9 +2301,11 @@ logger.debug(f"Processing record {expensive_repr(record)}")
       mixed into stdout (§13–§14).
 
 **Traceback preservation**
-- [ ] Every `except` block that logs an exception uses
-      `logger.exception()`, not `logger.error()`, unless there's a
-      specific reason to omit the traceback.
+- [ ] Inside an `except` block, unexpected failures are logged with
+      `logger.exception()` so the traceback is preserved; an expected,
+      deliberately handled failure (§15) may instead get a concise
+      `WARNING`/`ERROR` message without a full traceback. Either way,
+      the failure is logged once, not silently swallowed.
 - [ ] No bare `except: pass` (or equivalent) silently swallows a
       failure with no log trace at all (§15, §23).
 

@@ -157,7 +157,7 @@ code explicitly converts it. (A few reader configurations, such as
 `quoting=csv.QUOTE_NONNUMERIC`, convert unquoted fields to `float`
 automatically, but the CSV format itself never encodes types.) `"true"`, `"2026-09-21"`, and `"30.5"`
 are, likewise, just characters — CSV itself has no concept of numbers,
-booleans, or dates; it only has text. §9 and §24 make this explicit
+booleans, or dates; it only has text. §10 and §33 make this explicit
 conversion step a first-class part of this chapter, precisely because
 skipping it is one of the most common sources of real bugs.
 
@@ -172,13 +172,13 @@ skipping it is one of the most common sources of real bugs.
   column.
 - **Header row** — an optional first row naming each column; when
   present, it turns "the value in position 2" into "the value in the
-  `age` column" — a distinction §13 (`csv.DictReader`) builds on
+  `age` column" — a distinction §16 (`csv.DictReader`) builds on
   directly.
 - **Header-less CSV** — a perfectly valid, common CSV file with no
   header row at all — every row, including the first, is genuine data.
   Nothing about the CSV format itself signals whether a header is
-  present; that knowledge has to come from *outside* the file (§17.3,
-  §28).
+  present; that knowledge has to come from *outside* the file (§17.2,
+  §27.1).
 
 ### 5.2 CSV is more accurately "delimited text," not strictly comma-only
 
@@ -244,7 +244,7 @@ Alice,"New York, NY"
 
 Without quoting, the comma *inside* `New York, NY` would be
 indistinguishable from a genuine field-separating comma — a naive
-parser would see four fields (`Alice`, `New York`, ` NY`) on that row
+parser would see three fields (`Alice`, `"New York`, ` NY"`) on that row
 instead of the intended two. **Quoting** — wrapping a field in
 `quotechar` (by default, `"`) — tells the parser "treat everything
 between these quote characters as one single field, delimiters and
@@ -417,7 +417,7 @@ This is not a bug in Python — `bool(some_non_empty_string)` is *always*
 ([Type Conversion and Truthiness](../02-Python-Core-Language-and-Data-Types/09-type-conversion-and-truthiness.md)).
 `bool("false")` being `True` is a vivid, concrete demonstration of
 exactly why **you must never blindly wrap a CSV field in `bool(...)`,
-`int(...)`, or any other constructor and assume it "just works"** — §24
+`int(...)`, or any other constructor and assume it "just works"** — §33
 builds the correct, deliberate conversion functions this genuinely
 requires.
 
@@ -425,12 +425,12 @@ requires.
 
 `int(value)` and `float(value)` for numbers (both raise `ValueError`
 on non-numeric text — a signal to handle, not avoid); explicit,
-deliberate string-to-boolean mapping (§24.3); date/datetime parsing via
-`datetime.strptime()` (previewed in §24.4; full `datetime` treatment
+deliberate string-to-boolean mapping (§33.1); date/datetime parsing via
+`datetime.strptime()` (previewed in §33.3; full `datetime` treatment
 belongs to
 [Datetime, Timezones, and Timestamps](../09-Advanced-Production-Oriented-Python-Foundations/07-datetime-timezones-and-timestamps.md),
 much later in the roadmap); and an explicit, application-defined
-convention for "this field represents a missing value" (§23), since
+convention for "this field represents a missing value" (§32), since
 CSV itself has no universal `null`.
 
 ## 11. Python `csv` Module
@@ -490,7 +490,7 @@ The parser must understand quoting and delimiters specifically because,
 as §8 and §9 demonstrated, the *text itself* does not unambiguously
 reveal where one field or row ends without that context — the parser's
 entire job is resolving that ambiguity correctly, using the dialect
-rules (§15) you configure (or accept as defaults).
+rules (§20) you configure (or accept as defaults).
 
 ## 12. `csv.reader`
 
@@ -525,7 +525,7 @@ object for lines
 §15) — each step produces the *next parsed row*, as a `list[str]`, one
 entry per field. Note that the header row (`['name', 'age', 'city']`)
 is returned like any other row — `csv.reader` has no built-in concept
-of "the first row is special" at all (§17 develops exactly how to
+of "the first row is special" at all (§16 develops exactly how to
 handle this).
 
 ### 12.2 Iterator behavior and memory characteristics
@@ -534,7 +534,7 @@ A reader object is an **iterator** — it produces one row at a time, on
 demand, as you iterate it, without reading or holding the entire file
 in memory at once. This directly parallels
 [01-reading-and-writing-text-files.md](01-reading-and-writing-text-files.md)'s
-§15 lesson about `for line in f:` versus `f.readlines()` — §19 of this
+§15 lesson about `for line in f:` versus `f.readlines()` — §28 of this
 chapter develops exactly why this laziness matters for large CSV files.
 
 ## 13. `csv.reader` Parameters
@@ -566,7 +566,7 @@ directly (`csv.reader("data.csv")`) — this iterates over the
 fails confusingly rather than obviously.
 
 **`dialect`** — a named bundle of the remaining formatting parameters
-(§15); `'excel'` (the default) matches the conventions used by Excel's
+(§20); `'excel'` (the default) matches the conventions used by Excel's
 own CSV export: comma delimiter, doubled-quote escaping,
 `QUOTE_MINIMAL`. Example: `csv.reader(f, dialect="excel-tab")`.
 
@@ -574,7 +574,7 @@ own CSV export: comma delimiter, doubled-quote escaping,
 `csv.reader(f, delimiter=";")`. Common mistake: forgetting to change
 this for a semicolon- or tab-separated file, silently producing rows
 with one giant unsplit field each. Production implication: when the
-delimiter is not known in advance, consider `csv.Sniffer` (§17) — but
+delimiter is not known in advance, consider `csv.Sniffer` (§27) — but
 validate its guess rather than trusting it blindly.
 
 **`doublequote`** — whether `""` inside a quoted field represents one
@@ -592,21 +592,21 @@ default. Example: `csv.reader(f, quotechar="'")` for single-quoted
 data. Production implication: must match whatever the *source* system
 that generated the file actually used.
 
-**`quoting`** — which quoting *mode* the reader should assume (§16
+**`quoting`** — which quoting *mode* the reader should assume (§22
 covers all four constants fully). Example:
 `csv.reader(f, quoting=csv.QUOTE_NONE)`.
 
 **`skipinitialspace`** — whether a space immediately following the
-delimiter should be skipped before a field's value begins (§16.5).
+delimiter should be skipped before a field's value begins (§23.1).
 Example: `csv.reader(f, skipinitialspace=True)` for
 `"name, age, city"`-style data with a space after each comma.
 
 **`strict`** — whether genuinely malformed CSV syntax should raise
 `csv.Error` (`True`) or be tolerated permissively (`False`, the
-default) (§18 covers this in full). Example:
+default) (§24 covers this in full). Example:
 `csv.reader(f, strict=True)`. Production implication: `strict=True` is
 often the *right* default for ingestion pipelines that should reject
-bad data loudly rather than silently guessing (§18.3, §32).
+bad data loudly rather than silently guessing (§24.1, §30).
 
 ## 14. `csv.writer`
 
@@ -633,8 +633,10 @@ opens the destination file for writing, again with `newline=""` (§26).
 to its string representation automatically (`30`, an `int`, became the
 text `30`) and inserting the configured delimiter and quoting as
 needed. **`writer.writerow()`'s return value** is whatever the
-underlying file object's own `write()` call returned (typically the
-number of characters written) — most code, exactly like ordinary
+underlying file object's own `write()` call returned (in CPython,
+typically the number of characters written; treat this as an
+implementation detail that may vary by Python version or file-like
+object, not a guaranteed API) — most code, exactly like ordinary
 `f.write()` (§17.1 of the previous chapter), ignores this return value.
 
 ### 14.2 `writerows()` — many rows at once
@@ -651,7 +653,7 @@ with open("output.csv", "w", newline="", encoding="utf-8") as f:
 
 `writerows()` accepts any iterable of rows and calls `writerow()`
 internally for each — it does not require a pre-built list; a generator
-works equally well, preserving §19's streaming approach on the write
+works equally well, preserving §28.3's streaming approach on the write
 side too.
 
 ## 15. `csv.writer` Parameters
@@ -1131,6 +1133,16 @@ writer.writerow(["Alice", "New York, NY"])
 Alice,New York\, NY
 ```
 
+To read this back correctly, the reader needs the matching configuration:
+
+```python
+reader = csv.reader(f, quoting=csv.QUOTE_NONE, escapechar="\\")
+next(reader)   # ['Alice', 'New York, NY']  -- the escape is undone
+```
+
+Without `escapechar` on the reader, the same line parses as
+`['Alice', 'New York\\', ' NY']`.
+
 **Behavior on write:** never quote anything — if a field contains the
 delimiter, `escapechar` must be supplied, and the delimiter is escaped
 in place instead (as shown: `\,`). Writing a field containing the
@@ -1172,16 +1184,17 @@ reader = csv.reader(f, skipinitialspace=False)   # the default
 next(reader)   # ['name', ' age', ' city']  -- leading spaces preserved
 
 reader = csv.reader(f, skipinitialspace=True)
-next(reader)   # ['name', 'age', 'city']    -- the single space right after each delimiter is skipped
+next(reader)   # ['name', 'age', 'city']    -- the space right after each delimiter is skipped
 ```
 
-**What it does not mean:** `skipinitialspace=True` skips *only* the
-single space character immediately following a delimiter — it is
+**What it does not mean:** `skipinitialspace=True` skips the space
+character(s) immediately following a delimiter (one or several spaces,
+not just exactly one; other whitespace such as a tab is not skipped) — it is
 **not** a general "strip every field's whitespace everywhere" setting.
 A field like `"  Alice  "` (spaces on both ends, unrelated to the
 delimiter) is unaffected either way — that kind of general cleanup
-belongs to your own explicit `.strip()` calls during validation (§21,
-§24), not to this parameter.
+belongs to your own explicit `.strip()` calls during validation (§30,
+§33), not to this parameter.
 
 ### 23.2 `strict`
 
@@ -1207,16 +1220,27 @@ parsed result rather than raising. `strict=True` instead raises
 §24 develops exactly when this stricter behavior is the right
 production choice.
 
+**What `strict=True` is not:** it changes how the *parser* reacts to
+certain malformed CSV *syntax*. It is not a validator for required
+headers or columns, field counts or schema requirements, data types,
+missing-value policies, or business rules, and it does not promise to
+reject every conceivable malformed input. Those checks remain separate
+steps (§30–§33).
+
 ## 24. Strict CSV Parsing and Error Handling
 
 ### 24.1 When `strict=True` is the right choice
 
 For a production ingestion pipeline processing files whose correctness
-genuinely matters (§32, §37, §41), **`strict=True` is very often the
+genuinely matters (§30, §37, §46), **`strict=True` is very often the
 better default**: a file that is subtly malformed should be **rejected
 loudly and immediately**, surfacing a clear, actionable failure — not
 silently, permissively "parsed" into data that might already be wrong
 in ways nobody notices until much later.
+
+`strict=True` covers only parser-level syntax problems; it does not
+replace the schema, conversion, and business-rule checks of §30–§33,
+which a "strict" file still needs.
 
 ### 24.2 `csv.Error`
 
@@ -1247,7 +1271,7 @@ available, the approximate row number) being processed, not just the
 bare exception message. **Reject the entire file** when the failure
 indicates the file's fundamental structure is untrustworthy (wrong
 delimiter entirely, corrupted encoding, §26). **Quarantine individual
-bad rows** (§32, §37, §51–§52) when the file is *mostly* valid and a
+bad rows** (§30, §37, §46) when the file is *mostly* valid and a
 small number of specific rows are the actual problem — a pipeline that
 aborts an entire 100,000-row file because of 3 malformed rows is often
 far less useful than one that cleanly separates the 99,997 good rows
@@ -1268,8 +1292,8 @@ Exactly
 §27.3 principle, applied here: silently discarding a malformed row (or
 worse, silently discarding *any* exception at all) means real data
 problems vanish invisibly — nobody is ever told a row was dropped, why,
-or how many times this has happened across a file. §32's validation
-functions and §51–§52's end-to-end pipelines both insist on **explicit,
+or how many times this has happened across a file. §30's validation
+functions and §46's end-to-end pipelines both insist on **explicit,
 counted, reported** rejection — never silent disappearance.
 
 ## 25. Field Size Limit
@@ -1284,6 +1308,14 @@ print(csv.field_size_limit())   # 131072  (128 * 1024, the commonly observed def
 
 `csv.field_size_limit()`, called with **no argument**, returns the
 current maximum allowed size, in characters, for a single CSV field.
+Called **with a new limit**, it sets that limit and returns the
+*previous* limit:
+
+```python
+current = csv.field_size_limit()            # getter: returns the current limit
+previous = csv.field_size_limit(1_000_000)  # setter: sets 1_000_000, returns the old limit
+assert previous == current
+```
 
 ### 25.2 Why this limit exists
 
@@ -1291,7 +1323,7 @@ Without *some* bound, a single genuinely enormous field (whether from
 legitimately unusual data, a corrupted file missing a closing quote, or
 a maliciously crafted input) could force the parser to buffer an
 unbounded amount of data into memory while still searching for that
-field's closing quote — a real resource-exhaustion risk (§28, §41). The
+field's closing quote — a real resource-exhaustion risk (§28, §37.4). The
 default limit exists specifically as a safety net against this.
 
 ### 25.3 Raising the limit, and what it means when you need to
@@ -1434,7 +1466,7 @@ guaranteed, formally correct detection — it can, and does, guess wrong.
 a trusted final answer**, in any pipeline where correctness genuinely
 matters. A defensible pattern: use `Sniffer` to produce a candidate
 dialect, then **validate** the result against known expectations (an
-expected set of column names, an expected number of columns, §32)
+expected set of column names, an expected number of columns, §31.3)
 before committing to it — never feed `Sniffer`'s raw guess directly
 into a production ingestion path with no verification step at all.
 
@@ -1511,8 +1543,8 @@ without loading everything into memory," by construction.
 ```
 input.csv
     ↓  READ (csv.reader / csv.DictReader)
-    ↓  VALIDATE (§21)
-    ↓  CONVERT (§24)
+    ↓  VALIDATE (§30)
+    ↓  CONVERT (§33)
     ↓  TRANSFORM (business logic)
     ↓  WRITE (csv.writer / csv.DictWriter)
 output.csv
@@ -1547,7 +1579,7 @@ def process_weather_data(input_path: str, output_path: str) -> None:
 
 Each stage is visible directly in the code: `DictReader` (read),
 `float(row["celsius"])` (convert — no validation yet, deliberately kept
-simple here; §32 adds it properly), `celsius_to_fahrenheit(...)`
+simple here; §30 adds it properly), `celsius_to_fahrenheit(...)`
 (transform — a small, pure, independently testable function), and
 `DictWriter`/`writerow()` (write).
 
@@ -1560,14 +1592,14 @@ simple here; §32 adds it properly), `celsius_to_fahrenheit(...)`
 - **Row length** — does every row (for `csv.reader`-based code) have
   the expected number of fields?
 - **Missing values** — is a field present but empty, or absent
-  entirely (§23)?
+  entirely (§32)?
 - **Invalid types** — does a field that should be numeric actually
-  parse as a number (§24)?
+  parse as a number (§33)?
 - **Unexpected values** — does a field fall within an expected set or
   range (a `status` column only ever `"active"`/`"inactive"`, for
   example)?
 - **Duplicate identifiers** — does a column meant to be unique (a
-  customer ID, for example) actually contain only unique values (§25)?
+  customer ID, for example) actually contain only unique values (§34.2)?
 - **Malformed rows** — rows `DictReader` collected extras/missing
   values for (§17.3), which may themselves indicate a deeper structural
   problem.
@@ -1653,7 +1685,7 @@ actually meant to be the `created_at` column, with no error raised
 anywhere, simply because the *position* changed while the *header
 name* your code happens to look up did not exist at all. An explicit,
 upfront check — "does this file's header contain exactly the columns I
-expect?" (§32.2 shows this concretely) — turns that class of silent,
+expect?" (§46.1 shows this concretely) — turns that class of silent,
 hard-to-diagnose failure into an immediate, clear one.
 
 ## 32. Missing Values
@@ -1782,7 +1814,7 @@ per key). Given the header above, `row["name"]` ends up holding
 no warning. **This is exactly the kind of silent data loss §24.4
 warned about, now specific to duplicate headers** — validating the
 header explicitly (checking for duplicate names before trusting
-`DictReader`'s output, §32.2) is the correct defense.
+`DictReader`'s output, §31.3) is the correct defense.
 
 ### 34.2 Duplicate identifiers (IDs)
 
@@ -1974,6 +2006,22 @@ instructions for exploiting the vulnerability**, which this chapter
 deliberately does not provide beyond what is necessary to recognize and
 defend against the issue.
 
+**Limits of this mitigation:** `sanitize_for_spreadsheet()` is an
+*illustrative baseline*, not a universal defense. Spreadsheet
+applications and export workflows may interpret values differently, and
+this function checks only the first character against a short list.
+Values that begin with leading whitespace or a control character (such
+as a tab or carriage return) before a trigger character are not caught,
+and some tools may still treat them as formulas. Test any mitigation
+against the actual spreadsheet applications and downstream workflow you
+need to support.
+
+```python
+assert sanitize_for_spreadsheet("=1+1") == "'=1+1"
+assert sanitize_for_spreadsheet(" =1+1") == " =1+1"    # leading space: NOT handled
+assert sanitize_for_spreadsheet("\t=1+1") == "\t=1+1"    # leading tab: NOT handled
+```
+
 ### 37.4 Other CSV-related security considerations
 
 **Untrusted files as input** — a CSV file from an untrusted source
@@ -2066,7 +2114,7 @@ wrong. **Validation** — §30–§32's checks, applied systematically.
 **Transformation** — §29's pipeline shape, converting validated raw
 data into the shape downstream systems actually need. **Data quality**
 — tracking *how much* data failed validation, and why, not just
-discarding it (§40, §51–§52). **Quarantine** — rows or files that fail
+discarding it (§39.2, §46). **Quarantine** — rows or files that fail
 validation are set aside, explicitly, rather than silently dropped or
 allowed to corrupt the clean dataset. **Observability** — every stage
 reports enough information (counts, specific failures) for a human to
@@ -2122,7 +2170,7 @@ larger) binary data lives separately, referenced by path.
 
 ```python
 from pathlib import Path
-from typing import Iterator
+from typing import Iterable, Iterator
 
 
 def read_csv_rows(path: Path) -> Iterator[list[str]]:
@@ -2131,19 +2179,19 @@ def read_csv_rows(path: Path) -> Iterator[list[str]]:
         yield from reader
 
 
-def read_csv_dicts(path: Path) -> Iterator[dict[str, str]]:
+def read_csv_dicts(path: Path) -> Iterator[dict[str, str | None]]:   # simplified; see note below
     with path.open("r", newline="", encoding="utf-8") as f:
         reader = csv.DictReader(f)
         yield from reader
 
 
-def write_csv_rows(path: Path, rows: Iterator[list[str]]) -> None:
+def write_csv_rows(path: Path, rows: Iterable[list[str]]) -> None:
     with path.open("w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
         writer.writerows(rows)
 
 
-def write_csv_dicts(path: Path, fieldnames: list[str], rows: Iterator[dict[str, str]]) -> None:
+def write_csv_dicts(path: Path, fieldnames: list[str], rows: Iterable[dict[str, str]]) -> None:
     with path.open("w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()
@@ -2160,7 +2208,12 @@ mirroring
 [02-pathlib-and-portable-paths.md](02-pathlib-and-portable-paths.md)),
 and `Iterator[...]` (rather than `list[...]`) for the *reading*
 functions specifically, to communicate and preserve their laziness
-(§28). **Lazy iteration** — `yield from reader` makes `read_csv_rows`
+(§28); the *writing* functions accept the broader `Iterable[...]`, so a
+list, a generator, or any other iterable of rows works. `read_csv_dicts`
+is annotated `dict[str, str | None]` as a simplification: missing fields
+become `None` (the default `restval`), and extra fields are collected
+under the `None` key as a `list[str]` (§17.3), which this simple
+annotation does not capture. **Lazy iteration** — `yield from reader` makes `read_csv_rows`
 and `read_csv_dicts` themselves **generators**
 ([Iterables, Iterators, and Generators](../09-Advanced-Production-Oriented-Python-Foundations/01-iterables-iterators-and-generators.md)'s
 own dedicated subject, previewed here in practical use) — calling one
@@ -2190,6 +2243,12 @@ Exactly
 §33: CSV-processing tests should never touch real project files —
 `pytest`'s `tmp_path` fixture provides a fresh, isolated directory per
 test.
+
+**Shared setup for the examples in this section:** assume
+`import csv` and `import pytest` at the top of the test module, and that
+`find_duplicate_ids` is the helper defined in §34.2. `tmp_path` is a
+built-in `pytest` fixture and needs no import. §42.2 shows `import csv`
+explicitly; the later examples rely on this shared setup.
 
 ### 42.2 Testing a basic read and write
 
@@ -2577,6 +2636,7 @@ concrete to report.
 
 ```python
 import csv
+import math
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterator
@@ -2611,6 +2671,10 @@ def _validate_and_convert(row: dict[str, str]) -> tuple[dict[str, object] | None
     if not transaction_id:
         errors.append("missing transaction_id")
 
+    customer_id = (row["customer_id"] or "").strip()
+    if not customer_id:
+        errors.append("missing customer_id")
+
     amount_text = (row["amount"] or "").strip()
     amount = None
     if not amount_text:
@@ -2618,7 +2682,9 @@ def _validate_and_convert(row: dict[str, str]) -> tuple[dict[str, object] | None
     else:
         try:
             amount = float(amount_text)
-            if amount <= 0:
+            if not math.isfinite(amount):      # rejects nan, inf, -inf
+                errors.append("amount must be finite")
+            elif amount <= 0:
                 errors.append("amount must be positive")
         except ValueError:
             errors.append("invalid amount")
@@ -2634,7 +2700,7 @@ def _validate_and_convert(row: dict[str, str]) -> tuple[dict[str, object] | None
 
     return {
         "transaction_id": transaction_id,
-        "customer_id": (row["customer_id"] or "").strip(),
+        "customer_id": customer_id,
         "amount": amount,
         "currency": currency,
     }, []
@@ -2677,7 +2743,7 @@ def ingest_transactions(input_path: Path, clean_path: Path, reject_path: Path) -
 **Architecture:** `_read_rows` (streaming input plus header validation,
 §28/§31.3), `_validate_and_convert` (pure — no I/O at all, easily
 tested in complete isolation, §42), and `ingest_transactions` (the thin
-orchestration layer, §32's separation-of-concerns principle applied at
+orchestration layer, §41.2's separation-of-concerns principle applied at
 pipeline scale). **Error handling:** a structurally invalid *file*
 (missing columns, empty file) fails fast, immediately, via a raised
 `ValueError`; a structurally invalid *row* is quarantined individually,
@@ -2693,7 +2759,14 @@ console, to a logging system once
 [08-logging-versus-print.md](08-logging-versus-print.md) is covered, or
 to a monitoring dashboard) — exactly the same "don't decide the
 recovery/reporting strategy inside a low-level function" principle
-already established in §41.2. **Test strategy:** `_validate_and_convert`
+already established in §41.2. **Monetary precision:** this example
+uses `float` for simplicity, but binary floating point can represent
+many decimal amounts only approximately, so it can be inappropriate for
+exact currency arithmetic; Python's `decimal.Decimal` is often the more
+suitable choice for money. **Non-finite amounts:** `float("nan")` and
+`float("inf")` parse successfully, and `nan <= 0` is `False`, so the
+explicit `math.isfinite()` check is what keeps them out of the clean
+output. **Test strategy:** `_validate_and_convert`
 is tested directly, with plain dictionaries, no file I/O at all;
 `ingest_transactions` is tested end-to-end with `tmp_path`, checking
 both output files' final contents and the returned `IngestResult`'s
@@ -2701,6 +2774,27 @@ counts (§42's patterns, applied together). This example deliberately
 uses **only the standard library** — no third-party dataframe tools —
 because the purpose here is mastering exactly what `csv`, `pathlib`,
 and plain Python already provide.
+
+A few focused checks of the validation rules above:
+
+```python
+for bad in ("nan", "inf", "-inf", "0", "-5", "abc"):
+    converted, errors = _validate_and_convert(
+        {"transaction_id": "t1", "customer_id": "c1", "amount": bad, "currency": "USD"}
+    )
+    assert converted is None and errors, bad
+
+for bad_id in ("", "   ", None):
+    converted, errors = _validate_and_convert(
+        {"transaction_id": "t1", "customer_id": bad_id, "amount": "9.5", "currency": "USD"}
+    )
+    assert converted is None and "missing customer_id" in errors
+
+converted, errors = _validate_and_convert(
+    {"transaction_id": "t1", "customer_id": "c1", "amount": "9.5", "currency": "usd"}
+)
+assert errors == [] and converted["amount"] == 9.5
+```
 
 ## 47. Advanced API Reference
 
@@ -2719,7 +2813,7 @@ Python's `csv` module.
 | `csv.unregister_dialect` | Remove a registered dialect | `csv.unregister_dialect(name)` | — | `None` | Raises `csv.Error` if the name was never registered |
 | `csv.get_dialect` | Retrieve a registered dialect object | `csv.get_dialect(name)` | — | A `Dialect`-derived object | Raises `csv.Error` for an unregistered name |
 | `csv.list_dialects` | List every registered dialect name | `csv.list_dialects()` | — | `list[str]` | Includes the three built-ins (§20.2) |
-| `csv.field_size_limit` | Get/set the maximum single-field size | `csv.field_size_limit([new_limit])` | `new_limit` (optional) | The *previous* limit, as `int` | Raise deliberately, only after confirming legitimacy (§25.3) |
+| `csv.field_size_limit` | Get/set the maximum single-field size | `csv.field_size_limit([new_limit])` | `new_limit` (optional) | With no argument: the *current* limit; with `new_limit`: sets it and returns the *previous* limit (`int` either way) | Raise deliberately, only after confirming legitimacy (§25.3) |
 
 ### 47.2 Classes
 
@@ -2876,7 +2970,7 @@ report (as either a printed report or a small CSV/text output of its
 own).
 
 **Expected behavior:** two runs against the same, unchanged input file
-produce identical reports (§48/§12.4-style determinism, i.e. no
+produce identical reports (determinism, i.e. no
 dependence on dictionary/set iteration order where it would matter for
 output).
 

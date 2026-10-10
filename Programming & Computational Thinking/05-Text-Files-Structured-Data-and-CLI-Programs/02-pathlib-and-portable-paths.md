@@ -76,6 +76,14 @@ terminology: "filesystem," "directory," "root," "absolute path," and
 every other term used here is defined from first principles before it
 is used.
 
+**Python version:** this chapter assumes **Python 3.10 or newer** (it uses
+`X | None` type syntax and the `.parents` slicing and `write_text(newline=...)`
+notes below as baseline features). APIs that need a newer interpreter are
+marked with explicit version notes where they appear — for example
+`walk_up=True` and `.with_segments()` (3.12) and `recurse_symlinks` and
+`.full_match()` (3.13) — so do not assume every API shown is available on
+every Python version.
+
 ## 4. Filesystem and Path Fundamentals
 
 ### 4.1 What is a filesystem?
@@ -200,7 +208,9 @@ String concatenation has no idea what a "correct path" looks like — it
 is just gluing text together, and it is entirely your responsibility to
 get every separator exactly right, every time. Two other real problems
 compound this: **platform-specific separators** (`/` on Linux/macOS,
-`\` on Windows — a hardcoded `/` breaks on Windows, and vice versa),
+`\` on Windows — Windows accepts `/` in most contexts, but hand-assembled
+strings still mix separators inconsistently and break where a native
+separator is required, §24.2),
 and the fact that a plain string offers **no path-aware operations at
 all** — asking "what's the file extension?" or "what's the parent
 directory?" means writing your own string-slicing logic, by hand, for
@@ -930,14 +940,21 @@ empty file.** If your intent is genuinely "create this file only if it
 does not already exist, and fail loudly otherwise," `touch(exist_ok=False)`
 is the correct call — mirroring exactly the "x" mode guarantee from
 [01-reading-and-writing-text-files.md](01-reading-and-writing-text-files.md)'s
-§9.6.
+§9.6. `touch(exist_ok=False)` requests **exclusive creation** of the
+final path component in a single operation: it raises `FileExistsError`
+if the target already exists. That is different from the racy
+check-then-create sequence (`if not path.exists(): path.touch()`, §29.1),
+where the file can appear in the gap between the two calls.
 
 ### 14.3 `mode` and race conditions
 
 `.touch()` also accepts a `mode` parameter (§13.3's same POSIX
 permission-bits concept). Like `.mkdir()`, `.touch(exist_ok=False)`
-still cannot provide an absolute guarantee against every possible
-concurrent-access timing scenario — §27 covers this properly.
+does not make the surrounding situation safe: exclusive creation covers
+only the final path component, not the parent directories, later
+operations on the file, or every filesystem and platform (semantics can
+vary, for example on some network filesystems) — §29 covers the wider
+race-condition picture.
 
 ## 15. File Reading/Writing Integration
 
@@ -1080,10 +1097,16 @@ Both `.rename()` and `.replace()` are typically **atomic** (the
 operation either fully completes or does not happen at all — never
 leaving a half-renamed state) **when the source and destination are on
 the same filesystem/volume**. Renaming across genuinely different
-filesystems (for example, between two separate mounted drives) may not
-be atomic, and on some platforms/filesystem combinations may fail
-outright or fall back to a non-atomic copy-then-delete. §28 builds
-directly on this fact for a genuinely production-safe write pattern.
+filesystems (for example, between two separate mounted drives) is not
+something the underlying rename operation can do atomically: `.rename()`
+and `.replace()` simply call that operation, and on some
+platform/filesystem combinations it fails outright (typically with an
+`OSError`). They do **not** fall back to copying and deleting. That
+fallback belongs to `shutil.move()` (§19), a separate, higher-level
+operation that tries a rename first and, when that is not possible,
+copies and then deletes — which is not atomic and can leave partial
+results if interrupted. §30 builds directly on the same-filesystem
+guarantee for a genuinely production-safe write pattern.
 
 ### 17.4 `.unlink()` and `.rmdir()`
 
@@ -1214,6 +1237,8 @@ from shutil import copy2, copytree, move
 source = Path("data/customers.csv")
 destination = Path("backup/customers.csv")
 
+# (assumes the backup/ directory already exists for copy2 and move, and that
+#  backup/data does not exist yet for copytree)
 copy2(source, destination)          # copies content AND metadata (timestamps, permissions)
 copytree(Path("data"), Path("backup/data"))    # copies an entire directory tree
 move(source, destination)             # moves a file or directory (across filesystems if needed)
@@ -1468,10 +1493,12 @@ username (`John`) and drive layout that will not generally match.
 
 ### 24.3 Why `Path("data") / "file.txt"` is the right default
 
-Constructed this way, `pathlib` automatically renders the correct
-separator for whichever platform your code actually runs on — you
-never hardcode `/` or `\` yourself, and the resulting `Path` object
-behaves correctly regardless of platform.
+Constructed this way, `pathlib` builds the path from structured parts
+and renders it with the separator appropriate to the platform your code
+runs on — you never assemble separators by hand, and the resulting
+`Path` object behaves consistently regardless of platform. (This is
+preferable because composition is structured and platform-aware, not
+because every forward slash is invalid on Windows.)
 
 ### 24.4 What `pathlib` cannot magically solve
 
@@ -1531,11 +1558,13 @@ is `/home/<username>`.
 
 You are running Ubuntu through **WSL2** (Windows Subsystem for Linux,
 version 2) — a genuine Linux environment, running inside a lightweight
-virtual machine, on top of Windows. Because of this, **your Python
-program, running inside WSL2, sees a completely ordinary Linux
-filesystem** — Linux-style paths (`/home/...`), Linux permission
-semantics, Linux case-sensitivity — with no `pathlib`-visible
-difference from running on a "real," standalone Linux machine.
+virtual machine, on top of Windows. Because of this, for files stored in WSL2's **native Linux
+filesystem** (for example under `/home/...`), **your Python program
+sees an ordinary Linux filesystem** — Linux-style paths, Linux
+permission semantics, Linux case-sensitivity — with no
+`pathlib`-visible difference from running on a "real," standalone Linux
+machine. That statement does not extend to Windows-mounted locations
+such as `/mnt/c/...` (§25.5), which can behave differently.
 
 ### 25.5 `/mnt/c/...` — where your Windows files actually are
 
@@ -1547,6 +1576,9 @@ WSL2** — `C:\Users\You\data\file.txt` (Windows-visible) corresponds to
 `/mnt/c/Users/You/data/file.txt` (WSL2-visible) — an entirely different
 string, requiring an entirely different `Path` construction, even
 though both describe, physically, the same underlying file.
+Because these files live on the Windows filesystem, permission,
+case-sensitivity, and performance behavior may differ from native Linux
+paths (§25.4, §25.6).
 
 ### 25.6 Performance considerations across the WSL2/Windows boundary
 
@@ -1729,7 +1761,14 @@ security-critical systems (accepting paths from untrusted, potentially
 adversarial users) often need additional hardening beyond this
 chapter's introductory scope — the principle taught here (resolve,
 then verify containment, never trust the raw string) is the correct
-foundation to build on.
+foundation to build on. Note what the pattern does *not* give you:
+resolving and then checking `.is_relative_to()` validates the filesystem
+as it looks **at that moment**. It is not, by itself, a complete defense
+against an adversary who changes the filesystem (for example, swaps a
+directory for a symlink) between the check and the later use — exactly
+the TOCTOU gap described in §29. Security-critical systems need
+stronger measures, such as handle-based or directory-relative
+operations.
 
 ### 28.5 Where this matters
 
@@ -1797,14 +1836,25 @@ import tempfile
 
 
 def write_safely(target: Path, content: str) -> None:
-    # unique temporary file in the SAME directory (hence the same filesystem)
-    with tempfile.NamedTemporaryFile(
-        "w", encoding="utf-8", dir=target.parent,
-        prefix=target.name + ".", suffix=".tmp", delete=False,
-    ) as handle:
-        handle.write(content)
-        temporary_file = Path(handle.name)
-    temporary_file.replace(target)
+    temporary_file: Path | None = None
+    try:
+        # unique temporary file in the SAME directory (hence the same filesystem)
+        with tempfile.NamedTemporaryFile(
+            "w", encoding="utf-8", dir=target.parent,
+            prefix=target.name + ".", suffix=".tmp", delete=False,
+        ) as handle:
+            temporary_file = Path(handle.name)
+            handle.write(content)
+        temporary_file.replace(target)
+    except BaseException:
+        # Clean up the temporary file, but never let a cleanup error hide
+        # the original failure; then re-raise the original exception.
+        if temporary_file is not None:
+            try:
+                temporary_file.unlink(missing_ok=True)
+            except OSError:
+                pass
+        raise
 ```
 
 A unique temporary name (rather than a fixed `target.tmp`) keeps
@@ -1814,14 +1864,19 @@ it in `target.parent` keeps `.replace()` on one filesystem.
 The idea: write the *entire* new content to a separate, temporary
 location first; only once that write has fully succeeded, use
 `.replace()` (§17.2) to swap it into the real target location in one
-step.
+step. If writing or replacing fails, the `except` block attempts to
+delete the temporary file and re-raises the original exception; a
+failure of that cleanup itself is ignored rather than allowed to mask it.
 
 ### 30.2 Why this can be safer than overwriting directly
 
 If writing the temporary file fails partway through (a crash, a
 full disk, an interrupted process), the **original target file is
 completely untouched** — only the incomplete temporary file is
-affected, and it can simply be discarded. Compare this against writing
+affected, and the implementation attempts to discard it. The same holds
+if the final `.replace()` raises: the target is either still the old
+file or (on success) the complete new one, and the temporary file is
+cleaned up on a best-effort basis. Compare this against writing
 directly to `target` with `"w"` mode
 ([01-reading-and-writing-text-files.md](01-reading-and-writing-text-files.md)'s
 §9.4/§29.2): a failure partway through leaves the *real* file
@@ -1836,11 +1891,17 @@ against every possible hardware failure." As
 [01-reading-and-writing-text-files.md](01-reading-and-writing-text-files.md)'s
 §33.3 already noted for `flush()`, true durability guarantees against
 power loss involve lower-level operations (`os.fsync()`) outside this
-chapter's scope. What this pattern *does* reliably guarantee: **your
-target file is never left in a half-written, corrupted intermediate
-state as a direct result of your own write logic failing partway
-through** — a meaningfully strong, genuinely useful guarantee on its
-own, even without claiming more than that.
+chapter's scope. What this pattern *does* guarantee, on a filesystem where
+`.replace()` is atomic: **your write logic failing before the replace
+step does not leave the target half-written** — the target keeps its
+old content, and a successful replace makes the complete new content
+visible at once (atomic *visibility*, which is distinct from
+*durability*). It does not guarantee that the new data survives power
+loss (no `fsync` is performed), that replacement behaves identically on
+every filesystem or platform, or that cleanup of the temporary file
+always succeeds (a crash can still leave a stray `.tmp` file). A
+meaningfully strong, genuinely useful guarantee on its own, even without
+claiming more than that.
 
 ## 31. Performance
 
@@ -1932,7 +1993,6 @@ be tested or reused independently of the rest.
 
 ```python
 from pathlib import Path
-from typing import Iterable
 
 
 # -- Path/configuration layer --------------------------------------

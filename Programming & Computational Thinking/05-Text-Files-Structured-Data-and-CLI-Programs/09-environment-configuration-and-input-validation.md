@@ -527,6 +527,12 @@ def resolve_port(cli_value: int | None) -> int:
     return 8000                                              # otherwise, the built-in default
 ```
 
+(This example, like the capstone in §29, implements only three of the
+four layers — CLI, environment, and built-in default. The
+configuration-file layer is a design concept in this lesson: the
+documented order is CLI > environment > configuration file > defaults,
+but no example here reads a configuration file.)
+
 This is exactly the precedence
 [06-command-line-arguments-with-argparse.md](06-command-line-arguments-with-argparse.md)'s
 §59 introduced conceptually, worked out here as actual, runnable
@@ -1072,9 +1078,12 @@ from pathlib import Path
 def validate_csv_row(row: dict, line_number: int) -> dict:
     if not row.get("id"):
         raise ValueError(f"line {line_number}: missing 'id'")
+    raw_value = row.get("value")
+    if raw_value is None:   # DictReader fills a short row's missing fields with None
+        raise ValueError(f"line {line_number}: invalid or missing 'value'")
     try:
-        row["value"] = float(row["value"])
-    except (KeyError, ValueError):
+        row["value"] = float(raw_value)
+    except ValueError:
         raise ValueError(f"line {line_number}: invalid or missing 'value'") from None
     return row
 
@@ -1085,6 +1094,11 @@ def read_valid_rows(path: Path):
         for line_number, row in enumerate(reader, start=2):  # header occupies line 1
             yield validate_csv_row(row, line_number)
 ```
+
+A row shorter than the header (here, just `1` under an `id,value`
+header) gives `None` for `value`: the explicit `None` check turns that
+into the same `ValueError` the caller collects, instead of letting
+`float(None)` raise an uncaught `TypeError`.
 
 This chapter deliberately does not introduce a heavy schema-validation
 framework — the standard-library patterns above (a small dictionary of
@@ -1281,8 +1295,10 @@ def parse_bool(value: str) -> bool:
 
 
 def validate_input_file(path: Path) -> Path:
-    if not path.is_file():
+    if not path.exists():
         raise ValueError(f"input file does not exist: {path}")
+    if not path.is_file():
+        raise ValueError(f"input path is not a file: {path}")
     return path
 ```
 
@@ -1373,6 +1389,9 @@ environment / CLI / config file
      application
 
 ```
+
+(The `config-file reader` stage is conceptual here: the runnable
+examples in this lesson parse only `os.getenv`/`argparse` inputs.)
 
 ```python
 import argparse
@@ -1811,8 +1830,10 @@ args = parser.parse_args()
 from pathlib import Path
 
 def validate_input_file(path: Path) -> Path:
-    if not path.is_file():
+    if not path.exists():
         raise ValueError(f"input file does not exist: {path}")
+    if not path.is_file():
+        raise ValueError(f"input path is not a file: {path}")
     return path
 ```
 
@@ -1876,6 +1897,14 @@ record by record, collects (rather than fails fast on) per-record
 validation errors, logs safely (no secrets, appropriate levels), and
 exits with a meaningful, documented status code.
 
+**Exit-status contract:** `0` = success; `3` = input/data problem (the
+input file is missing, is not a regular file, cannot be opened or read,
+or has invalid records); `4` = configuration problem (an invalid
+`APP_ENV`, `LOG_LEVEL`, or `PORT` value). An invalid `--port` on the
+command line is a usage error reported by `argparse` itself (status
+`2`, with a usage message). If both a configuration value and the input
+file are invalid, the configuration error is reported first.
+
 **Architecture:**
 ```
 Raw Inputs (CLI argv, os.environ, the CSV file itself)
@@ -1898,11 +1927,17 @@ environment, with sensible defaults (`"development"`, `"INFO"`);
 `--port` (used here only to demonstrate precedence, not because this
 CLI opens a network port) can be set via `PORT` in the environment or
 overridden by `--port` on the command line, CLI taking precedence, per
-§7's convention.
+§7's convention. This capstone implements three sources (CLI,
+environment, built-in defaults); the configuration-file layer from §7's
+four-source order is **not** implemented here. An explicitly provided
+but invalid value (for example `--port 70000`, or an out-of-range
+`PORT`) is rejected, not silently replaced by a lower-priority source.
 
 **Validation scope and CSV contract:** `validate_row()` is
 deliberately small — it checks only that `id` is present and non-empty
-and that `value` converts to `float`; it is not a comprehensive CSV
+and that `value` is present and converts to `float` (a short row such
+as `1` under an `id,value` header is reported as invalid, not allowed to
+crash the run); it is not a comprehensive CSV
 schema validator. The CSV is expected to have a header row containing
 `id` and `value`. An empty file, or a file with a header and zero data
 rows, is accepted as zero records (summary `valid=0, invalid=0`, exit
@@ -1965,20 +2000,29 @@ def validate_environment(value: str) -> str:
     return normalized
 
 
+class InputFileError(ValueError):
+    """A problem with the input file itself (exit status 3), not with configuration (4)."""
+
+
 def validate_input_file(path: Path) -> Path:
+    if not path.exists():
+        raise InputFileError(f"input file does not exist: {path}")
     if not path.is_file():
-        raise ValueError(f"input file does not exist: {path}")
+        raise InputFileError(f"input path is not a file: {path}")
     if path.suffix.lower() != ".csv":
-        raise ValueError(f"expected a .csv file, got {path.suffix or '(no extension)'}")
+        raise InputFileError(f"expected a .csv file, got {path.suffix or '(no extension)'}")
     return path
 
 
 def validate_row(row: dict, line_number: int) -> dict:
     if not row.get("id"):
         raise ValueError(f"line {line_number}: missing 'id'")
+    raw_value = row.get("value")
+    if raw_value is None:   # DictReader fills a short row's missing fields with None
+        raise ValueError(f"line {line_number}: invalid or missing 'value'")
     try:
-        row["value"] = float(row["value"])
-    except (KeyError, ValueError):
+        row["value"] = float(raw_value)
+    except ValueError:
         raise ValueError(f"line {line_number}: invalid or missing 'value'") from None
     return row
 
@@ -1993,10 +2037,18 @@ class AppConfig:
     input_file: Path
 
 
+def port_arg(value: str) -> int:
+    # Reuse parse_port() so the CLI path gets the same 1-65535 check as PORT.
+    try:
+        return parse_port(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(str(exc)) from None
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Validate and summarize a CSV file.")
     parser.add_argument("input_file", type=Path, help="Path to the input CSV file")
-    parser.add_argument("--port", type=int, default=None, help="Overrides the PORT environment variable")
+    parser.add_argument("--port", type=port_arg, default=None, help="Overrides the PORT environment variable (1-65535)")
     return parser
 
 
@@ -2048,6 +2100,9 @@ def process_file(path: Path) -> dict:
 def main(argv: Sequence[str] | None = None) -> int:
     try:
         config = build_config(argv)
+    except InputFileError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 3   # input/data problem (checked before the generic ValueError below)
     except ValueError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 4   # configuration problem, per this module's exit-code convention
@@ -2055,7 +2110,14 @@ def main(argv: Sequence[str] | None = None) -> int:
     configure_logging(config.log_level)
     logger.info("Starting: environment=%s port=%d", config.environment, config.port)
 
-    summary = process_file(config.input_file)
+    try:
+        summary = process_file(config.input_file)
+    except (OSError, UnicodeDecodeError) as exc:
+        # Expected file-access failures (permissions, file removed after
+        # validation, undecodable bytes): a diagnostic and status 3, not a
+        # traceback. Other exceptions are programming errors and propagate.
+        logger.error("Could not read %s: %s", config.input_file, exc)
+        return 3
     print(json.dumps(summary))   # the actual result — stdout, clean, machine-readable
 
     return 0 if summary["invalid"] == 0 else 3   # input/data problem
@@ -2069,7 +2131,9 @@ if __name__ == "__main__":
 ```python
 import json
 
-from process_data import main, parse_port, parse_bool, validate_environment
+import pytest
+
+from process_data import build_config, main, parse_port, parse_bool, validate_environment
 
 
 def test_parse_port_valid():
@@ -2088,7 +2152,43 @@ def test_validate_environment_normalizes_case():
 def test_main_missing_input_file(monkeypatch, tmp_path):
     missing = tmp_path / "nope.csv"
     status = main([str(missing)])
-    assert status == 4
+    assert status == 3   # input/data problem, not a configuration problem
+
+
+def test_main_input_path_is_a_directory(tmp_path):
+    directory = tmp_path / "dir.csv"
+    directory.mkdir()
+    assert main([str(directory)]) == 3
+
+
+def test_main_unreadable_input_file(monkeypatch, tmp_path):
+    csv_file = tmp_path / "data.csv"
+    csv_file.write_text("id,value\n1,2\n", encoding="utf-8")
+
+    def deny(path):
+        raise PermissionError("denied")
+
+    monkeypatch.setattr("process_data.process_file", deny)
+    assert main([str(csv_file)]) == 3
+
+
+def test_main_invalid_configuration_exits_4(monkeypatch, tmp_path):
+    csv_file = tmp_path / "data.csv"
+    csv_file.write_text("id,value\n1,2\n", encoding="utf-8")
+    monkeypatch.setenv("APP_ENV", "nonsense")
+    assert main([str(csv_file)]) == 4
+
+
+def test_main_short_row_is_collected_and_processing_continues(tmp_path, capsys):
+    csv_file = tmp_path / "data.csv"
+    csv_file.write_text("id,value\n1\n2,3.5\n", encoding="utf-8")
+
+    status = main([str(csv_file)])
+    summary = json.loads(capsys.readouterr().out.strip())
+
+    assert status == 3
+    assert summary["valid"] == 1
+    assert summary["invalid"] == 1
 
 
 def test_main_all_valid_records(tmp_path, capsys):
@@ -2119,9 +2219,24 @@ def test_cli_port_overrides_environment(monkeypatch, tmp_path):
     csv_file = tmp_path / "data.csv"
     csv_file.write_text("id,value\n1,2\n", encoding="utf-8")
 
-    from process_data import build_config
     config = build_config([str(csv_file), "--port", "1234"])
     assert config.port == 1234
+
+
+@pytest.mark.parametrize("port", ["1", "65535"])
+def test_cli_port_boundaries_accepted(tmp_path, port):
+    csv_file = tmp_path / "data.csv"
+    csv_file.write_text("id,value\n1,2\n", encoding="utf-8")
+    assert build_config([str(csv_file), "--port", port]).port == int(port)
+
+
+@pytest.mark.parametrize("port", ["0", "-5", "65536", "abc"])
+def test_cli_port_out_of_range_rejected(tmp_path, port):
+    csv_file = tmp_path / "data.csv"
+    csv_file.write_text("id,value\n1,2\n", encoding="utf-8")
+    with pytest.raises(SystemExit) as exc_info:   # argparse usage error
+        build_config([str(csv_file), "--port", port])
+    assert exc_info.value.code == 2
 ```
 
 **Debugging scenarios:** if `PORT` set in the environment appears to
