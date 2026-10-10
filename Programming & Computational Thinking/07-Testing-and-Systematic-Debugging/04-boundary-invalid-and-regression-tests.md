@@ -609,6 +609,8 @@ withdraw(balance=500, amount=-1)
 parse_age(25.5)
 ```
 
+(With the `parse_age()` shown above, which calls `value.isdigit()` without first checking the type, a float would fail with an accidental `AttributeError`, not a deliberately designed validation error. A contract-specific rejection of wrong types needs explicit type validation, as in Section 18's `validate_age()`.)
+
 ### Missing values
 
 ```python
@@ -3778,7 +3780,7 @@ We will design a bank transaction validator.
 5. Balance must be sufficient.
 6. Invalid account must be rejected.
 7. Failed transactions must not mutate the balance.
-8. A transaction ID must be unique.
+8. A transaction ID must not already have been used: uniqueness is checked against a set of previously processed IDs (`processed_ids`) that the **caller** owns and updates after a successful transaction. This in-memory check does not provide persistence, concurrency safety, or distributed idempotency.
 
 ## Source code
 
@@ -3802,11 +3804,13 @@ class Transaction:
 def validate_transaction(
     account: Account | None,
     transaction: Transaction,
+    processed_ids: set[str] | None = None,
 ) -> None:
     if account is None:
         raise ValueError("invalid account")
 
-    if not isinstance(transaction.amount, int):
+    # bool is a subclass of int, so reject True/False explicitly (Section 18)
+    if not isinstance(transaction.amount, int) or isinstance(transaction.amount, bool):
         raise TypeError("amount must be an integer")
 
     if transaction.amount <= 0:
@@ -3820,7 +3824,12 @@ def validate_transaction(
 
     if transaction.amount > account.balance:
         raise ValueError("insufficient balance")
+
+    if processed_ids is not None and transaction.transaction_id in processed_ids:
+        raise ValueError("duplicate transaction")
 ```
+
+The caller maintains `processed_ids`; `validate_transaction()` only reads it. Failed validation never changes the account or the set.
 
 ## Test-design table
 
@@ -3837,6 +3846,9 @@ def validate_transaction(
 | `None` account | account=None | reject |
 | inactive | active=False | reject |
 | insufficient balance | amount > balance | reject |
+| boolean amount | `True` / `False` | type error |
+| duplicate ID | ID already in `processed_ids` | reject |
+| unique ID | ID not in `processed_ids` | valid |
 
 ## Happy path
 
@@ -3928,6 +3940,33 @@ def test_transaction_rejects_non_integer_amount():
 
     with pytest.raises(TypeError, match="amount must be an integer"):
         validate_transaction(account, transaction)
+
+
+@pytest.mark.parametrize("amount", [True, False], ids=["true", "false"])
+def test_transaction_rejects_boolean_amount(amount):
+    account = Account("A", balance=10_000)
+    transaction = Transaction("tx-1", amount=amount)
+
+    with pytest.raises(TypeError, match="amount must be an integer"):
+        validate_transaction(account, transaction)
+```
+
+## Transaction ID uniqueness
+
+```python
+def test_unique_transaction_id_is_accepted():
+    account = Account("A", balance=10_000)
+    transaction = Transaction("tx-2", amount=500)
+
+    validate_transaction(account, transaction, processed_ids={"tx-1"})
+
+
+def test_duplicate_transaction_id_is_rejected():
+    account = Account("A", balance=10_000)
+    transaction = Transaction("tx-1", amount=500)
+
+    with pytest.raises(ValueError, match="duplicate transaction"):
+        validate_transaction(account, transaction, processed_ids={"tx-1"})
 ```
 
 ## Inactive account
@@ -4056,7 +4095,8 @@ class TransactionService:
         if not receiver.active:
             raise ValueError("receiver account is inactive")
 
-        if not isinstance(amount, int):
+        # bool is a subclass of int, so reject True/False explicitly (Section 18)
+        if not isinstance(amount, int) or isinstance(amount, bool):
             raise TypeError("amount must be an integer")
 
         if amount <= 0:
@@ -4202,6 +4242,80 @@ def test_invalid_amounts_are_rejected(accounts, amount):
 
     assert sender.balance == original_sender
     assert receiver.balance == original_receiver
+```
+
+## Further invalid cases and state preservation
+
+Each rejected transfer must leave both balances unchanged:
+
+```python
+def test_duplicate_transaction_id_is_rejected(accounts):
+    sender, receiver = accounts
+    service = TransactionService()
+    service.transfer(sender, receiver, "tx-1", 100)
+    sender_after_first = sender.balance
+    receiver_after_first = receiver.balance
+
+    with pytest.raises(ValueError, match="duplicate transaction"):
+        service.transfer(sender, receiver, "tx-1", 100)
+
+    assert sender.balance == sender_after_first
+    assert receiver.balance == receiver_after_first
+
+
+def test_inactive_sender_is_rejected(accounts):
+    sender, receiver = accounts
+    sender.active = False
+    service = TransactionService()
+
+    with pytest.raises(ValueError, match="sender account is inactive"):
+        service.transfer(sender, receiver, "tx-1", 100)
+
+    assert sender.balance == 1_000
+    assert receiver.balance == 500
+
+
+def test_inactive_receiver_is_rejected(accounts):
+    sender, receiver = accounts
+    receiver.active = False
+    service = TransactionService()
+
+    with pytest.raises(ValueError, match="receiver account is inactive"):
+        service.transfer(sender, receiver, "tx-1", 100)
+
+    assert sender.balance == 1_000
+    assert receiver.balance == 500
+
+
+def test_insufficient_balance_is_rejected(accounts):
+    sender, receiver = accounts
+    service = TransactionService()
+
+    with pytest.raises(ValueError, match="insufficient balance"):
+        service.transfer(sender, receiver, "tx-1", 1_001)
+
+    assert sender.balance == 1_000
+    assert receiver.balance == 500
+
+
+@pytest.mark.parametrize(
+    "amount",
+    [
+        pytest.param("100", id="string"),
+        pytest.param(None, id="none"),
+        pytest.param(True, id="true"),
+        pytest.param(False, id="false"),
+    ],
+)
+def test_non_integer_amounts_are_rejected(accounts, amount):
+    sender, receiver = accounts
+    service = TransactionService()
+
+    with pytest.raises(TypeError, match="amount must be an integer"):
+        service.transfer(sender, receiver, "tx-1", amount)
+
+    assert sender.balance == 1_000
+    assert receiver.balance == 500
 ```
 
 ## Regression scenario

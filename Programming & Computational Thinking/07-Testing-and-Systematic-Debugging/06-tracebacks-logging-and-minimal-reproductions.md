@@ -63,6 +63,23 @@ Minimal reproductions
 
 Do not try to memorize every API on the first reading. Learn the diagnostic workflow first.
 
+### Table of Contents
+
+- **Foundations and Exception Handling:** [1. What Is an Error?](#1-what-is-an-error) · [2. Python Exceptions](#2-python-exceptions) · [3. Common Python Exceptions](#3-common-python-exceptions)
+- **Traceback APIs and Custom Exceptions:** [4. What Is a Traceback?](#4-what-is-a-traceback) · [5. How to Read a Traceback](#5-how-to-read-a-traceback) · [6. Tracebacks and Call Stacks](#6-tracebacks-and-call-stacks) · [7. Tracebacks Across Multiple Functions](#7-tracebacks-across-multiple-functions) · [8. Tracebacks and Exception Propagation](#8-tracebacks-and-exception-propagation) · [9. Exception Chaining](#9-exception-chaining) · [10. Exception Context vs Cause](#10-exception-context-vs-cause) · [11. Traceback Objects](#11-traceback-objects) · [12. Printing Tracebacks](#12-printing-tracebacks) · [13. Formatting Tracebacks](#13-formatting-tracebacks) · [14. Traceback Extraction](#14-traceback-extraction) · [15. Custom Exceptions](#15-custom-exceptions) · [16. Exception Design](#16-exception-design)
+- **Logging Fundamentals and Configuration:** [17. What Is Logging?](#17-what-is-logging) · [18. Print vs Logging](#18-print-vs-logging) · [19. Python `logging` Module](#19-python-logging-module) · [20. Log Levels](#20-log-levels) · [21. Logger Objects](#21-logger-objects) · [22. Logger Hierarchy](#22-logger-hierarchy) · [23. Root Logger](#23-root-logger) · [24. Handlers](#24-handlers) · [25. Formatters](#25-formatters) · [26. Log Records](#26-log-records) · [27. Logging Exceptions](#27-logging-exceptions) · [28. `exc_info`](#28-exc_info) · [29. `stack_info`](#29-stack_info) · [30. Logging Context](#30-logging-context) · [31. Structured Logging Concept](#31-structured-logging-concept) · [32. Logging Configuration](#32-logging-configuration) · [33. Basic Logging Configuration Example](#33-basic-logging-configuration-example) · [34. Logging in Modules](#34-logging-in-modules) · [35. Logging Configuration vs Logging Usage](#35-logging-configuration-vs-logging-usage) · [36. Logging Files](#36-logging-files) · [37. Rotating Log Files](#37-rotating-log-files) · [38. Logging Performance](#38-logging-performance) · [39. Logging Level Strategy](#39-logging-level-strategy) · [40. What Not to Log](#40-what-not-to-log) · [41. Logging and Exceptions](#41-logging-and-exceptions) · [42. Duplicate Logging](#42-duplicate-logging) · [43. Logging + Tracebacks Together](#43-logging--tracebacks-together)
+- **Minimal Reproductions and Reproducibility:** [44. What Is a Minimal Reproducible Example?](#44-what-is-a-minimal-reproducible-example) · [45. Why Minimal Reproductions Matter](#45-why-minimal-reproductions-matter) · [46. From Large Bug to Minimal Reproduction](#46-from-large-bug-to-minimal-reproduction) · [47. Minimal Reproduction with Python](#47-minimal-reproduction-with-python) · [48. Minimal Reproduction for Tracebacks](#48-minimal-reproduction-for-tracebacks) · [49. Minimal Reproduction for Logging](#49-minimal-reproduction-for-logging) · [50. Minimal Reproduction for Test Failures](#50-minimal-reproduction-for-test-failures) · [51. Minimal Reproduction for Data Pipelines](#51-minimal-reproduction-for-data-pipelines) · [52. Minimal Reproduction for API Issues](#52-minimal-reproduction-for-api-issues) · [53. Minimal Reproduction for AI/LLM Applications](#53-minimal-reproduction-for-aillm-applications) · [54. Minimal Reproduction for Agentic AI](#54-minimal-reproduction-for-agentic-ai) · [55. Reproducibility](#55-reproducibility) · [56. Environment Information](#56-environment-information) · [57. Bug Report Quality](#57-bug-report-quality)
+- **Integrated Debugging and Production Workflows:** [58. Traceback + Logging + MRE Workflow](#58-traceback--logging--mre-workflow) · [59. Debugging Decision Tree](#59-debugging-decision-tree) · [60. Tracebacks, Logging, and Observability](#60-tracebacks-logging-and-observability) · [61. Production Debugging](#61-production-debugging) · [62. Complete Realistic Example](#62-complete-realistic-example) · [63. Complete Mini-Project](#63-complete-mini-project)
+- **Coding Exercises and Debugging Labs:** [64. Coding Exercises](#64-coding-exercises) · [65. Debugging Lab](#65-debugging-lab)
+- **Interview and Architecture Questions:** [66. Interview Questions](#66-interview-questions) · [67. Architecture Questions](#67-architecture-questions)
+- **Production Diagnostic Checklist:** [68. Production Diagnostic Checklist](#68-production-diagnostic-checklist)
+- **Knowledge Check:** [69. Knowledge Check](#69-knowledge-check)
+- **Glossary:** [70. Glossary](#70-glossary)
+- **Final Mental Model and Self-Review:** [Final Mental Model](#final-mental-model) · [Final Self-Review Checklist](#final-self-review-checklist)
+- **Technical References:** [Technical References](#technical-references)
+
+*Note: short snippets in this chapter are illustrative fragments that rely on earlier context (for example `import logging`, `import traceback`, or an existing `logger`) unless they are shown as complete files or modules.*
+
 ---
 
 ## 1. What Is an Error?
@@ -3999,6 +4016,20 @@ if __name__ == "__main__":
     main()
 ```
 
+## How to run it
+
+Open a terminal in the `transaction_lab/` directory (the folder that contains `transaction.py`, `processor.py` and `main.py`). Because the modules import each other by plain name (`from transaction import parse_amount`), run the commands from there:
+
+```bash
+cd transaction_lab
+python main.py              # runs the example
+python -m pytest            # runs tests/test_transaction.py
+```
+
+Use `python -m pytest` rather than a bare `pytest`: it adds the current directory to the import path, so the test can `import transaction`. With a bare `pytest` and no extra configuration, collection can fail with `ModuleNotFoundError: No module named 'transaction'`.
+
+Expected observations: `python main.py` logs the `INFO` lines, then the `ERROR` line "transaction processing failed" with the chained traceback (`InvalidTransactionError` caused by `ValueError`), then exits with a non-zero status because `main()` re-raises. `python -m pytest` reports the single regression test from Step 5 passing once it has been created as `tests/test_transaction.py`.
+
 ## Diagnostic workflow
 
 ### Step 1
@@ -4187,6 +4218,9 @@ except ValueError as exc:
 Explain why this gives less diagnostic information than:
 
 ```python
+import traceback   # at the top of the module
+
+# fragment: call this inside the `except ValueError` block above
 traceback.print_exc()
 ```
 

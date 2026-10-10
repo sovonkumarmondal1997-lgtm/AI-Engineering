@@ -41,6 +41,15 @@ The previous chapter, **Pytest — Assertions, Fixtures, and Parametrization**, 
 
 You do not need to memorize every testing technique in this chapter on your first pass. The goal is to develop a repeatable reasoning process.
 
+### Recommended Learning Path
+
+For a first pass, work through the chapter in this order, and treat the later parts as material to return to:
+
+1. **Foundations — Sections 1–12:** test design, behavior verification, Arrange–Act–Assert, requirements, happy paths, and negative paths.
+2. **Systematic test design — Sections 13–28:** edge cases, boundaries, equivalence partitioning, decision tables, state-based design, isolation, determinism, test doubles, coupling, smells, naming, readability, and maintainability.
+3. **Engineering applications — Sections 29–44:** test granularity, AAA at each test level, coverage, regression, property-based thinking, data pipelines, ML, LLMs, agents, the test pyramid, CI/CD, refactoring, and a complete example.
+4. **Practice — Sections 45–47:** the mini-project (45), coding exercises (46), and debugging labs (47), followed by the interview questions, architecture questions, checklist, and knowledge check (48–52).
+
 ---
 
 # 1. What Is Test Design?
@@ -3558,7 +3567,7 @@ An order:
 - cannot be submitted with no items
 - cannot be submitted twice
 - must contain positive quantities
-- may apply a discount for orders above a threshold
+- applies a discount when the subtotal is greater than or equal to a threshold (exactly the threshold qualifies)
 
 ## Suggested architecture
 
@@ -3625,12 +3634,12 @@ class Order:
 
 ### Boundary cases
 
-For a discount threshold of `1000`:
+For a discount threshold of `1000` (the discount applies at `>= 1000`):
 
 ```text
-999
-1000
-1001
+999    below the threshold: no discount
+1000   exactly at the threshold: discount applies
+1001   above the threshold: discount applies
 ```
 
 ### Parametrization strategy
@@ -4335,7 +4344,7 @@ total_rows = valid_rows + rejected_rows
 
 #### Task
 
-Design a test for this invariant.
+Design a test for this invariant. (`process_rows()` and its result object, with the fields `total_rows`, `valid_rows` and `rejected_rows`, are supplied by the application under test; you are writing the test, not the pipeline.)
 
 #### Complete solution
 
@@ -4457,8 +4466,12 @@ def test_agent_checks_balance_before_transfer(agent, fake_tools):
     agent.run(request)
 
     # Assert
-    assert fake_tools.balance.called
-    assert fake_tools.transfer.called
+    # Illustrative assumptions: fake_tools is a unittest.mock.Mock-style object, so
+    # fake_tools.mock_calls records every call to its child tools in order, and the
+    # agent calls transfer(from_account, to_account, amount).
+    call_order = [call[0] for call in fake_tools.mock_calls]
+    assert call_order == ["balance", "transfer"]        # the check happens first, then the transfer
+    fake_tools.transfer.assert_called_once_with("A", "B", 100)   # the authorized request, unchanged
 
 
 def test_agent_does_not_transfer_when_balance_is_insufficient(agent, fake_tools):
@@ -4474,8 +4487,9 @@ def test_agent_does_not_transfer_when_balance_is_insufficient(agent, fake_tools)
     agent.run(request)
 
     # Assert
-    assert fake_tools.balance.called
-    assert not fake_tools.transfer.called
+    fake_tools.balance.assert_called_once()
+    fake_tools.transfer.assert_not_called()
+    assert [call[0] for call in fake_tools.mock_calls] == ["balance"]   # nothing else was called
 ```
 
 A stronger production design would also record tool call arguments and verify that the transfer amount was authorized by the balance and policy rules.
@@ -5524,7 +5538,7 @@ but:
 - [x] A realistic complete example is included.
 - [x] A mini-project is included.
 - [x] At least 20 progressive exercises are included.
-- [x] Every exercise has a complete solution.
+- [x] Every exercise has a solution (illustrative where it relies on an application interface).
 - [x] A debugging lab is included.
 - [x] Interview questions are included.
 - [x] Architecture questions are included.
@@ -5532,7 +5546,7 @@ but:
 - [x] Knowledge check is included.
 - [x] Glossary is included.
 - [x] Final mental model is included.
-- [x] Code examples are written as valid Python where presented as executable examples.
+- [x] Code examples are written to be valid Python where presented as executable examples (reviewed statically; not every snippet has been executed, and illustrative examples rely on application-context interfaces or classes that are not defined in the chapter).
 - [x] Important pytest mechanisms used in the examples are explained in context.
 - [x] The chapter focuses on test design rather than repeating the entire previous pytest syntax chapter.
 - [x] The material progresses from basic → intermediate → advanced → production.

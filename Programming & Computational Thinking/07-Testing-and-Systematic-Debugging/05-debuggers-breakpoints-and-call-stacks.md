@@ -63,6 +63,18 @@ root-cause diagnosis
 
 The previous testing chapters teach you how to detect incorrect behavior. This chapter focuses on what to do **after you know something is wrong**.
 
+### Table of Contents
+
+- **Debugging fundamentals:** [1. What Is Debugging?](#1-what-is-debugging) · [2. Why Debuggers Exist](#2-why-debuggers-exist) · [3. Debugger Mental Model](#3-debugger-mental-model)
+- **Breakpoints and stepping:** [4. Breakpoints](#4-breakpoints) · [5. Types of Breakpoints](#5-types-of-breakpoints) · [6. Conditional Breakpoints](#6-conditional-breakpoints) · [7. Stepping Through Code](#7-stepping-through-code) · [8. Step Over vs Step Into](#8-step-over-vs-step-into) · [9. Step Out](#9-step-out)
+- **Call stacks, frames, and variables:** [10. Call Stack](#10-call-stack) · [11. Stack Frames](#11-stack-frames) · [12. Reading a Call Stack](#12-reading-a-call-stack) · [13. Traceback vs Call Stack](#13-traceback-vs-call-stack) · [14. Variables While Debugging](#14-variables-while-debugging) · [15. Watching Expressions](#15-watching-expressions) · [16. Local vs Global Scope During Debugging](#16-local-vs-global-scope-during-debugging)
+- **Python debugging (`breakpoint()`, `pdb`, pytest):** [22. Python `breakpoint()`](#22-python-breakpoint) · [23. Python `pdb`](#23-python-pdb) · [24. `pdb` Breakpoints](#24-pdb-breakpoints) · [25. Debugging from the Command Line](#25-debugging-from-the-command-line) · [26. Debugging Pytest Tests](#26-debugging-pytest-tests) · [27. Debugging Fixtures](#27-debugging-fixtures) · [28. Debugging Parametrized Tests](#28-debugging-parametrized-tests)
+- **Debugging specific code and situations:** [17. Debugging Loops](#17-debugging-loops) · [18. Debugging Conditional Logic](#18-debugging-conditional-logic) · [19. Debugging Exceptions](#19-debugging-exceptions) · [20. Exception Breakpoints](#20-exception-breakpoints) · [21. Debugging Functions](#21-debugging-functions) · [29. Debugging Async Python](#29-debugging-async-python) · [30. Debugging Threads](#30-debugging-threads) · [31. Debugging Processes](#31-debugging-processes) · [32. Debugging State](#32-debugging-state) · [33. Debugging Side Effects](#33-debugging-side-effects) · [34. Debugging Objects](#34-debugging-objects) · [35. Debugging Data Structures](#35-debugging-data-structures) · [36. Debugging Recursion](#36-debugging-recursion) · [37. Debugging Decorators](#37-debugging-decorators) · [38. Debugging Context Managers](#38-debugging-context-managers) · [39. Debugging Generators](#39-debugging-generators) · [40. Debugging External Dependencies](#40-debugging-external-dependencies) · [41. Debugging Network/API Issues](#41-debugging-networkapi-issues) · [42. Debugging Database Issues](#42-debugging-database-issues)
+- **Production, data, AI/LLM, and agentic debugging:** [43. Debugging Data Pipelines](#43-debugging-data-pipelines) · [44. Debugging ML Pipelines](#44-debugging-ml-pipelines) · [45. Debugging AI/LLM Applications](#45-debugging-aillm-applications) · [46. Debugging Agentic AI Systems](#46-debugging-agentic-ai-systems) · [55. Production Debugging](#55-production-debugging)
+- **Strategy and practice:** [47. Systematic Debugging Strategy](#47-systematic-debugging-strategy) · [48. Root Cause vs Symptom](#48-root-cause-vs-symptom) · [49. Debugging by Hypothesis](#49-debugging-by-hypothesis) · [50. Minimal Reproducible Example](#50-minimal-reproducible-example) · [51. Common Debugging Mistakes](#51-common-debugging-mistakes) · [52. Debugger vs Logging](#52-debugger-vs-logging) · [53. Debugger vs Traceback](#53-debugger-vs-traceback) · [54. Debugging and Test-Driven Workflow](#54-debugging-and-test-driven-workflow) · [56. Complete Realistic Debugging Example](#56-complete-realistic-debugging-example) · [57. Complete Mini Project](#57-complete-mini-project)
+- **Exercises, lab, and review:** [58. Coding Exercises](#58-coding-exercises) · [59. Debugging Lab](#59-debugging-lab) · [60. Interview Questions](#60-interview-questions) · [61. Architecture Questions](#61-architecture-questions) · [62. Production Debugging Checklist](#62-production-debugging-checklist) · [63. Knowledge Check](#63-knowledge-check) · [64. Glossary](#64-glossary)
+- **Reference:** [Python / Debugger API and Command Reference](#python--debugger-api-and-command-reference) · [Final Mental Model](#final-mental-model)
+
 ---
 
 # 1. What Is Debugging?
@@ -5116,11 +5128,11 @@ def pipeline(value):
     return transformed
 ```
 
-Suppose input `"Alice"` produces the wrong result.
+The intended behavior: remove surrounding whitespace, then replace every **lowercase** `a` with `@`, leaving capitalization otherwise unchanged. For input `"Alice"`, the intended output is `"Alice"` (it contains no lowercase `a`), but this pipeline returns `"@lice"`.
 
 **Task**
 
-Pause after each stage and identify where the output first differs from the intended value.
+Pause after each stage and identify the first intermediate state that differs from what the intended behavior requires.
 
 **Complete solution**
 
@@ -5136,6 +5148,14 @@ def pipeline(value):
     breakpoint()
 
     return transformed
+```
+
+Expected versus actual states for `"Alice"`:
+
+```text
+parsed      expected "Alice"   actual "Alice"   ✓
+normalized  expected "Alice"   actual "alice"   ✗  <- first bad state (lower() is not part of the requirement)
+transformed expected "Alice"   actual "@lice"   ✗  (a consequence of the earlier bad state)
 ```
 
 **Explanation**
@@ -5358,7 +5378,7 @@ def test_square(value, expected):
 
 **Task**
 
-Identify the failure for `value=2`.
+Determine which parametrized cases fail. Treat `value=2` as a control case, then identify a failing case.
 
 **Complete solution**
 
@@ -5370,7 +5390,7 @@ expected = 4
 result = 4
 ```
 
-The case passes.
+The `value=2` control case passes (because `2 * 2 == 2 ** 2`).
 
 For `value=1`:
 
@@ -5380,7 +5400,7 @@ expected = 1
 result = 2
 ```
 
-The defect is revealed.
+This case fails, revealing the defect (and `value=3` fails too: expected `9`, result `6`).
 
 **Explanation**
 
@@ -6975,19 +6995,29 @@ Example:
 
 ---
 
-## `locals`
+## `locals` (via `p locals()`)
 
-**What it does:** Displays local names and values.
+**What it does:** Displays local names and values. `locals` is not a standalone `pdb` command: you evaluate the Python expression `locals()` through the `p` (or `pp`) command.
+
+```text
+(Pdb) p locals()
+```
 
 **Use when:** You want a broader view of current frame state.
 
 ---
 
-## `globals`
+## `globals` (via `p globals()`)
 
-**What it does:** Displays accessible global names.
+**What it does:** Displays accessible global names. Like `locals`, this is the Python expression `globals()` evaluated through `p`, not a standalone `pdb` command.
+
+```text
+(Pdb) p globals()
+```
 
 **Use when:** Global configuration or module state is suspicious.
+
+**Caution:** the global namespace can contain sensitive configuration values or secrets; do not paste or log its output carelessly.
 
 ---
 

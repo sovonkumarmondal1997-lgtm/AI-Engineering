@@ -781,14 +781,25 @@ covers mocking as a complete topic in its own right.
 
 ```python
 class StubClient:
+    def __init__(self):
+        self.requested_paths = []
+
     def fetch(self, path: str) -> dict:
+        self.requested_paths.append(path)     # record how it was called
         return {"rate": 1.1}
 
 
 def test_get_exchange_rate():
-    result = get_exchange_rate(StubClient())
+    client = StubClient()
+    result = get_exchange_rate(client)
     assert result == 1.1
+    assert client.requested_paths == ["/rates/USD"]
 ```
+
+The first assertion checks that the rate is extracted correctly; the
+second checks that the client was asked for the expected endpoint
+(`/rates/USD`). Recording the call is what makes `StubClient` a small,
+lightweight mock rather than a pure stub.
 
 **Why mocking (in this broad, general sense — stubs, fakes, and mocks
 together) is commonly used in unit testing**: it's precisely the
@@ -828,7 +839,11 @@ class PaymentService:
 ```python
 # test_payment_service.py
 class StubRepository:
+    def __init__(self):
+        self.saved = []
+
     def save_payment(self, order_id: str, amount: float) -> str:
+        self.saved.append((order_id, amount))     # record the arguments received
         return "payment-123"
 
 
@@ -848,6 +863,7 @@ def test_process_payment_saves_and_notifies():
     payment_id = service.process_payment("order-1", 49.99)
 
     assert payment_id == "payment-123"
+    assert repository.saved == [("order-1", 49.99)]
     assert notifier.sent == [("order-1", "Payment of 49.99 received")]
 
 
@@ -860,8 +876,10 @@ def test_process_payment_rejects_non_positive_amount():
 **What exactly this unit test isolates**: `PaymentService.process_payment`'s
 own logic — that it validates the amount, calls the repository to save
 the payment, and calls the notifier with the expected message. It
-deliberately does **not** verify that `StubRepository` or `StubNotifier`
-behave like a real database or a real notification system would — that
+verifies that it passes the right order ID and amount to the repository
+(`StubRepository.saved` records them) and the right message to the
+notifier. It deliberately does **not** verify that `StubRepository` or
+`StubNotifier` behave like a real database or a real notification system would — that
 verification belongs to integration tests for the *real* repository and
 notifier implementations (§20 onward). `StubNotifier`'s `self.sent`
 list is a small, purpose-built recording mechanism (closer to a
@@ -1237,8 +1255,17 @@ def test_get_temperature_against_test_server(test_server, http_client):
 
     temperature = client.get_temperature("london")
 
-    assert isinstance(temperature, float)
+    # JSON has one number type: a valid response such as {"temperature": 20}
+    # decodes to an int, so accept any real number rather than demanding float.
+    assert isinstance(temperature, (int, float))
+    assert not isinstance(temperature, bool)    # bool is an int subclass, but not a temperature
 ```
+
+(If the API contract guarantees a decimal value, or your code requires a
+`float`, normalize explicitly — `float(response.json()["temperature"])`
+— rather than asserting on an incidental JSON representation. Against a
+test server with a known fixture, asserting the exact expected value is
+stronger still.)
 
 **What this discusses that a unit test wouldn't need to**:
 
@@ -2609,7 +2636,7 @@ chapter has been building toward:
 ```
 code
     ↓
-uv sync                      — install the exact, locked dependencies
+uv sync --locked             — install the exact, locked dependencies (fails if uv.lock is stale)
     ↓
 Ruff                          — formatting and linting
     ↓
@@ -2623,6 +2650,12 @@ E2E tests                                — the full, wired-together system, ru
     ↓
 build/deploy
 ```
+
+`--locked` matters here: ordinary `uv sync` may update `uv.lock` when it
+is out of date with `pyproject.toml`, whereas `uv sync --locked` requires
+the lockfile to be current and fails instead of silently updating it, so
+CI always tests the dependency versions that were actually reviewed and
+committed.
 
 **Why this ordering, and why it may vary**: earlier stages are
 deliberately faster and cheaper to run than later ones — Ruff catches
@@ -2705,8 +2738,19 @@ class OrderService:
         return self._repository.save_order(customer_id, items, total)
 ```
 
-**Unit test** — the service's own logic, with a controlled repository:
+**Unit test** — the service's own logic, with a controlled repository
+(`StubOrderRepository`, defined here as a minimal stub that records the
+total it was asked to save; `pytest` is assumed to be imported):
 ```python
+class StubOrderRepository:
+    def __init__(self):
+        self.last_saved_total = None
+
+    def save_order(self, customer_id, items, total):
+        self.last_saved_total = total
+        return "order-1"
+
+
 def test_create_order_rejects_empty_items():
     service = OrderService(StubOrderRepository())
     with pytest.raises(ValueError):
@@ -3036,6 +3080,23 @@ assert "30 days" in response.json()["answer"]
 assert response.json()["answer"] != ""
 ```
 
+A substring check only shows that certain wording is *present*; it does not
+show the whole answer is correct (an answer could contain "30 days" and
+also contradict itself or the real policy). A stronger, still
+deterministic check validates a structured field and a required policy
+condition, for example when the service returns structured output:
+
+```python
+body = response.json()
+assert body["refund_window_days"] == 30           # a structured field with a defined meaning
+assert body["answer"] != ""
+```
+
+These are deterministic **software-contract** assertions about the
+response's shape and required values. Judging whether a model's free-form
+answers are good overall is a separate activity — model-quality
+evaluation — which this chapter does not cover.
+
 **This chapter does not claim exact output matching is always
 inappropriate for AI systems** — a model configured deterministically
 (fixed seed, temperature `0`, a specific pinned model version) in a
@@ -3144,8 +3205,13 @@ deployment, verifying that the most basic, critical functionality
 works at all — not a thorough test of every feature, but a quick
 "did anything catch fire" check.
 
-A simple production deployment example:
+A simple production deployment example (illustrative: it assumes
+`import requests`, and the `api.example.com` URLs are placeholders, not
+verified live endpoints):
 ```python
+import requests
+
+
 def test_smoke_service_responds():
     response = requests.get("https://api.example.com/health", timeout=5)
     assert response.status_code == 200
@@ -3162,7 +3228,9 @@ device and check whether smoke comes out, as the most basic possible
 thorough testing. Applied to software: run a small number of safe,
 read-only checks against the freshly deployed production system,
 confirming it's not catastrophically broken, before considering the
-deployment successful.
+deployment successful. In practice, production smoke tests should use
+only approved endpoints, appropriate authentication, and safe,
+non-destructive requests.
 
 **Where this fits relative to the rest of this chapter**: a smoke test
 is typically the *last* automated check in a deployment pipeline — after
@@ -3347,11 +3415,14 @@ problematic:* leaves real, leftover state that corrupts later test runs
 (§37, §45). *Better approach:* use `yield`-based fixtures (§35, §45) so
 teardown runs automatically, even when a test fails.
 
-## 75. Complete Example Project
+## 75. Illustrative Example Project
 
 A realistic project — **"Order Management Service"** — shown
 conceptually, demonstrating this entire chapter's structure applied to
-one coherent system.
+one coherent system. This is an illustration of architecture and
+testing strategy, not a complete runnable application: `OrderRepository`
+and the `test_database` and `running_app_client` fixtures are assumed
+and not implemented here, and the examples have not been executed.
 
 ```
 project/
@@ -3677,10 +3748,10 @@ outputs; integration-test real tool adapters; E2E-test the full
 request-to-response path using behavioral assertions (§67) rather than
 exact-match assertions, since the model's own output is nondeterministic.
 
-## 78. Mini Project — Production-Ready Multi-Level Testing System
+## 78. Mini Project — Conceptual Multi-Level Testing System Design
 
 **Project**: design (conceptually, within this lesson — no files created
-outside this document) a complete, multi-level test system for one
+outside this document, and no complete runnable implementation) a multi-level test system for one
 business feature: **"Apply Discount to Order."**
 
 **Application code:**

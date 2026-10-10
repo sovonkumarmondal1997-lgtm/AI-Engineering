@@ -692,8 +692,10 @@ import pytest
 
 
 def parse_age(value: str) -> int:
+    if not isinstance(value, str):
+        raise TypeError("age must be a string")    # non-string input (e.g. None)
     if not value.isdigit():
-        raise ValueError("age must be numeric")
+        raise ValueError("age must be numeric")    # strings that are not all digits
     return int(value)
 
 
@@ -2044,7 +2046,7 @@ This style works especially well when many inputs exercise exactly the same rule
 ```python
 @pytest.mark.parametrize(
     "value",
-    ["abc", "", None],
+    ["abc", ""],
 )
 def test_invalid_age(value):
     with pytest.raises(ValueError):
@@ -2064,14 +2066,17 @@ ValueError
 ```
 
 Parametrization lets you document the invalid-input domain compactly.
+(Here the invalid *strings* all raise `ValueError`; non-string input such
+as `None` is a different kind of misuse and raises `TypeError` — see the
+next example.)
 
 ### Stronger version with case IDs
 
 ```python
 @pytest.mark.parametrize(
     "value",
-    ["abc", "", None],
-    ids=["letters", "empty", "none"],
+    ["abc", ""],
+    ids=["letters", "empty"],
 )
 def test_invalid_age(value):
     with pytest.raises(ValueError):
@@ -2214,18 +2219,20 @@ def user(request):
 
 
 @pytest.mark.parametrize(
-    "user",
+    "user,expected_role",
     [
-        {"name": "Alice", "role": "admin"},
-        {"name": "Bob", "role": "viewer"},
+        ({"name": "Alice", "role": "admin"}, "admin"),
+        ({"name": "Bob", "role": "viewer"}, "viewer"),
     ],
-    indirect=True,
+    indirect=["user"],      # only `user` goes through the fixture; expected_role is passed directly
 )
-def test_user_role(user):
-    assert user.role in {"admin", "viewer"}
+def test_user_role(user, expected_role):
+    assert user.role == expected_role
 ```
 
 ### What does `indirect=True` mean?
+
+(In the example above, `indirect=["user"]` limits the indirection to the named parameter; plain `indirect=True` would route *every* parameter through a fixture of the same name, which would fail for `expected_role`.)
 
 For the named parameter `user`, the supplied data is not passed directly to the test function.
 
@@ -3570,9 +3577,23 @@ Example:
 *Illustrative snippet: assumes the application function/resource already exists.*
 
 ```python
+class FakeModel:
+    # a deterministic stand-in: each known question maps to a fixed answer
+    def __init__(self, responses):
+        self._responses = responses
+
+    def generate(self, question):
+        return self._responses[question]
+
+
 @pytest.fixture
 def fake_model():
-    return FakeModel(response="Paris")
+    return FakeModel(
+        responses={
+            "Capital of France?": "Paris",
+            "Capital of Japan?": "Tokyo",
+        }
+    )
 
 
 @pytest.mark.parametrize(
@@ -3852,6 +3873,7 @@ Again, this chapter teaches the architecture; it does not modify a project `conf
 
 ```python
 import pytest
+from user_registration import RegistrationError, register_user   # the module shown above
 
 
 @pytest.fixture
@@ -4007,6 +4029,8 @@ pytest suite
 
 ```python
 # src/transaction_validator.py
+import math
+
 
 class TransactionValidationError(Exception):
     pass
@@ -4018,8 +4042,12 @@ def validate_transaction(transaction):
     account_status = transaction.get("account_status")
     transaction_type = transaction.get("transaction_type")
 
-    if not isinstance(amount, (int, float)):
+    # bool is a subclass of int, so reject it explicitly
+    if isinstance(amount, bool) or not isinstance(amount, (int, float)):
         raise TransactionValidationError("amount must be numeric")
+
+    if not math.isfinite(amount):      # NaN and +/-infinity
+        raise TransactionValidationError("amount must be finite")
 
     if amount <= 0:
         raise TransactionValidationError("amount must be positive")
@@ -4056,7 +4084,7 @@ Cover:
 1. valid transaction;
 2. zero amount;
 3. negative amount;
-4. non-numeric amount;
+4. non-numeric amount (including a boolean) and a non-finite amount (`NaN`);
 5. unsupported currency;
 6. inactive account;
 7. unsupported transaction type;
@@ -4095,6 +4123,8 @@ def test_valid_transaction(valid_transaction):
         ("amount", 0, "amount must be positive"),
         ("amount", -1, "amount must be positive"),
         ("amount", "100", "amount must be numeric"),
+        ("amount", True, "amount must be numeric"),
+        ("amount", float("nan"), "amount must be finite"),
         ("currency", "GBP", "unsupported currency"),
         ("account_status", "blocked", "account must be active"),
         ("transaction_type", "transfer", "unsupported transaction type"),
@@ -4103,6 +4133,8 @@ def test_valid_transaction(valid_transaction):
         "zero-amount",
         "negative-amount",
         "string-amount",
+        "boolean-amount",
+        "nan-amount",
         "unsupported-currency",
         "inactive-account",
         "unsupported-type",
@@ -4151,7 +4183,7 @@ After the basic project works, evaluate:
 
 ## 44. Coding Exercises
 
-The exercises below progress from fundamentals to production-oriented design. Each exercise includes the problem, task, hints, a complete solution, an explanation, and a common mistake.
+The exercises below progress from fundamentals to production-oriented design. Each exercise includes a problem, a solution (a complete code solution, or a written solution for conceptual exercises), an explanation, and a common mistake; some also include hints.
 
 ### Level 1 — Basic
 
@@ -4398,19 +4430,25 @@ def test_valid_age(age):
 
 **Problem:** Give readable names to three invalid email cases.
 
-**Complete solution:**
+**Complete solution:** (uses `register_user()`, `RegistrationError` and the
+`valid_payload` fixture from §42, so the test exercises real application
+validation, not just the input string)
 
 ```python
 import pytest
+from user_registration import RegistrationError, register_user
 
 
 @pytest.mark.parametrize(
     "email",
-    ["", "alice", "alice @ example.com"],
-    ids=["empty", "missing-at", "spaces"],
+    ["", "alice", "alice.example.com"],
+    ids=["empty", "missing-at", "dotted-no-at"],
 )
-def test_invalid_email(email):
-    assert "@" not in email or " " in email
+def test_invalid_email(valid_payload, email):
+    valid_payload["email"] = email
+
+    with pytest.raises(RegistrationError, match="invalid email"):
+        register_user(valid_payload)
 ```
 
 **Explanation:** IDs make failures easier to interpret.
@@ -4520,17 +4558,28 @@ import pytest
 
 @pytest.fixture
 def transaction():
-    return {"amount": 100, "currency": "INR"}
+    # every field the mini-project validator requires (§43)
+    return {
+        "amount": 100,
+        "currency": "INR",
+        "account_status": "active",
+        "transaction_type": "debit",
+    }
 
 
 @pytest.mark.parametrize("currency", ["INR", "USD", "EUR"])
 def test_supported_currency(transaction, currency):
     transaction["currency"] = currency
 
-    assert validate_transaction(transaction) is True
+    result = validate_transaction(transaction)
+
+    assert result["status"] == "valid"
+    assert result["currency"] == currency
 ```
 
-**Explanation:** Fixture creates the baseline; parametrization creates variations.
+**Explanation:** (This exercise uses the dictionary-returning
+`validate_transaction()` from the mini-project, which requires `amount`,
+`currency`, `account_status` and `transaction_type`.) Fixture creates the baseline; parametrization creates variations.
 
 **Common mistake:** Mutating a shared module/session fixture.
 
@@ -5344,7 +5393,7 @@ When those responsibilities remain clear, tests become easier to read, debug, sc
 - [x] A complete realistic example is included.
 - [x] A complete mini-project is included.
 - [x] Four exercise levels are included with at least five exercises per level.
-- [x] Every exercise has a problem, task, hints, solution, explanation, and common mistake.
+- [x] Every exercise has a problem, solution, explanation, and common mistake (some also have hints).
 - [x] A dedicated debugging lab is included.
 - [x] Beginner-to-advanced interview questions and model answers are included.
 - [x] Architecture/system-design questions and answers are included.

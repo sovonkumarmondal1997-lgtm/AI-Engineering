@@ -8,6 +8,18 @@ By the end of this chapter, you should be able to explain why tests sometimes re
 
 This chapter assumes you already know the basics of unit tests, Arrange-Act-Assert (AAA), fixtures, parametrization, boundary/invalid-input tests, regression tests, debugging, tracebacks, and logging. It does not repeat those chapters; it connects them to test doubles.
 
+### Table of Contents
+
+- **Foundations:** [1. The Problem: Testing Dependencies](#1-the-problem-testing-dependencies) · [2. What Is a Test Double?](#2-what-is-a-test-double) · [3. Types of Test Doubles](#3-types-of-test-doubles) · [4. State Verification vs Interaction Verification](#4-state-verification-vs-interaction-verification)
+- **`unittest.mock` toolkit:** [5. Python's `unittest.mock`](#5-pythons-unittestmock) · [6. `Mock`](#6-mock) · [7. `MagicMock`](#7-magicmock) · [8. `return_value`](#8-return_value) · [9. `side_effect`](#9-side_effect) · [10. Call Assertions](#10-call-assertions) · [11. `call`, `ANY`, `sentinel`, and `DEFAULT`](#11-call-any-sentinel-and-default) · [12. `patch`](#12-patch) · [13. Patching Where the Object Is Used](#13-patching-where-the-object-is-used) · [14. `patch.object()`](#14-patchobject) · [15. `patch.dict()`](#15-patchdict) · [16. `patch.multiple()`](#16-patchmultiple) · [17. `autospec`, `spec`, `spec_set`, and `create_autospec`](#17-autospec-spec-spec_set-and-create_autospec) · [18. `PropertyMock`](#18-propertymock) · [19. `mock_open()`](#19-mock_open) · [20. `AsyncMock`](#20-asyncmock)
+- **Failures, time, environment, and external systems:** [21. Mocking Failures and Retries](#21-mocking-failures-and-retries) · [22. Mocking Time and Randomness](#22-mocking-time-and-randomness) · [23. Mocking Environment Variables](#23-mocking-environment-variables) · [24. Mocking Filesystems](#24-mocking-filesystems) · [25. Mocking Databases](#25-mocking-databases) · [26. Mocking HTTP APIs](#26-mocking-http-apis) · [27. Mocking Message Queues](#27-mocking-message-queues) · [28. Mocking Cloud Services](#28-mocking-cloud-services)
+- **Design for testability:** [29. Dependency Injection and Testability](#29-dependency-injection-and-testability) · [30. Protocols and Mocking](#30-protocols-and-mocking) · [31. Mocking vs Pure Functions](#31-mocking-vs-pure-functions) · [32. Over-Mocking](#32-over-mocking) · [33. Mock Hell](#33-mock-hell) · [34. When Not to Mock](#34-when-not-to-mock)
+- **pytest, AAA, and test types:** [35. pytest + `unittest.mock`](#35-pytest--unittestmock) · [36. pytest `monkeypatch`](#36-pytest-monkeypatch) · [37. Mocking and Arrange-Act-Assert](#37-mocking-and-arrange-act-assert) · [38. Mocking and Boundary Testing](#38-mocking-and-boundary-testing) · [39. Mocking and Regression Testing](#39-mocking-and-regression-testing) · [40. Mocking and Debugging](#40-mocking-and-debugging)
+- **Data, ML, LLM, and agentic systems:** [41. Mocking Data Pipelines](#41-mocking-data-pipelines) · [42. Mocking ML Systems](#42-mocking-ml-systems) · [43. Mocking LLM Applications](#43-mocking-llm-applications) · [44. Mocking Agentic AI Systems](#44-mocking-agentic-ai-systems) · [45. Contract Testing](#45-contract-testing)
+- **Pitfalls and examples:** [46. Determinism and False Confidence](#46-determinism-and-false-confidence) · [47. Common Mistakes](#47-common-mistakes) · [48. Complete Realistic Example — User Registration Service](#48-complete-realistic-example--user-registration-service) · [49. Mini-Project — Resilient External API Client](#49-mini-project--resilient-external-api-client)
+- **Practice and review:** [50. Progressive Coding Exercises](#50-progressive-coding-exercises) · [51. Debugging Lab](#51-debugging-lab) · [52. Interview Questions](#52-interview-questions) · [53. Architecture Questions](#53-architecture-questions) · [54. Production Testing Strategy](#54-production-testing-strategy) · [55. Security Considerations](#55-security-considerations) · [56. Production Checklist](#56-production-checklist) · [57. Knowledge Check](#57-knowledge-check)
+- **Reference:** [58. Glossary](#58-glossary) · [59. Final Mental Model](#59-final-mental-model)
+
 ## 1. The Problem: Testing Dependencies
 
 A small function can become difficult to test when it depends on the outside world:
@@ -1397,6 +1409,9 @@ There is also `monkeypatch.context()` for a smaller nested cleanup scope.
 ### Example
 
 ```python
+import os
+
+
 def test_env(monkeypatch):
     monkeypatch.setenv("APP_MODE", "test")
     assert os.environ["APP_MODE"] == "test"
@@ -1975,11 +1990,19 @@ class Transport(Protocol):
     def get(self, path: str, timeout: float) -> ApiResponse: ...
 
 
+class RetryableStatusError(Exception):
+    """Raised only for HTTP statuses the retry policy treats as retryable."""
+
+
 @dataclass
 class ResilientClient:
     transport: Transport
-    attempts: int = 3
+    attempts: int = 3          # total tries, including the first; must be >= 1
     backoff_seconds: float = 0.0
+
+    def __post_init__(self) -> None:
+        if self.attempts < 1:
+            raise ValueError("attempts must be at least 1")
 
     def get_json(self, path: str) -> dict[str, object]:
         last_error: Exception | None = None
@@ -1989,10 +2012,11 @@ class ResilientClient:
                 if response.status_code == 200:
                     return response.payload
                 if response.status_code in {429, 500, 502, 503, 504}:
-                    raise RuntimeError(f"retryable status: {response.status_code}")
+                    raise RetryableStatusError(f"retryable status: {response.status_code}")
                 # ValueError is not caught below, so non-retryable statuses fail immediately
                 raise ValueError(f"non-retryable status: {response.status_code}")
-            except (TimeoutError, RuntimeError) as exc:
+            except (TimeoutError, RetryableStatusError) as exc:
+                # an unrelated RuntimeError from the transport is NOT caught here, so it propagates
                 last_error = exc
                 if attempt == self.attempts:
                     raise
@@ -2007,7 +2031,7 @@ class ResilientClient:
 from unittest.mock import Mock, call
 import pytest
 
-from client import ResilientClient
+from client import ResilientClient, RetryableStatusError
 from models import ApiResponse
 
 
@@ -2059,7 +2083,67 @@ def test_non_retryable_status_is_not_retried():
         client.get_json("/items/1")
 
     transport.get.assert_called_once_with("/items/1", timeout=2.0)
+
+
+@pytest.mark.parametrize("status", [429, 500, 502, 503, 504])
+def test_retryable_status_then_success(status):
+    transport = Mock()
+    transport.get.side_effect = [
+        ApiResponse(status, {}),
+        ApiResponse(200, {"value": 42}),
+    ]
+
+    client = ResilientClient(transport, attempts=2)
+
+    assert client.get_json("/items/1") == {"value": 42}
+    assert transport.get.call_count == 2
+
+
+def test_exhausted_retryable_status_raises_final_error():
+    transport = Mock()
+    transport.get.return_value = ApiResponse(503, {})
+
+    client = ResilientClient(transport, attempts=2)
+
+    with pytest.raises(RetryableStatusError, match="retryable status: 503"):
+        client.get_json("/items/1")
+
+    assert transport.get.call_count == 2
+
+
+def test_unrelated_runtime_error_is_not_retried():
+    transport = Mock()
+    transport.get.side_effect = RuntimeError("bug in transport")
+
+    client = ResilientClient(transport, attempts=3)
+
+    with pytest.raises(RuntimeError, match="bug in transport"):
+        client.get_json("/items/1")
+
+    transport.get.assert_called_once_with("/items/1", timeout=2.0)
+
+
+@pytest.mark.parametrize("attempts", [0, -1])
+def test_attempts_must_be_at_least_one(attempts):
+    with pytest.raises(ValueError, match="attempts must be at least 1"):
+        ResilientClient(Mock(), attempts=attempts)
 ```
+
+### How to run it
+
+1. Create a directory named `resilient-client/`.
+2. Save the three examples above as `models.py`, `client.py`, and `test_client.py` inside it.
+3. Use Python 3.10 or newer (the example uses union syntax such as `Exception | None`).
+4. Install pytest into your active Python environment (for example `python -m pip install pytest`, or with whichever environment tool your project already uses).
+5. From inside `resilient-client/`, run the tests with:
+
+```bash
+python -m pytest
+```
+
+These tests use a mock transport, so they validate the client's unit-level retry and status-handling logic only. They do not show that a real HTTP transport or an external API works correctly; that needs an integration test against a controlled endpoint or sandbox.
+
+`attempts` is the total number of tries and must be at least `1`; `0` or a negative value raises `ValueError("attempts must be at least 1")` when the client is created.
 
 ### Production note
 

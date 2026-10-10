@@ -1199,10 +1199,14 @@ The test should exercise the async boundary without making a real network call.
 
 ### Solution
 
+This example assumes `pytest-asyncio` is installed (it is a third-party plugin, not part of pytest itself) and that `load_user` is the async function under test. In its default strict mode, `pytest-asyncio` requires the marker shown below; if your project configures `asyncio_mode = auto`, the marker is unnecessary. Any other pytest-compatible async runner must be configured equivalently.
+
 ```python
+import pytest
 from unittest.mock import AsyncMock
 
 
+@pytest.mark.asyncio
 async def test_load_user_awaits_client():
     client = AsyncMock()
     client.fetch_user.return_value = {"id": 7, "name": "Alice"}
@@ -1536,7 +1540,7 @@ Example:
 from unittest.mock import Mock
 
 
-def test_transformer_normalizes_amounts():
+def test_transform_and_stage_normalizes_amounts_and_uses_writer():
     writer = Mock()
     rows = [
         {"id": 1, "amount": "10.50"},
@@ -1549,7 +1553,12 @@ def test_transformer_normalizes_amounts():
         {"id": 1, "amount": 10.50},
         {"id": 2, "amount": 7.00},
     ]
+    # The writer is a test double: assert that the function used it. The exact
+    # method name depends on your writer interface, so check the interaction generically.
+    assert writer.method_calls
 ```
+
+The boundary here is `transform_and_stage()`, the function that combines transformation with staging: the real transformation logic runs, the database writer is replaced by `Mock()`, and the test checks both the transformed result and that the writer was used. If you want a test of the transformation alone, call the isolated transformation function directly with no writer at all.
 
 Integration test concept:
 
@@ -2134,7 +2143,7 @@ A debug log shows:
 
 ```text
 ERROR charge failed request_id=req-1842 amount=500
-``
+```
 
 The unit test mocks `gateway.Gateway`, but `service.py` imports `Gateway` into its own namespace. The mock is therefore not replacing the object used by `PaymentService`.
 
@@ -2258,7 +2267,7 @@ A reliable engineer connects tests, imports, mocks, tracebacks, logs, reproducti
 | Minimal reproducible examples | 19, 24, 28 |
 | Test doubles | 7, 14, 18, 21, 22 |
 | Mocking APIs / patching / call assertions | 7, 12, 13, 14, 15, 16, 17, 18, 21, 23, 25, 26, 27, 28 |
-| `Mock`, `MagicMock` concepts, `return_value`, `side_effect` | 7, 13, 15, 16, 17, 21, 23, 25, 26, 27 |
+| `Mock` concepts, `return_value`, `side_effect` | 7, 13, 15, 16, 17, 21, 23, 25, 26, 27 |
 | `patch`, `patch.object`, lookup-target reasoning | 12, 28 |
 | `patch.dict`, `patch.multiple`, `PropertyMock`, `monkeypatch` | 14 |
 | `autospec`, `spec`, `spec_set`, `create_autospec` | 16, 27 |
