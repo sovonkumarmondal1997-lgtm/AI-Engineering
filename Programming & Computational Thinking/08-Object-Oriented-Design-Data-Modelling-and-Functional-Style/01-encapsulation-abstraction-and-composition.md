@@ -1040,6 +1040,8 @@ class StripePaymentProcessor(PaymentProcessor):
         return amount > 0
 ```
 
+`StripePaymentProcessor` here is a deliberately simplified stand-in that demonstrates implementing an abstract method; it does not contact Stripe or process a real payment.
+
 The abstract base class expresses an expected operation.
 
 ## Instantiation restriction
@@ -3080,7 +3082,7 @@ def test_order_rejects_empty_items() -> None:
         assert str(exc) == "order must contain at least one item"
 ```
 
-A pytest-style version is clearer:
+**Limitation:** this `try`/`except` version silently passes if `Order([])` does *not* raise, so it can never fail for that mistake. A pytest-style version is clearer and fixes this, because `pytest.raises` fails the test when the expected exception is not raised:
 
 ```python
 import pytest

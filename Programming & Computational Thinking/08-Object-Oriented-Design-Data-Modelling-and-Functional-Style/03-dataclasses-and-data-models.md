@@ -462,6 +462,8 @@ class User:
 
 Use it for temporary construction inputs that should not become persistent state.
 
+**Note:** `f"hash:{raw_password}"` is only a teaching placeholder. It is not a real password hash (it just prefixes the raw password) and is not suitable for production; real password storage requires a purpose-built password-hashing approach.
+
 
 ## 31. fields()
 
@@ -820,8 +822,7 @@ Choose `NamedTuple` when tuple compatibility is meaningful; choose a dataclass w
 
 A dataclass is attractive when the constructor and generated value behavior match the model. A normal class is clearer when lifecycle, lazy state, resources, or complex invariants dominate.
 
-The question is not which is 
-which option you choose but what the model actually needs.
+The question is not which option you choose, but what the model actually needs.
 
 
 ## 57. Dataclass vs Validation-Oriented Models
@@ -984,9 +985,25 @@ Defaults, keyword-only optional fields, versioned schemas, and migrations are to
 Test the semantics that matter: equality, invariants, defaults, factory isolation, frozen behavior, nested conversion, serialization, and compatibility.
 
 ```python
-with pytest.raises(ValueError):
-    User(age=-1)
+@dataclass
+class User:
+    age: int
+
+    def __post_init__(self) -> None:
+        if self.age < 0:
+            raise ValueError("age must be non-negative")
+
+
+def test_user_rejects_negative_age() -> None:
+    with pytest.raises(ValueError):
+        User(age=-1)
+
+
+def test_user_accepts_valid_age() -> None:
+    assert User(age=30).age == 30
 ```
+
+The test passes because `__post_init__()` enforces the invariant explicitly; the `int` annotation alone would not reject `-1`, and removing the check would make the first test fail.
 
 Use normal, boundary, invalid, and regression cases. Do not make tests depend unnecessarily on generated implementation details.
 
@@ -1234,14 +1251,16 @@ document = Document(
     text="hello world",
     metadata=DocumentMetadata(source="upload", language="en"),
     created_at=datetime(2026, 9, 23, 10, 0),
+    tags={"report", "draft"},
 )
 
 payload = asdict(document)
 payload["created_at"] = document.created_at.isoformat()
+payload["tags"] = sorted(document.tags)   # a set is not JSON serializable; use a (sorted) list
 encoded = json.dumps(payload)
 ```
 
-`asdict()` gives a Python mapping; `json.dumps()` performs JSON encoding. Fields such as `datetime` need explicit conversion.
+`asdict()` gives a Python mapping; `json.dumps()` performs JSON encoding. Fields such as `datetime` and `set` need explicit conversion (`json.dumps()` raises `TypeError` for a set).
 
 ## Deserialization
 
@@ -1256,6 +1275,8 @@ restored = Document(
 )
 
 assert restored.document_id == document.document_id
+assert isinstance(raw["tags"], list)          # stored as a JSON list...
+assert restored.tags == document.tags         # ...and restored as a set
 ```
 
 ## Tests

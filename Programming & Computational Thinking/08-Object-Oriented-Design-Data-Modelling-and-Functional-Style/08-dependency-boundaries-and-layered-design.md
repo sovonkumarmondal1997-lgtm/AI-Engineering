@@ -694,7 +694,7 @@ Different teams use different folder layouts. Do not treat one folder tree as ma
 
 ## 22. Layered Architecture
 
-A common layered model is:
+A common layered model is the following simplified conceptual diagram of **call flow** (which layer calls which at runtime):
 
 ```text
 Presentation
@@ -705,6 +705,8 @@ Domain
     |
 Infrastructure
 ```
+
+Call flow is not the same as **source-code dependency direction** (which module imports which). In a dependency-inverted design the application or domain side defines a port, and infrastructure implements it, so at runtime the application still calls infrastructure, but in the source code infrastructure depends on the port, not the other way around (see Section 22A).
 
 A simple layered application may permit direct calls downward. A dependency-inverted design may instead define ports near the core and let infrastructure implement them.
 
@@ -721,7 +723,7 @@ Choose based on the actual system.
 
 A layered design becomes useful when the allowed dependencies are explicit.
 
-A common conceptual rule is:
+A common conceptual rule for **call flow** is:
 
 ```text
 Presentation
@@ -731,7 +733,7 @@ Application
 Domain
 ```
 
-Infrastructure may implement the contracts needed by the application/domain side:
+**Source-code dependency direction** can differ from that call flow. Infrastructure may implement the contracts needed by the application/domain side, so its source code depends on the port that the application/domain owns:
 
 ```text
 Application / Domain
@@ -1374,6 +1376,8 @@ def save_order(repository, order):
 
 `raise ... from ...` preserves the original exception as the cause.
 
+(Illustrative fragment: `DatabaseError` stands for the exception type supplied by the database adapter or library you use, for example `sqlite3.DatabaseError`; it is not defined here, and `repository` is supplied by the application.)
+
 Do not swallow failures with broad `except Exception` blocks unless the boundary has a deliberate, audited reason to do so.
 
 
@@ -1789,11 +1793,22 @@ Example:
 
 ```python
 def normalize_features(values, means, scales):
+    if not (len(values) == len(means) == len(scales)):
+        raise ValueError("values, means, and scales must have the same length")
+    if any(scale == 0 for scale in scales):
+        raise ValueError("scales must be non-zero")
     return [
         (value - mean) / scale
         for value, mean, scale in zip(values, means, scales)
     ]
+
+
+assert normalize_features([3.0, 5.0], [1.0, 1.0], [2.0, 4.0]) == [1.0, 1.0]
+# normalize_features([1.0], [0.0, 0.0], [1.0, 1.0])   -> ValueError (mismatched lengths)
+# normalize_features([1.0], [0.0], [0.0])             -> ValueError (zero scale)
 ```
+
+The input contract is explicit: all three sequences have the same length and every scale is non-zero. Without the length check, `zip()` would silently truncate to the shortest sequence, and a zero scale would raise a confusing `ZeroDivisionError`.
 
 Inference is not automatically pure or impure in every implementation. It depends on model/runtime behavior, randomness, resource state, batching, external services, and configuration.
 
@@ -1979,6 +1994,8 @@ What changed:
 - repository and gateway are boundaries;
 - idempotency is a deliberate part of the payment call;
 - the application use case coordinates the steps.
+
+**Money caveat:** `round(amount * rate)` with a `float` rate is a simplification used here to keep the focus on separating concerns. Floating point is acceptable for simplified teaching examples but is not a complete production money-handling strategy, and Python's built-in `round()` (which rounds halves to the nearest even number) may not match a financial domain's required rounding policy. Production systems normally use integer minor units (such as cents) or `Decimal`, with an explicit rounding rule appropriate to the currency and business rules (for example `ROUND_HALF_UP`).
 
 
 ## 61. When Not to Separate Aggressively
@@ -2265,13 +2282,30 @@ def build_prompt(document: Document) -> str:
     )
 
 
-def normalize_model_output(document_id: str, output: dict) -> ProcessedDocument:
-    category = str(output["category"]).strip().lower()
-    summary = str(output["summary"]).strip()
-    if not category or not summary:
-        raise ValueError("invalid model output")
-    return ProcessedDocument(document_id, category, summary)
+class InvalidModelOutput(ValueError):
+    """The model returned output that does not match the expected structure."""
+
+
+def normalize_model_output(document_id: str, output: object) -> ProcessedDocument:
+    # Validate structure and types first; only then normalize. Model output is untrusted.
+    if not isinstance(output, dict):
+        raise InvalidModelOutput("model output must be a mapping")
+    for field in ("category", "summary"):
+        if field not in output:
+            raise InvalidModelOutput(f"missing field: {field}")
+        value = output[field]
+        if not isinstance(value, str):
+            raise InvalidModelOutput(f"{field} must be a string")
+        if not value.strip():
+            raise InvalidModelOutput(f"{field} must not be blank")
+    return ProcessedDocument(
+        document_id,
+        output["category"].strip().lower(),
+        output["summary"].strip(),
+    )
 ```
+
+Validating before normalizing matters: `str(None)` is `"None"`, so converting first would turn a missing or `None` value into an apparently valid string.
 
 #### Ports
 
@@ -2333,6 +2367,92 @@ def test_prompt_is_deterministic():
         "Text:\nHello"
     )
 ```
+
+#### Service tests: success and failure paths
+
+```python
+import pytest
+
+
+class CountingLLM:
+    def __init__(self, output=None, error=None):
+        self.output = output
+        self.error = error
+        self.calls = 0
+
+    def generate_structured(self, prompt: str) -> dict:
+        self.calls += 1
+        if self.error:
+            raise self.error
+        return self.output
+
+
+def test_valid_document_is_processed_and_saved():
+    llm = CountingLLM({"category": " Invoice ", "summary": " Test summary "})
+    repository = FakeRepository()
+
+    result = DocumentService(repository, llm).process(Document("doc-1", "Hello"))
+
+    assert result == ProcessedDocument("doc-1", "invoice", "Test summary")
+    assert repository.saved == [result]
+    assert llm.calls == 1
+
+
+def test_invalid_input_fails_before_the_model_is_called():
+    llm = CountingLLM({"category": "x", "summary": "y"})
+    repository = FakeRepository()
+
+    with pytest.raises(ValueError):
+        DocumentService(repository, llm).process(Document("doc-1", "   "))
+
+    assert llm.calls == 0
+    assert repository.saved == []
+
+
+def test_model_failure_leaves_repository_unchanged():
+    llm = CountingLLM(error=TimeoutError("model unavailable"))
+    repository = FakeRepository()
+
+    with pytest.raises(TimeoutError):
+        DocumentService(repository, llm).process(Document("doc-1", "Hello"))
+
+    assert repository.saved == []
+
+
+@pytest.mark.parametrize(
+    "bad_output",
+    [
+        {},
+        {"category": "invoice"},
+        {"summary": "text"},
+        {"category": None, "summary": "text"},
+        {"category": "invoice", "summary": 42},
+        {"category": "invoice", "summary": "   "},
+        "not a mapping",
+    ],
+)
+def test_invalid_model_output_is_rejected_and_not_saved(bad_output):
+    llm = CountingLLM(bad_output)
+    repository = FakeRepository()
+
+    with pytest.raises(InvalidModelOutput):
+        DocumentService(repository, llm).process(Document("doc-1", "Hello"))
+
+    assert repository.saved == []
+
+
+def test_repository_failure_propagates_unchanged():
+    class FailingRepository:
+        def save(self, document):
+            raise RuntimeError("database down")
+
+    llm = CountingLLM({"category": "invoice", "summary": "text"})
+
+    with pytest.raises(RuntimeError, match="database down"):
+        DocumentService(FailingRepository(), llm).process(Document("doc-1", "Hello"))
+```
+
+Repository errors propagate untranslated here because this project does not yet implement error translation (see the production tasks below). The mini-project does not define an idempotency contract for repeated document IDs, so no test is written for that.
 
 #### Production tasks
 
@@ -2660,42 +2780,22 @@ The most dangerous mistakes in this topic are absolute rules. “Always pure,”
 
 ## 76. When Not to Layer or Separate
 
-### When not to separate
-
-Avoid needless architecture for tiny scripts, prototypes, simple CRUD, one-off utilities, and code with no meaningful variation point. Separation becomes more valuable as domain complexity, external dependencies, failure modes, team size, and production risk increase.
+Avoid needless architecture for tiny scripts, prototypes, simple CRUD, and code with no meaningful variation point. See Section 61 and Section 92 for the full discussion and the decision table.
 
 
 ## 77. Performance and Architectural Complexity
 
-### Performance and complexity
-
-Evaluate:
-
-- algorithmic complexity;
-- serialization;
-- copying;
-- object creation;
-- function-call overhead;
-- adapter indirection;
-- database/network latency;
-- cache memory;
-- transaction cost.
-
-Measure before optimizing. Architectural separation can cost runtime and cognitive overhead while still being worth it for correctness and maintainability.
+Measure before optimizing: separation can cost runtime and cognitive overhead while still being worth it for correctness and maintainability. The full list of factors to evaluate is in Section 94.
 
 
 ## 78. Concurrency and Async
 
-### Concurrency and async
-
-Explicit boundaries help, but they do not eliminate race conditions. Identify shared mutable resources, transaction isolation, async-task interaction, cancellation, and ownership of external clients.
+Explicit boundaries help, but they do not eliminate race conditions; see Section 95 for what still needs analysis.
 
 
 ## 79. Distributed Systems Reliability
 
-### Distributed reliability
-
-Important concepts include timeouts, retries, idempotency, duplicate delivery, eventual consistency, outbox, and observability. Do not assume local success implies remote success.
+Do not assume local success implies remote success; timeouts, retries, idempotency, duplicate delivery, eventual consistency, and the outbox pattern are covered in Section 96 and Section 53.
 
 
 ## 80. Advanced Architecture Diagram
@@ -2948,11 +3048,20 @@ A calculation is domain; repository/clock/notification are external concerns; or
 
 **Solution**
 
-Classification makes refactoring targeted instead of mechanical.
+Model answer for a checkout function:
+
+```text
+total = sum(i.price * i.qty for i in items)   -> domain (calculation)
+order = repository.get(order_id)               -> boundary/effect (repository)
+created = clock.now()                          -> boundary/effect (clock)
+repository.save(order)                         -> effect (persistence)
+notifier.send(receipt)                         -> effect (notification)
+the function that calls them in order          -> application (orchestration)
+```
 
 **Explanation**
 
-Classification makes refactoring targeted instead of mechanical.
+Only the calculation depends on nothing outside its inputs; labeling every line this way shows exactly which lines can be extracted into pure functions and which must stay at the boundary.
 
 **Key learning**
 
@@ -2975,11 +3084,19 @@ Create `is_eligible(score, threshold)` and let the adapter provide the score.
 
 **Solution**
 
-The provider is an effect; the threshold comparison is domain policy.
+```python
+def is_eligible(score: int, threshold: int) -> bool:
+    return score >= threshold
+
+
+def check_customer(customer_id: str, profile_client, threshold: int) -> bool:
+    score = profile_client.fetch_score(customer_id)   # effect, in the adapter/orchestration layer
+    return is_eligible(score, threshold)
+```
 
 **Explanation**
 
-The provider is an effect; the threshold comparison is domain policy.
+The remote profile lookup is an effect and the comparison is the business rule; once the score is an argument, `is_eligible(80, 70)` can be tested with no network.
 
 **Key learning**
 
@@ -3002,11 +3119,21 @@ The rule accepts `limit` directly.
 
 **Solution**
 
-The same arguments now produce the same result regardless of process environment.
+```python
+# before: reads the environment inside the rule
+def within_limit(amount):
+    return amount <= int(os.getenv("LIMIT", "100"))
+
+# after: the rule takes the limit; the boundary reads configuration once
+def within_limit(amount: int, limit: int) -> bool:
+    return amount <= limit
+
+LIMIT = int(os.getenv("LIMIT", "100"))   # application boundary
+```
 
 **Explanation**
 
-The same arguments now produce the same result regardless of process environment.
+The environment is a hidden input; making `limit` a parameter means `within_limit(50, 100)` returns the same result regardless of process environment.
 
 **Key learning**
 
@@ -3029,11 +3156,22 @@ The test supplies a fixed `now`.
 
 **Solution**
 
-Time becomes explicit external state.
+```python
+from datetime import datetime
+
+def is_expired(expires_at: datetime, now: datetime) -> bool:
+    return now >= expires_at
+
+
+def test_is_expired():
+    expires = datetime(2026, 1, 1)
+    assert is_expired(expires, now=datetime(2026, 1, 2)) is True
+    assert is_expired(expires, now=datetime(2025, 12, 31)) is False
+```
 
 **Explanation**
 
-Time becomes explicit external state.
+`datetime.now()` makes the result depend on when the code runs; passing `now` makes time an explicit input, so the test is deterministic. The caller (boundary) supplies `datetime.now()` in production.
 
 **Key learning**
 
@@ -3056,11 +3194,22 @@ The file function reads; the parser transforms.
 
 **Solution**
 
-The parser can run without a filesystem.
+```python
+def read_text(path) -> str:           # effect: filesystem
+    with open(path, encoding="utf-8") as f:
+        return f.read()
+
+
+def parse_records(text: str) -> list[dict]:   # pure: no filesystem
+    return [{"name": line.strip()} for line in text.splitlines() if line.strip()]
+
+
+assert parse_records("a\n\nb\n") == [{"name": "a"}, {"name": "b"}]
+```
 
 **Explanation**
 
-The parser can run without a filesystem.
+The reader performs the I/O; the parser only transforms a string, so it can be tested with in-memory text and reused for text from any source.
 
 **Key learning**
 
@@ -3083,11 +3232,33 @@ Tests can provide an in-memory fake.
 
 **Solution**
 
-Construction moves to the composition root.
+```python
+from typing import Protocol
+
+
+class OrderRepository(Protocol):
+    def save(self, order: dict) -> None: ...
+
+
+class OrderService:
+    def __init__(self, repository: OrderRepository) -> None:   # injected, not constructed here
+        self._repository = repository
+
+    def place(self, order: dict) -> None:
+        self._repository.save(order)
+
+
+class InMemoryOrderRepository:
+    def __init__(self) -> None:
+        self.saved: list[dict] = []
+
+    def save(self, order: dict) -> None:
+        self.saved.append(order)
+```
 
 **Explanation**
 
-Construction moves to the composition root.
+The service depends on the port (`OrderRepository`), not on a concrete database class. A test passes `InMemoryOrderRepository`; the composition root passes the real one.
 
 **Key learning**
 
@@ -3110,11 +3281,23 @@ The domain rule receives plain values.
 
 **Solution**
 
-Provider details stay outside the core.
+```python
+def shipping_cost(distance_km: float, rate_per_km: float) -> float:   # pure domain rule
+    return distance_km * rate_per_km
+
+
+class DistanceGateway:                       # boundary: hides requests.get()
+    def __init__(self, http_client) -> None:
+        self._http = http_client
+
+    def distance_km(self, origin: str, destination: str) -> float:
+        response = self._http.get("/distance", params={"from": origin, "to": destination})
+        return float(response.json()["km"])
+```
 
 **Explanation**
 
-Provider details stay outside the core.
+The HTTP call lives in the gateway, which turns a provider response into a plain `float`; `shipping_cost` receives plain values and never learns about HTTP.
 
 **Key learning**
 
@@ -3137,11 +3320,33 @@ Business code receives domain-oriented values.
 
 **Solution**
 
-Transport concerns are isolated.
+```python
+from dataclasses import dataclass
+
+
+@dataclass(frozen=True)
+class OrderRequest:          # DTO shaped like the JSON payload
+    customer_id: str
+    quantity: int
+
+
+@dataclass(frozen=True)
+class Order:                 # domain value
+    customer_id: str
+    quantity: int
+
+    def __post_init__(self) -> None:
+        if self.quantity <= 0:
+            raise ValueError("quantity must be positive")
+
+
+def to_domain(payload: dict) -> Order:       # the mapping lives at the boundary
+    return Order(customer_id=str(payload["customer_id"]), quantity=int(payload["quantity"]))
+```
 
 **Explanation**
 
-Transport concerns are isolated.
+Parsing and mapping happen once at the edge; business rules then work with a validated `Order` instead of an arbitrary dict whose shape could change with the transport format.
 
 **Key learning**
 
@@ -3166,11 +3371,32 @@ The function either returns valid new state or raises a domain error.
 
 **Solution**
 
-The state transition can be tested without a DB.
+```python
+from dataclasses import dataclass, replace
+
+
+class InsufficientFunds(Exception):
+    pass
+
+
+@dataclass(frozen=True)
+class Account:
+    id: str
+    balance: int
+
+
+def transfer(source: Account, target: Account, amount: int) -> tuple[Account, Account]:
+    if amount > source.balance:
+        raise InsufficientFunds(source.id)
+    return (
+        replace(source, balance=source.balance - amount),
+        replace(target, balance=target.balance + amount),
+    )
+```
 
 **Explanation**
 
-The state transition can be tested without a DB.
+`transfer` returns new states (or raises a domain error) instead of mutating objects, so it can be tested with plain values; persisting the returned accounts is the caller's job.
 
 **Key learning**
 
@@ -3193,11 +3419,22 @@ Application code can distinguish invalid business input from infrastructure fail
 
 **Solution**
 
-Error types communicate boundaries.
+```python
+class InvalidQuantity(ValueError):
+    pass
+
+
+def validate_quantity(quantity: int) -> int:
+    if quantity <= 0:
+        raise InvalidQuantity("quantity must be positive")
+    return quantity
+```
+
+The application layer then catches `InvalidQuantity` to return a validation error and lets infrastructure errors follow a different path.
 
 **Explanation**
 
-Error types communicate boundaries.
+A dedicated domain exception states what went wrong in business terms; a low-level provider exception would force callers to guess whether the input or the infrastructure failed.
 
 **Key learning**
 
@@ -3220,11 +3457,25 @@ Higher layers handle `OrderPersistenceError`.
 
 **Solution**
 
-Provider details stay localized.
+```python
+class OrderPersistenceError(Exception):
+    pass
+
+
+class SqlOrderRepository:
+    def save(self, order) -> None:
+        try:
+            self._session.add(order)
+            self._session.commit()
+        except DatabaseError as exc:                       # provider-specific exception
+            raise OrderPersistenceError("could not save order") from exc
+```
+
+(`DatabaseError` and `_session` are supplied by the chosen database library; this is an illustrative fragment.)
 
 **Explanation**
 
-Provider details stay localized.
+The adapter is the only place that knows the database exception type; higher layers handle `OrderPersistenceError`, and `from exc` keeps the original cause for diagnosis.
 
 **Key learning**
 
@@ -3247,11 +3498,21 @@ Application orchestration decides transaction scope.
 
 **Solution**
 
-The domain rule remains independent of storage mechanics.
+```python
+def apply_discount(order, rate):          # domain: no commit()
+    return replace(order, total=order.total * (1 - rate))
+
+
+def discount_use_case(order_id, rate, repository, session):   # application: owns the transaction
+    order = repository.get(order_id)
+    updated = apply_discount(order, rate)
+    repository.save(updated)
+    session.commit()
+```
 
 **Explanation**
 
-The domain rule remains independent of storage mechanics.
+Transaction scope is a use-case decision (what must succeed or fail together), so `commit()` belongs in orchestration; the domain function stays reusable and testable without a session.
 
 **Key learning**
 
@@ -3274,11 +3535,29 @@ Both changes commit or roll back together in the local DB.
 
 **Solution**
 
-The Unit of Work coordinates local persistence, not external atomicity.
+```python
+class UnitOfWork:
+    def __init__(self, session) -> None:
+        self._session = session
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb) -> None:
+        if exc_type is None:
+            self._session.commit()
+        else:
+            self._session.rollback()
+
+
+with UnitOfWork(session):
+    orders.save(order)
+    inventory.save(item)       # both repositories share one transaction
+```
 
 **Explanation**
 
-The Unit of Work coordinates local persistence, not external atomicity.
+A Unit of Work gives the two changes one commit/rollback boundary in the local database. It does not make an external call (email, payment API) atomic with that commit; that needs an outbox or idempotent retries.
 
 **Key learning**
 
@@ -3301,11 +3580,19 @@ Repeated requests map to one logical charge.
 
 **Solution**
 
-Retrying an effect requires knowledge of the provider outcome.
+```python
+def charge(payment_client, order_id: str, amount: int, idempotency_key: str):
+    return payment_client.charge(
+        amount=amount,
+        idempotency_key=idempotency_key,     # same key => the provider treats repeats as one charge
+    )
+
+key = f"charge-{order_id}"                    # stable across retries of the same logical charge
+```
 
 **Explanation**
 
-Retrying an effect requires knowledge of the provider outcome.
+A timeout does not tell you whether the charge happened, so blind retries can double-charge; a stable idempotency key lets the provider collapse repeated requests into one logical charge.
 
 **Key learning**
 
@@ -3328,11 +3615,21 @@ A publisher retries later from the outbox.
 
 **Solution**
 
-Event intent survives the process that performed the transaction.
+```python
+# one local transaction writes both rows
+with unit_of_work:
+    orders.save(order)
+    outbox.add({"event": "OrderPlaced", "order_id": order.id})   # event intent is persisted
+
+# separate publisher process
+for message in outbox.pending():
+    broker.publish(message)
+    outbox.mark_sent(message)
+```
 
 **Explanation**
 
-Event intent survives the process that performed the transaction.
+Saving the event intent in the same transaction as the order means it survives a crash between commit and publish; the publisher can retry later (consumers must tolerate duplicates).
 
 **Key learning**
 
@@ -3355,11 +3652,19 @@ Each path has clear ownership.
 
 **Solution**
 
-Clear intent helps caching/retry analysis.
+```python
+def get_balance(account_id, repository) -> int:           # query: no state change
+    return repository.get(account_id).balance
+
+
+def deposit(account_id, amount, repository) -> None:      # command: changes state, returns nothing
+    account = repository.get(account_id)
+    repository.save(replace(account, balance=account.balance + amount))
+```
 
 **Explanation**
 
-Clear intent helps caching/retry analysis.
+Queries can be cached or repeated safely; commands need care about retries and transactions. Splitting them makes those properties visible from the function names.
 
 **Key learning**
 
@@ -3382,11 +3687,20 @@ Same data + same config gives repeatable output.
 
 **Solution**
 
-Reproducibility improves.
+```python
+def scale(values: list[float], factor: float) -> list[float]:
+    return [v * factor for v in values]
+
+
+factor = float(os.getenv("SCALE_FACTOR", "1.0"))     # boundary reads configuration once
+result = scale(raw_values, factor)
+
+assert scale([1.0, 2.0], 3.0) == [3.0, 6.0]
+```
 
 **Explanation**
 
-Reproducibility improves.
+With configuration passed in, the same data and the same factor always give the same output, which makes the pipeline step reproducible and trivial to test.
 
 **Key learning**
 
@@ -3409,11 +3723,21 @@ Prompt tests do not require the model provider.
 
 **Solution**
 
-The model adapter owns external behavior.
+```python
+def build_prompt(document: str, question: str) -> str:      # pure
+    return f"Document:\n{document}\n\nQuestion: {question}"
+
+
+def answer(document, question, model_client) -> str:        # effect at the edge
+    return model_client.generate(build_prompt(document, question))
+
+
+assert build_prompt("D", "Q") == "Document:\nD\n\nQuestion: Q"
+```
 
 **Explanation**
 
-The model adapter owns external behavior.
+Prompt text is deterministic and can be asserted exactly; only `model_client.generate` touches the provider, so prompt tests never need a model or network.
 
 **Key learning**
 
@@ -3438,11 +3762,21 @@ A pure decision function returns an action; executor performs it.
 
 **Solution**
 
-Policy tests can run without tools or a model.
+```python
+def decide(state: dict) -> dict:             # pure policy
+    if state["pending_tool"] is None:
+        return {"action": "answer"}
+    return {"action": "call_tool", "tool": state["pending_tool"]}
+
+
+def execute(action: dict, tools, memory):    # executor: effects
+    if action["action"] == "call_tool":
+        memory.append(tools[action["tool"]]())
+```
 
 **Explanation**
 
-Policy tests can run without tools or a model.
+Routing policy becomes a pure function from state to an action, tested with plain dicts. Tool calls, memory writes, and logging stay in the executor.
 
 **Key learning**
 
@@ -3465,11 +3799,11 @@ Keep local helpers concrete; abstract meaningful replacement points.
 
 **Solution**
 
-Fewer unnecessary abstractions improve navigation.
+Model answer: keep helpers such as `_format_name()` as plain functions or private methods. Introduce a Protocol only where an implementation genuinely varies or must be replaced in tests, for example `Notifier` (email vs fake) or `OrderRepository` (database vs in-memory).
 
 **Explanation**
 
-Fewer unnecessary abstractions improve navigation.
+An interface for every helper adds indirection without a variation point. A Protocol earns its place at a real replacement or external boundary.
 
 **Key learning**
 
@@ -3492,11 +3826,25 @@ Business logic runs on stable domain values when mapping is useful.
 
 **Solution**
 
-Provider/session semantics stop leaking inward.
+```python
+def total_due(order: "OrderRow") -> int:            # leaks: touches lazy-loading ORM attributes
+    return sum(line.price for line in order.lines)
+
+# better: map once at the boundary, then use plain values
+@dataclass(frozen=True)
+class OrderValue:
+    line_prices: tuple[int, ...]
+
+def to_value(row: "OrderRow") -> OrderValue:
+    return OrderValue(tuple(line.price for line in row.lines))
+
+def total_due(order: OrderValue) -> int:
+    return sum(order.line_prices)
+```
 
 **Explanation**
 
-Provider/session semantics stop leaking inward.
+Mapping inside the adapter keeps session and lazy-loading behavior out of the business rule, which then runs on stable values and can be tested without a database.
 
 **Key learning**
 
@@ -3519,11 +3867,20 @@ Business calculation remains ordinary Python.
 
 **Solution**
 
-Observability still exists at the use-case boundary.
+```python
+def price_with_tax(price: int, rate: float) -> float:     # no logging import, no I/O
+    return price * (1 + rate)
+
+
+def price_use_case(order, logger) -> float:                # boundary logs
+    total = price_with_tax(order.price, order.rate)
+    logger.info("priced order %s: %s", order.id, total)
+    return total
+```
 
 **Explanation**
 
-Observability still exists at the use-case boundary.
+The calculation stays ordinary Python; the use case records what happened (inputs, result, request IDs), so observability exists without coupling the rule to a logging framework.
 
 **Key learning**
 
@@ -3546,11 +3903,19 @@ Only the I/O boundary awaits the client.
 
 **Solution**
 
-The domain is simpler.
+```python
+def apply_discount(total: int, rate: float) -> float:       # plain sync function
+    return total * (1 - rate)
+
+
+async def handle(order_id, repository):                     # only the I/O boundary awaits
+    order = await repository.get(order_id)
+    return apply_discount(order.total, order.rate)
+```
 
 **Explanation**
 
-The domain is simpler.
+Pure CPU logic does not need `async`; awaiting belongs where I/O happens. Keeping the domain synchronous keeps it simpler to call and test.
 
 **Key learning**
 
@@ -3573,11 +3938,17 @@ The second delivery does not repeat the charge.
 
 **Solution**
 
-Processing state or provider idempotency is durable.
+```python
+def handle_payment(message, processed_ids: set[str], payment_client) -> None:
+    if message["id"] in processed_ids:       # duplicate delivery: do nothing
+        return
+    payment_client.charge(message["amount"], idempotency_key=message["id"])
+    processed_ids.add(message["id"])
+```
 
 **Explanation**
 
-Processing state or provider idempotency is durable.
+Queues can redeliver, so handlers must be idempotent. Here a durable record of processed IDs (a set stands in for a database table) plus a provider idempotency key prevents a second charge.
 
 **Key learning**
 
@@ -3602,11 +3973,31 @@ A second implementation can satisfy the same need.
 
 **Solution**
 
-Provider-specific mechanics remain localized.
+```python
+from typing import Protocol
+
+
+class TextModel(Protocol):
+    def complete(self, prompt: str) -> str: ...
+
+
+class VendorAModel:
+    def complete(self, prompt: str) -> str:
+        return vendor_a_sdk.generate(prompt)       # vendor_a_sdk is supplied by the application
+
+
+class FakeModel:
+    def complete(self, prompt: str) -> str:
+        return "fake"
+
+
+def summarize(text: str, model: TextModel) -> str:
+    return model.complete(f"Summarize: {text}")
+```
 
 **Explanation**
 
-Provider-specific mechanics remain localized.
+Callers depend on `TextModel`; swapping vendors or using `FakeModel` in tests means writing one new adapter, not editing the business code.
 
 **Key learning**
 
@@ -3629,11 +4020,19 @@ Tests run with normal Python values.
 
 **Solution**
 
-The dependency footprint becomes smaller.
+```python
+def is_overdue(days_late: int, grace_days: int) -> bool:
+    return days_late > grace_days
+
+
+def test_is_overdue():
+    assert is_overdue(5, grace_days=3) is True
+    assert is_overdue(3, grace_days=3) is False      # boundary
+```
 
 **Explanation**
 
-The dependency footprint becomes smaller.
+When a rule takes plain values, the test needs no database fixture or setup; the dependency footprint is just Python, so tests are fast and failures point at the rule.
 
 **Key learning**
 
@@ -3656,11 +4055,19 @@ Controller handles transport; core handles business behavior.
 
 **Solution**
 
-Transport changes have less impact on business logic.
+```python
+def shipping_fee(total: int) -> int:                  # core: business behavior
+    return 0 if total >= 100 else 5
+
+
+def controller(request, order_repository) -> dict:     # transport only
+    order = order_repository.get(request["order_id"])
+    return {"fee": shipping_fee(order.total)}
+```
 
 **Explanation**
 
-Transport changes have less impact on business logic.
+The controller parses the request and shapes the response; the fee policy lives in the core, so changing the web framework or response format does not touch business rules.
 
 **Key learning**
 
@@ -4082,7 +4489,7 @@ The outbox moves the problem from a fragile two-step sequence to durable deliver
 Distributed effects need an explicit reliability model.
 
 
-# 74. Interview Questions
+# 88. Interview Questions
 
 ## Beginner
 
@@ -4187,7 +4594,7 @@ Distributed effects need an explicit reliability model.
 ### 32. How does dependency direction affect maintainability?
 **Strong answer:** It controls which changes propagate. A core policy that depends on volatile infrastructure details tends to absorb provider changes; a stable boundary can contain that volatility.
 
-# 75. Architecture Questions
+# 89. Architecture Questions
 
 1. A repository contains pricing rules. How would you refactor it?
 **Model answer:** Decide whether the rule is domain policy. If yes, expose the required data and evaluate the policy in domain code. Keep SQL-specific optimization where data locality genuinely matters.
@@ -4230,7 +4637,7 @@ Distributed effects need an explicit reliability model.
 
 14. A team made everything async.
 **Model answer:** Keep async at real async I/O boundaries; synchronous deterministic logic can remain synchronous.
-# 76. Knowledge Check
+# 90. Knowledge Check
 
 1. **MCQ:** Which is the best reason to extract a pure domain rule?
 A. It is always faster. B. It eliminates all state. C. It can be tested without infrastructure. D. It never raises errors.
@@ -4310,7 +4717,7 @@ A. DI framework. B. Protocol. C. direct timestamp parameter. D. service locator.
 
 25. **Complexity:** Does more architecture automatically mean better software?
 **Answer:** No; added complexity must create useful boundaries.
-# 77. Common Misconceptions
+# 91. Common Misconceptions
 
 ### “All business logic must be pure.”
 Not necessarily. Many workflows coordinate state, transactions, and effects. Extract pure rules where that improves reasoning, but do not force artificial purity.
@@ -4368,7 +4775,7 @@ No. Distribution introduces independent failures and consistency challenges.
 
 ### “More layers always mean better architecture.”
 No. Indirection has cost. Each layer should solve a real problem.
-# 78. When Not to Separate
+# 92. When Not to Separate
 
 Keep code simple for:
 
@@ -4394,7 +4801,7 @@ Evaluate:
 The principle is:
 
 > **Separate when the boundary provides meaningful value.**
-# 79. Production Architecture Checklist
+# 93. Production Architecture Checklist
 
 ### Domain
 - [ ] Business rules are explicit.
@@ -4441,7 +4848,7 @@ The principle is:
 - [ ] Provider changes are localized.
 - [ ] The use-case flow remains understandable.
 
-# 80. Performance and Complexity
+# 94. Performance and Complexity
 
 Separation can add:
 
@@ -4466,7 +4873,7 @@ Measure:
 - transaction duration.
 
 Prefer clarity until measurements show a real hotspot. A more abstract architecture is not automatically faster, and a pure implementation is not automatically faster.
-# 81. Concurrency and Async
+# 95. Concurrency and Async
 
 Separation helps reduce hidden shared state:
 
@@ -4486,7 +4893,7 @@ But concurrency safety still requires analysis of:
 Async should generally live where asynchronous I/O is performed. Pure CPU transformations can stay ordinary synchronous functions.
 
 Do not claim “pure = thread-safe application.” Pure functions help, but system-level concurrency depends on the whole state graph.
-# 82. Distributed Systems
+# 96. Distributed Systems
 
 When effects cross services, process boundaries, or cloud providers, expect:
 
@@ -4508,7 +4915,7 @@ Useful reliability concepts:
 - observability.
 
 Do not over-expand this topic into a full distributed-systems course. The key lesson is that effect boundaries become more important as failure domains multiply.
-# 83. Event-Driven Architecture
+# 97. Event-Driven Architecture
 
 A practical event-driven workflow:
 
@@ -4540,7 +4947,7 @@ Questions to answer:
 - Is event processing idempotent?
 - Is the event versioned?
 
-# 84. Advanced Production Architecture
+# 98. Advanced Production Architecture
 
 Use this review sequence:
 

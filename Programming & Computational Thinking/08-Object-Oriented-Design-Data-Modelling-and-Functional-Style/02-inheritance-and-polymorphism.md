@@ -565,6 +565,8 @@ class CardPayment(PaymentProcessor):
 
 `PaymentProcessor()` cannot be instantiated while it still has an unimplemented abstract method.
 
+(`CardPayment` is a simplified teaching stub: `return amount > 0` only demonstrates implementing an abstract method. It does not contact a payment provider or process a real payment.)
+
 ### ABC vs Protocol
 
 | ABC | Protocol |
@@ -1251,6 +1253,10 @@ class CheckoutService:
         return self.processor.charge(amount)
 ```
 
+These processors are simplified teaching stubs: `return amount > 0` stands in for a real provider call, so they demonstrate polymorphism and testability rather than actual payment processing, and a real integration needs provider-specific operations and proper handling of transaction outcomes and errors.
+
+**Monetary precision caveat:** `amount: float` keeps the example simple, but binary floating point can introduce rounding errors and is not a suitable default for real money. Real financial systems normally use integer minor units (such as cents or paise) or `Decimal` with suitable precision and explicit rounding rules, and handle currency and rounding policy deliberately.
+
 Real systems additionally need idempotency, retries with correct semantics, timeouts, reconciliation, auditability, secure credentials, provider error translation, and observability. Inheritance only solves the polymorphic implementation boundary.
 
 ## 46. Production Notification System
@@ -1650,6 +1656,8 @@ The correct endpoint might still be functions. The lesson is **design reasoning*
 
 Build a complete local payment-processing exercise that demonstrates inheritance, polymorphism, dependency injection, testing, validation, debugging, and trade-offs.
 
+This remains a local learning exercise: the processors below are simplified teaching stubs that do not contact a provider or process real payments, and `amount: float` is used for simplicity only (see the monetary precision caveat in Section 45 for how real money should be represented).
+
 ### Requirements
 
 - base abstraction;
@@ -1784,7 +1792,7 @@ Use this review table when code review reveals inheritance problems.
 | Broad ABC | implementations cannot satisfy every method | abstraction built from all use cases | narrower ABC/Protocol |
 | Fake subtype | test double violates production contract | tests force inheritance | dedicated fake/Protocol |
 
-## 63. Exercise 1 — Basic inheritance
+## 62. Exercise 1 — Basic inheritance
 
 ### Problem
 
@@ -1817,7 +1825,7 @@ The method is inherited and found by lookup.
 
 Copying the method into `Dog` instead of using inheritance.
 
-## 64. Exercise 2 — Method overriding
+## 63. Exercise 2 — Method overriding
 
 ### Problem
 
@@ -1851,7 +1859,7 @@ The subclass method is selected earlier in the MRO.
 
 Calling this overloading instead of overriding.
 
-## 65. Exercise 3 — Inherited attribute
+## 64. Exercise 3 — Inherited attribute
 
 ### Problem
 
@@ -1883,7 +1891,7 @@ Class-attribute lookup reaches the base class.
 
 Assuming the attribute is copied into the child.
 
-## 66. Exercise 4 — Constructor extension
+## 65. Exercise 4 — Constructor extension
 
 ### Problem
 
@@ -1920,7 +1928,7 @@ The base owns initialization of `name`; the child owns `employee_id`.
 
 Reinitializing parent fields manually and forgetting base invariants.
 
-## 67. Exercise 5 — Simple polymorphism
+## 66. Exercise 5 — Simple polymorphism
 
 ### Problem
 
@@ -1959,7 +1967,7 @@ This is duck-typed polymorphism.
 
 Adding an unnecessary common base class.
 
-## 68. Exercise 6 — isinstance and issubclass
+## 67. Exercise 6 — isinstance and issubclass
 
 ### Problem
 
@@ -1992,7 +2000,7 @@ assert issubclass(Dog, Animal)
 
 Passing an instance to `issubclass()`.
 
-## 69. Exercise 7 — Inherited property
+## 68. Exercise 7 — Inherited property
 
 ### Problem
 
@@ -2030,7 +2038,7 @@ The property is inherited as a descriptor.
 
 Calling the property as a method.
 
-## 70. Exercise 8 — ABC
+## 69. Exercise 8 — ABC
 
 ### Problem
 
@@ -2073,7 +2081,7 @@ The ABC specifies a nominal contract and the concrete class implements it.
 
 Forgetting `@abstractmethod`.
 
-## 71. Exercise 9 — Protocol
+## 70. Exercise 9 — Protocol
 
 ### Problem
 
@@ -2114,7 +2122,7 @@ Protocol lets static typing describe behavior without nominal inheritance.
 
 Assuming Protocol requires subclassing.
 
-## 72. Exercise 10 — super().method()
+## 71. Exercise 10 — super().method()
 
 ### Problem
 
@@ -2149,7 +2157,7 @@ The child adds behavior after the base implementation.
 
 Replacing the method when extension is desired.
 
-## 73. Exercise 11 — MRO inspection
+## 72. Exercise 11 — MRO inspection
 
 ### Problem
 
@@ -2190,7 +2198,7 @@ Both APIs expose the resolution order.
 
 Assuming the order is ordinary depth-first traversal.
 
-## 74. Exercise 12 — Diamond chain
+## 73. Exercise 12 — Diamond chain
 
 ### Problem
 
@@ -2234,7 +2242,7 @@ Each `super()` continues through MRO.
 
 Calling `A.run(self)` directly and bypassing C.
 
-## 75. Exercise 13 — Mixin
+## 74. Exercise 13 — Mixin
 
 ### Problem
 
@@ -2268,7 +2276,7 @@ The mixin contributes a small cross-cutting capability.
 
 Turning the mixin into a large service with hidden state.
 
-## 76. Exercise 14 — Cooperative mixin chain
+## 75. Exercise 14 — Cooperative mixin chain
 
 ### Problem
 
@@ -2311,7 +2319,7 @@ The result order follows the MRO.
 
 Skipping `super()` in one participant.
 
-## 77. Exercise 15 — Virtual subclass
+## 76. Exercise 15 — Virtual subclass
 
 ### Problem
 
@@ -2347,7 +2355,7 @@ Registration establishes a virtual relationship without adding implementation.
 
 Expecting methods to be copied from the ABC.
 
-## 78. Exercise 16 — Special methods
+## 77. Exercise 16 — Special methods
 
 ### Problem
 
@@ -2384,7 +2392,7 @@ Python operations dispatch through special methods.
 
 Inventing non-standard APIs when data-model protocols fit.
 
-## 79. Exercise 17 — Model provider Protocol
+## 78. Exercise 17 — Model provider Protocol
 
 ### Problem
 
@@ -2434,7 +2442,7 @@ The application depends on behavior, not the vendor implementation.
 
 Making the application inherit from each provider client.
 
-## 80. Exercise 18 — Payment contract tests
+## 79. Exercise 18 — Payment contract tests
 
 ### Problem
 
@@ -2480,7 +2488,7 @@ Contract tests make behavior comparable across implementations.
 
 Testing only one concrete class.
 
-## 81. Exercise 19 — Branch-to-polymorphism refactor
+## 80. Exercise 19 — Branch-to-polymorphism refactor
 
 ### Problem
 
@@ -2519,7 +2527,7 @@ The operation is moved to the polymorphic objects.
 
 Creating a class hierarchy even when two tiny functions would be simpler.
 
-## 82. Exercise 20 — Substitutability
+## 81. Exercise 20 — Substitutability
 
 ### Problem
 
@@ -2575,7 +2583,7 @@ The caller only depends on the shared behavior.
 
 Making one subtype return a different kind of result.
 
-## 83. Exercise 21 — Choose the simpler design
+## 82. Exercise 21 — Choose the simpler design
 
 ### Problem
 
@@ -2607,7 +2615,7 @@ Functions can be the right polymorphic boundary for stateless algorithms.
 
 Adding an ABC only because there are several formats.
 
-## 84. Exercise 22 — Dependency injection for testability
+## 83. Exercise 22 — Dependency injection for testability
 
 ### Problem
 
@@ -2652,7 +2660,7 @@ Dependency injection moves construction out of business logic.
 
 Injecting a concrete SDK but keeping provider-specific code in the service.
 
-## 85. Exercise 23 — LLM abstraction
+## 84. Exercise 23 — LLM abstraction
 
 ### Problem
 
@@ -2707,7 +2715,7 @@ The generic contract contains only application-facing behavior.
 
 Stuffing every provider-specific option into the common abstraction.
 
-## 86. Exercise 24 — MRO debugging
+## 85. Exercise 24 — MRO debugging
 
 ### Problem
 
@@ -2751,11 +2759,11 @@ The first implementation found in the MRO wins.
 
 Assuming Python chooses the last listed base.
 
-## 87. Debugging Lab — How to Investigate Inheritance Failures
+## 86. Debugging Lab — How to Investigate Inheritance Failures
 
 For each debugging problem, first predict the behavior, then run the code, inspect the traceback/output, inspect the concrete type and MRO, and only then patch the code. The goal is to train a repeatable debugging workflow.
 
-## 89. Debugging Problem 1 — Missing `super().__init__()`
+## 87. Debugging Problem 1 — Missing `super().__init__()`
 
 ### Broken Code
 
@@ -2803,7 +2811,7 @@ class Child(Parent):
 
 A child constructor must preserve inherited initialization responsibilities when required.
 
-## 90. Debugging Problem 2 — Wrong method override
+## 88. Debugging Problem 2 — Wrong method override
 
 ### Broken Code
 
@@ -2849,7 +2857,7 @@ class FixedProcessor(PaymentProcessor):
 
 Polymorphism relies on the same operation name and contract.
 
-## 91. Debugging Problem 3 — Wrong method signature
+## 89. Debugging Problem 3 — Wrong method signature
 
 ### Broken Code
 
@@ -2896,7 +2904,7 @@ class FixedProcessor(Processor):
 
 Substitutability includes call compatibility.
 
-## 92. Debugging Problem 4 — Broken MRO assumption
+## 90. Debugging Problem 4 — Broken MRO assumption
 
 ### Broken Code
 
@@ -2950,7 +2958,7 @@ print(D.__mro__)
 
 Inspect MRO instead of guessing.
 
-## 93. Debugging Problem 5 — Incorrect multiple inheritance
+## 91. Debugging Problem 5 — Incorrect multiple inheritance
 
 ### Broken Code
 
@@ -3005,7 +3013,7 @@ class C(A):
 
 Cooperative inheritance is a protocol between methods, not merely a base-class list.
 
-## 94. Debugging Problem 6 — Missing `super()` in a cooperative chain
+## 92. Debugging Problem 6 — Missing `super()` in a cooperative chain
 
 ### Broken Code
 
@@ -3061,7 +3069,7 @@ class B(A):
 
 In cooperative inheritance, one class can stop every later implementation.
 
-## 95. Debugging Problem 7 — Diamond initialization bug
+## 93. Debugging Problem 7 — Diamond initialization bug
 
 ### Broken Code
 
@@ -3124,7 +3132,7 @@ class C(A):
 
 Cooperative construction lets each class participate without naming a direct parent.
 
-## 96. Debugging Problem 8 — Incorrect mixin dependency
+## 94. Debugging Problem 8 — Incorrect mixin dependency
 
 ### Broken Code
 
@@ -3173,7 +3181,7 @@ class Service(LoggingMixin):
 
 Make dependencies explicit or use composition.
 
-## 97. Debugging Problem 9 — `isinstance()` misuse
+## 95. Debugging Problem 9 — `isinstance()` misuse
 
 ### Broken Code
 
@@ -3221,7 +3229,7 @@ def notify(sender) -> str:
 
 Use polymorphism when behavior is the actual contract.
 
-## 98. Debugging Problem 10 — Subclass violates base contract
+## 96. Debugging Problem 10 — Subclass violates base contract
 
 ### Broken Code
 
@@ -3272,7 +3280,7 @@ class InMemoryStorage(Storage):
 
 A valid subtype must be behaviorally substitutable.
 
-## 99. Interview Questions
+## 97. Interview Questions
 
 ### Beginner
 
@@ -3352,7 +3360,7 @@ Define a narrow contract, inject provider implementations, isolate provider deta
 
 Expose only application-required operations, isolate SDKs behind adapters, use Protocol or ABC as appropriate, inject the implementation, and prevent provider-specific options from bloating the generic interface.
 
-## 100. Architecture Questions
+## 98. Architecture Questions
 
 ### 1. Design a pluggable payment architecture.
 
@@ -3402,7 +3410,7 @@ Compose the agent from a model contract plus tool executor, memory, and planner 
 
 Look for `NotImplementedError` in normal subclasses, provider-specific parameters leaking into generic methods, frequent `isinstance()` branching, and interfaces that change whenever one implementation changes.
 
-## 101. API and Function Coverage Audit
+## 99. API and Function Coverage Audit
 
 This chapter intentionally demonstrates the required Python APIs rather than merely listing them:
 
@@ -3424,7 +3432,7 @@ This chapter intentionally demonstrates the required Python APIs rather than mer
 
 Each is connected to working examples above.
 
-## 102. Technical Accuracy Rules
+## 100. Technical Accuracy Rules
 
 Keep these statements as the chapter's correctness guardrails:
 
@@ -3440,7 +3448,7 @@ Keep these statements as the chapter's correctness guardrails:
 
 Any design recommendation should be framed as a trade-off, not a universal rule.
 
-## 103. Code Quality and Production Constraints
+## 101. Code Quality and Production Constraints
 
 Python examples in this chapter are designed to be:
 
@@ -3455,7 +3463,7 @@ Python examples in this chapter are designed to be:
 
 Production code should additionally be reviewed for security, observability, performance, failure semantics, lifecycle, and operational constraints.
 
-## 104. Final Production Checklist
+## 102. Final Production Checklist
 
 ### Inheritance
 
@@ -3500,7 +3508,7 @@ Production code should additionally be reviewed for security, observability, per
 - [ ] I can apply them to LLM systems.
 - [ ] I can apply them to selected agentic-AI components.
 
-## 105. Knowledge Check
+## 103. Knowledge Check
 
 ### Question
 
@@ -3686,7 +3694,7 @@ How does polymorphism help AI systems?
 
 It lets applications replace model providers, LLM clients, tool executors, or other implementations without rewriting business logic.
 
-## 106. Final Mental Model
+## 104. Final Mental Model
 
 ### Inheritance
 
@@ -3750,7 +3758,7 @@ Impl A  Impl B   Fake
 
 The most valuable result is a system where implementations can change without forcing unrelated business logic to change.
 
-## 107. Final Self-Review
+## 105. Final Self-Review
 
 Before considering this chapter complete, verify:
 
@@ -3800,7 +3808,7 @@ Before considering this chapter complete, verify:
 44. There are no unnecessary frameworks or real credentials.
 45. Required Python APIs are taught through practical examples.
 
-## 108. Practical API Recipes
+## 106. Practical API Recipes
 
 ### Inspect the concrete type
 
@@ -3868,7 +3876,7 @@ class Reader(ABC):
 
 The right recipe depends on whether the system needs a nominal hierarchy, a structural contract, or simple behavior-based dispatch.
 
-## 109. Chapter Completion
+## 107. Chapter Completion
 
 You have reached the end of the inheritance-and-polymorphism chapter. The next useful step is deliberate practice: implement the exercises without looking at the solutions, reproduce the debugging failures locally, and explain every design choice in terms of contracts, substitutability, coupling, and changeability.
 

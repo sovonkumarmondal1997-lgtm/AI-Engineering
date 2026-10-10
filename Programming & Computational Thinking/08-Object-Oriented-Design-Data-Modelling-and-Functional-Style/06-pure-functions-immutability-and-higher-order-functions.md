@@ -50,6 +50,8 @@ You should have basic familiarity with:
 - exceptions;
 - basic `pytest` testing.
 
+**Python version:** the examples assume **Python 3.10 or newer**. In particular, `zip(..., strict=True)` and `str | ValidationError` union annotations require Python 3.10, and `functools.cache` requires Python 3.9 or newer.
+
 A quick refresh:
 
 ```python
@@ -917,14 +919,20 @@ A callback contract should specify arguments, return semantics, error behavior, 
 A retry helper can accept a failure callback:
 
 ```python
-def retry(operation, attempts, on_failure):
+def retry(operation, attempts, on_failure, retryable=(TimeoutError, ConnectionError)):
+    if attempts < 1:
+        raise ValueError("attempts must be at least 1")
+    last_error = None
     for attempt in range(1, attempts + 1):
         try:
             return operation()
-        except Exception as exc:
+        except retryable as exc:        # only transient failures are retried
+            last_error = exc
             on_failure(attempt, exc)
-    raise RuntimeError("operation failed")
+    raise RuntimeError("operation failed after retries") from last_error
 ```
+
+Only the failures named in `retryable` (here, transient ones such as timeouts and connection errors) are retried. Any other exception, such as a `ValueError` from bad input, is a permanent failure and propagates immediately. If every attempt fails, the helper raises a new `RuntimeError` chained with `from last_error`, so the original failure remains visible in the traceback for diagnosis.
 
 The retry algorithm should not care whether `on_failure` logs, increments metrics, records telemetry, or stores diagnostics. That is behavior supplied by the caller.
 
@@ -2412,19 +2420,7 @@ The production lesson is:
 
 ## 64. Functional Style and Performance
 
-There is no blanket claim that functional style is faster or slower.
-
-Evaluate:
-
-- algorithmic complexity;
-- allocations;
-- copying;
-- laziness;
-- iterator consumption;
-- function-call overhead;
-- cache memory;
-- cache hit rate;
-- workload characteristics.
+There is no blanket claim that functional style is faster or slower. Section 83 is the canonical treatment of what to evaluate (algorithmic complexity, allocations, copying, laziness, call overhead, cache cost, and realistic workloads); this section only shows two small illustrations.
 
 A list comprehension:
 
@@ -4555,7 +4551,7 @@ def normalize_text(text: str) -> str:
 def validate_document(document: Document) -> Document:
     if not document.document_id:
         raise ValueError("document_id is required")
-    if not document.text:
+    if not document.text.strip():
         raise ValueError("document text is required")
     return document
 
@@ -4580,6 +4576,8 @@ def validate_model_summary(summary: str) -> str:
         raise ValueError("model summary is empty")
     return normalized
 ```
+
+`validate_document()` treats whitespace-only text as empty, so direct validation and the pipeline (which normalizes before validating) reject the same inputs.
 
 These functions can be tested without a network connection, database, clock, random source, or environment variable.
 
@@ -4684,6 +4682,9 @@ A simpler test can use a closure or a small callable object. The important point
 ### 74.10 pytest examples
 
 ```python
+import pytest
+
+
 def test_normalize_text():
     assert normalize_text("  A   B ") == "A B"
 
@@ -4710,6 +4711,47 @@ def test_process_document_with_fake_dependencies():
 
     assert result == AIResult("d-1", "summary")
     assert saved == [AIResult("d-1", "summary")]
+
+
+def test_whitespace_only_document_is_rejected():
+    with pytest.raises(ValueError, match="document text is required"):
+        validate_document(Document("d-1", "   "))
+    with pytest.raises(ValueError, match="document text is required"):
+        prepare_document({"document_id": "d-1", "text": "   "})
+
+
+def test_missing_required_field_is_rejected():
+    with pytest.raises(KeyError):
+        prepare_document({"document_id": "d-1"})
+
+
+def test_empty_model_output_is_rejected_and_nothing_is_saved():
+    saved: list[AIResult] = []
+
+    with pytest.raises(ValueError, match="model summary is empty"):
+        process_document(
+            {"document_id": "d-1", "text": "hello"},
+            lambda prompt: "   ",
+            saved.append,
+        )
+
+    assert saved == []
+
+
+def test_model_failure_propagates_and_nothing_is_saved():
+    saved: list[AIResult] = []
+
+    def failing_model(prompt: str) -> str:
+        raise TimeoutError("model unavailable")
+
+    with pytest.raises(TimeoutError):
+        process_document(
+            {"document_id": "d-1", "text": "hello"},
+            failing_model,
+            saved.append,
+        )
+
+    assert saved == []
 ```
 
 Pure tests are small because the assertions focus directly on inputs and outputs. Effect-boundary tests can focus on whether the right dependency was called, what was persisted, and how failures are translated.
@@ -5917,6 +5959,8 @@ This order matters. The advanced techniques are easier to understand when the le
 
 ### 87.1 Self-review checklist
 
+This checklist records **content coverage** (a topic or example exists in the chapter). It does not by itself certify independent verification: Python syntax of the mini-project examples and its pytest tests were executed in a temporary environment, but the other examples have not all been executed, and no static type check has been run on the chapter.
+
 - [x] Beginner explanation exists.
 - [x] Ordinary functions are explained first.
 - [x] Pure functions are deeply explained.
@@ -5983,7 +6027,7 @@ This order matters. The advanced techniques are easier to understand when the le
 - [x] Pure function versus merely returning a value is clearly distinguished.
 - [x] Cache versus memoization is clearly distinguished.
 - [x] Functional style versus strict functional programming is clearly distinguished.
-- [x] Examples are designed to be technically correct and readable.
+- [x] Examples are written to be technically correct and readable (reviewed for content; not every example has been executed or type-checked).
 - [x] Examples avoid secrets.
 - [x] Content progresses Basic -> Intermediate -> Advanced -> Production.
 

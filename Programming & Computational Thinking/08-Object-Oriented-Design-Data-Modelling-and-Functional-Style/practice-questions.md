@@ -2,7 +2,7 @@
 
 ## How to Use This Practice Set
 
-This practice set is based on the eight completed Module 08 learning files. The questions deliberately move from foundational implementation to debugging, refactoring, design, and production architecture.
+This practice set is based on the eight completed Module 08 learning files (the mapping to those lessons and to the approved learning plan should be checked against the source lessons; it has not been independently verified here). The questions deliberately move from foundational implementation to debugging, refactoring, design, and production architecture.
 
 For each question, read the **Problem** and **Requirements** first. Try to solve it without looking at the **Solution**. Then compare your design with the solution and focus on the reasoning in **How to Solve It** and **Why This Solution Works** rather than only on the final code.
 
@@ -1140,6 +1140,8 @@ Output:
 1260.0
 ```
 
+**Precision note:** `float` money values keep this exercise focused on separating the calculation from the effects. They are a teaching simplification, not a recommendation for production financial calculations: binary floating point and `round()` can produce unexpected cents. Real systems normally use integer minor units (such as cents) or `Decimal`, together with an explicit currency and rounding policy.
+
 #### How to Solve It
 
 1. Identify which lines only calculate a result from existing data.
@@ -1217,18 +1219,27 @@ class Order:
 
 
 def to_domain(request: CreateOrderRequest) -> Order:
+    # Annotations and frozen=True do not validate runtime data, so check it here.
+    if not isinstance(request.customer_id, str) or not request.customer_id:
+        raise ValueError("customer_id must be a non-empty string")
+    if not isinstance(request.items, list):
+        raise ValueError("items must be a list")
     items = []
     for raw_item in request.items:
-        quantity = raw_item["quantity"]
+        if not isinstance(raw_item, dict):
+            raise ValueError("each item must be an object")
+        for field in ("sku", "quantity", "price"):
+            if field not in raw_item:
+                raise ValueError(f"item is missing required field: {field}")
+        sku, quantity, price = raw_item["sku"], raw_item["quantity"], raw_item["price"]
+        if not isinstance(sku, str) or not sku:
+            raise ValueError("sku must be a non-empty string")
+        for name, value in (("quantity", quantity), ("price", price)):
+            if isinstance(value, bool) or not isinstance(value, int):
+                raise ValueError(f"{name} must be an integer")
         if quantity <= 0:
             raise ValueError("quantity must be positive")
-        items.append(
-            OrderItem(
-                sku=raw_item["sku"],
-                quantity=quantity,
-                price=raw_item["price"],
-            )
-        )
+        items.append(OrderItem(sku=sku, quantity=quantity, price=price))
     return Order(request.customer_id, tuple(items))
 
 
@@ -1245,6 +1256,24 @@ Output:
 ```text
 A1
 ```
+
+Malformed input is rejected with `ValueError` before any domain object exists:
+
+```python
+import pytest
+
+bad_requests = [
+    CreateOrderRequest("c-10", [{"sku": "A1", "price": 50}]),                       # missing quantity
+    CreateOrderRequest("c-10", [{"sku": "A1", "quantity": "2", "price": 50}]),      # wrong type
+    CreateOrderRequest("c-10", [{"sku": "A1", "quantity": 0, "price": 50}]),        # not positive
+    CreateOrderRequest("c-10", ["not an object"]),
+]
+for bad in bad_requests:
+    with pytest.raises(ValueError):
+        to_domain(bad)
+```
+
+`frozen=True` only stops attribute reassignment on `CreateOrderRequest`; it does not validate data and does not make the nested `items` list or its dictionaries immutable. Type annotations are likewise not checked at runtime. The validation above is what actually protects the domain, and the depth is deliberately limited to what this exercise needs (a full validation framework would go further).
 
 #### How to Solve It
 
@@ -1445,6 +1474,8 @@ def apply_transfer(
 ) -> tuple[Account, Account]:
     if amount <= 0:
         raise ValueError("amount must be positive")
+    if source.account_id == destination.account_id:
+        raise ValueError("cannot transfer to the same account")
     if source.balance < amount:
         raise ValueError("insufficient funds")
 
@@ -1476,6 +1507,54 @@ class TransferMoney:
         self.repository.save(updated_source)
         self.repository.save(updated_destination)
         self.notifier.send(source_id, destination_id, amount)
+```
+
+A same-account transfer is explicitly rejected by `apply_transfer()` using account identity. Without that rule the two `replace()` calls would both start from the same original balance, and saving them one after the other would let the second write overwrite the first, leaving an inconsistent balance. Focused tests:
+
+```python
+import pytest
+
+
+class InMemoryAccounts:
+    def __init__(self, *accounts):
+        self.accounts = {a.account_id: a for a in accounts}
+        self.saves = 0
+
+    def get(self, account_id):
+        return self.accounts[account_id]
+
+    def save(self, account):
+        self.saves += 1
+        self.accounts[account.account_id] = account
+
+
+class RecordingNotifier:
+    def __init__(self):
+        self.sent = []
+
+    def send(self, source_id, destination_id, amount):
+        self.sent.append((source_id, destination_id, amount))
+
+
+def test_same_account_transfer_is_rejected_without_changing_state():
+    repository = InMemoryAccounts(Account("A", 100))
+    notifier = RecordingNotifier()
+
+    with pytest.raises(ValueError, match="same account"):
+        TransferMoney(repository, notifier).execute("A", "A", 40)
+
+    assert repository.accounts["A"].balance == 100
+    assert repository.saves == 0
+    assert notifier.sent == []
+
+
+def test_valid_transfer_still_moves_money():
+    repository = InMemoryAccounts(Account("A", 100), Account("B", 0))
+
+    TransferMoney(repository, RecordingNotifier()).execute("A", "B", 40)
+
+    assert repository.accounts["A"].balance == 60
+    assert repository.accounts["B"].balance == 40
 ```
 
 A production repository would normally coordinate both writes within the appropriate transaction boundary, possibly through a Unit of Work rather than independent `save()` calls. The example intentionally keeps that infrastructure concern outside `apply_transfer()`.
@@ -1744,7 +1823,7 @@ Output:
 https://example.invalid/health
 ```
 
-At the application boundary, read the environment once and construct `Config`:
+At the application boundary, read the environment once and construct `Config` (this snippet continues the previous block and relies on its `Config` class):
 
 ```python
 import os
@@ -2309,6 +2388,8 @@ def transfer_state(
 ) -> tuple[Account, Account]:
     if amount.amount <= 0:
         raise ValueError("transfer amount must be positive")
+    if source.account_id == destination.account_id:
+        raise ValueError("cannot transfer to the same account")
     if source.balance.currency != amount.currency:
         raise ValueError("source currency mismatch")
     if destination.balance.currency != amount.currency:
@@ -2345,6 +2426,48 @@ class TransferMoney:
         self.unit_of_work.accounts.save(updated_destination)
         self.unit_of_work.commit()
         self.notifier.publish(source_id, destination_id, amount)
+```
+
+A same-account transfer is explicitly rejected by `transfer_state()` using account identity, so the use case can never save two conflicting versions of one account. Test:
+
+```python
+import pytest
+
+
+class InMemoryUnitOfWork:
+    def __init__(self, *accounts):
+        self.accounts = self
+        self._data = {a.account_id: a for a in accounts}
+        self.committed = False
+
+    def get(self, account_id):
+        return self._data[account_id]
+
+    def save(self, account):
+        self._data[account.account_id] = account
+
+    def commit(self):
+        self.committed = True
+
+
+class CapturingNotifier:
+    def __init__(self):
+        self.published = []
+
+    def publish(self, source_id, destination_id, amount):
+        self.published.append((source_id, destination_id, amount))
+
+
+def test_same_account_transfer_is_rejected_and_nothing_is_persisted():
+    uow = InMemoryUnitOfWork(Account("A", Money(100, "USD")))
+    notifier = CapturingNotifier()
+
+    with pytest.raises(ValueError, match="same account"):
+        TransferMoney(uow, notifier).execute("A", "A", Money(40, "USD"))
+
+    assert uow.get("A").balance == Money(100, "USD")
+    assert uow.committed is False
+    assert notifier.published == []
 ```
 
 The presentation adapter should translate a request DTO into `Money` and identifiers. A concrete database Unit of Work is assembled by the composition root. A production design should also address concurrency, idempotency, audit requirements, and the fact that `commit()` and external notification are not automatically one atomic distributed operation. An outbox-style design can address reliable event publication when that reliability is required.
@@ -2776,6 +2899,102 @@ def process_order(order_id, repository, gateway):
     return amount
 ```
 
+The application-service test calls the service and asserts both the result and the interactions with the fakes:
+
+```python
+def test_process_order_applies_discount_and_charges_and_saves() -> None:
+    repository = FakeOrderRepository()
+    gateway = FakePaymentGateway()
+
+    amount = process_order("o-1", repository, gateway)
+
+    assert amount == 1100                              # 1200 total - 100 discount
+    assert gateway.charges == [1100]                   # charged the discounted amount
+    assert repository.saved == [("o-1", 1100)]         # persisted the same amount
+```
+
+This proves the orchestration (discount, charge, save) is wired correctly. It does not prove that real persistence or the real payment provider behave as the fakes assume.
+
+A repository integration test runs the real repository code against a controlled test database. This example uses an in-memory SQLite database as the controlled database; the requirement for a PostgreSQL repository is a disposable test PostgreSQL instance (for example a container or a test schema), which is not available here and is not executed:
+
+```python
+import sqlite3
+
+
+class SqlOrderRepository:
+    def __init__(self, connection) -> None:
+        self._connection = connection
+        connection.execute("CREATE TABLE IF NOT EXISTS orders (id TEXT PRIMARY KEY, total INTEGER)")
+
+    def save(self, order_id: str, total: int) -> None:
+        self._connection.execute(
+            "INSERT OR REPLACE INTO orders (id, total) VALUES (?, ?)", (order_id, total)
+        )
+        self._connection.commit()
+
+    def get(self, order_id: str) -> dict:
+        row = self._connection.execute(
+            "SELECT total FROM orders WHERE id = ?", (order_id,)
+        ).fetchone()
+        return {"total": row[0]}
+
+
+def test_repository_round_trips_an_order() -> None:
+    repository = SqlOrderRepository(sqlite3.connect(":memory:"))
+
+    repository.save("o-1", 1100)
+
+    assert repository.get("o-1") == {"total": 1100}
+```
+
+It proves the real SQL, mapping, and commit behavior for that database engine; it does not prove PostgreSQL-specific behavior unless it runs against PostgreSQL.
+
+A payment contract test checks the adapter's assumptions about the provider's interface. Here the provider's HTTP layer is replaced by a recording stub so the test is runnable; a true integration test would call the provider's sandbox with test credentials (not available here, so not executed):
+
+```python
+class HttpPaymentGateway:
+    def __init__(self, http_post) -> None:
+        self._post = http_post
+
+    def charge(self, amount: int) -> str:
+        response = self._post("/charges", {"amount": amount, "currency": "USD"})
+        return response["status"]
+
+
+def test_payment_adapter_sends_the_expected_request() -> None:
+    sent = []
+
+    def fake_post(path, payload):
+        sent.append((path, payload))
+        return {"status": "ok"}
+
+    status = HttpPaymentGateway(fake_post).charge(1100)
+
+    assert sent == [("/charges", {"amount": 1100, "currency": "USD"})]
+    assert status == "ok"
+```
+
+This proves the adapter builds the request and reads the response the way the contract says; it does not prove the real provider still honors that contract.
+
+A minimal end-to-end test assembles the real wiring for one critical workflow. Prerequisites for a genuine end-to-end test are a running application (or its entry function), a test database, and a provider sandbox; here the database is in-memory SQLite and the provider call is a stub, so this is illustrative of the assembled flow rather than a full production end-to-end run:
+
+```python
+def checkout(order_id: str, repository, gateway) -> dict:      # the assembled use case / controller
+    amount = process_order(order_id, repository, gateway)
+    return {"order_id": order_id, "charged": amount}
+
+
+def test_checkout_workflow_end_to_end() -> None:
+    repository = SqlOrderRepository(sqlite3.connect(":memory:"))
+    repository.save("o-1", 1200)
+    gateway = HttpPaymentGateway(lambda path, payload: {"status": "ok"})
+
+    response = checkout("o-1", repository, gateway)
+
+    assert response == {"order_id": "o-1", "charged": 1100}
+    assert repository.get("o-1") == {"total": 1100}
+```
+
 An integration test should exercise the real repository against a controlled test database. A payment adapter integration/contract test should verify the adapter's assumptions about the provider. An end-to-end test should exercise the real application wiring for a small number of critical workflows.
 
 #### How to Solve It
@@ -3029,6 +3248,8 @@ class OrderService:
 
 A minimal clock dependency can be an object with `hour()` for tests and production. Environment loading happens once when constructing `PricingConfig` in the composition root.
 
+**Precision note:** the `float` amounts and rates here are a teaching simplification, not a production money-handling strategy. Real financial systems normally use integer minor units or `Decimal` with an explicit currency and rounding policy.
+
 #### How to Solve It
 
 1. List every hidden input and external effect.
@@ -3087,8 +3308,11 @@ The agent can be tested without invoking real external services, model providers
 #### Solution
 
 ```python
+import logging
 from dataclasses import dataclass, replace
 from typing import Protocol
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -3148,6 +3372,20 @@ def with_context(
     return replace(state, context=tuple(context))
 
 
+class UnauthorizedToolError(Exception):
+    pass
+
+
+def authorize_tool(tool_name: object, authorized_tools: set[str]) -> str | None:
+    # Authorization is checked against an explicit allowlist, independently of
+    # who chose the tool (the deterministic rule or the model).
+    if tool_name is None:
+        return None
+    if not isinstance(tool_name, str) or tool_name not in authorized_tools:
+        raise UnauthorizedToolError(f"tool not authorized: {tool_name!r}")
+    return tool_name
+
+
 class SupportAgent:
     def __init__(
         self,
@@ -3162,8 +3400,10 @@ class SupportAgent:
         self.state_store = state_store
 
     def run(self, request: AgentRequest, available_tools: set[str]) -> AgentState:
+        # available_tools is the explicit authorized-tool allowlist for this run.
         request = validate_request(request)
         state = AgentState(request=request)
+        logger.info("agent run started", extra={"request_id": request.request_id})
 
         context = self.retrieval.search(request.text)
         state = with_context(state, context)
@@ -3171,6 +3411,11 @@ class SupportAgent:
         tool_name = select_deterministic_tool(request, available_tools)
         if tool_name is None:
             tool_name = self.model.plan(request.text, state.context)
+        try:
+            tool_name = authorize_tool(tool_name, available_tools)   # validate the FINAL selection
+        except UnauthorizedToolError:
+            logger.warning("tool rejected", extra={"request_id": request.request_id})
+            raise                                                      # the tool is never executed
         state = replace(state, selected_tool=tool_name)
 
         if tool_name is not None:
@@ -3182,7 +3427,94 @@ class SupportAgent:
             state = replace(state, result=result)
 
         self.state_store.save(state)
+        logger.info("agent run finished", extra={"request_id": request.request_id})
         return state
+```
+
+An unknown, unauthorized, or malformed tool selection raises `UnauthorizedToolError` before any tool executes and before state is saved; `authorize_tool()` is the only place that decides, so the model's choice never authorizes itself.
+
+A minimal composition root and fakes (illustrative; real adapters and provider setup, such as SDK clients and credentials, are outside this example):
+
+```python
+class FakeModel:
+    def __init__(self, tool=None):
+        self.tool = tool
+
+    def plan(self, text, context):
+        return self.tool
+
+
+class FakeRetrieval:
+    def search(self, query):
+        return ["policy document"]
+
+
+class RecordingTools:
+    def __init__(self):
+        self.executed = []
+
+    def execute(self, name, request_id, text):
+        self.executed.append(name)
+        return f"{name}: done"
+
+
+class InMemoryStateStore:
+    def __init__(self):
+        self.saved = []
+
+    def save(self, state):
+        self.saved.append(state)
+
+
+def build_agent(model=None, tools=None, store=None):
+    # composition root: the only place concrete dependencies are chosen and wired
+    return SupportAgent(
+        model=model or FakeModel(),
+        retrieval=FakeRetrieval(),
+        tools=tools or RecordingTools(),
+        state_store=store or InMemoryStateStore(),
+    )
+```
+
+Observability belongs where effects cross a boundary: `SupportAgent.run()` logs the start, the finish, and a rejected tool with the `request_id`, while `validate_request`, `select_deterministic_tool`, `authorize_tool`, and `with_context` stay pure and free of logging so they remain trivially testable. A real system would also record metrics and trace spans around the model, retrieval, tool, and storage calls inside their adapters.
+
+Tests:
+
+```python
+import pytest
+
+
+def test_authorized_tool_executes():
+    tools, store = RecordingTools(), InMemoryStateStore()
+    agent = build_agent(tools=tools, store=store)
+
+    state = agent.run(AgentRequest("r-1", "I want a refund"), {"refund"})
+
+    assert tools.executed == ["refund"]
+    assert state.result == "refund: done"
+    assert store.saved == [state]
+
+
+@pytest.mark.parametrize("model_choice", ["delete_database", ""])
+def test_unauthorized_model_selected_tool_is_never_executed(model_choice):
+    tools, store = RecordingTools(), InMemoryStateStore()
+    agent = build_agent(model=FakeModel(tool=model_choice), tools=tools, store=store)
+
+    with pytest.raises(UnauthorizedToolError):
+        agent.run(AgentRequest("r-2", "please help"), {"refund"})
+
+    assert tools.executed == []
+    assert store.saved == []
+
+
+def test_malformed_model_selection_is_rejected():
+    tools = RecordingTools()
+    agent = build_agent(model=FakeModel(tool=123), tools=tools)
+
+    with pytest.raises(UnauthorizedToolError):
+        agent.run(AgentRequest("r-3", "please help"), {"refund"})
+
+    assert tools.executed == []
 ```
 
 A conceptual dependency graph is:
@@ -3250,6 +3582,8 @@ The architecture also respects the distinction between dependency inversion and 
 A production AI architecture should separate **policy and transformation** from **effect execution** as far as practical. The goal is not zero effects; it is explicit, testable, replaceable, and observable boundaries around them.
 
 # Coverage Summary
+
+*This mapping should be checked against the approved source lessons and learning plan; it has not been independently verified against those files.*
 
 | Source File | Major Concepts Practiced | Question Numbers |
 |---|---|---|

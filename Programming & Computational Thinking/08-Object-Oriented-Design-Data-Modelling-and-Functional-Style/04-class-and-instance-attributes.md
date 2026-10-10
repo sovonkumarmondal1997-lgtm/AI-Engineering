@@ -1311,7 +1311,7 @@ Properties use descriptor behavior. Methods are descriptor-backed. Frameworks su
 ## Small example
 
 ```python
-class PositiveNumber:
+class NonNegativeNumber:
     def __set_name__(self, owner, name) -> None:
         self.name = name
 
@@ -1327,7 +1327,7 @@ class PositiveNumber:
 
 
 class Product:
-    price = PositiveNumber()
+    price = NonNegativeNumber()
 
 
 product = Product()
@@ -1343,9 +1343,11 @@ Expected:
 
 ### Data vs non-data descriptor
 
-A data descriptor generally implements `__set__` or `__delete__` as well as `__get__`.
+A descriptor takes part in attribute access through the descriptor protocol (`__get__`, `__set__`, `__delete__`); it does not need to implement all three.
 
-A non-data descriptor generally provides only `__get__`.
+A **data descriptor** is one that defines `__set__` and/or `__delete__` (it usually defines `__get__` too, but that is not what makes it a data descriptor).
+
+A **non-data descriptor** defines `__get__` but neither `__set__` nor `__delete__`.
 
 Data descriptors have stronger precedence in ordinary attribute lookup.
 
@@ -2971,6 +2973,8 @@ https://example.invalid
 
 # 45. Exercises
 
+**Practice recommendation:** Attempt each exercise independently and run your own tests before consulting the supplied solution. Use the solution to compare your reasoning, diagnose mistakes, and verify your implementation.
+
 ## Basic
 
 ### Exercise 1 — Instance Attribute Basics
@@ -3648,10 +3652,6 @@ Write a helper that reports whether an attribute is directly on the instance, av
 #### Requirements
 
 Do not mutate the object.
-
-#### Expected behavior
-
-Return `
 
 #### Expected behavior
 
@@ -4501,7 +4501,9 @@ Per-client mutable state belongs to the client instance.
 
 ## 46. Configurable AI/API Inference Client — Mini Project
 
-Build a small production-oriented client that demonstrates:
+This project is a client **configuration and state-ownership scaffold**. It demonstrates class and instance attributes, configuration ownership, and per-request state (request IDs, history, validation, and request counting). It does not send HTTP requests or perform model inference; real network integration is intentionally outside the scope of this chapter.
+
+Build a small production-oriented client scaffold that demonstrates:
 
 - class-level defaults;
 - class constants;
@@ -5701,5 +5703,4 @@ If the answers are clear, the choice between class and instance attributes becom
 - [x] Relevant attribute APIs are covered.
 - [x] Technical-accuracy warnings are explicit.
 - [x] No secrets or real credentials are used.
-- [x] No unrelated files are intentionally modified.
 

@@ -984,7 +984,7 @@ Use static Protocol typing for normal application contracts.
 
 ## 23. Protocol Introspection APIs
 
-Modern Python provides public typing introspection helpers in recent versions, including APIs such as:
+Modern Python provides public typing introspection helpers in recent versions, including APIs such as the following. **Requires Python 3.13 or newer**: `typing.is_protocol()` and `typing.get_protocol_members()` were added in Python 3.13 and do not exist in earlier versions.
 
 ```python
 from typing import Protocol, get_protocol_members, is_protocol
@@ -3084,7 +3084,7 @@ No real credentials or production banking endpoints are required for this learni
 
 ## 63. Advanced Protocol Introspection
 
-Recent Python versions provide public introspection helpers such as:
+Recent Python versions provide public introspection helpers such as the following (**requires Python 3.13 or newer**, as noted in Section 23):
 
 ```python
 from typing import Protocol, get_protocol_members, is_protocol
@@ -3105,20 +3105,7 @@ The exact set returned is not intended to be manually edited as application conf
 
 ### Internal names
 
-During debugging or library development you may encounter names such as:
-
-```text
-_is_protocol
-__protocol_attrs__
-```
-
-Treat these as internal/version-sensitive details.
-
-Use documented public APIs for application/tooling code when available.
-
-### Why this matters
-
-A production architecture should depend on stable Python APIs rather than internal implementation details of the typing machinery.
+As Section 23 explains, internal names such as `_is_protocol` and `__protocol_attrs__` are version-sensitive; use the documented public APIs shown above for application and tooling code, so that architecture depends on stable Python APIs rather than typing-machinery internals.
 
 ---
 
@@ -3312,20 +3299,7 @@ If a recurring application boundary genuinely requires both, a combined Protocol
 
 ## 68. Protocol vs ABC vs Duck Typing
 
-| Feature | Duck Typing | Protocol | ABC |
-|---|---|---|---|
-| Main idea | Use supported behavior | Structural contract | Nominal abstraction |
-| Explicit declaration | Often implicit | Explicit type contract | Explicit base class |
-| Inheritance required | No | No for structural compatibility | Usually yes for normal hierarchy |
-| Static checking | Optional | Strong | Strong |
-| Runtime enforcement | Actual calls | Limited with `runtime_checkable` | Abstractness enforced by ABC machinery |
-| Signature validation at runtime | No | No full validation | No full validation |
-| Shared implementation | Not required | Not primary | Strong fit |
-| Third-party classes | Easy | Easy | Often more coupled |
-| Plugin systems | Possible | Strong fit | Possible |
-| Domain hierarchy | Less explicit | Less nominal | Strong fit |
-| Test doubles | Easy | Excellent | Easy |
-| Typical risk | Hidden contract | Over-abstraction | Hierarchy coupling |
+The full side-by-side comparison of duck typing, `Protocol`, and ABC (including runtime enforcement, signature validation, shared implementation, and typical risks) is in Section 29; this section keeps only the decision questions.
 
 ### Decision questions
 
@@ -4008,6 +3982,8 @@ The composition root can connect concrete infrastructure to a Protocol boundary.
 # EXERCISES
 
 ## 83. Basic Exercises
+
+**Practice recommendation:** Attempt each exercise independently first: implement your own solution and write or run suitable tests where appropriate. Consult the supplied solution only after making a genuine attempt, then use it to compare your reasoning and find gaps.
 
 ### Exercise 1 — Identify the Dependency
 
@@ -5667,6 +5643,8 @@ The project must include:
 - no credentials or real API keys;
 - clear dependency ownership.
 
+**Scope of this project:** the service demonstrates Protocol-based boundaries with deterministic fakes. A prompt of the form `tool:<name> <input>` runs the named injected tool, and the tool's result is included in the prompt passed to the model; every request is stored in the injected repository and its prompt in memory. `AppConfig` is carried to the service but its values (`model_name`, `timeout_seconds`) do not yet influence behavior; they mark where configuration would be consumed in a real system. Nothing here calls a real model or network service.
+
 ### Architecture
 
 ```text
@@ -5755,8 +5733,10 @@ class InferenceRepository(Protocol):
 class FakeModel:
     def __init__(self, response: str = "fake-response") -> None:
         self.response = response
+        self.prompts: list[str] = []      # records what the service sent to the model
 
     def generate(self, prompt: str) -> str:
+        self.prompts.append(prompt)
         return self.response
 ```
 
@@ -5827,6 +5807,14 @@ class InferenceService:
         if not request.prompt.strip():
             raise ValueError("prompt cannot be blank")
 
+        prompt = request.prompt
+        if prompt.startswith("tool:"):
+            tool_name, _, tool_input = prompt[len("tool:"):].partition(" ")
+            tool = next((t for t in self.tools if t.name == tool_name), None)
+            if tool is None:
+                raise ValueError(f"unknown tool: {tool_name}")
+            prompt = f"{tool_input}\n[tool {tool_name} result: {tool.run(tool_input)}]"
+
         self.memory.add(request.prompt)
 
         logger.info(
@@ -5834,7 +5822,7 @@ class InferenceService:
             extra={"request_id": request.request_id},
         )
 
-        text = self.model.generate(request.prompt)
+        text = self.model.generate(prompt)
 
         response = InferenceResponse(
             request_id=request.request_id,
@@ -5914,6 +5902,56 @@ def test_blank_prompt_is_rejected() -> None:
                 prompt="   ",
             )
         )
+
+
+def test_missing_request_id_is_rejected() -> None:
+    service = build_service()
+
+    with pytest.raises(ValueError, match="request_id is required"):
+        service.run(InferenceRequest(request_id="", prompt="hello"))
+
+
+def test_response_is_saved_and_prompt_is_remembered() -> None:
+    model = FakeModel()
+    memory = InMemoryMemory()
+    repository = InMemoryInferenceRepository()
+    service = InferenceService(AppConfig(), model, memory, repository, tools=[])
+
+    result = service.run(InferenceRequest(request_id="req-1", prompt="hello"))
+
+    assert repository.responses == [result]
+    assert memory.recent() == ["hello"]
+
+
+class SpyTool:
+    name = "spy"
+
+    def __init__(self) -> None:
+        self.inputs: list[str] = []
+
+    def run(self, input: str) -> str:
+        self.inputs.append(input)
+        return "TOOL-OUTPUT"
+
+
+def test_tool_is_called_and_its_result_reaches_the_model() -> None:
+    tool = SpyTool()
+    model = FakeModel()
+    service = InferenceService(
+        AppConfig(), model, InMemoryMemory(), InMemoryInferenceRepository(), tools=[tool]
+    )
+
+    service.run(InferenceRequest(request_id="req-1", prompt="tool:spy some input"))
+
+    assert tool.inputs == ["some input"]               # the injected tool was called with the right input
+    assert "TOOL-OUTPUT" in model.prompts[0]           # and its result was given to the model
+
+
+def test_unknown_tool_is_rejected() -> None:
+    service = build_service()
+
+    with pytest.raises(ValueError, match="unknown tool: missing"):
+        service.run(InferenceRequest(request_id="req-1", prompt="tool:missing x"))
 ```
 
 ### What this project demonstrates
@@ -8182,7 +8220,7 @@ Before saving the chapter, verify:
 - [x] At least 6 debugging scenarios exist.
 - [x] Every debugging scenario includes broken code, expected behavior, actual behavior, clues, investigation, root cause, fix, explanation, and production lesson.
 - [x] Mini-project exists.
-- [x] Mini-project includes Protocols, dependency inversion, dependency injection, adapters, tests, logging, and a composition root.
+- [x] Mini-project includes Protocols, dependency inversion, dependency injection, adapters, tests, logging, and a composition root. Observable behavior is checked by its Step 11 tests (response, validation, persistence, memory, and tool invocation); `AppConfig` values are carried but not yet used, and the tests have not been claimed here as run against a real model, network service, or static type checker.
 - [x] Interview questions exist.
 - [x] Architecture questions exist.
 - [x] Knowledge check exists.
