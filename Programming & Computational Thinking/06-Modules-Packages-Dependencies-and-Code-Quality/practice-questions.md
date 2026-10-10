@@ -43,7 +43,10 @@ from my_logging_shim import dumps   # a project-local module that ALSO defines `
 print(dumps({"a": 1}))
 ```
 
-Running `main.py` produces output that doesn't look like valid JSON.
+Running `main.py` produces output that doesn't look like valid JSON
+(the implementation of `my_logging_shim.dumps` is deliberately omitted:
+the odd output is part of this hypothetical scenario, and what matters
+here is *which* `dumps` runs).
 Explain exactly what is happening, and rewrite `main.py` so both
 `dumps` functions remain usable without either one silently replacing
 the other.
@@ -55,7 +58,9 @@ the standard library's `json` module, and once from a project-local
 module `my_logging_shim`. The second `from ... import dumps` **silently
 shadows** the first: after both lines run, the name `dumps` in
 `main.py`'s namespace refers only to `my_logging_shim.dumps`, not
-`json.dumps`, with no error or warning at all.
+`json.dumps`, with no error or warning at all. (What that shim's
+`dumps` actually prints depends on its omitted implementation; the
+shadowing itself is what the code shown establishes.)
 
 **Why it happens:** `from module import name` binds `name` directly into
 the current file's own namespace. Namespaces are just mappings from
@@ -215,10 +220,14 @@ imports the local source tree instead of the installed package, a
 packaging mistake — a file that works locally but was never actually
 included in the built package — can go completely undetected until a
 real user installs it and it breaks. With a src layout, `src/` itself
-is *not* added to `sys.path` automatically, so the *only* way to import
-`weather` at all is through a proper installation, forcing development
-and testing to exercise the same import path a real user's installation
-would use.
+is *not* added to `sys.path` automatically, so `weather` is not
+importable by accident from the project root; the conventional way to
+make it importable is a proper (often editable) installation, which
+encourages development and testing to exercise the same import path a
+real user's installation would use. Other mechanisms — running with
+`src/` as the working directory, setting `PYTHONPATH`, or IDE
+configuration (see Question 9) can also make it importable without
+installing, but they bypass that safeguard.
 
 **Production consideration:** a src layout is the safer default for
 anything meant to be `pip`-installed by other people or by CI; a flat
@@ -602,7 +611,8 @@ though the files exist on disk.
   This works because the current directory (`src/`) is now the one
   containing `app/`, and Python adds a script/interactive session's own
   working context to `sys.path`. **Tradeoff:** fragile and
-  inconvenient — every command must be run from inside `src/`
+  inconvenient (`PYTHONPATH` or IDE settings are similar non-installation
+  alternatives) — every command must be run from inside `src/`
   specifically, which doesn't reflect how the package will actually be
   imported once installed, and doesn't scale to running tests or tools
   from the project root the way a real project needs to.
@@ -651,11 +661,20 @@ update the lock file; `uv.lock` remains whatever it last was until a
 command that explicitly re-resolves (`uv add`, `uv remove`, or
 `uv lock`) is run.
 
-**Why it's a problem:** `pyproject.toml` and `uv.lock` now describe two
-different, inconsistent things — one person cloning the repo and running
-`uv sync` would still get the *old*, narrowly-locked version (since
-`uv.lock` hasn't changed), while the declared constraint suggests a
-newer version is intended. This is one of the classic dependency-
+**Why it's a problem:** it depends on what was intended, and three
+questions are worth separating. (1) *Does the existing lock still satisfy
+the declared requirements?* Often yes: the old locked version (say
+`requests 2.31.x`) is still inside the widened range `>=2.31,<3.0`, so
+the lock is not "violating" the new constraint. (2) *Should the lock file
+be regenerated after a dependency change?* Yes — `pyproject.toml` and
+`uv.lock` should be committed in sync, and a reviewer can't tell from this
+PR what the resolver would now produce (strict checks such as
+`uv lock --check` or `uv sync --locked` will flag a lock that no longer
+matches `pyproject.toml`). (3) *Is a package upgrade intended?* Widening
+a range only makes newer versions *eligible*; it does not by itself move
+the locked version. If the point of the PR is to get a newer `requests`,
+that needs a deliberate upgrade. Until then, one person cloning the repo
+and running `uv sync` would still get the old, locked version. This is one of the classic dependency-
 management mistakes: committing `pyproject.toml` and `uv.lock` as if
 they were independent, unrelated files, when they must always be kept
 in sync with each other as one atomic change.
@@ -663,13 +682,19 @@ in sync with each other as one atomic change.
 **The fix:**
 
 ```bash
-uv lock
+uv lock                                  # re-resolve; keeps already-locked versions that still satisfy the range
+# only if the goal is to upgrade requests as part of this PR:
+uv lock --upgrade-package requests
 git diff uv.lock
 uv sync
 ```
 
 `uv lock` re-runs resolution against the *new* declared constraint and
-updates `uv.lock` to match, without touching the installed environment.
+updates `uv.lock` to match, without touching the installed environment —
+it does not necessarily change `requests`' locked version, because the
+existing one may still be valid. `uv lock --upgrade-package requests`
+is the targeted command for deliberately moving that one package to the
+newest version the range allows.
 `git diff uv.lock` is how a reviewer (or the author, before pushing)
 inspects exactly what the resolver changed — including any transitive
 dependency shifts — before trusting the result. `uv sync` then
@@ -869,9 +894,16 @@ def create_user(name: str, age: int | None) -> None:
 
     Args:
         name: User's display name.
-        age: User's age in years, or None if not provided.
+        age: User's age in years, or None if the age is unknown.
     """
 ```
+
+`int | None` allows the caller to pass an explicit `None`, but it does
+not make the parameter omittable: as written (no default), the caller must
+still supply the argument, either an integer or `None`. If the intended
+API lets callers leave `age` out entirely, give it a default as well —
+`age: int | None = None` — and the docstring wording "or None if not
+provided" then becomes accurate.
 
 **Why this is better:** the type hints alone now communicate the exact
 shape (`str`, and `int | None`); the docstring prose instead
@@ -913,7 +945,9 @@ doesn't show the actual command, its arguments, or what successful
 output looks like. A reader is forced to guess or ask — exactly the
 outcome a good README exists to make unnecessary.
 
-**Corrected version:**
+**Corrected version** (the repository URL, package name, command and
+output below are illustrative placeholders, not verified details of a real
+project):
 ```markdown
 ## Prerequisites
 
@@ -935,6 +969,10 @@ uv run python -m billing_service balance --customer-id 12345
 # Customer 12345: $128.50
 \`\`\`
 ```
+
+In a real README, replace the placeholder values with the project's
+actual repository URL, package name, arguments and real output, and run the
+commands yourself before publishing them.
 
 **Why this is better:** every step is now a **copy-pasteable command**,
 in the order it must run, with prerequisites stated *before* they're
@@ -1132,7 +1170,8 @@ specific, shared, resolved answer for both to install from.
 ```
 copy pyproject.toml + uv.lock into the CI environment / container image
         ↓
-uv sync   (installs the EXACT locked versions — never re-resolves independently)
+uv sync --locked   (installs from the committed lock; fails if uv.lock is missing
+                    or out of date with pyproject.toml, instead of silently re-locking)
         ↓
 run tests / build
 ```
@@ -1144,12 +1183,15 @@ run tests / build
   `uv.lock`, recording the exact resolved version of every direct and
   transitive dependency.
 - **Commit `uv.lock` to version control alongside `pyproject.toml`.**
-- Replace the CI step with `uv sync`, which installs from the
-  **already-resolved, committed** `uv.lock` rather than re-running
-  resolution fresh.
+- Replace the CI step with `uv sync --locked`, which installs from the
+  **already-resolved, committed** `uv.lock` and fails if the lock is
+  missing or stale, rather than re-running resolution fresh. (Plain
+  `uv sync` in a developer's normal workflow may update `uv.lock` when
+  `pyproject.toml` has changed; the strict `--locked` check is what lets
+  CI reject a stale lockfile.)
 - Build the production image the same way: copy `pyproject.toml` +
-  `uv.lock` into the image, then `uv sync` — never a bare, unpinned
-  `pip install` of package names.
+  `uv.lock` into the image, then `uv sync --locked` — never a bare,
+  unpinned `pip install` of package names.
 
 **Why this eliminates the category of failure, not just this specific
 instance:** because dependency installation is now driven by the
@@ -1375,8 +1417,9 @@ def get_order_total(order_id: int) -> float:
             existing order.
 
     Side effects:
-        None — this function performs a read-only database lookup and
-        computes a value; it does not modify any stored data.
+        Does not modify any persistent order data. It does perform
+        external I/O: a database read (via database.fetch_order) to look
+        up the order.
 
     Compatibility:
         The returned value's meaning (line-item subtotal, excluding
@@ -1394,9 +1437,11 @@ documents a real, non-obvious behavioral choice (deleted vs. nonexistent
 orders are indistinguishable) that a reader cannot infer from the code
 alone. "Output behavior" clarifies what the returned `float` actually
 represents — critically, that it **excludes** tax and shipping, which a
-caller could easily assume otherwise. "Side effects" explicitly states
-there are none, which matters because a reader cannot always assume a
-function named `get_...` is read-only without it being said. The
+caller could easily assume otherwise. "Side effects" separates the two
+things a reader might otherwise conflate — no persistent state is
+modified, but the call does perform external I/O (a database read) — which
+matters because a reader cannot always assume a function named `get_...`
+is read-only without it being said. The
 "Compatibility" note tells a future maintainer what would count as a
 breaking change to this function's contract.
 
@@ -1439,10 +1484,19 @@ file, with an optional `--encoding` flag. Show:
 
 ### Solution
 
-**1. `cli.py`:**
+**1. `cli.py`:** for `python -m wordcount` to work, `cli.py` lives inside
+a `wordcount/` package that also has a small `__main__.py` (flat layout,
+run from the project root):
+
+```
+wordcount/
+├── __init__.py
+├── __main__.py     # from wordcount.cli import main; raise SystemExit(main())
+└── cli.py
+```
 
 ```python
-# cli.py
+# wordcount/cli.py
 import argparse
 import os
 import sys
@@ -1571,7 +1625,7 @@ project/
 that the others structurally cannot:**
 
 ```bash
-uv sync                    # ensure the environment matches pyproject.toml/uv.lock exactly
+uv sync                    # align the environment with pyproject.toml/uv.lock (may update uv.lock locally; CI uses --locked)
 uv run ruff format .        # consistent layout — no logic checked
 uv run ruff check --fix .    # unused imports/variables, suspicious patterns, import order
 uv run mypy .                  # type consistency across the codebase — Ruff does not do this
@@ -1600,8 +1654,9 @@ catch.
 
 **Production consideration:** committing `uv.lock` alongside
 `pyproject.toml`, and running every quality stage through `uv run`
-rather than a bare interpreter invocation, guarantees the exact same
-dependency versions are exercised locally, in CI, and in the eventual
+rather than a bare interpreter invocation (with `uv sync --locked` /
+`uv run --locked` in CI, so a stale lock fails the build), keeps the same
+dependency versions exercised locally, in CI, and in the eventual
 deployment — the single structural fix this entire module's dependency
 chapters build toward.
 
@@ -1731,6 +1786,9 @@ dependency at all.
 **The tool layer follows the identical pattern:**
 ```python
 # tools/_protocol.py
+from typing import Protocol
+
+
 class Tool(Protocol):
     name: str
     def run(self, arguments: dict) -> str: ...
@@ -1962,8 +2020,14 @@ explain the underlying discipline it depends on.
 ### Solution
 
 **Failure 1 — stale README code examples.** The fix is **executable
-documentation**: wherever practical, express README/docstring examples
-as `doctest`-style blocks and run them as part of the test suite:
+documentation**, and it is important to be precise about *which*
+mechanism checks *what*. Python **docstring doctests** are examples written
+as `>>>` prompts inside docstrings; they are run by the `doctest` module or
+by pytest when doctest collection is enabled. README examples are a
+different case: a Markdown README's fenced code blocks are not extracted by
+Python's standard `doctest` machinery at all (only literal `>>>` examples in
+a text file can be run, and only if you explicitly point a tool at that
+file). So:
 
 ```python
 def calculate_total(price: float, quantity: int) -> float:
@@ -1976,14 +2040,22 @@ def calculate_total(price: float, quantity: int) -> float:
 ```
 
 ```bash
-uv run python -m doctest src/app/pricing.py -v
+uv run python -m doctest src/app/pricing.py -v     # runs that module's docstring doctests
+uv run pytest --doctest-modules src                # pytest collects docstring doctests only with this option (or equivalent configuration)
 ```
 
 Because `doctest` actually **executes** the example and compares real
-output against what's written, a CLI/function change that breaks the
+output against what's written, a function change that breaks a *docstring*
 example fails this check immediately — converting a silent drift into a
-loud, CI-caught failure, rather than something only a human reader
-eventually notices by trial and error.
+loud, CI-caught failure. Plain `uv run pytest` does **not** run doctests
+unless doctest collection has been enabled this way.
+
+For the README's **CLI command examples**, add an explicit executable
+smoke test (an ordinary pytest test, or a CI step, that runs the documented
+command — for example `uv run python -m app --help` — and asserts it
+exits successfully and prints the expected text). That check only covers
+the commands you chose to encode in it; whether the README's prose still
+matches is a **manual review** concern.
 
 **Failure 2 — a docstring claiming the wrong return behavior.** This is
 harder to catch mechanically (a plain-prose `Returns:` claim isn't
@@ -2012,7 +2084,7 @@ checkout code
     ↓
 uv sync
     ↓
-uv run pytest            # includes doctests, catching Failure 1's category
+uv run pytest --doctest-modules src tests   # docstring doctests need this option; plus a README-command smoke test for Failure 1's category
     ↓
 uv run ruff check .
     ↓
@@ -2147,8 +2219,11 @@ through documentation.
 
 # Final Coverage Review
 
-Across these 28 questions, every one of the seven source files
-contributed multiple, meaningfully tested concepts: **imports/modules**
+This is the **intended** coverage mapping for these 28 questions — a
+provisional map of how the seven source files are meant to be exercised,
+not an independently verified audit of those lessons or of the
+folder's acceptance specification. Each of the seven source files is
+intended to contribute multiple, meaningfully tested concepts: **imports/modules**
 (naming collisions, the `__main__` guard, import-time side effects,
 circular imports, `sys.path`) in Questions 1, 2, 8, 9, 15, 23, 28;
 **project layout** (file/module/package/project, flat vs. src layout,

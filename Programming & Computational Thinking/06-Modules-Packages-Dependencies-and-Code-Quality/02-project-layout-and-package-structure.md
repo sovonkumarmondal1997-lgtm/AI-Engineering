@@ -432,7 +432,7 @@ implementation detail.
 ```
 mypackage/
 ├── __init__.py
-├── processing.py          ← public — meant to be imported by users of this package
+├── processing.py          ← no underscore: not marked private (public only if the package documents it)
 └── _internal_helpers.py    ← private — an implementation detail; not meant to be imported directly
 ```
 
@@ -441,6 +441,12 @@ mypackage/
 def _format_row(row):   # leading underscore: also signals "internal" at the function level
     ...
 ```
+
+A name *without* a leading underscore does not by itself make a module
+public: it only means the module is not marked private. What external
+callers should rely on is the package's **documented, intended public
+API** (often curated explicitly through `__init__.py`, §22), not a
+filename alone.
 
 **What "private" means in Python:** a single leading underscore
 (`_internal_helpers.py`, or `_format_row`) is a **convention**,
@@ -676,9 +682,11 @@ live at the project root:
 - **`LICENSE`** — states the legal terms under which the project's
   code may be used, modified, or redistributed — relevant the moment a
   project is shared with anyone else, even informally.
-- **`.gitignore`** — tells Git which files/patterns to *never* track
-  (build artifacts, virtual environment directories, local `.env`
-  files, per §14) — this chapter does not teach Git itself, but the
+- **`.gitignore`** — lists patterns Git should ignore for matching
+  *untracked* files during normal workflows (build artifacts, virtual
+  environment directories, local `.env` files, per §14). A file that Git
+  already tracks is not automatically untracked just because it is added to
+  `.gitignore` — this chapter does not teach Git itself, but the
   file's *purpose within project layout* (keeping generated/local-only
   files out of version control) is directly relevant here.
 - **`pyproject.toml`** — already covered in §12; listed again here
@@ -700,7 +708,7 @@ directly extending
 |---|---|---|---|
 | **Source code** | `cli.py`, `processing.py` | Yes | `src/` |
 | **Project configuration** | `pyproject.toml` | Yes | project root |
-| **Runtime configuration** | a `config.yaml` a deployment supplies | Usually not itself (a *template*/example version is) | project root or a `config/` directory |
+| **Runtime configuration** | a `config.yaml` a deployment supplies | Non-sensitive, environment-independent settings may be committed; environment-specific or sensitive values should not be (a *template*/example version is) | project root or a `config/` directory |
 | **Environment configuration / secrets** | `.env`, real API keys | **Never** the file with real values | `.gitignore`d locally; real values live only in the actual deployment environment |
 
 **Why secrets should not be placed in source-controlled configuration
@@ -1519,15 +1527,19 @@ orders-report/
 
 **Responsibility of each component:**
 
-- **`cli.py`** — defines `build_parser()` (an `--input-dir` argument, a
-  `--output` argument), `main(argv) -> int`, and the `__main__` guard;
-  imports `config`, `logging_config`, and `processing`; contains no
-  business logic of its own.
+- **`cli.py`** — owns `argparse`: defines `build_parser()` (an
+  `--input-dir` argument, a `--output` argument), calls `parse_args()`
+  inside `main(argv) -> int`, and holds the `__main__` guard; passes the
+  parsed arguments to `config.build_config()`; imports `config`,
+  `logging_config`, and `processing`; contains no business logic of its
+  own.
 - **`config.py`** — `AppConfig` (frozen dataclass: `input_dir`,
-  `output_path`, `log_level`) and `build_config(argv)`, following
+  `output_path`, `log_level`) and `build_config(args)`, which takes the
+  *already-parsed* arguments (it never parses raw CLI input itself),
+  reads the environment, and returns an `AppConfig`, following
   [09-environment-configuration-and-input-validation.md](../05-Text-Files-Structured-Data-and-CLI-Programs/09-environment-configuration-and-input-validation.md)'s
-  pattern — CLI arguments override an optional `LOG_LEVEL` environment
-  variable.
+  pattern — `LOG_LEVEL` comes from the environment (defaulting to
+  `"INFO"`); this example exposes no `--log-level` option.
 - **`logging_config.py`** — `configure_logging(level)`, called once
   from `main()`, setting up a console handler per
   [08-logging-versus-print.md](../05-Text-Files-Structured-Data-and-CLI-Programs/08-logging-versus-print.md).
@@ -1549,9 +1561,16 @@ No arrows point back toward `cli.py` from any other file — the same
 one-directional shape every prior section has reinforced, meaning
 nothing here risks a circular import (§19).
 
+**Setup prerequisite:** the command below assumes the package is
+importable, which for a `src/` layout normally means it has already been
+installed into the active Python environment using the development-install
+procedure from the packaging chapter (deliberate path configuration is an
+alternative, but not the preferred default).
+
 **Execution flow:** `python -m orders_report.cli --input-dir data/raw
 --output summary.json` → `cli.py`'s guard fires → `main(None)` →
-`build_config(None)` parses CLI args and reads `LOG_LEVEL` →
+`cli.py` builds the parser and calls `parse_args()` →
+`build_config(args)` combines the parsed arguments with `LOG_LEVEL` →
 `configure_logging(config.log_level)` → `process_orders_directory
 (config)` reads each CSV, calling `validate_row` per row → a JSON
 summary is written to `config.output_path` and printed to stdout →
@@ -1563,15 +1582,19 @@ trigger
 process independently — `config.py`, `logging_config.py`, and
 `processing.py` (which itself imports `validation.py`) are each loaded,
 executed once, and cached (§11 of the previous chapter) the first time
-`cli.py` is run; none of their own top-level code has any side effects
-(§10 of the previous chapter) — only function *definitions* happen at
-import time, with all real work deferred to `main()`'s explicit calls.
+`cli.py` is run; importing a module executes its top-level
+statements, and this example is deliberately designed so that module-level
+work is limited to imports, declarations, and definitions (no side effects,
+§10 of the previous chapter), with all real application work deferred to
+`main()` and the functions it explicitly calls.
 
-**Configuration flow:** CLI `--input-dir`/`--output` (always
-authoritative for this tool, since there's no sensible environment-
-variable equivalent for "which directory to process") combined with an
-optional `LOG_LEVEL` environment variable (defaulting to `"INFO"`) —
-resolved once, inside `build_config()`, into one immutable `AppConfig`.
+**Configuration flow:** CLI `--input-dir`/`--output` (parsed in
+`cli.py`, and always authoritative for this tool, since there's no
+sensible environment-variable equivalent for "which directory to
+process") combined with an optional `LOG_LEVEL` environment variable
+(defaulting to `"INFO"`; there is no CLI option for it, so there is no
+CLI-over-environment override for the log level) — resolved once, inside
+`build_config(args)`, into one immutable `AppConfig`.
 
 **Data flow:** `data/raw/*.csv` (not committed — real input data, per
 §15) → validated, in-memory rows → a summary dict → `summary.json`
@@ -1681,8 +1704,9 @@ already use.
    ships — a project-organization convention, not a Python language
    requirement (§11).
 4. `__init__.py` marks the directory as a package (and may re-export a
-   curated public API); `core.py` (no leading underscore) signals a
-   public module, safe for external code to import directly;
+   curated public API); `core.py` (no leading underscore) is not marked
+   private — whether external code should depend on it is decided by the
+   package's documented public API;
    `_helpers.py` (leading underscore) signals an internal
    implementation detail not meant to be imported from outside the
    package (§7–§8).
@@ -1990,8 +2014,10 @@ the one the test runner happens to handle specially.
     command from two different directories can produce two different
     `sys.path` contents, and therefore two different import outcomes
     (§17).
-12. An absolute import spells out a module's full path and works the
-    same regardless of the importing file's own location; a relative
+12. An absolute import names a module from the top-level import
+    namespace rather than relative to the importing file's position in its
+    package (it still resolves only if that package is available in the
+    active environment and on `sys.path`); a relative
     import is expressed relative to the importing file's position
     inside its package, and requires that file to actually have
     package context (achieved via a real import, or `python -m`, not a

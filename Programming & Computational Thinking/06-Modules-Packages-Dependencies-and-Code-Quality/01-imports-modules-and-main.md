@@ -58,6 +58,17 @@ conventions, and `08-logging-versus-print.md`'s logging setup — all of
 which this chapter extends into proper multi-file module design. No
 prior knowledge of Python's import system is assumed.
 
+**Suggested reading path.** This chapter is comprehensive; on a first
+pass, focus on the essentials: §1–§9 (modules, imports, what import
+does, `__name__`, the `__main__` guard, `main()`), §10–§12 (side effects
+and caching), §14–§16 (import errors, absolute vs. relative imports,
+packages), §19–§20 (circular imports, import style), §23–§25 (`python
+file.py` vs. `-m`, CLI structure, testability), and the §30 mini-project.
+Treat §13, §17–§18, §26–§28 (`sys.path` detail, `__init__.py` and
+wildcard imports, dependencies, advanced import concepts, debugging
+reference), and the later practice sections as reference material to
+return to when you need them.
+
 ## 1. What Is a Python Module?
 
 The simplest possible starting point: **a Python module is a named
@@ -206,7 +217,8 @@ discussion to §11's caching behavior. The actual sequence:
 4. Python CREATES and initializes an empty module OBJECT
 5. Python places that module object in sys.modules (the cache)
    BEFORE running any of the module's code
-6. Python EXECUTES the module's top-level code, once, top to bottom;
+6. Python EXECUTES the module's top-level code, once (under normal
+   import behavior), top to bottom;
    everything defined during that execution (functions, classes,
    variables) becomes an attribute of the module object
 7. If execution succeeds, the import completes
@@ -521,6 +533,34 @@ if __name__ == "__main__":
     raise SystemExit(main())
 ```
 
+For a program that takes command-line arguments, the canonical,
+testable signature is `main(argv: Sequence[str] | None = None) -> int`:
+
+```python
+import argparse
+from collections.abc import Sequence
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--name", default="world")
+    args = parser.parse_args(argv)    # argv=None -> argparse reads sys.argv[1:]
+    print(f"Hello, {args.name}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
+```
+
+Passing `None` (the default) uses normal command-line argument handling;
+supplying a sequence, as in `main(["--name", "Ada"])`, lets a test call
+the function directly. Note the difference between a return value and
+process exit behavior: `main()` *returns* an integer status, but if
+`argparse` rejects the arguments it raises `SystemExit` itself, so a
+test of invalid arguments must expect it (for example with
+`pytest.raises(SystemExit)`) rather than checking a return value.
+
 Why this exact shape is worth using for every CLI program from here
 on: `main()` becomes an ordinary, callable, **testable** function — a
 test can call `main([...])` directly (if it accepts `argv`, exactly as
@@ -617,9 +657,11 @@ side effects remains the module author's responsibility.
 
 Under normal import behavior, a module's top-level code — including
 whatever side effects it might have (§10) — runs **once per Python
-process**, no matter how many different files import it. (The only
+process**, no matter how many different files import it. (The ordinary
 ways to run it again are explicit ones, such as `importlib.reload()`,
-§27, or loading the same source under a different module name.)
+§27, or loading the same source under a different module name; other,
+unusual code-loading mechanisms are outside this chapter and are not
+guaranteed to behave the same way.)
 
 ```python
 # counted.py
@@ -655,8 +697,8 @@ same module, precisely because there's only ever one instance of it
 per process.
 
 Two caveats keep this model honest. `importlib.reload()` (§27)
-deliberately re-executes a module's code on request. And the cache is
-keyed by module *name*: if the same source file ends up loaded under two
+deliberately re-executes a module's code on request. And the cache (`sys.modules`, §12) holds module objects keyed by module
+*name*, under normal import behavior: if the same source file ends up loaded under two
 different names (for example, a file run as `__main__` that is also
 imported by its normal name), Python treats them as two separate module
 objects, each executing the code once.
@@ -680,7 +722,8 @@ any of the searching or loading work described in §3 and §13 — if a
 module name is already a key in `sys.modules`, Python simply returns
 that cached object immediately, skipping the search/load/execute steps
 entirely. This is the concrete mechanism behind "a module's top-level
-code runs once per process under normal imports."
+code runs once per process under normal imports" — `sys.modules` maps
+module names to module objects for ordinary imports.
 
 `sys.modules` is genuinely useful to **inspect** — printing
 `list(sys.modules.keys())` during debugging can reveal exactly what's
@@ -714,8 +757,10 @@ The exact contents vary, but conceptually `sys.path` typically
 includes, in some order: an entry for the **current script's own
 directory** (or the current working directory, depending on how
 Python was invoked — §23 covers this distinction concretely);
-**standard library locations** (where `math`, `json`, `csv`, and every
-other built-in module this course has used actually live on disk);
+**standard library locations** (where most standard-library modules such
+as `json` and `csv` live on disk as ordinary files — a few, such as `sys`,
+are *built-in modules* compiled into the interpreter itself, so not every
+standard-library module is a file found through `sys.path`);
 and **installed third-party package locations** — commonly a
 `site-packages` directory belonging to whichever Python environment
 (system Python, or a virtual environment) is currently active.
@@ -741,7 +786,10 @@ one you're looking at narrows the diagnosis significantly.
 
 - **`ModuleNotFoundError`** — a subclass of `ImportError`, raised
   specifically when Python's search (§13) never finds a module with
-  the requested name anywhere in `sys.path` at all.
+  the requested name anywhere in `sys.path` at all. That missing name is
+  not necessarily the module you wrote the `import` for: it can also be a
+  dependency that *another* module imports while it is being initialized
+  (§3's step 6).
 - **`ImportError`** — the more general exception, also raised for
   narrower failures: the module *was* found, but a specific name you
   tried to import *from* it doesn't exist there (e.g.
@@ -755,6 +803,25 @@ ModuleNotFoundError: No module named 'definitely_not_a_real_module'
 >>> from math import not_a_real_function
 ImportError: cannot import name 'not_a_real_function' from 'math'
 ```
+
+**Read the whole traceback first.** The final line names the module that
+could not be found, but the lines above it show which import statement
+triggered the failure:
+
+```text
+>>> import report
+Traceback (most recent call last):
+  File "<stdin>", line 1, in <module>
+  File "/project/report.py", line 1, in <module>
+    import pandas
+ModuleNotFoundError: No module named 'pandas'
+```
+
+Here `report` itself was found; it is `report.py`'s own `import pandas`
+that failed. Changing `sys.path` or moving `report.py` would not help —
+the missing dependency must be installed in this interpreter's
+environment. Inspect the traceback to tell a missing target module from
+a missing nested dependency *before* changing any import paths.
 
 **Common causes, systematically:**
 
@@ -1109,9 +1176,15 @@ Good import hygiene, gathered into one place, extending the PEP 8
 convention this section introduces conceptually (without requiring you
 to memorize the full style guide):
 
-- **Imports at the top of the file** — before any other code, so
-  every one of a file's dependencies is visible at a glance, in one
-  place, rather than scattered throughout.
+- **Imports at the top of the file** (the default) — before any other
+  code, so every one of a file's dependencies is visible at a glance, in
+  one place, rather than scattered throughout. A *local* import inside a
+  function is a deliberate exception, reasonable for an optional
+  dependency that is only needed on one code path, or for deferring a
+  genuinely expensive import until it is needed. Do not use local imports
+  casually, and especially not to hide a poor module boundary or paper
+  over a circular import (§19) — if a cycle is the reason, fix the
+  design instead.
 - **Grouped by origin, in order:** standard library imports first
   (`os`, `sys`, `json`), then third-party package imports, then local/
   project imports — conventionally with a blank line separating each
@@ -1293,6 +1366,8 @@ def validate_positive_int(value: str) -> int:
 ```python
 # cli.py — imports validators.py; owns argparse, main(), and the __main__ guard
 import argparse
+from collections.abc import Sequence
+
 from validators import validate_positive_int
 
 
@@ -1302,7 +1377,7 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main(argv: list[str] | None = None) -> int:
+def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     print(f"count = {args.count}")
     return 0
@@ -1448,6 +1523,27 @@ import mymodule
 
 importlib.reload(mymodule)   # re-executes mymodule's top-level code, updating the same module object
 ```
+
+A small illustration of the caveats (suppose `mymodule.py` defines
+`def greet(): return "v1"` and `def old_helper(): ...`, and you then edit
+the file so `greet` returns `"v2"` and `old_helper` is deleted):
+
+```python
+import importlib
+import mymodule
+from mymodule import greet        # binds the OLD function object to the name `greet`
+
+importlib.reload(mymodule)
+
+print(mymodule.greet())    # "v2" -- attribute lookup on the updated module object
+print(greet())             # "v1" -- `greet` still refers to the old function
+print(hasattr(mymodule, "old_helper"))   # True -- a deleted name can linger in the namespace
+```
+
+`from mymodule import greet` copied a reference at import time, so reload
+does not rebind it; and because reload re-executes the code in the
+existing namespace without clearing it first, names removed from the
+source are not automatically removed.
 
 **This is explicitly a development/debugging convenience, not a normal
 application architecture technique.** Production code should not rely
@@ -2400,7 +2496,9 @@ import once
 - [ ] Every import is explicit (`import module` or
       `from module import specific_name`) — no wildcard imports.
 - [ ] Imports are grouped (standard library, third-party, local) and
-      placed at the top of the file.
+      placed at the top of the file by default; any local (in-function)
+      import is deliberate (optional or deferred dependency), not a way
+      to hide a circular import.
 - [ ] Every import is actually used; no leftover, unused imports.
 - [ ] No local file shadows a standard-library or well-known
       third-party module name.

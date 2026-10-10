@@ -184,7 +184,7 @@ print(bad_example.__doc__)  # None
 Every function, class, and module has a `__doc__` attribute, set
 automatically to the docstring string (or `None` if there isn't one):
 
-```python
+```pycon
 >>> def calculate_total(price: float, quantity: int) -> float:
 ...     """Calculate the total price."""
 ...     return price * quantity
@@ -927,7 +927,7 @@ def normalize_amount(raw: str) -> int:
     ...
 ```
 
-```python
+```pycon
 >>> import transactions
 >>> print(transactions.__doc__)
 Utilities for processing customer transaction data.
@@ -1622,8 +1622,11 @@ it:
 - **CI integration** — making documentation checks part of the same
   pipeline that gates merges, so drift is caught before it ships.
 - **Generated documentation** — API reference generated directly from
-  docstrings and type hints (§42, §47) cannot drift from the function
-  signature, because it *is* the function signature, rendered.
+  docstrings and type hints (§42, §47) reduces manual duplication and
+  reflects the current signature whenever the documentation is
+  successfully regenerated and published; it can still go stale if the
+  build is not re-run or published, and it does not make hand-written
+  descriptions, examples, or behavioral claims correct.
 
 ## 35. Documentation as Code
 
@@ -2041,11 +2044,14 @@ documentation generator (Sphinx / MkDocs / pydoc)
 documentation site
 ```
 
-**Benefits**: the generated reference **cannot drift from the function
-signature** (§34), because it's built directly from that signature at
-generation time — rename a parameter in code, and the next generated
-build reflects the rename automatically, with no separate file to
-remember to update. It also helps with *coverage* in a mechanical
+**Benefits**: the generated reference **reflects the function signature as
+of its last successful build** (§34), because it's built directly from
+that signature at generation time — rename a parameter in code, and the
+next generated build reflects the rename, with no separate file to
+remember to update. That only holds once the documentation is actually
+regenerated and published; a stale or failed build leaves outdated
+reference pages online, and a correct signature says nothing about
+whether the prose and examples around it are accurate. It also helps with *coverage* in a mechanical
 sense: the functions the generator is configured to discover, and that
 have docstrings, appear in the generated reference, with less risk of a
 human simply forgetting to add one to a hand-maintained page. This is
@@ -2225,8 +2231,6 @@ can find the right page for their current need. A widely-used
 conceptual framework for this is **Diátaxis**, which sorts
 documentation into four purposes:
 
-- **Getting started** — the fastest path from zero to a working setup
-  (closely related to a README's installation/usage sections, §25).
 - **Tutorials** — learning-oriented, step-by-step walkthroughs for a
   newcomer, prioritizing a successful first experience over
   completeness.
@@ -2236,6 +2240,11 @@ documentation into four purposes:
   API docs, §47, are almost always reference material).
 - **Explanation** — understanding-oriented discussion of *why*
   (architecture docs, ADRs, §58–59).
+
+A "Getting started" page — the fastest path from zero to a working setup,
+closely related to a README's installation/usage sections (§25) — is
+not a fifth Diátaxis type. It is a common onboarding experience that is
+usually written in the tutorial style (and sometimes as a short how-to).
 
 You do not need to memorize Diátaxis's exact terminology — the useful
 takeaway is simply that **these are different jobs**, and a single page
@@ -3097,7 +3106,7 @@ HTTP 500 on all requests.
    \`\`\`
 2. Check database connectivity:
    \`\`\`bash
-   kubectl exec -it billing-service-0 -- python -m billing_service.healthcheck
+   kubectl exec -it deploy/billing-service -- python -m billing_service.healthcheck
    \`\`\`
 
 **Likely causes:**
@@ -3117,6 +3126,11 @@ HTTP 500 on all requests.
 **Escalation:** If neither cause matches, or remediation doesn't
 resolve within 15 minutes, page the on-call lead via PagerDuty.
 ```
+
+(This illustrative runbook assumes `billing-service` runs as a Kubernetes
+**Deployment**, so both the diagnostic `exec` and the remediation restart
+target `deploy/billing-service`; adapt names and commands to your own
+workload type. It has not been tested against a live cluster.)
 
 **Why runbooks matter in production**: during an actual incident,
 figuring out the right response *from first principles* is exactly
@@ -3425,12 +3439,13 @@ any computed totals.
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
 
 
-@dataclass
+@dataclass(frozen=True)
 class OrderItem:
-    """A single line item within a customer order.
+    """A single line item within a customer order (immutable).
 
     Attributes:
         name: Display name of the item.
@@ -3486,14 +3501,18 @@ def calculate_total(
 class Order:
     """Represent a customer order composed of one or more line items.
 
-    An Order is immutable once created — add_item is the only
-    supported way to modify its contents, and it returns a NEW Order
-    rather than mutating the existing one, to keep Order instances
-    safe to share across threads.
+    An Order is immutable once created: its items are copied into a
+    tuple of frozen OrderItem objects, so later changes to the list that
+    was passed in cannot affect it. add_item is the only supported way
+    to "change" an order, and it returns a NEW Order rather than
+    mutating the existing one. Because nothing is mutated after
+    construction (callers must not reach into the private _items
+    attribute), Order instances can be shared across threads without
+    locking.
     """
 
-    def __init__(self, items: list[OrderItem]) -> None:
-        self._items = list(items)
+    def __init__(self, items: Iterable[OrderItem]) -> None:
+        self._items: tuple[OrderItem, ...] = tuple(items)
 
     def total(self) -> float:
         """Return the order's total price across all line items."""
@@ -3507,7 +3526,7 @@ class Order:
 
         Does not modify this Order in place — see the class docstring.
         """
-        return Order([*self._items, item])
+        return Order((*self._items, item))
 ```
 
 **Walking through every part**: the **module docstring** states scope
@@ -3517,7 +3536,10 @@ documents its **attributes**, since a dataclass's field types alone
 don't convey `quantity`'s non-negativity constraint. `calculate_total`'s
 **function docstring** documents its keyword-only discount parameters
 and includes a **doctest example** (§50) that's actually executable.
-`Order`'s **class docstring** documents its most important, non-obvious
+`Order`'s immutability claim is backed by the implementation: `OrderItem`
+is a frozen dataclass and `Order` copies its input into a tuple, so
+mutating the original list (or trying to modify an item) cannot change
+an existing order's total. `Order`'s **class docstring** documents its most important, non-obvious
 property — immutability — right where a caller will see it before
 calling `add_item` and being surprised the original wasn't modified;
 its **method docstrings** stay short because `total()`'s summary line

@@ -269,8 +269,11 @@ source-code analysis looking for problems," regardless of language.
 **What problems can a linter detect?** Things a formatter has no
 concept of at all, because they're about *meaning*, not layout:
 unused imports, unused variables, references to names that were never
-defined, unreachable code after a `return` statement, and a wide range
-of other suspicious-but-syntactically-valid constructs.
+defined, and a wide range of other suspicious-but-syntactically-valid
+constructs. (Unreachable code after a `return` is a classic example of a
+problem a *code review* should catch; whether a particular Ruff version
+and configuration reports it depends on which rules are enabled, so this
+chapter does not rely on Ruff to flag it.)
 
 **A lint rule** is one specific check the linter knows how to perform
 (e.g., "flag any imported name that's never used anywhere in this
@@ -748,8 +751,9 @@ def greet(name):
     return f"Hello, {name}"
 ```
 
-**Unreachable code (part of Ruff's broader correctness-adjacent
-checks):**
+**Unreachable code (a general code-review concern — not a guaranteed
+Ruff diagnostic; whether and under which rule Ruff reports it depends on
+the version and configuration, so no rule code is claimed here):**
 ```python
 # bad
 def status(code):
@@ -1045,8 +1049,8 @@ line-length = 100
 target-version = "py312"
 exclude = ["build", "dist"]
 extend-exclude = ["migrations"]
-include = ["*.py"]
-extend-include = ["*.pyi"]
+include = ["*.py"]          # REPLACES the default inclusion set (see below)
+extend-include = ["*.pyi"]  # ADDS to whatever set applies
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
@@ -1080,8 +1084,16 @@ line-ending = "auto"
   explained precisely in §16).
 - **`include`** / **`extend-include`** — the mirror image of
   `exclude`/`extend-exclude`: which file patterns Ruff *should*
-  consider (by default, `*.py`; `extend-include` is useful for adding
-  something like `*.pyi` stub files without replacing the default).
+  consider. Ruff's default inclusion set is broader than just `*.py` —
+  in recent versions it covers `*.py`, `*.pyi`, `*.ipynb` (notebooks) and
+  `pyproject.toml` (older versions differ slightly, so check your
+  installed version's documentation). Setting `include` **replaces** that
+  default set with exactly the patterns you list, while `extend-include`
+  **adds** patterns to it. In the example above, `include = ["*.py"]`
+  therefore narrows Ruff to Python source files (notebooks and
+  `pyproject.toml` are no longer checked), and `extend-include = ["*.pyi"]`
+  adds stub files back; to simply keep the defaults and add something,
+  use `extend-include` alone.
 - **`lint.select`** — which rule codes/families are active (§16).
 - **`lint.ignore`** — which rule codes are turned off, project-wide
   (§16).
@@ -1233,9 +1245,14 @@ but because the *purpose* of that specific file genuinely differs.
 
 ```toml
 [tool.ruff.lint.per-file-ignores]
-"tests/*.py" = ["F401"]
-"__init__.py" = ["F401"]
+"tests/*.py" = ["F401"]     # only because these tests deliberately import fixtures for side effects
+"__init__.py" = ["F401"]    # re-exports that form the package's public API
 ```
+
+Each entry is a deliberate exception that needs a specific
+justification (ideally written as a comment), using the narrowest rule and
+file pattern that fits. Being a test file or a one-off script does not by
+itself justify suppressing unused-import diagnostics.
 
 **Why some files legitimately need different rules**:
 - **Tests** — a test file might deliberately import a fixture or a
@@ -1258,8 +1275,9 @@ but because the *purpose* of that specific file genuinely differs.
   rules (§21) would otherwise flag.
 - **Scripts** — a one-off script (per
   [02-project-layout-and-package-structure.md](02-project-layout-and-package-structure.md)'s
-  §16) might reasonably be held to a slightly different, less strict
-  standard than the core reusable package.
+  §16) might need a *specific* exception for a specific reason, but
+  "it's only a script" is not itself a justification for suppressing
+  diagnostics such as unused imports.
 
 **How per-file ignores work**, mechanically: each key in
 `per-file-ignores` is a glob pattern matching one or more files; the
@@ -1471,12 +1489,19 @@ families deliberately, each for a stated reason:
 ```toml
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM", "N", "A", "C4", "PIE", "RUF"]
-ignore = ["E501"]   # line length is enforced by the formatter itself; avoid redundant/conflicting signal
+ignore = ["E501"]   # the formatter targets `line-length` but does not guarantee every line fits; E501 is a separate lint rule (see note below)
 
 [tool.ruff.lint.per-file-ignores]
-"tests/*.py" = ["F401"]
-"__init__.py" = ["F401"]
+"tests/*.py" = ["F401"]     # justified only for deliberate fixture/side-effect imports (§18)
+"__init__.py" = ["F401"]    # public-API re-exports
 ```
+
+Note on `E501`: the formatter *targets* the configured `line-length`,
+but it cannot wrap every line (long strings, comments, and URLs can stay
+over the limit), and `E501` is a separate lint rule that reports such
+lines. Ignoring `E501`, as above, means over-long lines the formatter
+leaves alone will not be reported; a team should decide deliberately
+whether that is acceptable or whether to keep `E501` enabled.
 
 **Discussing the decisions, not just presenting the file:**
 - **Consistency** — every rule enabled should apply uniformly across
@@ -2400,7 +2425,7 @@ class order_processor(object):
         total=0
         for item in items:
             total+=item["price"]
-        if total>0==True:
+        if (total>0)==True:
             total=total*(1+self.tax_rate)
         return total
 
@@ -2426,7 +2451,7 @@ orders.py:1:8: F401 `os` imported but unused
 orders.py:5:23: UP004 class `order_processor` inherits from `object` unnecessarily
 orders.py:5:7: N801 class name `order_processor` should use CapWords convention
 orders.py:9:9: F841 local variable `unused` is assigned to but never used
-orders.py:13:12: SIM201 use `total > 0` instead of `total > 0 == True`
+orders.py:13:12: E712 avoid equality comparisons to `True`; use `if (total > 0):` for truth checks
 orders.py:3:1: UP035 `typing.List` is deprecated, use `list` instead
 ```
 
@@ -2437,16 +2462,25 @@ runs the commands one at a time purely for teaching):
 uv run ruff check --fix .
 git diff
 ```
-This mechanically removes the unused `os` import, rewrites
-`order_processor(object)` to drop the unnecessary `object` base, and
-rewrites the redundant `== True` comparison — but leaves the
-**unused variable** (`unused = 1`) and the **class naming** violation
-(`N801`) for manual judgment, since renaming a class or deciding
+This mechanically removes the unused `os` import and rewrites
+`order_processor(object)` to drop the unnecessary `object` base — but
+leaves the redundant `== True` comparison (`E712`, whose fix Ruff treats
+as unsafe, so plain `--fix` does not apply it), the **unused variable**
+(`unused = 1`), and the **class naming** violation (`N801`) for manual
+judgment, since renaming a class or deciding
 whether an unused variable indicates a real bug both require actual
 understanding of intent, not just mechanical rewriting (§11's own
 principle, demonstrated concretely).
 
-**Step 4 — manually address the remaining issues:**
+(The diagnostics above are illustrative, not captured output. Note the
+parentheses in `(total>0)==True`: without them, `total>0==True` would
+parse as the chained comparison `total > 0 and 0 == True`, which is
+never true — a different program, not a simplifiable one.)
+
+**Step 4 — manually address the remaining issues:** the redundant
+comparison becomes `if total > 0:`, which states the intended business
+rule (apply tax only to a positive total) directly, rather than being an
+automatic transformation of the original expression.
 ```python
 import json
 from pathlib import Path
@@ -2612,7 +2646,9 @@ beyond `sys` worth catching in the same pass.)
    including `line-length` and `target-version`, and justify each
    value you chose.
 6. Add a `[tool.ruff.lint]` section selecting `E`, `F`, and `I`;
-   explain what each family adds to the base configuration.
+   explain what each family contributes to the selected rules, and what
+   `select` does to Ruff's default selection (compared with
+   `extend-select`).
 7. Add an `ignore` entry for one specific rule code, with a comment
    explaining why — then explain what would happen if you removed the
    comment.
@@ -2677,8 +2713,11 @@ beyond `sys` worth catching in the same pass.)
    project's actual `requires-python` minimum, with justification tied
    to readability and actual deployment compatibility respectively
    (§15, §20, §22).
-6. `E`/`F` add basic style and correctness-adjacent checks; `I` adds
-   import sorting/organization (§9, §12).
+6. `select = ["E", "F", "I"]` *sets* the active rule selection to these
+   families, replacing Ruff's default selection (§16); `extend-select`
+   would instead add to the existing selection. Within that selection,
+   `E`/`F` provide basic style and correctness-adjacent checks, and `I`
+   provides import sorting/organization (§9, §12).
 7. The comment documents *why* the rule doesn't apply here, turning a
    silent policy decision into a reviewable, understandable one;
    without it, a future reader (including the original author, later)
@@ -2689,10 +2728,13 @@ beyond `sys` worth catching in the same pass.)
     `--fix` was scoped correctly, with no `--unsafe-fixes` opt-in; anything touching logic or naming, per §11 and §42's
     worked example, still deserves a closer, deliberate look even
     after review, not just a glance.
-9. A reasonable configuration ignores `F401` in `tests/*.py` (fixture
-   imports) and in `scripts/*.py` (one-off, less strictly-held code),
-   while keeping the core `src/` package under the project's full,
-   default rule selection with no exceptions (§18).
+9. A reasonable configuration ignores `F401` in `tests/*.py` only if
+   those tests genuinely import fixtures for side effects, and adds a
+   script exception only for a specific, stated reason — "it's a one-off
+   script" is not by itself a justification for suppressing unused-import
+   diagnostics. Each entry uses the narrowest rule and pattern and carries
+   a comment, while the core `src/` package stays under the project's
+   full, default rule selection with no exceptions (§18).
 10. Setting `target-version = "py312"` while the project still claims
     `requires-python = ">=3.10"` risks Ruff suggesting (or `--fix`
     silently applying) a modernization that assumes syntax only

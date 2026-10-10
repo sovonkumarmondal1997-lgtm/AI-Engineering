@@ -232,7 +232,8 @@ Restating and building on
 | `==2.0` | Exactly 2.0 — an exact pin |
 | `<=2.0` | 2.0 or any older |
 | `<3.0` | Strictly older than 3.0 |
-| `~=2.31` | "Compatible release" — allows patch/minor updates within the given segment |
+| `~=2.31` | "Compatible release" — equivalent to `>=2.31, ==2.*`: 2.31 or newer, but staying within the `2.x` line |
+| `~=2.31.0` | "Compatible release" — equivalent to `>=2.31.0, ==2.31.*`: 2.31.0 or newer, but staying within the `2.31.x` line |
 | `>=2.0,<3.0` | A bounded range — combining a minimum and a maximum |
 
 **Minimum versions** (`>=2.0`) express "I need at least this much
@@ -241,9 +242,12 @@ compatible." **Maximum versions** (`<3.0`, usually paired with a
 minimum) express "I don't yet trust — or haven't verified — versions
 beyond this boundary." **Exact versions** (`==2.0`) express "only this
 precise, verified release is acceptable," with zero flexibility.
-**Compatible-release constraints** (`~=2.31`) are a concise way to
+**Compatible-release constraints** (`~=`) are a concise way to
 express "allow routine updates within this release line, but not a
-jump to the next major/minor boundary."
+jump past the boundary." Which boundary depends on how many segments you
+write: `~=2.31` allows `2.32`, `2.40`, and so on (anything `>=2.31` in
+the `2.x` line) but not `3.0`, while `~=2.31.0` allows `2.31.1` and
+`2.31.9` but not `2.32.0`.
 
 **The tradeoff, stated plainly**: **very loose constraints**
 (`>=2.0`, or no constraint at all) maximize flexibility but offer no
@@ -304,9 +308,9 @@ direct three-way tradeoff: an exact pin maximizes reproducibility for
 that one declaration but requires manual maintenance to ever change; a
 bare minimum maximizes flexibility but sacrifices any guardrail
 against an unreviewed breaking change; a bounded range, informed by
-SemVer, is often what lets a project receive routine, low-risk updates
-automatically while still requiring a deliberate, reviewed decision to
-cross a boundary that might actually break something (when the
+SemVer, is often what makes routine, low-risk updates *eligible* (they are
+adopted when the lock file is deliberately updated, §17) while still
+requiring a deliberate, reviewed decision to cross a boundary that might actually break something (when the
 dependency's maintainers honor that convention).
 
 ## 6. What Is Semantic Versioning?
@@ -374,8 +378,11 @@ strictjson 1.4.0 → 1.4.1   # PATCH: fixed a bug where nested lists were valida
 strictjson 1.4.1 → 1.5.0   # MINOR: added a new `validate_partial()` function; nothing existing changed
 strictjson 1.5.0 → 2.0.0   # MAJOR: renamed `validate()` to `check()`, and it now returns a result object instead of raising
 ```
-A project pinned to `strictjson>=1.4,<2.0` receives the `1.4.1` and
-`1.5.0` updates automatically and safely (per the SemVer contract);
+A project declaring `strictjson>=1.4,<2.0` *permits* the `1.4.1` and
+`1.5.0` updates (they are eligible, and per the SemVer contract should be
+safe), but a committed `uv.lock` does not change just because they were
+released — they are picked up when a deliberate lock update or upgrade
+is run;
 the `2.0.0` release requires the project's own code to be updated
 (`validate()` → `check()`, and adjusting to the new return type)
 before upgrading past the `<2.0` boundary at all — exactly the
@@ -633,11 +640,14 @@ MAJOR-version boundary (§6, §11), since that's precisely the boundary
 SemVer signals as the one worth being cautious about.
 
 **Why version ranges are useful, restated in this chapter's own
-terms**: a range lets the project automatically receive every
-PATCH and MINOR update within it — the updates SemVer's own contract
-says should be safe — without requiring a manual `pyproject.toml` edit
-for each one, while still requiring a deliberate, reviewed decision
-(§17–§19) to cross into a new MAJOR version.
+terms**: a range makes every
+PATCH and MINOR update within it *eligible* — the updates SemVer's own
+contract says should be safe — without requiring a manual `pyproject.toml`
+edit for each one, while still requiring a deliberate, reviewed decision
+(§17–§19) to cross into a new MAJOR version. Eligible is not the same as
+installed: new releases do not change a committed `uv.lock` by
+themselves; a deliberate lock update or upgrade (§17, §22) re-resolves,
+and `uv sync` then installs the locked state.
 
 **Relationship to the resolver and the lock file**: exactly
 [03-pyproject-lock-files-and-uv.md](03-pyproject-lock-files-and-uv.md)'s
@@ -1423,6 +1433,15 @@ dependencies = [
 dev = ["pytest>=8.0", "ruff>=0.5"]
 ```
 
+This is a dependency-focused excerpt. Because the project uses a `src/`
+layout, a complete `pyproject.toml` also needs a `[build-system]` table
+so the package is installed into the environment and `orders_report` is
+importable; that setup is shown in
+[03-pyproject-lock-files-and-uv.md](03-pyproject-lock-files-and-uv.md)'s
+§34 and the installation prerequisite noted in
+[02-project-layout-and-package-structure.md](02-project-layout-and-package-structure.md)'s
+§29, and is omitted here only to keep the focus on dependency management.
+
 **Step 1 — Initial dependency setup**
 - **WHAT:** run `uv sync` right after cloning.
 - **WHY:** establish a working, reproducible baseline environment
@@ -1457,13 +1476,16 @@ dev = ["pytest>=8.0", "ruff>=0.5"]
 
 **Step 4 — A patch update**
 - **WHAT:** `pydantic` releases `2.5.1`, a PATCH fix for a validation
-  edge case.
+  edge case (assume it is the newest release satisfying the range at
+  this point).
 - **WHY:** low-risk, but still reviewed per §19.
 - **COMMAND:** `uv lock --upgrade-package pydantic` (a plain `uv lock`
   would keep the already-locked version, since it still satisfies the
   range), followed by `uv run pytest`
-- **EXPECTED EFFECT:** `uv.lock` now records `pydantic==2.5.1`; tests
-  still pass.
+- **EXPECTED EFFECT:** `uv.lock` now records the latest version the range
+  allows — `2.5.1` under the assumption above (a later release in the
+  range would be chosen instead; to target exactly `2.5.1`, use
+  `uv lock --upgrade-package pydantic==2.5.1`); tests still pass.
 - **RISK/TRADE-OFF:** minimal — a PATCH bump within an already-trusted
   range, verified by the existing test suite.
 
@@ -1472,8 +1494,9 @@ dev = ["pytest>=8.0", "ruff>=0.5"]
   validation helpers.
 - **WHY:** the team wants the new functionality for a future feature.
 - **COMMAND:** `uv add "pydantic>=2.6,<3.0"`, then `uv run pytest`
-- **EXPECTED EFFECT:** `pydantic` resolves to `2.6.0`; existing
-  behavior unaffected per SemVer's MINOR contract; tests pass.
+- **EXPECTED EFFECT:** `pydantic` resolves to the latest version in
+  `>=2.6,<3.0` (`2.6.0`, if that is the newest release at this point);
+  existing behavior unaffected per SemVer's MINOR contract; tests pass.
 - **RISK/TRADE-OFF:** slightly more review warranted than a patch
   (§19) — confirmed here by an unchanged, passing test suite.
 
@@ -1484,8 +1507,9 @@ dev = ["pytest>=8.0", "ruff>=0.5"]
 - **COMMAND:** read `pydantic`'s migration guide first; update
   `validation.py`'s error-handling code to match the new format;
   *then* `uv add "pydantic>=3.0,<4.0"`; `uv run pytest`
-- **EXPECTED EFFECT:** `pydantic` resolves to `3.0.0`; the project's
-  own code has been updated *before* the dependency bump lands, so
+- **EXPECTED EFFECT:** `pydantic` resolves to the latest version in
+  `>=3.0,<4.0` (`3.0.0`, if that is the newest release at this point; this
+  scenario is hypothetical); the project's own code has been updated *before* the dependency bump lands, so
   tests pass against the new behavior.
 - **RISK/TRADE-OFF:** the highest-risk update in this whole
   simulation, by design (§19) — treated with a full migration review,
@@ -1539,8 +1563,11 @@ dev = ["pytest>=8.0", "ruff>=0.5"]
   uv.lock`, `uv run pytest`
 - **EXPECTED EFFECT:** the vulnerable transitive version is replaced
   with the patched one; tests confirm nothing broke.
-- **RISK/TRADE-OFF:** minimal risk, high urgency — security fixes are
-  prioritized ahead of routine update scheduling.
+- **RISK/TRADE-OFF:** high urgency — security fixes are prioritized ahead
+  of routine update scheduling. Urgency is separate from compatibility
+  risk: a security update can still change behavior, so review the
+  `uv.lock` diff and the dependency's changes and run the tests (as in
+  the command above) rather than assuming it is low-risk.
 
 **Step 10 — CI/CD synchronization**
 - **WHAT:** every one of the above changes is pushed through CI before
@@ -2035,7 +2062,8 @@ doubt.
    before accepting it.
 8. A reasonable policy: a bounded range aligned to the dependency's
    current MAJOR version (e.g. `>=2.4,<3.0`) to receive its own
-   PATCH/MINOR updates automatically while requiring deliberate review
+   PATCH/MINOR updates as eligible (adopted via a deliberate lock update)
+   while requiring deliberate review
    before any MAJOR bump; given its criticality, pair this with extra
    test coverage specifically around how the project uses it, and
    treat any update to it — even PATCH-level — with the fuller review

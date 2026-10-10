@@ -652,7 +652,12 @@ on my machine" a solvable problem rather than a recurring mystery:
 everyone, and every environment (CI, a container, production), installs
 from the same already-resolved lock file,
 rather than each independently re-running resolution against
-potentially-different available package versions.
+potentially-different available package versions. Be precise about what
+this guarantees: the lock file makes **dependency selection** reproducible.
+It does not, by itself, guarantee identical execution everywhere — results
+can still depend on the Python version, operating system and platform,
+native/system libraries, environment variables, external services, and
+build artifacts.
 
 ## 14. `uv.lock`
 
@@ -674,7 +679,10 @@ marker that selects it.
 **Reproducibility**: as long as `uv.lock` exists and is used as-is
 (via `uv sync --locked`, or `uv sync` while the lock is up to date, §23),
 every environment set up from it gets the locked versions for its
-platform and Python version, regardless of when it's set up.
+platform and Python version, regardless of when it's set up. (That is
+reproducible *dependency versions*, not a promise of identical behavior
+in every environment — system libraries, environment variables, and
+external services can still differ.)
 
 **Why it should normally be committed to version control for
 application projects**: an application (§30) is typically deployed
@@ -716,7 +724,8 @@ actually breaks — a behavior change between `pandas` 2.1 and 2.8 (real
 or hypothetical) manifests as a confusing, hard-to-reproduce bug that
 "only happens for Developer B."
 
-**With a lock file in place**, this scenario simply cannot happen:
+**With a lock file in place**, this particular scenario (different
+dependency versions on different machines) is prevented:
 `uv.lock` records `pandas`'s resolved version; every subsequent
 `uv sync` (§23) against an unchanged, up-to-date lock file, by anyone,
 at any time, installs *that* recorded version for their environment —
@@ -860,7 +869,9 @@ updates/creates uv.lock with the resolved, exact versions
 synchronizes the project's virtual environment to match
 ```
 
-A single command performs **all four** of these steps automatically —
+In its normal/default workflow, a single command performs **all four**
+of these steps automatically (flags, configuration, or project state can
+change this — for example options that skip the sync or lock step) —
 this is the practical value `uv` adds over manually editing
 `pyproject.toml` and separately running a resolver/installer: the
 declaration, the resolution, the locking, and the environment update
@@ -1099,12 +1110,27 @@ scenario as a debugging lab entry.
 
 **Updating a dependency** to a newer version within its existing
 constraints is, conceptually, "re-run resolution and pick the latest
-version that still satisfies every declared constraint" — the specific
-command/flag for deliberately requesting an update (as opposed to
-`uv add`/`uv remove` changing the declared dependencies themselves) is
-exactly the kind of detail worth confirming against your installed
-`uv`'s own `--help` output, per this chapter's stated approach to
-version-dependent specifics.
+version that still satisfies every declared constraint". A controlled
+workflow, using options of recent `uv` releases (confirm they exist in
+your installed version with `uv lock --help`):
+
+```bash
+git status                              # start from a clean working tree
+uv lock --upgrade-package requests      # re-resolve, upgrading only `requests` (and what it requires)
+git diff uv.lock                        # review exactly which versions changed
+uv sync --locked                        # install precisely the new lock into the environment
+uv run pytest                           # run the tests against the updated versions
+git add uv.lock && git commit -m "Update requests"   # commit only after the diff and tests look right
+```
+
+`uv lock --upgrade` (no package name) upgrades everything the declared
+constraints allow, producing a larger diff to review. If `pyproject.toml`
+itself must change to allow the new version (for example a tighter or
+looser constraint), edit it or use `uv add`, then repeat the same review
+steps. The point is the control sequence — inspect the change, update,
+review the `uv.lock` diff, test, and only then commit — rather than any one
+flag, which is why checking `--help` for your installed version remains
+part of the workflow.
 
 ## 27. Reproducible Development
 
@@ -1138,7 +1164,10 @@ would quietly re-lock a stale `uv.lock`, whereas `--locked` turns that
 situation into an error. This is the concrete, mechanical realization
 of §15's promise: reproducibility isn't a hope or a convention here,
 it's a direct consequence of every stage reading from the same lock
-file.
+file — for *dependency versions*. Full runtime reproducibility also
+depends on factors the lock file does not control (Python version,
+operating system, native libraries, environment variables, external
+services, build artifacts).
 
 ## 28. CI/CD Use
 
@@ -1418,7 +1447,10 @@ demo → requests → urllib3, certifi, idna, charset-normalizer
 uv init demo
 cd demo
 ```
-Creates a starting `pyproject.toml` and project skeleton (§19).
+Creates a starting `pyproject.toml` and project skeleton (§19). The exact
+files vary by `uv` version (a simple starter script such as `main.py` is
+typical), so this does **not** by itself create a `demo` package with a
+`cli.py` module.
 
 **8. Adding a dependency with `uv`**
 ```bash
@@ -1449,7 +1481,12 @@ uv run python -m demo.cli
 uv run pytest
 ```
 Runs each command inside the project's own managed environment, so the
-project's resolved dependencies are used (§24).
+project's resolved dependencies are used (§24). `python -m demo.cli`
+assumes the project actually contains a `demo` package with a `cli.py`
+module that is importable in that environment (for instance created by
+you after `uv init`, as in the `src/` layout of §34); with only the
+starter file `uv init` generates, you would run that file instead (for
+example `uv run python main.py`).
 
 **12. Removing and updating a dependency**
 ```bash
@@ -1537,6 +1574,10 @@ dependencies = [
     "pydantic>=2.0,<3.0",
 ]
 
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
 [dependency-groups]
 dev = [
     "pytest>=8.0",
@@ -1544,6 +1585,19 @@ dev = [
     "mypy>=1.10",
 ]
 ```
+
+The `[build-system]` table declares how this project is built and installed.
+With it, `uv sync` installs the project itself into the environment
+(editable by default), and the build backend (`hatchling` here) finds the
+package in `src/orders_report/` from the project name, so
+`python -m orders_report.cli` can import it. Without a `[build-system]`
+table, `uv` can treat the project as a non-installable application: the
+environment and dependencies are still created, but `src/` is not put on the
+import path, so `orders_report` would not be importable. Being runnable in
+the development environment and being correctly configured for building
+or installing as a distributable package are related but separate
+questions. (Another backend, such as `uv`'s own `uv_build`, can be used
+instead; the principle is the same.)
 
 The development tools live in a `[dependency-groups]` `dev` group — the
 same mechanism `uv add --dev` manages (§21) — not in
@@ -1579,6 +1633,16 @@ silent re-resolution.
 ```bash
 uv run python -m orders_report.cli --input-dir data/raw --output summary.json
 ```
+
+**Validating the setup:**
+```bash
+uv run python -m orders_report.cli --help
+```
+If this prints the CLI's usage text, the package is installed in the
+project environment and importable (a `ModuleNotFoundError` for
+`orders_report` means the project was not installed, for example because
+`[build-system]` is missing). `uv build` additionally checks that the
+distributable package can be built.
 
 **Running tests:**
 ```bash

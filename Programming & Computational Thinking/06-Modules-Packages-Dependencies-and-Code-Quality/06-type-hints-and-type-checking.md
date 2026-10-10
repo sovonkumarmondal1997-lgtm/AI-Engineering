@@ -51,6 +51,17 @@ By the end of this chapter you will be able to:
 - Adopt typing gradually in a legacy codebase, and integrate type
   checking into CI alongside Ruff and tests.
 
+**Suggested reading path.** This chapter is long; read it in phases and
+make sure the foundations are solid before moving on:
+
+- **Phase A — Foundations:** §§1–20
+- **Phase B — Core Typing and Data Modeling:** §§21–38
+- **Phase C — Type Checker Workflow:** §§39–48
+- **Phase D — System Boundaries and Engineering Applications:** §§49–70
+- **Phase E — Advanced Typing and Team Practices:** §§71–86 (advanced
+  material; approach it after the core concepts in Phases A–D)
+- **Phase F — Practice and Assessment:** §§87–95
+
 ## 1. Why Types Matter
 
 Look at four ordinary assignments:
@@ -142,10 +153,15 @@ checking** in the sense that matters here: Python checks whether an
 moment that operation runs (`"5" + 3` fails only when executed, not
 when merely written).
 
-**A statically typed language**, by contrast (Java, C, Go, and many
-others), requires a variable's type to be declared and checked
+**A statically typed language**, by contrast (Java, C, Go, Rust, and many
+others), determines and checks types according to its type system
 *before* the program ever runs — an incompatible assignment is
-rejected by the compiler, before execution even begins.
+rejected by the compiler, before execution even begins. How much you
+must write out varies by language: some require explicit declarations
+almost everywhere, while others (Go and Rust, for example) *infer* many
+types from context. Type inference and static type checking coexist —
+being statically typed means types are checked ahead of time, not that
+every variable needs a written type.
 
 **The statement this section exists specifically to correct**:
 **"Python has no type system" is wrong**, and this chapter will not
@@ -248,9 +264,11 @@ conflated:**
   it) if it doesn't meet expectations — this is ordinary Python logic,
   not related to annotations at all unless you deliberately build it
   to read them (§38 touches on this narrow exception).
-- **Runtime enforcement** — the (largely absent, by default) idea that
-  Python itself would refuse to run code based on a type annotation —
-  **Python does not do this**, ever, on its own.
+- **Runtime enforcement** — the idea that Python itself would refuse to
+  run code based on a type annotation. **Python does not do this by
+  default**: ordinary annotations are not checked when code runs. Runtime
+  checking happens only when code you (or a framework that reads
+  annotations, §38, §76) actually executes to validate values.
 
 **Annotations do not automatically convert values.** `age: int =
 "10"` does **not** turn `"10"` into the integer `10` — `age` is still,
@@ -4443,6 +4461,7 @@ output
 **`models.py`-equivalent — domain types:**
 ```python
 from dataclasses import dataclass
+from decimal import Decimal
 from typing import TypedDict
 
 
@@ -4455,37 +4474,71 @@ class RawRecord(TypedDict):
 @dataclass
 class ValidatedRecord:
     id: int
-    amount: float
+    amount: Decimal      # money: Decimal, not float (exact decimal arithmetic)
     category: str
 
 
 @dataclass
 class ProcessedRecord:
     id: int
-    amount: float
+    amount: Decimal
     category: str
-    amount_with_tax: float
+    amount_with_tax: Decimal
 ```
+
+`RawRecord` only *describes* the shape external data is expected to have,
+for the static checker. It does not validate anything at runtime: real
+external data can be missing keys, hold the wrong types, or not be a
+dictionary at all, which is why the validation function below accepts
+`object` and checks explicitly.
 
 **Validation — untrusted `RawRecord` to trusted `ValidatedRecord`,
 following §48's own pipeline exactly:**
 ```python
-def parse_record(raw: RawRecord) -> ValidatedRecord:
+from decimal import Decimal, InvalidOperation
+
+
+class RecordValidationError(ValueError):
+    """An expected, controlled failure: the input record is not valid."""
+
+
+def parse_record(raw: object) -> ValidatedRecord:
+    # `raw` is untrusted: do not assume it matches RawRecord at runtime.
+    if not isinstance(raw, dict):
+        raise RecordValidationError(f"record must be a dict, got {type(raw).__name__}")
+
+    for key in ("id", "amount", "category"):
+        if key not in raw:
+            raise RecordValidationError(f"missing required key {key!r}")
+
+    raw_id, raw_amount, category = raw["id"], raw["amount"], raw["category"]
+    if not (isinstance(raw_id, str) and isinstance(raw_amount, str) and isinstance(category, str)):
+        raise RecordValidationError("'id', 'amount' and 'category' must all be strings")
+
     try:
-        record_id = int(raw["id"])
-        amount = float(raw["amount"])
-    except ValueError as exc:
-        raise ValueError(f"invalid record {raw!r}: {exc}") from None
+        record_id = int(raw_id)
+    except ValueError:
+        raise RecordValidationError(f"invalid id {raw_id!r}") from None
 
+    try:
+        amount = Decimal(raw_amount)       # from the string: never via float
+    except InvalidOperation:
+        raise RecordValidationError(f"invalid amount {raw_amount!r}") from None
+
+    if not amount.is_finite():             # rejects NaN, Infinity, -Infinity
+        raise RecordValidationError(f"amount must be finite, got {raw_amount!r}")
     if amount < 0:
-        raise ValueError(f"amount must be non-negative, got {amount}")
+        raise RecordValidationError(f"amount must be non-negative, got {amount}")
 
-    return ValidatedRecord(id=record_id, amount=amount, category=raw["category"])
+    return ValidatedRecord(id=record_id, amount=amount, category=category)
 ```
 
 **Transformation — pure, fully-typed business logic:**
 ```python
-TAX_RATE = 0.08
+from decimal import ROUND_HALF_UP
+
+TAX_RATE = Decimal("0.08")
+CENT = Decimal("0.01")     # rounding policy: to the cent, halves rounded up
 
 
 def apply_tax(record: ValidatedRecord) -> ProcessedRecord:
@@ -4493,7 +4546,7 @@ def apply_tax(record: ValidatedRecord) -> ProcessedRecord:
         id=record.id,
         amount=record.amount,
         category=record.category,
-        amount_with_tax=round(record.amount * (1 + TAX_RATE), 2),
+        amount_with_tax=(record.amount * (1 + TAX_RATE)).quantize(CENT, rounding=ROUND_HALF_UP),
     )
 ```
 
@@ -4525,12 +4578,12 @@ class InMemorySink:
 from collections.abc import Iterable
 
 
-def run_pipeline(raw_records: Iterable[RawRecord], sink: RecordSink) -> int:
+def run_pipeline(raw_records: Iterable[object], sink: RecordSink) -> int:
     processed_count = 0
     for raw in raw_records:
         try:
             validated = parse_record(raw)
-        except ValueError as exc:
+        except RecordValidationError as exc:
             print(f"skipping invalid record: {exc}")
             continue
         processed = apply_tax(validated)
@@ -4549,14 +4602,32 @@ def test_run_pipeline_applies_tax() -> None:
     count = run_pipeline(raw_records, sink)
 
     assert count == 1
-    assert sink.records[0].amount_with_tax == 108.0
+    assert sink.records[0].amount_with_tax == Decimal("108.00")
+
+
+def test_run_pipeline_skips_invalid_records_and_continues() -> None:
+    raw_records: list[object] = [
+        {"id": "1", "amount": "-5", "category": "books"},      # negative
+        {"id": "2", "amount": "NaN", "category": "books"},     # non-finite
+        {"id": "3", "category": "books"},                      # missing key
+        {"id": "4", "amount": 10, "category": "books"},        # wrong runtime type
+        "not a dict",                                          # wrong outer shape
+        {"id": "5", "amount": "10.00", "category": "books"},   # valid
+    ]
+    sink = InMemorySink()
+
+    assert run_pipeline(raw_records, sink) == 1
+    assert sink.records[0].id == 5
 ```
 
 **Why type hints improve each boundary, stage by stage**: `RawRecord`
 (a `TypedDict`) precisely documents the untrusted input's expected
 shape, without pretending it's already trustworthy (§33, §49);
-`parse_record`'s signature (`RawRecord -> ValidatedRecord`) makes the
-validation boundary itself a checkable, unambiguous contract (§48);
+`parse_record`'s signature (`object -> ValidatedRecord`) makes the
+validation boundary itself a checkable, unambiguous contract (§48): it
+accepts `object` precisely because external data is not trusted to match
+`RawRecord`, and the annotation alone validates nothing — the explicit
+runtime checks do that;
 `ValidatedRecord` and `ProcessedRecord` being genuinely distinct types
 (not the same class reused) means it's a *type error*, not just a
 convention, to accidentally call `apply_tax` on data that skipped
