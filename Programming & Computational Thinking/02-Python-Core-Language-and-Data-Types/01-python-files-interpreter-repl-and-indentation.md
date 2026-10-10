@@ -189,9 +189,11 @@ actually does anything.
 
 Many programming languages use symbols such as `{` and `}` to show which
 lines belong together. Python instead uses **indentation** — consistent
-leading spaces at the start of a line — for the same purpose. Any lines
-indented at the same level, placed directly under a line that ends in `:`,
-form one **code block**, and Python treats them as belonging together:
+leading spaces at the start of a line — for the same purpose. When a
+compound statement such as `if` has a header line that ends in `:`, the
+lines indented at the same level directly under it form one **code
+block** (also called a suite) that belongs to that statement, and Python
+treats them as belonging together:
 
 ```python
 age = 20
@@ -227,9 +229,12 @@ when you press Tab, which avoids this problem entirely.
   should be indented inside a block but is not, or two lines in the same
   block that use a different number of spaces from each other.
 
-Both errors stop the whole program before any of it runs, because the
+Both errors stop a normal script before any of it runs, because the
 interpreter checks that the entire file's grammar is valid before it starts
-carrying out any instructions.
+carrying out any instructions. Runtime errors are different: a
+`NameError` from using an undefined name (see "Common beginner mistakes"
+below) happens only when that statement is executed, so earlier
+statements may already have run.
 
 ## Examples
 
@@ -394,6 +399,9 @@ run anything, then compare.
       REPL and running a `.py` file.
 - [ ] I can explain why indentation matters in Python and deliberately
       break it once to see the resulting error message.
+- [ ] I can explain, comparing the malformed-indentation example with a
+      `NameError` from an undefined name, when each error occurs and what
+      it tells me.
 - [ ] I have completed the "try it yourself" exercises above.
 
 ## Connection to later Applied AI and Agentic AI engineering work

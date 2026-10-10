@@ -88,7 +88,8 @@ quote mark, use the other kind to wrap it, avoiding extra escaping (covered
 next).
 
 **Triple quotes** (`"""..."""` or `'''...'''`) create a string that can
-span multiple lines exactly as typed, including the line breaks:
+span multiple lines, preserving the literal line breaks you type. Normal
+string-literal escape processing (such as `\n`) still applies inside them:
 
 ```python
 message = """This is
@@ -229,13 +230,16 @@ position `10` does not exist.
 **Safe reasoning before accessing a position:** before indexing into a
 string using a position you calculated (rather than typed directly), check
 that the position is actually within range using `len()` and a comparison,
-both of which you already know:
+both of which you already know. This particular check accepts only
+non-negative positions, from `0` up to `len(username) - 1`; Python itself
+also allows negative indexes, but this guard is for a position counted from
+the start of the text:
 
 ```python
 username = "ada"
 position = 10
 
-if position < len(username):
+if 0 <= position < len(username):
     print(username[position])
 else:
     print("That position does not exist in this text.")
@@ -408,6 +412,21 @@ separate topic, **encoding**, which you will study properly in Module 1.5;
 for now, just know that ordinary text handling in Python already fully
 supports this.)
 
+Strictly, a Python string is a sequence of Unicode **code points**, and
+some characters you see as one on screen are made of more than one code
+point. For example, an accented "é" can be a base letter `e` followed by a
+combining accent mark:
+
+```python
+text = "e\u0301"
+print(text)        # é  (displayed as one accented character)
+print(len(text))   # 2 — two code points, though it looks like one character
+```
+
+Here `len()` counts code points, not user-perceived characters. Ordinary
+indexing and slicing still work as described; they simply operate on code
+points.
+
 **Case sensitivity** applies to every character, including accented ones:
 `"Café"` and `"café"` are different strings, and `==` treats them as
 unequal.
@@ -428,7 +447,12 @@ should reasonably be treated as the same word, comparing with `casefold()`
 on both sides catches this; comparing with `lower()` would not. As a
 practical rule: use `lower()` for everyday display purposes, and prefer
 `casefold()` specifically when the goal is comparing two pieces of text for
-equality, especially text that might not be plain English.
+equality, especially text that might not be plain English. Note that
+`casefold()` does not, by itself, perform all Unicode normalization: the
+same visible text can be stored as different code point sequences (such as
+the two forms of "é"). Applications that need canonical Unicode
+equivalence may also need normalization, for example with
+`unicodedata.normalize()`.
 
 ## Examples
 
@@ -742,11 +766,16 @@ as a word break. Check results carefully with real-world text.
 #### `strip()`
 
 Returns a new string with leading and trailing whitespace removed. Can
-also take a string of characters to remove instead of whitespace.
+also take a string of characters to remove instead of whitespace. That
+argument is treated as a *set* of characters: `strip(chars)` removes any
+combination of them from both ends until a character outside the set is
+reached. It does not remove one exact substring; use `removeprefix()` or
+`removesuffix()` (below) for that.
 
 ```python
 print(repr("  Hello, World!  ".strip()))   # 'Hello, World!'
 print("xxHelloxx".strip("x"))              # Hello
+print("abcHellocba".strip("abc"))          # Hello — any of a, b, c, from both ends
 ```
 
 A note on `repr()`: it produces a developer-oriented representation of a

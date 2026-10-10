@@ -22,7 +22,8 @@ By the end of this lesson, you will be able to:
 - Explain implicit conversion, and that not every type combination
   converts automatically.
 - Convert values explicitly with `int()`, `float()`, `str()`, and
-  `bool()`, and explain the errors each can raise.
+  `bool()`, and explain common conversion errors, especially `ValueError`
+  from invalid numeric text.
 - Convert between collections with `list()`, `tuple()`, `set()`, and
   `dict()`, and explain how order, duplicates, and shape can change.
 - Inspect and check a value's type with `type()` and `isinstance()`, and
@@ -52,7 +53,7 @@ By the end of this lesson, you will be able to:
 
 | Term | Plain-English definition |
 |---|---|
-| **Type conversion** | Turning a value of one type into an equivalent value of a different type. |
+| **Type conversion** | Producing a value of a different type from an existing value; depending on the conversion, meaning may be preserved, representation may change, or information may be lost. |
 | **Implicit conversion** | Conversion Python performs automatically, without you asking for it. |
 | **Explicit conversion** | Conversion you request deliberately, using a function such as `int()`. |
 | **Truncation** | Cutting off a number's decimal part completely, without rounding, always moving toward zero. |

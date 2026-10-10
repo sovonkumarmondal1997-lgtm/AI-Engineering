@@ -40,7 +40,7 @@ By the end of this lesson, you will be able to:
 
 | Term | Plain-English definition |
 |---|---|
-| **Operator** | A symbol, such as `+` or `==`, that combines or compares one or more values to produce a result. |
+| **Operator** | A symbol or keyword, such as `+`, `==`, or `and`, that performs an operation on one or more values to produce a result. |
 | **Operand** | A value that an operator works on — in `3 + 4`, both `3` and `4` are operands. |
 | **Arithmetic operator** | An operator that performs a mathematical calculation, such as `+` or `*`. |
 | **Comparison operator** | An operator that compares two values and produces `True` or `False`, such as `==` or `<`. |
@@ -53,8 +53,8 @@ By the end of this lesson, you will be able to:
 
 ### 1. Operators and operands, in one sentence
 
-An **operator** is a symbol that does something with one or more
-**operands** (the values on either side of it). `3 + 4` has the operator
+An **operator** is a symbol or keyword (such as `+` or `and`) that does
+something with one or more **operands** (the values on either side of it). `3 + 4` has the operator
 `+` and the operands `3` and `4`; the whole expression evaluates to `7`.
 
 ### 2. Arithmetic operators
@@ -64,14 +64,14 @@ An **operator** is a symbol that does something with one or more
 | `+` | Addition | `3 + 4` | `7` |
 | `-` | Subtraction | `10 - 3` | `7` |
 | `*` | Multiplication | `6 * 7` | `42` |
-| `/` | Division (always gives a `float`) | `7 / 2` | `3.5` |
+| `/` | Division (gives a `float` for `int` operands) | `7 / 2` | `3.5` |
 | `//` | Floor division (divides, then rounds down) | `7 // 2` | `3` |
 | `%` | Modulo (the remainder left over) | `7 % 2` | `1` |
 | `**` | Exponentiation (raise to a power) | `2 ** 3` | `8` |
 
 The three operators beginners most often mix up are `/`, `//`, and `%`.
-`/` always produces a `float`, even when the numbers divide evenly
-(`8 / 2` is `4.0`, not `4`). `//` performs floor division: it divides and
+For built-in `int` operands, `/` produces a `float`, even when the numbers
+divide evenly (`8 / 2` is `4.0`, not `4`). `//` performs floor division: it divides and
 rounds the result down toward negative infinity. For positive whole numbers
 such as `7 // 2`, this gives `3` full groups, because `2` goes into `7`
 three whole times. `%` gives whatever is left over after those full groups
@@ -112,6 +112,17 @@ is not equal to the string `"5"`, so `5 == "5"` is `False`:
 print(5 == "5")   # False — an int is not equal to a str, even a matching-looking one
 print(1 == 1.0)   # True — an int and a float can have equal values
 ```
+
+Comparing two strings works the same way. String equality checks whether
+the text values match:
+
+```python
+print("python" == "python")   # True — the two text values match
+```
+
+Not every comparison operator works for every pair of operand types, though.
+For example, ordering a string against an integer, such as `"5" < 5`,
+raises a `TypeError`.
 
 This is different from `+`, which raises a `TypeError` for the operand-type
 combination `str + int`, as you saw in the previous lesson. The `+`
@@ -368,16 +379,15 @@ else:
 4. Predict, then check: is `"5" == 5` `True` or `False`? Is `5 == 5`
    `True` or `False`? Write one sentence explaining why the two results
    differ.
-5. Write the expression `price * quantity - discount` with two different
-   placements of parentheses (for example, around `price * quantity`, and
-   separately around `quantity - discount`), using real numbers, and
-   compare the two results to see how much parentheses can change the
-   outcome.
+5. Let `a = 4`, `b = 5`, and `c = 2`. Write the expression `a * b - c`
+   with two different placements of parentheses (for example, around
+   `a * b`, and separately around `b - c`). Evaluate both, and explain
+   why the results differ when the grouping changes.
 
 ## Summary
 
 - The **arithmetic operators** are `+`, `-`, `*`, `/`, `//`, `%`, and `**`;
-  `/` always gives a `float`, `//` is floor division (it rounds down), and `%` gives
+  `/` gives a `float` for built-in `int` operands, `//` is floor division (it rounds down), and `%` gives
   the remainder.
 - The **comparison operators** `==`, `!=`, `<`, `>`, `<=`, and `>=` produce
   a `bool` for the built-in comparisons used here; comparing values of

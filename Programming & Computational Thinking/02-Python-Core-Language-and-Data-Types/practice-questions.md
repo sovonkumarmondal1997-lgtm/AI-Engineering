@@ -642,9 +642,10 @@ are needed again.
 
 #### Common beginner mistakes
 
-- Calling `.title()` before `.strip()` accidentally, which usually still
-  works, but relying on that would produce different results if a string
-  had non-space whitespace, such as a leading tab.
+- Cleaning raw input inconsistently — for example, applying `.title()`
+  and `.strip()` in a different order in different places. Choosing one
+  clear order, as this solution does, and cleaning input the same way
+  every time before further processing keeps results predictable.
 - Forgetting that `text.strip()` alone does nothing to `text` — the
   result must be captured or chained, as this solution does.
 - Measuring `len(raw_name)` instead of `len(clean_name)`, which would
@@ -666,7 +667,12 @@ A list holds three ages typed as text, such as `["25", "31", "19"]`.
 Convert them to numbers and compute the average age. Separately, given a
 list of form field values, some of which are empty or zero, determine
 whether *all* fields were filled in and whether *at least one* field was
-filled in, without writing a manual `==` comparison for each value.
+filled in, without writing a manual `==` comparison for each value. This
+part demonstrates truthiness-based classification (how `bool(value)`
+sorts values by Python's truthiness rules), not robust form-completion
+validation: empty strings and numeric zero are falsy, but a falsy value is
+not automatically proof that a field is missing or incomplete, since real
+validation depends on each field's meaning and rules.
 
 #### Concepts practised
 
@@ -860,8 +866,10 @@ Total cost: $2.40
 than an error, matching Topic 7's guidance to prefer `.get()` whenever a
 missing key is something the program should handle gracefully, not treat
 as a bug. Supplying `0.0` as the default specifically for the total-cost
-loop means "an unstocked item costs nothing," a deliberate, sensible
-choice rather than an accident.
+loop is a deliberate fallback chosen for this exercise, to demonstrate
+safe dictionary lookup. In a real checkout or pricing system, an unknown
+price should generally be flagged or handled explicitly rather than
+silently treated as free.
 
 #### Common beginner mistakes
 
@@ -2284,6 +2292,11 @@ Write a small contact-data cleaner. Given a list of raw contact records
 name and email, and remove duplicate people — where "duplicate" means the
 *same* email address once cleaned, even if it was typed differently each
 time (extra spaces, different capitalization).
+
+Note: treating the whole email address as case-insensitive is a
+simplifying assumption for this exercise. A production system should use
+normalization rules consistent with its account model and email-handling
+requirements.
 
 #### Concepts practised
 

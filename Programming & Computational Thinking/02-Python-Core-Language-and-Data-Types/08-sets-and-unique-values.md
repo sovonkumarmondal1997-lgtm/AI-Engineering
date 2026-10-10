@@ -150,8 +150,10 @@ detail, not a guarantee, and can even differ between separate runs for
 some value types.
 
 **Use `sorted()` when a predictable display order is required:**
-`sorted(...)` (from earlier lessons) works on a set and always returns a
-new, ordered **list**:
+`sorted(...)` (from earlier lessons) works on a set and returns a new,
+ordered **list** when its elements can be compared with one another. For
+example, numbers can be sorted numerically, but a set containing both
+integers and strings cannot be sorted directly in Python 3:
 
 ```python
 numbers = {5, 1, 4, 2, 3}

@@ -551,7 +551,9 @@ Do not look up full solutions. Predict the output before running each one.
 2. Given `a = "python"` and `b = "python"`, predict what `a == b` and
    `a is b` will show, then check. Now build a second string at runtime
    with `"".join(["p", "y", "t", "h", "o", "n"])`, compare it to `a` the
-   same way, and explain any difference you see.
+   same way. Explain why `==` is the appropriate comparison for string
+   values and why the result of `is` should not be relied upon for
+   ordinary string comparison.
 3. Create a dictionary, alias it with a second name, and use `is` to
    confirm both names refer to the same object. Then create a real copy
    with `.copy()` and confirm, with `is`, that the copy is a different

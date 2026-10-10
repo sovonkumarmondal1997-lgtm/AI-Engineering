@@ -380,11 +380,14 @@ for position, score in enumerate(scores):
 4 91
 ```
 
-Notice `sorted(...)` and `reversed(...)` both hand back a **list**, even
-though the input was a tuple — neither function tries to preserve
-immutability for you. If you specifically need a sorted or reversed
+Notice `sorted(scores)` returns a new **list**, even though the input was
+a tuple — it does not try to preserve immutability for you. `reversed(scores)`
+does not return a list directly: it returns an iterator that yields the
+values in reverse order, and `list(reversed(scores))` consumes that
+iterator to build a list. If you specifically need a sorted or reversed
 **tuple** back, wrap the result in `tuple(...)`, as covered in Section 8:
-`tuple(sorted(scores))`.
+`tuple(sorted(scores))` creates a tuple of the values in sorted order, and
+`tuple(reversed(scores))` creates a tuple of the values in reverse order.
 
 ## Examples
 

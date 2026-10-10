@@ -99,7 +99,7 @@ means "empty dict" in Python.
 strings, numbers, and tuples containing hashable values, but hashability
 and immutability are different concepts. Strings, numbers, and booleans
 are the most common valid keys. Lists (and other dictionaries) are **not**
-allowed as keys, because they are mutable and unhashable:
+allowed as keys, because they are unhashable:
 
 ```python
 bad_dict = {[1, 2]: "value"}
@@ -123,12 +123,14 @@ print(data[1.0])    # integer
 dictionary key in this example. Dictionary key behavior is based on hashing
 and equality, not simply on the key's apparent type.
 
-**Why mutable values must not be used as keys:** a dictionary needs a
-key's value to stay exactly the same for as long as it is used to find
-things — if a list used as a key could later be mutated, Python would lose
-the ability to reliably find that entry again. This is exactly why Python
-refuses the attempt outright, rather than allowing a key that might
-silently "go stale."
+**Why lists and dictionaries cannot be used as keys:** a dictionary key
+must be hashable, and lists and dictionaries are unhashable built-in
+types, so Python refuses them outright. The reason is that a dictionary
+needs a key's hash and equality behavior to stay stable for as long as it
+is used to find things — if a list used as a key could later be mutated,
+Python would lose the ability to reliably find that entry again. Hashability
+and mutability are related for many common built-in types, but they are
+not the same concept.
 
 **Keys must be unique.** If the same key is written twice while creating a
 dictionary, the second value silently wins — there is no error, and no
@@ -814,7 +816,9 @@ print(new_dict)   # {'a': 1, 'b': 2}
 ```
 
 Finally, Python provides a dictionary **merge operator**, `|`, as a modern
-alternative to `.update()`:
+alternative to `.update()`. The `|` operator for dictionaries is available
+in Python 3.9 and later; on older versions, or when mutating the existing
+dictionary is acceptable, use `.update()`:
 
 ```python
 defaults = {"debug": False, "timeout": 30}

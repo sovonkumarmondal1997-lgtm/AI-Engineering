@@ -63,8 +63,8 @@ By the end of this lesson, you will be able to:
 | **Mutation** | Changing a list in place — adding, removing, or altering its elements — without replacing it with a different list. |
 | **In-place** | Describes an operation that changes the original data directly, rather than building and returning a new value. |
 | **Alias** | A second variable name that refers to the exact same list as another name, rather than to a separate copy. |
-| **Copy** | A genuinely separate list containing the same elements, which can be changed without affecting the original. |
-| **Shallow copy** | A copy of the outer list only; any lists *inside* it are still shared with the original. |
+| **Copy** | A new, separate outer list containing the same elements. Changing the outer list does not affect the original; for a shallow copy, nested mutable objects may still be shared. |
+| **Shallow copy** | A copy of the outer list only; any lists *inside* it are still shared with the original, so mutating a shared nested list can affect both. |
 | **Deep copy** | A copy that recursively copies nested objects so that mutable nested objects are no longer shared, where `deepcopy()` supports copying them. |
 
 ## Step-by-step explanation
@@ -149,13 +149,15 @@ position `10` does not exist.
 
 **Safely checking length first:** before indexing with a position you
 calculated rather than typed directly, compare it against `len()`, exactly
-as you practiced for strings:
+as you practiced for strings. This particular check accepts only
+non-negative positions, from `0` up to `len(fruits) - 1`; Python supports
+negative indexing, but this guard does not accept negative positions:
 
 ```python
 fruits = ["apple", "banana", "cherry"]
 position = 10
 
-if position < len(fruits):
+if 0 <= position < len(fruits):
     print(fruits[position])
 else:
     print("That position does not exist in this list.")
@@ -263,10 +265,12 @@ destroyed your list, replacing it with `None`! The list's built-in
 `.sort()` and `.reverse()` methods (covered fully in the appendix) both
 mutate the list in place and both return `None`, so assigning their
 return value to a variable binds that name to `None` — never assign their
-result to anything. If you want a *new*, sorted or reversed list while keeping the
-original list unchanged, use the built-in functions `sorted(...)` and
-`reversed(...)` instead, covered in Section 11 below — they do the
-opposite: they leave the original list alone and return a new value.
+result to anything. If you want a *new* sorted list while keeping the
+original list unchanged, use the built-in function `sorted(...)`, which
+returns a new list. For reversed order, `reversed(...)` leaves the original
+alone but returns an iterator, not a list; wrap it as
+`list(reversed(...))` to get a new reversed list. Both are covered in
+Section 11 below.
 
 ### 8. Aliasing: why `second_list = first_list` is not a copy
 

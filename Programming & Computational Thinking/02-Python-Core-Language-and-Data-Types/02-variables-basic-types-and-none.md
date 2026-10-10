@@ -6,8 +6,8 @@ In Module 1.1 you already used variables and were told, "every value has a
 type — you will study types in detail in Module 1.2." This lesson is that
 promise kept. Every piece of data your programs touch — an age, a price, a name,
 whether something is finished, or whether a piece of information is even
-available yet — has a type. This lesson focuses on five foundational
-types. Knowing exactly what each type represents, and what it does not, is
+available yet — has a type. This lesson focuses on four foundational
+types and the special value `None`. Knowing exactly what each one represents, and what it does not, is
 what lets you predict how your code will behave instead of guessing.
 
 ## Learning outcomes
@@ -16,8 +16,9 @@ By the end of this lesson, you will be able to:
 
 - Explain what a variable is, and create, assign, and reassign one with a
   meaningful name.
-- Name the five foundational types covered here — `int`, `float`, `bool`,
-  `str`, and `None` — and give a real-world example of each.
+- Name the four foundational types covered here — `int`, `float`, `bool`,
+  and `str` — and the special value `None` (whose type is `NoneType`), and
+  give a real-world example of each.
 - Use `type()` to check what type a value actually is.
 - Explain what `None` means, and explain why it is different from `0`,
   `False`, and `""` (an empty string).
@@ -40,7 +41,7 @@ By the end of this lesson, you will be able to:
 | **`float`** | A floating-point number type, commonly written with a decimal point or scientific notation, such as `3.14`, `7.0`, or `1e3`. Short for "floating-point number." |
 | **`bool`** | A type with exactly two possible values, `True` or `False`. Short for "Boolean." |
 | **`str`** | A text type: a `str` object represents text. String literals are commonly written using quotation marks, such as `"hello"`. Short for "string." |
-| **`None`** | A special singleton value commonly used to represent the absence of a meaningful value, such as information that is not available yet or does not apply — not zero, not false, not empty text. |
+| **`None`** | A special singleton value (its type is `NoneType`) commonly used to represent the absence of a meaningful value, such as information that is not available yet or does not apply — not zero, not false, not empty text. |
 | **`type()`** | A built-in instruction that tells you the type of any value, for example `type(7)`. |
 
 ## Step-by-step explanation
@@ -73,9 +74,10 @@ your own future self.
 Every object in Python has exactly one **type**, and that type decides what
 you are allowed to do with it. You can add two numbers together, but adding
 a number to a piece of text directly does not make sense — and Python will
-refuse to guess what you meant. This lesson focuses on five foundational
-types: `int`, `float`, `bool`, `str`, and `None`. Python has many other
-types too, several of which come in later lessons.
+refuse to guess what you meant. This lesson focuses on four foundational
+types — `int`, `float`, `bool`, and `str` — plus the special value `None`,
+whose type is `NoneType`. Python has many other types too, several of which
+come in later lessons.
 
 ### 3. `int`: whole numbers
 
@@ -96,6 +98,13 @@ point or scientific notation: `3.14`, `7.0`, `-0.5`, `1e3`. Use `float` for meas
 a fractional part: a price, a temperature, a height in meters. Even a value
 like `7.0`, which looks like a whole number, is still a `float`, because it
 is written as a floating-point number.
+
+Note that floats use finite binary precision, so some decimal fractions
+(such as `0.1`) cannot be represented exactly, and calculations can
+produce small rounding differences. For exact-decimal financial
+calculations, a deliberate monetary representation such as
+`decimal.Decimal` may be needed; `float` is still fine for many
+measurements and everyday amounts.
 
 ```python
 price = 19.99
@@ -136,8 +145,8 @@ mistakes, covered later in this lesson.
 
 ### 7. `None`: no meaningful value available
 
-**`None`** is a special singleton value commonly used to represent the
-absence of a meaningful value, such as information that is not available
+**`None`** is a special singleton value (its type is `NoneType`)
+commonly used to represent the absence of a meaningful value, such as information that is not available
 yet or does not apply — not zero, not false, not an empty piece of text.
 Use `None` when information does not exist yet, has not been provided, or
 is not applicable:
@@ -209,7 +218,7 @@ represent "small" or "empty" amounts of something.
 
 ## Examples
 
-### Example 1 — All five types together, inspected with `type()`
+### Example 1 — Four types and `None` together, inspected with `type()`
 
 ```python
 age = 25
@@ -227,8 +236,8 @@ print(middle_name, type(middle_name))
 
 **Plain-English explanation:**
 
-- Five variables are created, one of each basic type covered in this
-  lesson, each with a name that describes what it holds.
+- Five variables are created, one for each of the four basic types and
+  one for the value `None`, covered in this lesson, each with a name that describes what it holds.
 - Each `print(...)` call passes two things separated by a comma: the value
   itself, and `type(...)` applied to that same value — showing both the
   value and its type side by side.
@@ -315,8 +324,8 @@ print("Age: " + age)
 - **Using vague, single-letter variable names** (`x`, `y`, `d1`) instead of
   names that describe what the value actually represents, making code much
   harder to read later.
-- **Expecting a variable to "lock in" its first type.** As Example 9 in the
-  step-by-step section showed, reassigning a variable can freely change
+- **Expecting a variable to "lock in" its first type.** As Section 9
+  ("A variable's type can change after reassignment") showed, reassigning a variable can freely change
   which type of object its name is bound to.
 
 ## Try it yourself
@@ -343,9 +352,10 @@ print("Age: " + age)
 
 - A variable name can be bound to an object; giving variables meaningful
   names makes code far easier to read and maintain.
-- The five foundational types covered here are **`int`** (whole numbers),
-  **`float`** (floating-point numbers), **`bool`** (`True`/`False`),
-  **`str`** (text), and **`None`** (absence of a meaningful value).
+- The four foundational types covered here are **`int`** (whole numbers),
+  **`float`** (floating-point numbers), **`bool`** (`True`/`False`), and
+  **`str`** (text). **`None`** is a special value (absence of a meaningful
+  value) whose type is `NoneType`.
 - **`type()`** lets you inspect what type any value actually is, which is
   especially useful while you are still learning.
 - **`None`** is a special value commonly used to represent the absence of a
@@ -358,8 +368,8 @@ print("Age: " + age)
 ## Completion checklist
 
 - [ ] I can create, assign, and reassign a variable with a meaningful name.
-- [ ] I can name all five basic types covered here and give a real-world
-      example of each.
+- [ ] I can name the four basic types covered here and the special value
+      `None` (type `NoneType`), and give a real-world example of each.
 - [ ] I have used `type()` to check the type of a value myself.
 - [ ] I can explain why `None` is different from `0`, `False`, and `""`.
 - [ ] I can explain, using my own words, why `"text" + 25` fails, and how to
