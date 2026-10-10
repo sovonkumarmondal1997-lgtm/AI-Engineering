@@ -2133,7 +2133,7 @@ def document_source(items: list[Document]) -> Iterator[Iterator[Document]]:
 
 def process_documents(items: list[Document]) -> tuple[Counter, dict, deque]:
     counts = Counter()
-    by_kind = defaultdict(list)
+    by_kind = defaultdict(Counter)  # kind -> state counts, not every event
     recent = deque(maxlen=10)
 
     with document_source(items) as source:
@@ -2150,7 +2150,7 @@ def process_documents(items: list[Document]) -> tuple[Counter, dict, deque]:
                 datetime.now(timezone.utc),
             )
             counts[state] += 1
-            by_kind[document.kind].append(event)
+            by_kind[document.kind][state] += 1
             recent.append(event)
 
     return counts, dict(by_kind), recent
@@ -2170,7 +2170,9 @@ print(list(recent))
 #### Solution Explanation
 The input is iterated rather than converted into one giant intermediate list. The Enum expresses workflow state, the aware UTC timestamp gives event records a consistent time basis, and the three collections encode distinct access patterns.
 
-`Counter` answers "how many?", `defaultdict(list)` answers "which events belong to this group?", and `deque(maxlen=10)` answers "what recent history do we retain?" The context manager owns the source lifecycle.
+`Counter` answers "how many?", `defaultdict(Counter)` answers "how many outcomes of each state per document type?", and `deque(maxlen=10)` answers "what recent history do we retain?" The context manager owns the source lifecycle.
+
+Retention is deliberately different for each structure. The per-state `Counter` and the `deque` have bounded size (the grouped counters grow only with the number of distinct document kinds and states, not with the number of documents). Storing every event per kind, for example `defaultdict(list)` with `append(event)`, would grow with the input and would make the pipeline unbounded even though the iteration is lazy. Lazy iteration avoids a full-size intermediate list of the input; it does not by itself bound whatever you choose to retain. Note also that this example's `items` parameter is a list passed in by the caller, so the caller's input is already in memory; only the pipeline's own retained state is bounded.
 
 This remains an in-memory single-process design. It does not provide durability, distributed coordination, or unbounded data retention.
 
@@ -2223,19 +2225,22 @@ async def bounded_call(
     semaphore: asyncio.Semaphore,
     item: int,
 ) -> str:
-    async with semaphore:
+    # The caller acquired the semaphore before creating this task.
+    try:
         async with asyncio.timeout(1):
             return await remote_call(item)
+    finally:
+        semaphore.release()
 
 async def process(items: list[int]) -> list[str]:
     semaphore = asyncio.Semaphore(3)
     results: list[str] = []
+    tasks: list[asyncio.Task[str]] = []
 
     async with asyncio.TaskGroup() as group:
-        tasks = [
-            group.create_task(bounded_call(semaphore, item))
-            for item in items
-        ]
+        for item in items:
+            await semaphore.acquire()  # wait here instead of creating more tasks
+            tasks.append(group.create_task(bounded_call(semaphore, item)))
 
     for task in tasks:
         results.append(task.result())
@@ -2246,9 +2251,9 @@ print(asyncio.run(process(list(range(10)))))
 ```
 
 #### Solution Explanation
-The semaphore limits the number of operations in the protected section to three. `asyncio.timeout()` provides a deadline for each call. `TaskGroup` gives the created tasks a structured lifetime tied to the surrounding scope.
+The semaphore is acquired *before* each task is created and released when that task finishes, so at most three tasks are scheduled or running at a time; the loop waits instead of creating a task for every input item up front. (Acquiring the semaphore inside each task would limit only the active operations while still creating one task per item.) `asyncio.timeout()` provides a deadline for each call. `TaskGroup` gives the created tasks a structured lifetime tied to the surrounding scope.
 
-In a real system, you would also define retry policy, classify failures, respect service rate limits, instrument latency, and decide what partial results mean. The example's main purpose is to make bounded concurrency and cancellation ownership concrete.
+In a real system, you would also define retry policy, classify failures, respect service rate limits, instrument latency, and decide what partial results mean. The example's main purpose is to make bounded concurrency and cancellation ownership concrete. The `tasks` list and the `results` list still grow with the number of items because the function returns every result; that is output size, not in-flight work.
 
 #### Key Concepts Reinforced
 - Bounded concurrency.
@@ -2388,13 +2393,18 @@ retained.clear()
 gc.collect()
 
 print("after clear:", len(retained))
+print("observed after clear:", len(observed))
+after_current, _ = tracemalloc.get_traced_memory()
+print("traced current after clear:", after_current)
 tracemalloc.stop()
 ```
 
 #### Solution Explanation
 `retained` is a strong reference to every document, so the documents remain reachable. `observed` is weak and therefore does not keep them alive.
 
-Clearing `retained` removes the ownership path. `gc.collect()` can then make reclamation observable for unreachable cyclic garbage, but the real fix is to stop retaining objects longer than required.
+Clearing `retained` removes the ownership path. Once no strong references remain, the documents can be reclaimed, so the weak `observed` set typically shrinks (here to 0 in CPython, where non-cyclic objects are freed as soon as their last reference goes; other implementations may need a collection pass). `gc.collect()` additionally handles unreachable cyclic garbage, but the real fix is to stop retaining objects longer than required.
+
+Traced allocations may fall after the clear, but do not expect a guaranteed drop in process memory: the interpreter may keep freed memory for reuse rather than returning it to the operating system immediately.
 
 `tracemalloc` helps locate allocation behavior within its tracing scope, but it is not a complete view of native memory or operating-system RSS.
 
@@ -2585,10 +2595,13 @@ class InferenceEvent:
     timestamp: datetime
 
 class Monitor:
-    def __init__(self, recent_limit: int = 10) -> None:
+    def __init__(self, recent_limit: int = 10, per_model_limit: int = 100) -> None:
         self.status_counts = Counter()
         self.model_counts = Counter()
-        self.events_by_model = defaultdict(list)
+        # Bounded retention: each model keeps only its latest per_model_limit events.
+        self.events_by_model = defaultdict(
+            lambda: deque(maxlen=per_model_limit)
+        )
         self.recent_events = deque(maxlen=recent_limit)
 
     def ingest(self, event: InferenceEvent) -> None:
@@ -2609,7 +2622,7 @@ class Monitor:
             "recent_failures": failure_counts.most_common(),
         }
 
-monitor = Monitor(recent_limit=3)
+monitor = Monitor(recent_limit=3, per_model_limit=2)
 
 for i, status in enumerate(["ok", "error", "ok", "timeout"], start=1):
     monitor.ingest(
@@ -2624,10 +2637,13 @@ for i, status in enumerate(["ok", "error", "ok", "timeout"], start=1):
 
 print(monitor.stats())
 print(len(monitor.recent_events))
+print(len(monitor.events_by_model["model-a"]))  # capped at per_model_limit
 ```
 
 #### Solution Explanation
 The monitor keeps three different indexes because they answer different questions. Counts are easy to inspect for aggregate distributions, grouped events support per-model analysis, and `maxlen` prevents recent history from growing without bound.
+
+The per-model index is bounded too: each model keeps only its latest `per_model_limit` events, so older events for a model are dropped. The cost is that per-model history is a recent window, not complete history. The `recent_events` deque and the per-model deques can hold the same event objects, but they are references to the same objects, not copies. The number of models is still unbounded if model names are unbounded, and the status/model `Counter`s grow with distinct values.
 
 The model is intentionally local to one process. A production monitoring system would need durable/event-stream infrastructure and explicit concurrency controls if multiple workers ingest into shared state.
 
@@ -2884,7 +2900,9 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from enum import Enum
 from functools import lru_cache
-from typing import Iterator
+from typing import Iterable, Iterator
+
+MAX_TEXT_LENGTH = 10_000
 
 class State(Enum):
     RECEIVED = "received"
@@ -2901,9 +2919,10 @@ class Event:
     document_id: str
     state: State
     timestamp: datetime
+    error: str | None = None
 
 @contextmanager
-def document_stream(items: list[Document]) -> Iterator[Iterator[Document]]:
+def document_stream(items: Iterable[Document]) -> Iterator[Iterator[Document]]:
     try:
         yield iter(items)
     finally:
@@ -2927,30 +2946,42 @@ async def process_one(
     monitor: Monitor,
     limit: asyncio.Semaphore,
 ) -> None:
-    async with limit:
+    # The caller acquired `limit` before creating this task; release it when done.
+    try:
         try:
+            if len(document.text) > MAX_TEXT_LENGTH:
+                raise ValueError("document too large")
+
             normalized = normalize(document.text)
             await asyncio.sleep(0)
             event = Event(
                 document.document_id,
                 State.COMPLETED if normalized else State.FAILED,
                 datetime.now(timezone.utc),
+                None if normalized else "empty after normalization",
             )
-        except Exception:
+        except ValueError as exc:
+            # Expected business failure: record it together with its reason.
             event = Event(
                 document.document_id,
                 State.FAILED,
                 datetime.now(timezone.utc),
+                str(exc),
             )
+        # Any other exception is a programming error and is not caught here:
+        # it propagates out of the task and the TaskGroup.
         monitor.record(event)
+    finally:
+        limit.release()
 
-async def run(documents: list[Document]) -> Monitor:
+async def run(documents: Iterable[Document]) -> Monitor:
     monitor = Monitor()
     limit = asyncio.Semaphore(3)
 
     with document_stream(documents) as stream:
         async with asyncio.TaskGroup() as group:
             for document in stream:
+                await limit.acquire()  # wait instead of creating unbounded tasks
                 group.create_task(process_one(document, monitor, limit))
 
     return monitor
@@ -2959,6 +2990,7 @@ documents = [
     Document("1", " Hello   World "),
     Document("2", "AI systems"),
     Document("3", " "),
+    Document("4", "x" * (MAX_TEXT_LENGTH + 1)),
 ]
 
 monitor = asyncio.run(run(documents))
@@ -2977,11 +3009,12 @@ This integrates the roadmap's foundations without pretending to be a full produc
 - `lru_cache` memoizes deterministic normalization with bounded capacity.
 - `Counter` provides outcome frequency.
 - `deque(maxlen=20)` bounds recent event retention.
-- `Semaphore` limits concurrent work.
+- `Semaphore` is acquired before each task is created and released when the task ends, so at most three tasks are scheduled or running at once, even for a large or lazily produced input.
 - `TaskGroup` gives tasks a structured lifetime.
+- Expected business failures (`ValueError`) become `FAILED` events that carry the reason in `Event.error`; unexpected exceptions are not swallowed and propagate through the `TaskGroup`.
 - The context manager owns stream lifecycle.
 
-There are important limitations. `Monitor` is shared mutable state inside one event loop and would need a deliberate synchronization strategy if the design changed to threads or processes. The cache is process-local. Event history is not durable. There is no external API rate-limit model, retry policy, persistent queue, or distributed coordination. Those omissions are intentional because the source modules provide foundations for these concepts rather than a complete distributed platform.
+There are important limitations. `Monitor` is shared mutable state inside one event loop and would need a deliberate synchronization strategy if the design changed to threads or processes. The cache is process-local. Event history is not durable. `run()` accepts any iterable, but the demo passes a list, so that input is already in memory; the pipeline bounds its own tasks and retained events, not the caller's input. There is no external API rate-limit model, retry policy, persistent queue, or distributed coordination. Those omissions are intentional because the source modules provide foundations for these concepts rather than a complete distributed platform.
 
 #### Key Concepts Reinforced
 - Cross-topic composition.

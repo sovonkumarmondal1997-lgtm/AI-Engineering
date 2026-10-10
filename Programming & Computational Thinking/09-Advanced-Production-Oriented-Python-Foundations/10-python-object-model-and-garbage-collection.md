@@ -2116,6 +2116,25 @@ print(finalizer.alive)
 
 A finalizer can run when the object is finalized, and a live finalizer can also be invoked explicitly.
 
+### Callback state must not retain the object
+
+The callback and its arguments are stored by the finalizer. If they hold a strong reference to the object being finalized, the object can never become unreachable, so the finalizer never fires before interpreter exit.
+
+Problematic:
+
+```python
+finalizer = weakref.finalize(resource, resource.close)  # bound method keeps resource alive
+finalizer = weakref.finalize(resource, lambda: print(resource))  # closure keeps resource alive
+```
+
+Safer: pass only the data the cleanup needs, not the object itself, for example a plain function with an identifier or handle:
+
+```python
+finalizer = weakref.finalize(resource, cleanup_by_id, resource_id)
+```
+
+The same applies to bound methods, closures, and any argument that references the object indirectly.
+
 ### Important rule
 
 A finalizer is not a substitute for deterministic resource management when correctness depends on exact timing.
@@ -3215,8 +3234,15 @@ assert "item" in registry
 
 del item
 
-# At this point, exact timing can vary by implementation.
+# The entry is expected to disappear once the object has been reclaimed.
+# CPython usually reclaims it immediately, but other implementations may
+# need a collection pass, so request one before asserting.
+gc.collect()
+
+assert "item" not in registry
 ```
+
+(add `import gc` alongside `import weakref`). The test checks the lifecycle outcome: the entry exists while `item` is strongly referenced, and is gone after the last strong reference is deleted. Make sure nothing else (a loop variable, a debugger, a test-framework capture, or another list) still references the object; otherwise the entry legitimately remains. Exact reclamation timing is implementation-specific, so do not generalize this to every Python implementation.
 
 A production test should be designed around documented behavior rather than incidental reference counts.
 
@@ -3270,22 +3296,31 @@ A controlled diagnostic test can use:
 
 ```python
 import gc
+import weakref
+
+class Node:
+    def __init__(self):
+        self.other = None
 
 def test_cycle_collection():
-    a = []
-    b = []
-    a.append(b)
-    b.append(a)
+    a = Node()
+    b = Node()
+    a.other = b
+    b.other = a  # reference cycle
+
+    probe = weakref.ref(a)  # observes the cycle without keeping it alive
 
     del a
     del b
 
-    collected = gc.collect()
+    assert probe() is not None  # reference counts alone cannot free the cycle
 
-    assert isinstance(collected, int)
+    gc.collect()
+
+    assert probe() is None
 ```
 
-The exact number collected is implementation-sensitive and should not be hard-coded as a universal expectation.
+The weak reference `probe` does not keep the cycle alive, so it lets the test observe that the unreachable cycle was reclaimed. The first assertion relies on CPython's reference-counting behavior (a cycle is not freed when its names are deleted), so it is CPython-specific; the final assertion is the portable lifecycle check. The exact number returned by `gc.collect()` is implementation-sensitive and should not be hard-coded as a universal expectation.
 
 ---
 
@@ -4284,7 +4319,60 @@ False
 True
 ```
 
----\n\n## 133A. Knowledge Check Answer Key\n\n### Concept Answers\n\n1. **Name vs object:** a name is bound to an object; it is not a box that contains the object.\n2. **`id()`:** it returns an identity value for the object during its lifetime. Its concrete representation is implementation-specific.\n3. **Why not use `id()` as an address:** CPython currently represents it as a memory address, but Python does not require every implementation to do so.\n4. **`is`:** identity comparison.\n5. **`==`:** equality comparison using the type's equality semantics.\n6. **Why `is None`:** `None` identity is what the check intends; equality can be customized by user-defined objects.\n7. **Mutation:** changing an object's state in place.\n8. **Rebinding:** changing which object a name refers to.\n9. **Tuple with mutable content:** the tuple cannot replace its contained references, but referenced mutable objects can change their own state.\n10. **Reachability:** existence of a live reference path from the program's roots to an object.\n11. **Reference counting:** CPython's primary mechanism for tracking references and commonly reclaiming objects when the count reaches zero.\n12. **Cyclic GC:** required to detect unreachable cycles that reference counting alone cannot reclaim.\n13. **`gc.collect()`:** requests a garbage-collection pass and reports how many unreachable objects were collected according to that implementation.\n14. **Why `gc.collect()` may not reduce memory:** objects may still be reachable, or reclaimed storage may be retained for runtime reuse instead of immediately reducing RSS.\n15. **Shallow copy:** creates a new outer compound object while generally reusing references to contained objects.\n16. **Deep copy:** recursively copies an object graph with memoization to handle repeated references and cycles.\n17. **Why not always `deepcopy()`:** it can be costly or semantically inappropriate and can duplicate state that should remain shared.\n18. **Weak reference:** a reference that does not by itself keep its referent alive.\n19. **`WeakValueDictionary`:** maps keys to values without keeping the values alive solely because they are in the mapping.\n20. **Why avoid `__del__` for critical cleanup:** finalization timing and ordering are not a reliable substitute for explicit resource ownership.\n21. **`sys.getsizeof()`:** size attributed directly to an object, with documented implementation-specific details.\n22. **What it misses:** recursively referenced objects are not automatically included.\n23. **`tracemalloc`:** tracks Python memory allocations and supports snapshot-based allocation analysis.\n24. **Why not equal RSS:** traced Python allocations are only one layer of total process memory.\n25. **`__slots__`:** allows declared instance attributes and can eliminate per-instance dynamic attribute dictionaries in suitable class designs.\n26. **Weak-reference interaction:** without appropriate weak-reference support, a slotted instance may not be weak-referenceable.\n27. **Intentional retention:** state remains reachable because the application deliberately stores it.\n28. **Accidental retention:** state remains reachable through a reference that was not intended to survive.\n29. **Queue growth:** queued work stays referenced until consumed/evicted, so backlog can increase memory.\n30. **Cache growth:** cached values remain strongly reachable until eviction, invalidation, or cache destruction.\n\n### Practical Rules\n\nWhen uncertain, return to this sequence:\n\n```text\nidentity\n→ references\n→ reachability\n→ lifetime\n→ retention\n→ measurement\n→ fix\n```\n\n---\n\n---
+---
+
+## 133A. Knowledge Check Answer Key
+
+### Concept Answers
+
+1. **Name vs object:** a name is bound to an object; it is not a box that contains the object.
+2. **`id()`:** it returns an identity value for the object during its lifetime. Its concrete representation is implementation-specific.
+3. **Why not use `id()` as an address:** CPython currently represents it as a memory address, but Python does not require every implementation to do so.
+4. **`is`:** identity comparison.
+5. **`==`:** equality comparison using the type's equality semantics.
+6. **Why `is None`:** `None` identity is what the check intends; equality can be customized by user-defined objects.
+7. **Mutation:** changing an object's state in place.
+8. **Rebinding:** changing which object a name refers to.
+9. **Tuple with mutable content:** the tuple cannot replace its contained references, but referenced mutable objects can change their own state.
+10. **Reachability:** existence of a live reference path from the program's roots to an object.
+11. **Reference counting:** CPython's primary mechanism for tracking references and commonly reclaiming objects when the count reaches zero.
+12. **Cyclic GC:** required to detect unreachable cycles that reference counting alone cannot reclaim.
+13. **`gc.collect()`:** requests a garbage-collection pass and reports how many unreachable objects were collected according to that implementation.
+14. **Why `gc.collect()` may not reduce memory:** objects may still be reachable, or reclaimed storage may be retained for runtime reuse instead of immediately reducing RSS.
+15. **Shallow copy:** creates a new outer compound object while generally reusing references to contained objects.
+16. **Deep copy:** recursively copies an object graph with memoization to handle repeated references and cycles.
+17. **Why not always `deepcopy()`:** it can be costly or semantically inappropriate and can duplicate state that should remain shared.
+18. **Weak reference:** a reference that does not by itself keep its referent alive.
+19. **`WeakValueDictionary`:** maps keys to values without keeping the values alive solely because they are in the mapping.
+20. **Why avoid `__del__` for critical cleanup:** finalization timing and ordering are not a reliable substitute for explicit resource ownership.
+21. **`sys.getsizeof()`:** size attributed directly to an object, with documented implementation-specific details.
+22. **What it misses:** recursively referenced objects are not automatically included.
+23. **`tracemalloc`:** tracks Python memory allocations and supports snapshot-based allocation analysis.
+24. **Why not equal RSS:** traced Python allocations are only one layer of total process memory.
+25. **`__slots__`:** allows declared instance attributes and can eliminate per-instance dynamic attribute dictionaries in suitable class designs.
+26. **Weak-reference interaction:** without appropriate weak-reference support, a slotted instance may not be weak-referenceable.
+27. **Intentional retention:** state remains reachable because the application deliberately stores it.
+28. **Accidental retention:** state remains reachable through a reference that was not intended to survive.
+29. **Queue growth:** queued work stays referenced until consumed/evicted, so backlog can increase memory.
+30. **Cache growth:** cached values remain strongly reachable until eviction, invalidation, or cache destruction.
+
+### Practical Rules
+
+When uncertain, return to this sequence:
+
+```text
+identity
+→ references
+→ reachability
+→ lifetime
+→ retention
+→ measurement
+→ fix
+```
+
+---
+
+---
 
 # Part XXX — Debugging Challenge Set
 
@@ -5129,10 +5217,7 @@ works in a production service
 - [ ] CPython reference counting is distinguished from Python semantics.
 - [ ] Cyclic GC is understood.
 - [ ] `gc` is used appropriately for diagnosis/tuning.
-- [ ] Global state is reviewed.
-- [ ] Cache growth is reviewed.
-- [ ] Queue growth is reviewed.
-- [ ] Closure/callback retention is reviewed.
+- [ ] The retention items in Section 140 (global state, cache and queue growth, closure/callback retention) are reviewed.
 - [ ] Weak references are used only where semantics require them.
 - [ ] Critical resources use deterministic cleanup.
 - [ ] `__del__` is not the primary resource policy.

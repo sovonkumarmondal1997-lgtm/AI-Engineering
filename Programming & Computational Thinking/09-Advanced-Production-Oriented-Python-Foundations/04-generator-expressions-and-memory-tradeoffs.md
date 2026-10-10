@@ -7,6 +7,8 @@
 
 ## How to Use This Chapter
 
+> **Python version:** the examples target **Python 3.10 or newer**. Annotations such as `LogRecord | None` use the `X | Y` union syntax introduced in Python 3.10.
+
 This chapter assumes that you already know the basic ideas of iterables, iterators, `iter()`, `next()`, `StopIteration`, generator functions, `yield`, and generator exhaustion.
 
 The focus here is narrower and deeper:
@@ -2396,20 +2398,24 @@ def measure(callable_object):
     current, peak = tracemalloc.get_traced_memory()
     tracemalloc.stop()
 
-    return result, current, peak
+    del result  # do not keep the workload's result alive after measuring
+
+    return current, peak
 
 
-_, list_current, list_peak = measure(
+list_current, list_peak = measure(
     lambda: build_list(50_000)
 )
 
-_, generator_current, generator_peak = measure(
+generator_current, generator_peak = measure(
     lambda: consume_generator(50_000)
 )
 
 print("List peak:", list_peak)
 print("Generator peak:", generator_peak)
 ```
+
+`measure()` discards the workload's result before returning, so the list built by the first measurement is no longer referenced when the second measurement begins. (Stopping `tracemalloc` only stops tracing; it does not free objects, which is why the result is dropped explicitly.)
 
 The exact numbers vary and depend on Python runtime details.
 
@@ -2935,14 +2941,7 @@ print(list(values))
 
 The second result is empty.
 
-Correct when repeated traversal is required:
-
-```python
-values = [value * 2 for value in range(5)]
-
-print(values)
-print(values)
-```
+Correct when repeated traversal is required: materialize the values into a list, as shown in Sections 18 and 19, or regenerate the generator for each pass.
 
 ---
 

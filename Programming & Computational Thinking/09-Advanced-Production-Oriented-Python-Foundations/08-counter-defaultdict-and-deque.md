@@ -131,7 +131,7 @@ A specialized collection is not merely a "faster container." It communicates a s
 
 ## 2. The `collections` Module
 
-The `collections` module provides specialized container datatypes as alternatives to Python's general-purpose built-ins. The current Python documentation lists `deque`, `Counter`, and `defaultdict` among these specialized types. citeturn838217view0
+The `collections` module provides specialized container datatypes as alternatives to Python's general-purpose built-ins. The current Python documentation lists `deque`, `Counter`, and `defaultdict` among these specialized types. ([docs: `collections.Counter`](https://docs.python.org/3/library/collections.html#collections.Counter))
 
 ```python
 from collections import Counter, defaultdict, deque
@@ -170,7 +170,7 @@ But specialization is valuable only when the semantics actually fit the problem.
 
 ## 3. Counter Fundamentals
 
-`Counter` is a dictionary subclass designed for counting hashable objects. Elements are stored as keys and their counts as dictionary values. Counts may be positive, zero, or negative. citeturn838217view0
+`Counter` is a dictionary subclass designed for counting hashable objects. Elements are stored as keys and their counts as dictionary values. Counts may be positive, zero, or negative. ([docs: `collections.Counter`](https://docs.python.org/3/library/collections.html#collections.Counter))
 
 ```python
 from collections import Counter
@@ -448,7 +448,7 @@ Output:
 0
 ```
 
-The zero is part of Counter's counting semantics. citeturn838217view0
+The zero is part of Counter's counting semantics. ([docs: `collections.Counter`](https://docs.python.org/3/library/collections.html#collections.Counter))
 
 ### Zero is not the same as membership
 
@@ -484,7 +484,7 @@ print("unseen" in counts)
 
 Now the key exists.
 
-The documentation distinguishes assigning zero from deleting an entry: a zero-valued entry remains stored until deleted. citeturn838217view0
+The documentation distinguishes assigning zero from deleting an entry: a zero-valued entry remains stored until deleted. ([docs: `collections.Counter`](https://docs.python.org/3/library/collections.html#collections.Counter))
 
 ---
 
@@ -524,7 +524,7 @@ Output:
 ['a', 'a', 'a']
 ```
 
-The current documentation specifies that `elements()` requires integer counts and ignores values below one. citeturn838217view0
+The current documentation specifies that `elements()` requires integer counts and ignores values below one. ([docs: `collections.Counter`](https://docs.python.org/3/library/collections.html#collections.Counter))
 
 ### Production caution
 
@@ -572,7 +572,7 @@ top model outcomes
 
 ### Tie ordering
 
-Modern Python documentation specifies that equal-count items retain first-encounter order. citeturn838217view0
+Modern Python documentation specifies that equal-count items retain first-encounter order. ([docs: `collections.Counter`](https://docs.python.org/3/library/collections.html#collections.Counter))
 
 ### Zero
 
@@ -606,7 +606,7 @@ Output:
 15
 ```
 
-`Counter.total()` was added in Python 3.10. citeturn838217view0
+`Counter.total()` was added in Python 3.10. ([docs: `collections.Counter`](https://docs.python.org/3/library/collections.html#collections.Counter))
 
 ### `len()` versus `total()`
 
@@ -653,7 +653,7 @@ Result:
 
 This is one of the most important Counter-specific APIs.
 
-`Counter.update()` **adds** counts rather than replacing values as `dict.update()` normally does. citeturn838217view0
+`Counter.update()` **adds** counts rather than replacing values as `dict.update()` normally does. ([docs: `collections.Counter`](https://docs.python.org/3/library/collections.html#collections.Counter))
 
 ### Iterable form
 
@@ -732,7 +732,7 @@ counts["a"] = 4
 
 ## 13. `subtract()`
 
-`subtract()` decrements counts and may retain zero or negative values. citeturn838217view0
+`subtract()` decrements counts and may retain zero or negative values. ([docs: `collections.Counter`](https://docs.python.org/3/library/collections.html#collections.Counter))
 
 ```python
 counts = Counter(a=5, b=2)
@@ -797,7 +797,7 @@ c1 & c2
 c1 | c2
 ```
 
-The current documentation defines these as count addition, positive-only subtraction, minimum, and maximum, respectively. Results from these multiset operations keep only positive counts. citeturn838217view0
+The current documentation defines these as count addition, positive-only subtraction, minimum, and maximum, respectively. Results from these multiset operations keep only positive counts. ([docs: `collections.Counter`](https://docs.python.org/3/library/collections.html#collections.Counter))
 
 ### Addition
 
@@ -877,7 +877,7 @@ Counter({'a': 2})
 Counter({'b': 4})
 ```
 
-Unary plus keeps positive counts; unary minus inverts signed counts and keeps the positive results. citeturn838217view0
+Unary plus keeps positive counts; unary minus inverts signed counts and keeps the positive results. ([docs: `collections.Counter`](https://docs.python.org/3/library/collections.html#collections.Counter))
 
 ---
 
@@ -894,7 +894,7 @@ Modern Python supports:
 >=
 ```
 
-for Counter objects. These comparisons treat missing elements as zero counts. Rich comparisons were added in Python 3.10, and Counter equality changed in that release to treat missing elements as zero. citeturn838217view0
+for Counter objects. These comparisons treat missing elements as zero counts. Rich comparisons were added in Python 3.10, and Counter equality changed in that release to treat missing elements as zero. ([docs: `collections.Counter`](https://docs.python.org/3/library/collections.html#collections.Counter))
 
 ```python
 required = Counter(cpu=4, memory=16)
@@ -953,7 +953,7 @@ Output:
 
 ### Why allow negatives?
 
-Counter is primarily intended for positive tallies, but the standard library permits signed numeric counts to support useful applications such as deltas and reconciliation. citeturn838217view0
+Counter is primarily intended for positive tallies, but the standard library permits signed numeric counts to support useful applications such as deltas and reconciliation. ([docs: `collections.Counter`](https://docs.python.org/3/library/collections.html#collections.Counter))
 
 ### Cleaning non-positive counts
 
@@ -1118,7 +1118,7 @@ Already covered: it accumulates counts.
 
 ### `fromkeys()`
 
-`Counter` does not implement the normal `dict.fromkeys()` class method. The standard-library documentation explicitly calls this out. citeturn838217view0
+`Counter` does not implement the normal `dict.fromkeys()` class method. The standard-library documentation explicitly calls this out. ([docs: `collections.Counter`](https://docs.python.org/3/library/collections.html#collections.Counter))
 
 This is an important reminder:
 
@@ -1489,7 +1489,7 @@ runtime_state = {"model_name": "model-a"}
 
 ## 24. defaultdict Fundamentals
 
-`defaultdict` is a subclass of `dict` that supplies a value for a missing key through a `default_factory`. Most of the remaining mapping behavior is inherited from `dict`. citeturn309077view1
+`defaultdict` is a subclass of `dict` that supplies a value for a missing key through a `default_factory`. Most of the remaining mapping behavior is inherited from `dict`. ([docs: `collections.defaultdict`](https://docs.python.org/3/library/collections.html#collections.defaultdict))
 
 The problem it solves is repeated initialization.
 
@@ -1573,7 +1573,7 @@ defaultdict(float)
     missing key → float() → 0.0
 ```
 
-The factory is called without arguments for a missing `d[key]` lookup. citeturn309077view1
+The factory is called without arguments for a missing `d[key]` lookup. ([docs: `collections.defaultdict`](https://docs.python.org/3/library/collections.html#collections.defaultdict))
 
 ### What does "callable" mean?
 
@@ -1663,7 +1663,7 @@ groups["fruit"].append("banana")
 
 the key exists, so the normal stored list is returned.
 
-The standard-library documentation demonstrates this exact grouping technique. citeturn309077view1
+The standard-library documentation demonstrates this exact grouping technique. ([docs: `collections.defaultdict`](https://docs.python.org/3/library/collections.html#collections.defaultdict))
 
 ---
 
@@ -1933,7 +1933,7 @@ __missing__(key)
 
 There is not a separate public `missing()` method.
 
-For `defaultdict`, `__missing__()` is invoked by dictionary `__getitem__()` when a requested key is absent. If a factory exists, its return value is inserted and returned. If the factory is `None`, a `KeyError` is raised. citeturn309077view1
+For `defaultdict`, `__missing__()` is invoked by dictionary `__getitem__()` when a requested key is absent. If a factory exists, its return value is inserted and returned. If the factory is `None`, a `KeyError` is raised. ([docs: `collections.defaultdict`](https://docs.python.org/3/library/collections.html#collections.defaultdict))
 
 Conceptually:
 
@@ -2016,7 +2016,7 @@ None
 {}
 ```
 
-The official documentation specifies that `__missing__()` is not called by `get()`. citeturn309077view1
+The official documentation specifies that `__missing__()` is not called by `get()`. ([docs: `collections.defaultdict`](https://docs.python.org/3/library/collections.html#collections.defaultdict))
 
 ### Decision
 
@@ -2683,7 +2683,7 @@ mid-lifecycle becomes much harder to reason about.
 
 `deque` means **double-ended queue**.
 
-It is a generalization of stacks and queues, with operations designed for both ends. The Python documentation describes appends and pops from either side as approximately O(1) and explains that `list.pop(0)` incurs O(n) movement costs. citeturn309077view0
+It is a generalization of stacks and queues, with operations designed for both ends. The Python documentation describes appends and pops from either side as approximately O(1) and explains that `list.pop(0)` incurs O(n) movement costs. ([docs: `collections.deque`](https://docs.python.org/3/library/collections.html#collections.deque))
 
 Visual model:
 
@@ -2747,7 +2747,7 @@ job = queue.popleft()
 
 matches the FIFO access pattern directly.
 
-The official documentation explicitly recommends deque for efficient appends/pops at either end and documents the O(n) movement cost associated with `list.pop(0)`. citeturn309077view0
+The official documentation explicitly recommends deque for efficient appends/pops at either end and documents the O(n) movement cost associated with `list.pop(0)`. ([docs: `collections.deque`](https://docs.python.org/3/library/collections.html#collections.deque))
 
 ### No universal rule
 
@@ -2793,7 +2793,7 @@ print(d)
 print(d.maxlen)
 ```
 
-The constructor loads iterable elements from left to right and can specify a maximum size. citeturn309077view0
+The constructor loads iterable elements from left to right and can specify a maximum size. ([docs: `collections.deque`](https://docs.python.org/3/library/collections.html#collections.deque))
 
 ---
 
@@ -2871,7 +2871,7 @@ C
 deque(['A', 'B'])
 ```
 
-On an empty deque, `pop()` raises `IndexError`. citeturn309077view0
+On an empty deque, `pop()` raises `IndexError`. ([docs: `collections.deque`](https://docs.python.org/3/library/collections.html#collections.deque))
 
 ---
 
@@ -2895,7 +2895,7 @@ A
 deque(['B', 'C'])
 ```
 
-On an empty deque, it raises `IndexError`. citeturn309077view0
+On an empty deque, it raises `IndexError`. ([docs: `collections.deque`](https://docs.python.org/3/library/collections.html#collections.deque))
 
 This is the key FIFO operation.
 
@@ -2972,7 +2972,7 @@ deque([3, 2, 1])
 
 The input order is reversed because each new element goes to the left.
 
-This behavior is explicitly documented. citeturn309077view0
+This behavior is explicitly documented. ([docs: `collections.deque`](https://docs.python.org/3/library/collections.html#collections.deque))
 
 ### Preserve original order on the left
 
@@ -3046,7 +3046,7 @@ has the effect of:
 d.append(d.popleft())
 ```
 
-citeturn309077view0
+ ([docs: `collections.deque`](https://docs.python.org/3/library/collections.html#collections.deque))
 
 ### Uses
 
@@ -3085,7 +3085,7 @@ If the value is absent:
 # d.remove("missing")
 ```
 
-raises `ValueError`. citeturn309077view0
+raises `ValueError`. ([docs: `collections.deque`](https://docs.python.org/3/library/collections.html#collections.deque))
 
 This is a search operation, so it should not be mentally grouped with the constant-time end operations.
 
@@ -3175,7 +3175,7 @@ deque(['a', 'b', 'c'])
 
 Middle insertion is not the same class of workload as `append()` or `popleft()`.
 
-For a bounded deque, an insertion that would exceed `maxlen` raises `IndexError` rather than evicting an opposite-end item. citeturn309077view0
+For a bounded deque, an insertion that would exceed `maxlen` raises `IndexError` rather than evicting an opposite-end item. ([docs: `collections.deque`](https://docs.python.org/3/library/collections.html#collections.deque))
 
 This is an important edge case when designing bounded buffers.
 
@@ -3266,7 +3266,7 @@ Both deques reference the same inner list.
 
 ## 60. `maxlen`
 
-`maxlen` is the maximum size of a deque, or `None` for an unbounded deque. citeturn309077view0
+`maxlen` is the maximum size of a deque, or `None` for an unbounded deque. ([docs: `collections.deque`](https://docs.python.org/3/library/collections.html#collections.deque))
 
 ```python
 history = deque(maxlen=3)
@@ -3363,7 +3363,7 @@ c
 
 But a deque is not intended as a general random-access replacement for list.
 
-The documentation states that indexed access is O(1) at both ends but slows to O(n) in the middle, and recommends lists for fast random access. citeturn309077view0
+The documentation states that indexed access is O(1) at both ends but slows to O(n) in the middle, and recommends lists for fast random access. ([docs: `collections.deque`](https://docs.python.org/3/library/collections.html#collections.deque))
 
 ### Practical interpretation
 
@@ -3413,7 +3413,7 @@ for item in reversed(d):
     print(item)
 ```
 
-The documentation also lists iteration, membership testing, `len()`, `reversed()`, and pickling among supported operations. citeturn309077view0
+The documentation also lists iteration, membership testing, `len()`, `reversed()`, and pickling among supported operations. ([docs: `collections.deque`](https://docs.python.org/3/library/collections.html#collections.deque))
 
 ### `len()`
 
@@ -3726,7 +3726,7 @@ For those needs, a synchronized queue abstraction is more appropriate.
 
 ## 71. deque Thread-Safety and Application Correctness
 
-The current Python documentation describes deque appends and pops as thread-safe, memory efficient, and approximately O(1) at either end. citeturn309077view0
+The current Python documentation describes deque appends and pops as thread-safe, memory efficient, and approximately O(1) at either end. ([docs: `collections.deque`](https://docs.python.org/3/library/collections.html#collections.deque))
 
 That should not be interpreted as:
 
@@ -3763,7 +3763,7 @@ When multiple threaded producers and consumers require coordinated waiting and t
 
 ## 72. deque Versus `queue.Queue`
 
-The standard `queue` module provides synchronized queues intended for multi-producer, multi-consumer threaded programs. `Queue` supplies locking semantics, blocking behavior, and task-tracking operations that a plain deque does not provide. citeturn838217view1
+The standard `queue` module provides synchronized queues intended for multi-producer, multi-consumer threaded programs. `Queue` supplies locking semantics, blocking behavior, and task-tracking operations that a plain deque does not provide. ([docs: `queue.Queue`](https://docs.python.org/3/library/queue.html#queue.Queue))
 
 | Property | `deque` | `queue.Queue` |
 |---|---|---|
@@ -3810,11 +3810,11 @@ It becomes:
 
 That is a different abstraction.
 
-The current queue documentation describes `Queue` as a synchronized queue for multi-producer, multi-consumer threaded use and documents `put()`, `get()`, `task_done()`, and `join()`. citeturn499290search1
+The current queue documentation describes `Queue` as a synchronized queue for multi-producer, multi-consumer threaded use and documents `put()`, `get()`, `task_done()`, and `join()`. ([docs: `queue.Queue`](https://docs.python.org/3/library/queue.html#queue.Queue))
 
 ### Process boundary
 
-For multiple processes, a plain deque remains process-local. The standard library supplies process queues such as `multiprocessing.Queue`. citeturn499290search3
+For multiple processes, a plain deque remains process-local. The standard library supplies process queues such as `multiprocessing.Queue`. ([docs: `multiprocessing.Queue`](https://docs.python.org/3/library/multiprocessing.html#multiprocessing.Queue))
 
 ---
 
@@ -3830,7 +3830,7 @@ For multiple processes, a plain deque remains process-local. The standard librar
 | general sequence use | strong | specialized |
 | bounded recent history | manual | built-in `maxlen` |
 
-The documented reason for the queue difference is important: removing the first list element changes the position of the remaining elements, while deque is designed for both ends. citeturn309077view0
+The documented reason for the queue difference is important: removing the first list element changes the position of the remaining elements, while deque is designed for both ends. ([docs: `collections.deque`](https://docs.python.org/3/library/collections.html#collections.deque))
 
 ### Decision
 
@@ -4090,7 +4090,7 @@ The following table uses **typical/expected** complexity language. It is not a c
 | `deque.remove()` | O(n) worst case | search |
 | `deque.insert()` | not an end operation | may reposition many items |
 
-The Python documentation explicitly describes deque's end operations as approximately O(1) and notes that middle indexing slows to O(n). citeturn309077view0
+The Python documentation explicitly describes deque's end operations as approximately O(1) and notes that middle indexing slows to O(n). ([docs: `collections.deque`](https://docs.python.org/3/library/collections.html#collections.deque))
 
 ### Complexity vocabulary
 
@@ -4504,6 +4504,9 @@ Requirements:
 8. Reject obviously invalid latency.
 9. Keep the recent buffer bounded.
 10. Make behavior testable.
+11. Reject events whose `request_id`, `model`, or `status` is missing, not a string, or empty/whitespace-only.
+
+Validation rules in this example: `recent_limit` must be positive, `latency_ms` must be non-negative, `timestamp` must be timezone-aware, and each required identifier must be a non-empty string. Duplicate request IDs are not rejected here.
 
 ### Implementation
 
@@ -4541,6 +4544,12 @@ class InferenceMonitor:
 
         if event.timestamp.tzinfo is None or event.timestamp.utcoffset() is None:
             raise ValueError("timestamp must be timezone-aware")
+
+        for field_name in ("request_id", "model", "status"):
+            value = getattr(event, field_name)
+
+            if not isinstance(value, str) or not value.strip():
+                raise ValueError(f"{field_name} must be a non-empty string")
 
         self.status_counts[event.status] += 1
         self.model_counts[event.model] += 1
@@ -4735,7 +4744,7 @@ from queue import Queue
 incoming = Queue()
 ```
 
-Useful if the problem includes multiple threaded producers/consumers and blocking task coordination. citeturn838217view1
+Useful if the problem includes multiple threaded producers/consumers and blocking task coordination. ([docs: `queue.Queue`](https://docs.python.org/3/library/queue.html#queue.Queue))
 
 ### Architecture principle
 
@@ -5140,6 +5149,8 @@ def test_deque_copy():
 
 ## 92. Testing the Integrated Inference Monitor
 
+These test functions are illustrative snippets for the monitor in Section 86 (they assume its definitions and `import pytest` are in scope). Treat them as a specification to run in your own environment, not as evidence that your implementation passes.
+
 ### Ingestion
 
 ```python
@@ -5224,7 +5235,70 @@ The monitor's timestamp validation reinforces a broader production habit:
 make time assumptions explicit
 ```
 
-The test suite should verify whatever timestamp contract the application adopts.
+The test suite should verify whatever timestamp contract the application adopts. For this monitor the contract is that timestamps must be timezone-aware:
+
+```python
+from datetime import datetime
+
+def test_monitor_rejects_naive_timestamp():
+    monitor = InferenceMonitor()
+
+    event = InferenceEvent(
+        request_id="r1",
+        model="model-a",
+        status="success",
+        latency_ms=10.0,
+        timestamp=datetime(2026, 1, 1, 12, 0),  # naive
+    )
+
+    with pytest.raises(ValueError):
+        monitor.ingest(event)
+```
+
+### Invalid `recent_limit`
+
+```python
+@pytest.mark.parametrize("limit", [0, -1])
+def test_monitor_rejects_invalid_recent_limit(limit):
+    with pytest.raises(ValueError):
+        InferenceMonitor(recent_limit=limit)
+```
+
+### Required identifiers
+
+```python
+@pytest.mark.parametrize(
+    "request_id, model, status",
+    [
+        ("", "model-a", "success"),
+        ("r1", "   ", "success"),
+        ("r1", "model-a", ""),
+    ],
+)
+def test_monitor_rejects_invalid_identifiers(request_id, model, status):
+    monitor = InferenceMonitor()
+
+    event = make_event(request_id, model, status, 10.0)
+
+    with pytest.raises(ValueError):
+        monitor.ingest(event)
+
+    assert monitor.recent() == []
+```
+
+### Failure summary
+
+```python
+def test_monitor_top_failures_excludes_success():
+    monitor = InferenceMonitor()
+
+    monitor.ingest(make_event("r1", "model-a", "success", 10.0))
+    monitor.ingest(make_event("r2", "model-a", "timeout", 10.0))
+    monitor.ingest(make_event("r3", "model-a", "timeout", 10.0))
+    monitor.ingest(make_event("r4", "model-a", "error", 10.0))
+
+    assert monitor.top_failures() == [("timeout", 2), ("error", 1)]
+```
 
 ---
 
@@ -5608,7 +5682,7 @@ Multiple workers create independent process-local objects.
 
 ### Mistake 10 — using deque as a complete producer-consumer abstraction
 
-For threaded waiting and task tracking, evaluate `queue.Queue`. citeturn838217view1
+For threaded waiting and task tracking, evaluate `queue.Queue`. ([docs: `queue.Queue`](https://docs.python.org/3/library/queue.html#queue.Queue))
 
 ### Mistake 11 — misunderstanding `extendleft()`
 
@@ -5980,6 +6054,30 @@ for source, target in edges:
 assert graph["A"] == {"B", "C"}
 ```
 
+### Level 5
+
+```python
+queue = deque(["job-1", "job-2", "job-3"])
+
+order = []
+while queue:
+    order.append(queue.popleft())
+
+assert order == ["job-1", "job-2", "job-3"]
+```
+
+### Level 6
+
+```python
+stack = deque()
+for item in ["A", "B", "C"]:
+    stack.append(item)
+
+popped = [stack.pop() for _ in range(3)]
+
+assert popped == ["C", "B", "A"]
+```
+
 ### Level 7
 
 ```python
@@ -5989,6 +6087,19 @@ for value in range(7):
     history.append(value)
 
 assert list(history) == [2, 3, 4, 5, 6]
+```
+
+### Level 8
+
+```python
+window = deque(maxlen=3)
+averages = []
+
+for value in [1, 2, 3, 4]:
+    window.append(value)
+    averages.append(sum(window) / len(window))
+
+assert averages == [1.0, 1.5, 2.0, 3.0]
 ```
 
 ### Level 9
@@ -6007,6 +6118,10 @@ deque
 ```
 
 If one collection is doing all three jobs, the design probably needs clearer boundaries.
+
+### Level 10
+
+A reference design is the monitor in Section 86, with its checks in Section 92. Compare your solution's validation rules and test coverage against the Appendix C matrix.
 
 ---
 
@@ -6209,7 +6324,7 @@ Mention:
 
 **14. Why is queue.Queue not just a deque with different method names?**
 
-Because it supplies synchronization-oriented semantics such as blocking and task tracking for threaded producer-consumer workflows. citeturn838217view1
+Because it supplies synchronization-oriented semantics such as blocking and task tracking for threaded producer-consumer workflows. ([docs: `queue.Queue`](https://docs.python.org/3/library/queue.html#queue.Queue))
 
 ---
 
@@ -6614,7 +6729,7 @@ update()
 |=
 ```
 
-`|` and `|=` were added for defaultdict with the dictionary merge operators in Python 3.9. citeturn309077view1
+`|` and `|=` were added for defaultdict with the dictionary merge operators in Python 3.9. ([docs: `collections.defaultdict`](https://docs.python.org/3/library/collections.html#collections.defaultdict))
 
 ### deque
 
@@ -6649,7 +6764,7 @@ membership
 indexing
 ```
 
-Current documentation also lists support for concatenation/repetition operations such as `__add__()`, `__mul__()`, and `__imul__()` from Python 3.5, but these are secondary to the access patterns emphasized in this chapter. citeturn309077view0
+Current documentation also lists support for concatenation/repetition operations such as `__add__()`, `__mul__()`, and `__imul__()` from Python 3.5, but these are secondary to the access patterns emphasized in this chapter. ([docs: `collections.deque`](https://docs.python.org/3/library/collections.html#collections.deque))
 
 ---
 
@@ -6669,7 +6784,7 @@ total()             → Python 3.10
 rich comparisons    → Python 3.10
 ```
 
-The equality semantics for missing elements also changed in Python 3.10. citeturn838217view0
+The equality semantics for missing elements also changed in Python 3.10. ([docs: `collections.Counter`](https://docs.python.org/3/library/collections.html#collections.Counter))
 
 ### defaultdict
 
@@ -6680,7 +6795,7 @@ d1 | d2
 d1 |= d2
 ```
 
-were added in Python 3.9. citeturn309077view1
+were added in Python 3.9. ([docs: `collections.defaultdict`](https://docs.python.org/3/library/collections.html#collections.defaultdict))
 
 ### deque
 
@@ -6691,7 +6806,7 @@ Current docs describe:
 - maximum length through read-only `maxlen`;
 - generic typing support.
 
-citeturn309077view0
+ ([docs: `collections.deque`](https://docs.python.org/3/library/collections.html#collections.deque))
 
 ### Modern typing
 
@@ -6705,7 +6820,7 @@ events_by_model: defaultdict[str, list[str]]
 recent_ids: deque[str]
 ```
 
-This is preferable to legacy `typing.Counter`, `typing.DefaultDict`, and `typing.Deque` aliases in modern code. The current typing documentation marks those aliases as deprecated in favor of the concrete collection classes supporting subscription. citeturn499290search2
+This is preferable to legacy `typing.Counter`, `typing.DefaultDict`, and `typing.Deque` aliases in modern code. The current typing documentation marks those aliases as deprecated in favor of the concrete collection classes supporting subscription. ([docs: deprecated typing aliases](https://docs.python.org/3/library/typing.html#deprecated-aliases))
 
 ---
 
@@ -6820,7 +6935,7 @@ Evaluate:
 queue.Queue()
 ```
 
-rather than treating a deque as the complete solution. citeturn838217view1
+rather than treating a deque as the complete solution. ([docs: `queue.Queue`](https://docs.python.org/3/library/queue.html#queue.Queue))
 
 ---
 
@@ -6951,6 +7066,8 @@ recent_limit < 0
 
 Whether duplicate request IDs are rejected or accepted is an application-level invariant. Choose and document one behavior.
 
+Required identifiers (`request_id`, `model`, `status`) must be non-empty strings; an empty model name is therefore rejected rather than accepted.
+
 ### Testing requirements
 
 At minimum test:
@@ -6964,6 +7081,9 @@ failure summary
 empty input
 unknown model
 invalid latency
+invalid required identifiers
+invalid recent_limit
+naive (non-timezone-aware) timestamp
 ```
 
 ### Production limitations
@@ -7538,16 +7658,7 @@ LEFT ← [ elements ] → RIGHT
 
 ### Put them together
 
-```text
-Counter
-    → frequency analysis
-
-defaultdict
-    → grouping / automatic initialization
-
-deque
-    → queues / stacks / sliding windows / bounded history
-```
+The role of each structure is summarized in Section 121; the questions in Section 122 map problems to these roles.
 
 ### The final engineering rule
 
@@ -7665,7 +7776,7 @@ except KeyError:
     print("KeyError")
 ```
 
-With no factory, missing `[]` lookup behaves as documented by `__missing__()` and raises `KeyError`. citeturn309077view1
+With no factory, missing `[]` lookup behaves as documented by `__missing__()` and raises `KeyError`. ([docs: `collections.defaultdict`](https://docs.python.org/3/library/collections.html#collections.defaultdict))
 
 ### Constructor with initial mapping
 
@@ -7738,7 +7849,7 @@ merged = left | right
 print(dict(merged))
 ```
 
-These merge operators were added for dictionaries and defaultdict in Python 3.9. citeturn309077view1
+These merge operators were added for dictionaries and defaultdict in Python 3.9. ([docs: `collections.defaultdict`](https://docs.python.org/3/library/collections.html#collections.defaultdict))
 
 Do not rely on merge behavior without checking the supported Python version in an older production environment.
 
@@ -7832,7 +7943,7 @@ This demonstrates that `copy()` does not recursively copy nested objects.
 
 ### Concatenation and repetition
 
-Current Python deques support additional sequence operations such as `+`, `*`, and `*=`. These operations are secondary to the end-oriented workloads covered in this chapter; use them only when their sequence semantics improve clarity. citeturn309077view0
+Current Python deques support additional sequence operations such as `+`, `*`, and `*=`. These operations are secondary to the end-oriented workloads covered in this chapter; use them only when their sequence semantics improve clarity. ([docs: `collections.deque`](https://docs.python.org/3/library/collections.html#collections.deque))
 
 ---
 
@@ -7907,11 +8018,12 @@ When reviewing a pull request containing one of these structures, ask:
 | unknown model | lookup returns empty result |
 | negative latency | ingestion raises `ValueError` |
 | invalid recent limit | constructor raises `ValueError` |
+| required identifiers | empty `request_id`, `model`, or `status` raises `ValueError` |
 | timezone contract | invalid naive timestamp is rejected |
 | failure summary | non-success statuses appear in top failures |
 | memory policy | recent buffer has fixed `maxlen` |
 
-This table is a useful bridge between unit tests and production requirements.
+This table is a useful bridge between unit tests and production requirements. The matching test snippets are in Section 92; they are illustrative examples, and the table itself does not record test results.
 
 ---
 

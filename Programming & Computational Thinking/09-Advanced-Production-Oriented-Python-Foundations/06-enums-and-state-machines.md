@@ -636,7 +636,7 @@ class Environment(StrEnum):
     PRODUCTION = "production"
 ```
 
-`StrEnum` was added in Python 3.11. It provides the same general idea as a `str`-backed Enum with behavior designed for replacing string constants. Python's current standard-library documentation also notes that `str()` and formatting use the string value for `StrEnum`. citeturn442575search0turn442575search1
+`StrEnum` was added in Python 3.11. It provides the same general idea as a `str`-backed Enum with behavior designed for replacing string constants. Python's current standard-library documentation also notes that `str()` and formatting use the string value for `StrEnum`. ([`enum` documentation, `StrEnum`](https://docs.python.org/3/library/enum.html#enum.StrEnum))
 
 ### Version compatibility
 
@@ -732,7 +732,7 @@ GREEN 2
 BLUE 3
 ```
 
-For `Flag` and `IntFlag`, `auto()` generates power-of-two values so that bitwise combinations work correctly. For `StrEnum`, `auto()` produces lower-cased member names by default. These are documented standard-library behaviors. citeturn442575search0
+For `Flag` and `IntFlag`, `auto()` generates power-of-two values so that bitwise combinations work correctly. For `StrEnum`, `auto()` produces lower-cased member names by default. These are documented standard-library behaviors. ([`enum` documentation, `auto`](https://docs.python.org/3/library/enum.html#enum.auto))
 
 ## When `auto()` is useful
 
@@ -3669,6 +3669,7 @@ TRANSITIONS = {
     },
     DocumentState.RETRYING: {
         DocumentEvent.PROCESS: DocumentState.PROCESSING,
+        DocumentEvent.FAIL: DocumentState.FAILED,
     },
 }
 
@@ -3785,6 +3786,25 @@ def retry_if_possible(job: DocumentJob) -> bool:
 
 This deliberately keeps retry policy visible.
 
+Because `TRANSITIONS` allows `RETRYING + FAIL → FAILED`, `record_failure()` also works when a retry attempt itself fails:
+
+```python
+job = DocumentJob("doc-1", state=DocumentState.FAILED)
+
+retry_if_possible(job)          # FAILED -> RETRYING, retry_count == 1
+record_failure(job)             # RETRYING -> FAILED
+assert job.state == DocumentState.FAILED
+
+retry_if_possible(job)          # retry_count == 2
+record_failure(job)
+retry_if_possible(job)          # retry_count == 3
+record_failure(job)
+
+assert retry_if_possible(job) is False  # retry budget exhausted
+```
+
+Without that transition, the `record_failure(job)` call above would raise `ValueError: Invalid transition: retrying + fail`.
+
 A real distributed system may additionally need:
 
 - exponential backoff;
@@ -3808,28 +3828,30 @@ Suppose:
 ```python
 TERMINAL_STATES = {
     DocumentState.COMPLETED,
-    DocumentState.FAILED,
 }
 ```
 
-Now you can explicitly reason about:
+`FAILED` is deliberately not in this set, because the transition table allows `FAILED + RETRY → RETRYING`. Now you can explicitly reason about:
 
 ```python
-def is_terminal(state: DocumentState) -> bool:
-    return state in TERMINAL_STATES
+def is_terminal(job: DocumentJob) -> bool:
+    if job.state in TERMINAL_STATES:
+        return True
+
+    # FAILED is final only once the retry budget (MAX_RETRIES, Section 89) is exhausted.
+    return (
+        job.state == DocumentState.FAILED
+        and job.retry_count >= MAX_RETRIES
+    )
 ```
 
-But note that `FAILED` in this design may be temporarily recoverable through `RETRY`.
-
-Therefore you must define what "terminal" means in your domain.
-
-One possible design is:
+This design is:
 
 - `COMPLETED` — final;
-- `FAILED` — final after retry budget exhausted;
+- `FAILED` — recoverable while `retry_count < MAX_RETRIES`, final after the retry budget is exhausted;
 - `RETRYING` — non-terminal.
 
-The actual domain contract should decide this.
+Because `is_terminal()` now takes the job rather than only the state, it agrees with `retry_if_possible()`: a `FAILED` job that can still be retried is not terminal, and one that cannot is. The actual domain contract should decide this policy.
 
 ---
 
@@ -5801,7 +5823,7 @@ The essential ideas are:
 
 This chapter uses the Python standard library's `enum` concepts and intentionally keeps framework-specific material out of the examples.
 
-Python's current `enum` documentation covers `Enum`, `IntEnum`, `StrEnum`, `Flag`, `IntFlag`, `auto`, aliases, `@unique`, and related behavior. `StrEnum` was added in Python 3.11, and the standard-library documentation records several Enum changes across recent Python versions. citeturn442575search0turn442575search2
+Python's current `enum` documentation covers `Enum`, `IntEnum`, `StrEnum`, `Flag`, `IntFlag`, `auto`, aliases, `@unique`, and related behavior. `StrEnum` was added in Python 3.11, and the standard-library documentation records several Enum changes across recent Python versions. ([Python `enum` documentation](https://docs.python.org/3/library/enum.html))
 
 When adopting newer Enum features in a production codebase, check the project's supported Python version and the standard-library documentation for that version.
 
@@ -5918,6 +5940,4 @@ The final mental model is simple:
 > **Enum answers "What values are valid?"**  
 > **State machine answers "How may the system move between valid states?"**
 
-And in production:
-
-> **Make state explicit, make transitions explicit, and make the consequences of each transition observable and safe.**
+The production principle is stated in Section 128.

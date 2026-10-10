@@ -986,8 +986,15 @@ async def main():
     for task in pending:
         task.cancel()
 
+    # cancel() only requests cancellation; wait for the tasks to finish unwinding.
+    await asyncio.gather(*pending, return_exceptions=True)
+
+    print("cancelled:", [task.cancelled() for task in pending])
+
 asyncio.run(main())
 ```
+
+`task.cancel()` requests cancellation by raising `CancelledError` inside the task at its next suspension point; it does not mean the task has finished. Awaiting the pending tasks (here with `gather(..., return_exceptions=True)`, which collects the expected `CancelledError` instead of raising it) ensures cancellation and any cleanup in the task have completed before `main()` returns.
 
 ### `asyncio.as_completed()`
 
@@ -1381,13 +1388,17 @@ q.put("job-2")
 
 # consumers:
 job = q.get()
-process(job)
-q.task_done()
+try:
+    process(job)
+finally:
+    q.task_done()
 
 q.join()
 ```
 
 `join()` waits until every enqueued task has received a corresponding `task_done()` call.
+
+Placing `task_done()` in `finally` means the queue's unfinished-task count is resolved even if `process(job)` raises, so `join()` is not left waiting. `task_done()` only records that the retrieved item has been handled by the consumer; it does not mean processing succeeded. What happens to a failed job (log it, retry it, put it on a dead-letter path) is a separate application-level policy that the consumer must implement, for example by catching the exception around `process(job)`.
 
 ### Production warning
 
@@ -3670,11 +3681,13 @@ Measure latency, throughput, queue depth, error rate, downstream saturation, wor
 
 This section is a reference map. Earlier sections provide the main teaching examples.
 
-### `asyncio.run(coro, *, debug=None)`
+### `asyncio.run(coro, *, debug=None, loop_factory=None)`
 
-Runs a top-level coroutine.
+Runs a top-level coroutine (or, from Python 3.14, any awaitable) in a new event loop and returns its result.
 
 Use for application entry points.
+
+Version notes: the `loop_factory` parameter was added in Python 3.12, and accepting any awaitable rather than only a coroutine is new in Python 3.14. On older versions, pass a coroutine and omit `loop_factory`. See the [`asyncio.run()` documentation](https://docs.python.org/3.14/library/asyncio-runner.html#asyncio.run).
 
 ### `asyncio.create_task(coro, *, name=None, context=None, eager_start=None, **kwargs)`
 
@@ -4681,11 +4694,8 @@ Ask:
 3. Can operations overlap safely?
 4. What resource is scarce?
 5. How many operations can be in flight?
-6. What happens if one fails?
-7. What happens if the caller cancels?
-8. How does the system shut down?
-9. How is overload controlled?
-10. How will success be measured?
+6. How do failure, cancellation, shutdown, and overload behave? (The Section 89 checklist lists these.)
+7. How will success be measured?
 
 That is the beginning of production concurrency reasoning.
 

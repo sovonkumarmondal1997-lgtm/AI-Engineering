@@ -1787,7 +1787,10 @@ from functools import wraps
 import time
 
 
-def retry(max_attempts, retryable_exceptions=(Exception,), delay=0.0):
+def retry(max_attempts, retryable_exceptions, delay=0.0):
+    if isinstance(max_attempts, bool) or not isinstance(max_attempts, int):
+        raise TypeError("max_attempts must be an integer")
+
     if max_attempts < 1:
         raise ValueError("max_attempts must be at least 1")
 
@@ -1838,6 +1841,8 @@ Output:
 ```text
 success
 ```
+
+Note that `retryable_exceptions` has no default. The caller must name the failure categories that are safe to retry, and any other exception propagates immediately without another attempt. Boolean values are rejected for `max_attempts` because `True` and `False` are not meaningful attempt counts, even though `bool` is a subclass of `int`.
 
 ## 21.1 What the decorator does
 
@@ -1933,12 +1938,12 @@ def operation():
 and:
 
 ```python
-@retry(3)
+@retry(3, (RuntimeError,))
 def operation():
     ...
 ```
 
-The second calls `retry(3)` first.
+The second calls `retry(3, (RuntimeError,))` first.
 
 Therefore `retry` must return a decorator.
 
@@ -2004,6 +2009,9 @@ from functools import wraps
 
 
 def repeat(times):
+    if isinstance(times, bool) or not isinstance(times, int):
+        raise TypeError("times must be an integer")
+
     if times < 1:
         raise ValueError("times must be at least 1")
 
@@ -3534,14 +3542,7 @@ def decorator(function):
 
 ### Correct
 
-```python
-def decorator(function):
-    @wraps(function)
-    def wrapper(*args, **kwargs):
-        return function(*args, **kwargs)
-
-    return wrapper
-```
+Return the wrapped call's result with `return function(*args, **kwargs)`, exactly as in the corrected wrapper under Mistake 1. Section 35.1 shows how this appears as a symptom when debugging.
 
 ---
 

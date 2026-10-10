@@ -11,6 +11,10 @@ The goal is not to memorize `with`, `__enter__`, or `__exit__`. The goal is to u
 
 ---
 
+> **Requirements and conventions:** the examples assume Python 3.10 or later (Section 45 uses the `TextIO | None` annotation syntax). Code blocks that use placeholder names such as `acquire()`, `release()`, `do_work()`, or `should_stop()`, or that contain `return` or `yield` outside a complete definition, are **illustrative fragments** that need surrounding code; they are not meant to run on their own. Blocks with their own imports, definitions, and expected output are complete examples.
+
+---
+
 ## Learning objectives
 
 By the end of this chapter, you should be able to:
@@ -1256,7 +1260,7 @@ The context manager still gets its exit opportunity as control leaves the block.
 
 ### Case 3: the block ends early
 
-For example:
+For example (a fragment: it must be inside a function, and `should_stop()` is a placeholder):
 
 ```python
 with open("output.txt", "w", encoding="utf-8") as file:
@@ -1456,16 +1460,16 @@ class TemporaryConfiguration:
 
     def __enter__(self):
         for key, new_value in self.temporary_values.items():
-            self.previous_values[key] = self.settings.get(key)
+            self.previous_values[key] = (key in self.settings, self.settings.get(key))
             self.settings[key] = new_value
         return self.settings
 
     def __exit__(self, exc_type, exc_value, traceback):
-        for key, old_value in self.previous_values.items():
-            if old_value is None:
-                self.settings.pop(key, None)
-            else:
+        for key, (existed, old_value) in self.previous_values.items():
+            if existed:
                 self.settings[key] = old_value
+            else:
+                self.settings.pop(key, None)
         return False
 
 
@@ -1486,6 +1490,8 @@ Expected output:
 {'mode': 'maintenance', 'debug': True}
 {'mode': 'normal', 'debug': False}
 ```
+
+The manager records whether each key existed, separately from its old value. This keeps "the key was absent" distinct from "the key held `None`": absent keys are removed on exit, while keys that held `None` are restored to `None`.
 
 ### Why `finally` still matters conceptually
 
@@ -1660,7 +1666,7 @@ finally cleanup executes
 
 A `@contextmanager` function is expected to describe one enter/exit boundary. In normal use, it has one meaningful `yield` separating setup from cleanup.
 
-A simple pattern is:
+A simple pattern is (`acquire()` and `release()` are placeholders for your own resource functions):
 
 ```python
 @contextmanager
@@ -1868,16 +1874,7 @@ This makes the surrounding `try/except/finally` meaningful.
 
 ### Safe pattern
 
-Use:
-
-```python
-try:
-    yield resource
-finally:
-    release(resource)
-```
-
-when cleanup must happen regardless of whether the body succeeds or fails.
+When cleanup must happen regardless of whether the body succeeds or fails, use the `try` / `yield` / `finally` pattern from Section 27.
 
 Use `except` around `yield` only when you intentionally need to inspect or translate a specific failure.
 
@@ -2728,7 +2725,7 @@ For your own context manager, define and test the expected lifecycle rather than
 
 # 39. Context-Manager Design Principles
 
-Use these rules as engineering heuristics.
+Use these rules as engineering heuristics. Code snippets in this section are illustrative fragments, not standalone programs.
 
 ## 1. Keep the managed boundary obvious
 
@@ -2764,14 +2761,7 @@ A failure that should be visible must remain visible.
 
 ## 5. Use `finally` for generator-based cleanup
 
-The standard pattern is:
-
-```python
-try:
-    yield resource
-finally:
-    release(resource)
-```
+Put release logic in a `finally` block around `yield`, as shown in Section 27.
 
 ## 6. Keep context managers small
 
@@ -3415,8 +3405,10 @@ class SafeFileWriter:
                 self.path,
                 self.lines_written,
             )
-            self._file.close()
-            self._file = None
+            try:
+                self._file.close()
+            finally:
+                self._file = None
 
         return False
 
@@ -3463,6 +3455,8 @@ It should not silently claim that an unrelated application exception was handled
 ### Why set `_file = None` after close?
 
 This makes the object's post-exit state explicit and reduces the chance that later methods accidentally use a closed handle.
+
+The reset is in a `finally` block so it happens even if `close()` raises. The example does not suppress cleanup failures: if the body raised and `close()` also raises, the `close()` exception is the one that reaches the caller, with the body exception attached as its `__context__` (see Section 38). If the body succeeded and `close()` raises, the `close()` exception propagates alone.
 
 ### Production note
 

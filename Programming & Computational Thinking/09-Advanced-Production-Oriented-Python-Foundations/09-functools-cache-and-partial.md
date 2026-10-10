@@ -325,7 +325,7 @@ print(square(5))
 
 Conceptually, the second call uses the first call's stored result.
 
-Python documents `cache()` as a simple lightweight **unbounded** function cache and explains that it is equivalent in effect to `lru_cache(maxsize=None)`. Because it does not manage eviction, its implementation can be simpler than a bounded LRU cache. citeturn147567search1
+Python documents `cache()` as a simple lightweight **unbounded** function cache and explains that it is equivalent in effect to `lru_cache(maxsize=None)`. Because it does not manage eviction, its implementation can be simpler than a bounded LRU cache. ([docs: `functools.cache`](https://docs.python.org/3.14/library/functools.html#functools.cache))
 
 ### Unbounded is the critical word
 
@@ -628,7 +628,7 @@ def square(x):
 
 `LRU` means **Least Recently Used**.
 
-Python documents `lru_cache` as a memoizing decorator that retains up to `maxsize` recent calls, with `cache_info()`, `cache_clear()`, `cache_parameters()`, and `__wrapped__` available on the wrapper. citeturn147567search2turn147567search4
+Python documents `lru_cache` as a memoizing decorator that retains up to `maxsize` recent calls, with `cache_info()`, `cache_clear()`, `cache_parameters()`, and `__wrapped__` available on the wrapper. ([docs: `functools.lru_cache`](https://docs.python.org/3.14/library/functools.html#functools.lru_cache))
 
 The key difference from `cache()` is that an LRU cache can intentionally discard entries.
 
@@ -756,7 +756,7 @@ def compute(x):
     return x * x
 ```
 
-`maxsize=None` means the LRU size limit is disabled; the cache can grow without bound. Python documents this behavior explicitly. citeturn147567search6
+`maxsize=None` means the LRU size limit is disabled; the cache can grow without bound. Python documents this behavior explicitly. ([docs: `functools.lru_cache`](https://docs.python.org/3.14/library/functools.html#functools.lru_cache))
 
 For a simple unbounded memoization use case:
 
@@ -804,7 +804,7 @@ print(describe(1.0))
 
 With `typed=True`, the argument types can contribute to distinct cached calls.
 
-With `typed=False`, equal arguments are generally treated as the same logical call, but Python documents subtleties for particular types and nested values. citeturn147567search2turn147567search6
+With `typed=False`, equal arguments are generally treated as the same logical call, but Python documents subtleties for particular types and nested values. ([docs: `functools.lru_cache`](https://docs.python.org/3.14/library/functools.html#functools.lru_cache))
 
 Use `typed=True` when type distinctions are part of the function's semantics.
 
@@ -836,7 +836,7 @@ combine(a=1, b=2)
 combine(b=2, a=1)
 ```
 
-Python's documentation states that distinct argument patterns can be treated as distinct calls and specifically notes that differing keyword-argument order can produce separate cache entries. citeturn147567search2turn147567search4
+Python's documentation states that distinct argument patterns can be treated as distinct calls and specifically notes that differing keyword-argument order can produce separate cache entries. ([docs: `functools.lru_cache`](https://docs.python.org/3.14/library/functools.html#functools.lru_cache))
 
 Therefore, do not assume:
 
@@ -936,7 +936,7 @@ Conceptually:
 {"maxsize": 256, "typed": True}
 ```
 
-Python documents the returned dictionary as informational. Mutating it does not alter the cache configuration. citeturn147567search2turn147567search4
+Python documents the returned dictionary as informational. Mutating it does not alter the cache configuration. ([docs: `functools.lru_cache`](https://docs.python.org/3.14/library/functools.html#functools.lru_cache))
 
 It is useful during debugging:
 
@@ -971,7 +971,7 @@ print(compute.__wrapped__(5))
 
 The second call bypasses the caching wrapper.
 
-Python documents `__wrapped__` as useful for introspection, bypassing the cache, and re-wrapping the underlying callable. citeturn147567search2turn147567search4
+Python documents `__wrapped__` as useful for introspection, bypassing the cache, and re-wrapping the underlying callable. ([docs: `functools.lru_cache`](https://docs.python.org/3.14/library/functools.html#functools.lru_cache))
 
 A testing or debugging use is comparing:
 
@@ -1525,7 +1525,7 @@ less CPU work
 more memory retention
 ```
 
-A cached wrapper can retain references to argument objects and returned values while entries remain cached. Python documents this explicitly for `lru_cache`. citeturn147567search2turn147567search4
+A cached wrapper can retain references to argument objects and returned values while entries remain cached. Python documents this explicitly for `lru_cache`. ([docs: `functools.lru_cache`](https://docs.python.org/3.14/library/functools.html#functools.lru_cache))
 
 The memory question is therefore:
 
@@ -1566,7 +1566,7 @@ def load_huge_document(document_id):
     return huge_object()
 ```
 
-But `maxsize=256` still says nothing about bytes.
+But `maxsize=256` still says nothing about bytes (see Section 36).
 
 # 36. `maxsize` Is an Entry Limit
 
@@ -1764,6 +1764,8 @@ Use it as a local diagnostic primitive, not a complete monitoring platform.
 Caching adds state to a function that looks stateless.
 
 A test suite must control that state.
+
+The snippets in this chapter are illustrative unless a section says otherwise. In particular, the two integrated-example tests in Section 90 were run against the Section 85 definitions; most other snippets were not executed as part of the chapter's review, so run them yourself before relying on them.
 
 ```python
 from functools import lru_cache
@@ -2167,7 +2169,7 @@ class Calculator:
 
 The effective cache key includes the instance and the explicit arguments.
 
-Python's documentation explains that cached methods include `self` in the cache and can therefore keep instances alive until entries are evicted or the cache is cleared. citeturn147567search0turn147567search4
+Python's documentation explains that cached methods include `self` in the cache and can therefore keep instances alive until entries are evicted or the cache is cleared. ([docs: `functools.lru_cache`](https://docs.python.org/3.14/library/functools.html#functools.lru_cache))
 
 This matters when instances are:
 
@@ -2188,7 +2190,7 @@ Choose based on ownership and lifecycle, not only code brevity.
 
 # 50. Concurrent Cache Misses
 
-`lru_cache` is threadsafe at the cache-structure level, but the underlying function may be invoked more than once when multiple threads encounter the same missing key before the first computation finishes. Python explicitly documents this possibility. citeturn147567search2turn147567search4
+`lru_cache` is threadsafe at the cache-structure level, but the underlying function may be invoked more than once when multiple threads encounter the same missing key before the first computation finishes. Python explicitly documents this possibility. ([docs: `functools.lru_cache`](https://docs.python.org/3.14/library/functools.html#functools.lru_cache))
 
 Conceptual scenario:
 
@@ -2814,7 +2816,7 @@ print(fast_request("https://example.test", timeout=5))
 
 The second call can override the pre-filled keyword.
 
-Python documents this extend-and-override behavior for `partial`. citeturn147567search1turn147567search4
+Python documents this extend-and-override behavior for `partial`. ([docs: `functools.partial`](https://docs.python.org/3.14/library/functools.html#functools.partial))
 
 ### Positional conflicts are different
 
@@ -2837,7 +2839,7 @@ Python 3.14 adds:
 from functools import Placeholder
 ```
 
-as a sentinel for reserving a positional slot in `partial` and `partialmethod`. citeturn147567search2turn147567search4
+as a sentinel for reserving a positional slot in `partial` and `partialmethod`. ([docs: `functools.Placeholder`](https://docs.python.org/3.14/library/functools.html#functools.Placeholder))
 
 Example:
 
@@ -3083,7 +3085,7 @@ Expected:
 Hello, Alice
 ```
 
-Python documents `partialmethod` as a descriptor designed for method definitions rather than direct invocation. citeturn147567search2turn147567search5
+Python documents `partialmethod` as a descriptor designed for method definitions rather than direct invocation. ([docs: `functools.partialmethod`](https://docs.python.org/3.14/library/functools.html#functools.partialmethod))
 
 # 72. Why `partialmethod` Exists
 
@@ -3888,21 +3890,28 @@ def test_document_version_changes_key():
         "Hello",
     )
 
-    assert first == second
+    assert first.document_version == "version-7"
+    assert second.document_version == "version-8"
+    assert first != second
 
     info = preprocess_document.cache_info()
     assert info.misses == 2
+    assert info.hits == 0
 ```
 
-The result values can happen to be equal while cache entries remain distinct.
+`ProcessingResult` includes `document_version`, so the two results differ even though the text is identical, and the two calls use two distinct cache keys (two misses, no hits).
 
-That distinction is important:
+The key point is that the cache key includes `document_version`:
 
 ```text
-equal result
-≠
-same cache key
+different version
+→ different cache key
+→ separate computation and separate result
 ```
+
+Note that cache keys and result equality are separate questions: two different keys *can* produce equal results if the result type does not carry the differing field. Here it does, so the results are unequal.
+
+Both tests above call `preprocess_document.cache_clear()` first so that the exact `cache_info()` counts are deterministic.
 
 # 91. Production Example — Mutable Results
 
@@ -4165,13 +4174,7 @@ same permitted result
 
 ## Anti-pattern 6 — Assume `maxsize` is a memory budget
 
-Why wrong:
-
-```text
-maxsize = entries
-```
-
-not bytes.
+Why wrong: `maxsize` counts entries, not bytes (see Section 36).
 
 # 100. API Coverage Reference — `cache`
 
@@ -4192,7 +4195,7 @@ Relevant behavior:
 - `cache_clear()`;
 - underlying callable via `__wrapped__`.
 
-Python added `cache` in version 3.9. citeturn147567search1
+Python added `cache` in version 3.9. ([docs: `functools.cache`](https://docs.python.org/3.14/library/functools.html#functools.cache))
 
 Use it when its unbounded semantics are intentional.
 
@@ -4223,7 +4226,7 @@ f.cache_parameters()
 f.__wrapped__
 ```
 
-Python documents bounded LRU behavior, cache statistics, configuration inspection, and clearing. citeturn147567search2turn147567search4
+Python documents bounded LRU behavior, cache statistics, configuration inspection, and clearing. ([docs: `functools.lru_cache`](https://docs.python.org/3.14/library/functools.html#functools.lru_cache))
 
 # 102. API Coverage Reference — `partial`
 
@@ -4241,7 +4244,7 @@ partial_object.args
 partial_object.keywords
 ```
 
-Later keyword arguments can extend and override stored keyword arguments. citeturn147567search1turn147567search4
+Later keyword arguments can extend and override stored keyword arguments. ([docs: `functools.partial`](https://docs.python.org/3.14/library/functools.html#functools.partial))
 
 # 103. API Coverage Reference — `partialmethod`
 
@@ -4253,7 +4256,7 @@ partialmethod(func, /, *args, **keywords)
 
 Use inside classes to define methods with pre-filled arguments.
 
-It participates in descriptor-based method binding. citeturn147567search2turn147567search5
+It participates in descriptor-based method binding. ([docs: `functools.partialmethod`](https://docs.python.org/3.14/library/functools.html#functools.partialmethod))
 
 # 104. API Coverage Reference — Related Utilities
 

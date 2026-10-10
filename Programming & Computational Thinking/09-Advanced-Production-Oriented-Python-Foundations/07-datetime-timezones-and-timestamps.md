@@ -736,12 +736,12 @@ print(current_utc)
 print(current_utc.tzinfo)
 ```
 
-Python 3.11 also introduced `datetime.UTC` as an alias for the UTC singleton, so modern code may use:
+Python 3.11 also introduced `datetime.UTC` (the `UTC` name in the `datetime` module) as an alias for the UTC singleton, so on Python 3.11 or later modern code may use:
 
 ```python
-from datetime import datetime
+from datetime import UTC, datetime
 
-current_utc = datetime.now(datetime.UTC)
+current_utc = datetime.now(UTC)
 ```
 
 For codebases that prioritize broad version compatibility, `timezone.utc` remains very clear.
@@ -1046,7 +1046,7 @@ print(india)
 print(new_york)
 ```
 
-`ZoneInfo` uses the IANA timezone database and supplies rules for real-world geographic zones. It is a concrete implementation of the `tzinfo` abstraction. Python's documentation describes it as the standard way to attach IANA timezone data to `datetime` and `time` objects. citeturn470871search0turn451397search2
+`ZoneInfo` uses the IANA timezone database and supplies rules for real-world geographic zones. It is a concrete implementation of the `tzinfo` abstraction. Python's documentation describes it as the standard way to attach IANA timezone data to `datetime` and `time` objects. ([`zoneinfo` documentation](https://docs.python.org/3/library/zoneinfo.html#zoneinfo.ZoneInfo); [`datetime` documentation](https://docs.python.org/3/library/datetime.html))
 
 ### Why this matters
 
@@ -1351,7 +1351,30 @@ fold=0 → first occurrence
 fold=1 → second occurrence
 ```
 
-When converting an instant from another timezone, `astimezone()` can establish the correct `fold` value for an ambiguous local representation. The Python `zoneinfo` documentation demonstrates this behavior. citeturn470871search0
+When converting an instant from another timezone, `astimezone()` can establish the correct `fold` value for an ambiguous local representation. The Python `zoneinfo` documentation demonstrates this behavior. ([`zoneinfo` documentation](https://docs.python.org/3/library/zoneinfo.html))
+
+
+
+### Comparing ambiguous times
+
+`fold` changes the instant but not the other fields. Two datetimes that share the same `tzinfo` object are compared by their local fields, ignoring `fold`, so they compare as equal even though they are an hour apart:
+
+```python
+from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
+
+zone = ZoneInfo("America/New_York")
+
+first = datetime(2024, 11, 3, 1, 30, tzinfo=zone, fold=0)
+second = datetime(2024, 11, 3, 1, 30, tzinfo=zone, fold=1)
+
+print(first == second)  # True: same local fields, same tzinfo object
+
+assert first.timestamp() != second.timestamp()
+assert first.astimezone(timezone.utc) != second.astimezone(timezone.utc)
+```
+
+During a fall-back transition the same local clock reading occurs twice, and `fold=0` / `fold=1` select the first or second occurrence. When you need to compare actual instants, normalize both values to UTC (or compare their timestamps) first. This is a specific edge case of ambiguous local times, not a reason to distrust all aware-datetime comparisons.
 
 
 
@@ -1693,6 +1716,8 @@ True
 
 They represent the same instant.
 
+One edge case: two datetimes sharing the same `ZoneInfo` object are compared by local fields, so ambiguous fall-back times with different `fold` values can compare equal although they are different instants. Convert both to UTC before comparing them (see Section 28).
+
 ### Naive vs aware
 
 Ordering comparisons raise `TypeError`.
@@ -1994,7 +2019,7 @@ If parsing fails, Python raises `ValueError`.
 
 ### Important version note
 
-Python 3.14 added `date.strptime()` and `time.strptime()`. The `datetime.strptime()` method predates these and remains widely available. Python 3.15 documentation also highlights changes around parsing day/month without a year, so production code should always include an explicit year when parsing month/day strings. citeturn491994search0turn491994search6
+Python 3.14 added `date.strptime()` and `time.strptime()`. The `datetime.strptime()` method predates these and remains widely available. Python 3.15 documentation also highlights changes around parsing day/month without a year, so production code should always include an explicit year when parsing month/day strings. ([`datetime` documentation, `date.strptime()`](https://docs.python.org/3/library/datetime.html#datetime.date.strptime))
 
 For example:
 
@@ -4616,51 +4641,7 @@ A good engineer asks:
 
 A production system should define a time contract before implementation.
 
-### Internal application state
-
-Use:
-
-```text
-timezone-aware datetime
-```
-
-with an explicit policy, often UTC for instants.
-
-### Cross-service communication
-
-Use:
-
-```text
-UTC ISO-style timestamp
-```
-
-or:
-
-```text
-documented epoch unit
-```
-
-### Human display
-
-Convert to:
-
-```text
-user's geographic timezone
-```
-
-### Elapsed duration
-
-Use:
-
-```text
-time.monotonic()
-```
-
-or:
-
-```text
-time.perf_counter()
-```
+The contract for internal state (timezone-aware UTC), cross-service communication, human display, and elapsed duration (`time.monotonic()` or `time.perf_counter()`) is laid out in Section 77. Define each of those explicitly, then also specify the following.
 
 ### External ingestion
 

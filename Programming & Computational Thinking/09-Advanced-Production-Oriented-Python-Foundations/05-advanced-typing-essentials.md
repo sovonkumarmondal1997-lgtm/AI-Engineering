@@ -2305,6 +2305,8 @@ pyright
 
 The exact command depends on project setup.
 
+> **Verification note:** the type-checking examples and diagnostics described in this chapter are explanatory. They were not validated against a specific mypy or Pyright version, so run your project's checker to confirm the exact messages. Keep three kinds of checking distinct: Python *syntax parsing* only confirms the code is well-formed; *static type checking* (mypy, Pyright) analyzes the annotations; *runtime behavior and tests* confirm what the code actually does. Passing one does not imply passing the others.
+
 The engineering point is not the command itself. The point is that type checking is part of the feedback loop.
 
 ---
@@ -3579,7 +3581,7 @@ def parse_document(data: object) -> Document:
     raw_id = data.get("id")
     raw_text = data.get("text")
 
-    if not isinstance(raw_id, int):
+    if isinstance(raw_id, bool) or not isinstance(raw_id, int):
         raise ValueError("id must be an int")
 
     if not isinstance(raw_text, str):
@@ -3590,6 +3592,8 @@ def parse_document(data: object) -> Document:
         text=raw_text,
     )
 ```
+
+The explicit `bool` check is needed because `bool` is a subclass of `int` in Python, so `isinstance(True, int)` is `True`. Without it, `{"id": True}` would be accepted as document ID `1`. With it, `True` and `False` raise `ValueError`, while `{"id": 10}` is still accepted.
 
 This is the production boundary:
 
@@ -5007,9 +5011,7 @@ What contract communicates that clearly?
         +---- runtime validation?
 ```
 
-The answer should be driven by the system's needs.
-
-Not by the number of typing features available.
+The answer should be driven by the system's needs, not by the number of typing features available (Section 84 returns to this question).
 
 ---
 

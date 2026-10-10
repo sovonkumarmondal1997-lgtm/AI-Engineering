@@ -1163,6 +1163,58 @@ If you call `next()` directly, you need to decide what happens at exhaustion:
 
 ---
 
+## 9.5 `StopIteration` escaping from a generator body
+
+Normal exhaustion is not an error: an iterator signals completion with `StopIteration`, and a `for` loop handles it for you.
+
+A generator is different when a `StopIteration` is raised **inside its body** and is not caught there. Under modern Python semantics (PEP 479, the default since Python 3.7), that exception is converted into a `RuntimeError` instead of silently ending the generator.
+
+Problematic pattern:
+
+```python
+def first_items(iterator):
+    yield next(iterator)  # raises StopIteration if iterator is empty
+
+
+try:
+    list(first_items(iter([])))
+except RuntimeError as exc:
+    print("RuntimeError:", exc)
+```
+
+Output:
+
+```text
+RuntimeError: generator raised StopIteration
+```
+
+Correction: handle the exhaustion and finish the generator with `return`.
+
+```python
+def first_items(iterator):
+    try:
+        yield next(iterator)
+    except StopIteration:
+        return
+
+
+print(list(first_items(iter([]))))
+print(list(first_items(iter([7]))))
+```
+
+Output:
+
+```text
+[]
+[7]
+```
+
+To end a generator, use `return` (or simply reach the end of the function); do not raise `StopIteration` manually.
+
+Debugging implication: if a generator unexpectedly raises `RuntimeError: generator raised StopIteration`, inspect its body and any function it calls (such as a bare `next()`) for a `StopIteration` that is not handled. The original exception is available as the `__cause__` of the `RuntimeError`.
+
+---
+
 # 10. Iterable vs Iterator — Critical Comparison
 
 | Property | Iterable | Iterator |
@@ -2595,6 +2647,26 @@ Do not hide long-lived external resources inside a generator without considering
 
 For simple file readers, the `with open(...)` pattern above is a reasonable design.
 
+### Full consumption vs early termination
+
+If the consumer exhausts the generator (for example, with a plain `for` loop that reaches the end), the `with` block finishes and the file is closed.
+
+If the consumer stops early, the generator is only suspended inside the `with` block, so the file it owns may stay open until the generator is closed or garbage-collected. When that happens is not something to rely on, and it varies by Python implementation.
+
+When early termination is possible, give the caller an explicit lifetime boundary. `contextlib.closing` calls `close()` on the generator when the block exits, which raises `GeneratorExit` at the suspended `yield` and lets the `with open(...)` block close the file:
+
+```python
+from contextlib import closing
+
+with closing(read_lines("app.log")) as lines:
+    for line in lines:
+        if "ERROR" in line:
+            print(line.strip())
+            break  # stop early; the generator is still closed on leaving the block
+```
+
+Equivalently, call `lines.close()` in a `finally` block. The caller that creates the generator is responsible for closing it.
+
 ---
 
 # 22. Generator Pipelines
@@ -3817,7 +3889,7 @@ means:
 
 ### Problem
 
-Replacing every list with a generator may increase overhead or make behavior less convenient.
+Replacing every list with a generator may increase overhead or make behavior less convenient (see Section 19.4).
 
 ### Correct approach
 
@@ -4534,7 +4606,7 @@ The correct choice depends on the workload and the API contract.
 
 ## Production Mental Models
 
-## 42.1 Data source vs traversal state
+## 35.1 Data source vs traversal state
 
 This is perhaps the most useful distinction.
 
@@ -4569,7 +4641,7 @@ This is why generators behave differently from lists.
 
 ---
 
-## 42.2 Lazy pipelines are pull-based
+## 35.2 Lazy pipelines are pull-based
 
 Think:
 
@@ -4585,7 +4657,7 @@ This is powerful because the pipeline can be composed without immediately runnin
 
 ---
 
-## 42.3 Materialization is a design decision
+## 35.3 Materialization is a design decision
 
 Converting:
 
@@ -5201,13 +5273,13 @@ Design the interface carefully so that the malformed-line count does not require
 
 These questions are about reasoning, not memorizing definitions.
 
-## 39.1 What is the difference between an iterable and an iterator?
+## 38.1 What is the difference between an iterable and an iterator?
 
 **Expected reasoning direction:** Explain the roles separately. An iterable is a source from which an iterator can be obtained; an iterator owns traversal state and implements the next-value mechanism.
 
 ---
 
-## 39.2 How does a Python `for` loop work internally?
+## 38.2 How does a Python `for` loop work internally?
 
 **Expected reasoning direction:** Explain the conceptual sequence:
 
@@ -5229,37 +5301,37 @@ Be explicit that this is a conceptual model rather than a literal source-code re
 
 ---
 
-## 39.3 What is the iterator protocol?
+## 38.3 What is the iterator protocol?
 
 **Expected reasoning direction:** Discuss `__iter__()`, `__next__()`, and `StopIteration`, and explain the relationship between iterable objects and iterators.
 
 ---
 
-## 39.4 What is `StopIteration`?
+## 38.4 What is `StopIteration`?
 
 **Expected reasoning direction:** Describe it as the standard protocol signal that an iterator has no more values, and explain why `for` normally hides it.
 
 ---
 
-## 39.5 What is a generator?
+## 38.5 What is a generator?
 
 **Expected reasoning direction:** Explain that a generator is an iterator created conveniently by a generator function or generator expression, with lazy production and retained execution state.
 
 ---
 
-## 39.6 What does `yield` do?
+## 38.6 What does `yield` do?
 
 **Expected reasoning direction:** Say that it produces a value and suspends generator execution so it can resume later.
 
 ---
 
-## 39.7 What is lazy evaluation?
+## 38.7 What is lazy evaluation?
 
 **Expected reasoning direction:** Explain that computation is deferred until the consumer requests the value, rather than materializing every result immediately.
 
 ---
 
-## 39.8 Generator expression vs list comprehension?
+## 38.8 Generator expression vs list comprehension?
 
 **Expected reasoning direction:** Compare:
 
@@ -5277,7 +5349,7 @@ Discuss eager materialization, lazy production, repeatability, memory, and acces
 
 ---
 
-## 39.9 When would you use a generator in production?
+## 38.9 When would you use a generator in production?
 
 **Expected reasoning direction:** Look for workloads involving:
 
@@ -5296,13 +5368,13 @@ Then mention the counter-considerations:
 
 ---
 
-## 39.10 What happens when a generator is exhausted?
+## 38.10 What happens when a generator is exhausted?
 
 **Expected reasoning direction:** Explain that iteration eventually terminates with `StopIteration`; subsequent advancement remains exhausted rather than restarting the generator.
 
 ---
 
-## 39.11 How would you process a 100 GB log file?
+## 38.11 How would you process a 100 GB log file?
 
 **Expected reasoning direction:** Start with streaming rather than full materialization:
 
@@ -5326,7 +5398,7 @@ For this chapter, keep the implementation based on Python's standard iteration m
 
 ---
 
-## 39.12 How would you design a memory-efficient data pipeline?
+## 38.12 How would you design a memory-efficient data pipeline?
 
 **Expected reasoning direction:** Separate stages and keep them lazy where incremental processing is possible:
 
@@ -5340,13 +5412,13 @@ But identify where eager materialization is actually useful.
 
 ---
 
-## 39.13 When would you deliberately materialize a generator?
+## 38.13 When would you deliberately materialize a generator?
 
 **Expected reasoning direction:** Mention repeated traversal, indexing, sorting, stable snapshots, immediate length, or when the dataset is known to be small enough.
 
 ---
 
-## 39.14 What are the trade-offs between generators and collections?
+## 38.14 What are the trade-offs between generators and collections?
 
 **Expected reasoning direction:** Compare:
 
@@ -5361,7 +5433,7 @@ But identify where eager materialization is actually useful.
 
 ---
 
-## 39.15 How would you debug a pipeline that unexpectedly produces no values?
+## 38.15 How would you debug a pipeline that unexpectedly produces no values?
 
 **Expected reasoning direction:**
 
