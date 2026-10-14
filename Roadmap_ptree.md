@@ -27,6 +27,7 @@ AI Engineering/
 ├── Stage 2 — Python for Data Engineering_1/           # Stage 2 (exists)
 ├── Stage 2B — Python for Data Engineering_2/           # Stage 2B (exists)
 ├── Stage 2C — Data Engineering_3/           # Stage 2C (exists)
+├── STAGE - 2D DATA ARCHITECURE/           # Stage 2D (tree provided)
 ├── Data Structures & Algorithms/            # Stage 3
 ├── Mathematics for Machine Learning/        # Stage 4
 ├── Machine Learning Foundations/            # Stage 5
@@ -991,6 +992,255 @@ Stage 2C — Data Engineering_3/
 ```
 
 ## 3. New stages (3–18) — full file plan
+
+### Stage 2D — Data Architecture
+
+```text
+STAGE - 2D DATA ARCHITECURE/
+├── 00-Stage-2D-Overview/
+│   ├── Projects/
+│   │   ├── 01-enterprise-data-architecture-capstone.md
+│   │   └── README.md
+│   ├── learning-plan.md
+│   └── README.md
+├── 01-Data-Architecture-Foundations-and-Principles/
+│   ├── Projects/
+│   │   ├── 01-current-state-data-architecture-inventory.md
+│   │   └── README.md
+│   ├── 01-what-data-architecture-is-and-what-data-architects-do.md
+│   ├── 02-data-architecture-vs-data-engineering-and-solution-architecture.md
+│   ├── 03-business-capabilities-domains-and-data-ownership.md
+│   ├── 04-architecture-principles-and-quality-attributes.md
+│   ├── 05-data-architecture-lifecycle-and-governance.md
+│   ├── 06-enterprise-data-architecture-frameworks-and-reference-models.md
+│   ├── practice-questions.md
+│   ├── README.md
+│   └── roadmap-Data-Architecture-Foundations-and-Principles.md
+├── 02-Requirements-Constraints-and-Architecture-Decisions/
+│   ├── Projects/
+│   │   ├── 02-requirements-and-architecture-decision-pack.md
+│   │   └── README.md
+│   ├── 01-stakeholder-discovery-and-business-requirements.md
+│   ├── 02-functional-and-non-functional-requirements.md
+│   ├── 03-data-volume-velocity-variety-and-growth-estimation.md
+│   ├── 04-latency-throughput-freshness-and-availability-targets.md
+│   ├── 05-constraints-assumptions-dependencies-and-risks.md
+│   ├── 06-architecture-trade-offs-and-decision-criteria.md
+│   ├── 07-architecture-decision-records-adrs.md
+│   ├── practice-questions.md
+│   ├── README.md
+│   └── roadmap-Requirements-Constraints-and-Architecture-Decisions.md
+├── 03-Data-Architecture-Patterns-and-Reference-Architectures/
+│   ├── Projects/
+│   │   ├── 03-reference-architecture-pattern-comparison.md
+│   │   └── README.md
+│   ├── 01-centralized-federated-and-domain-oriented-architectures.md
+│   ├── 02-data-warehouse-data-lake-and-lakehouse-patterns.md
+│   ├── 03-lambda-and-kappa-architectures.md
+│   ├── 04-data-mesh-principles-and-domain-data-products.md
+│   ├── 05-data-fabric-and-metadata-driven-architecture.md
+│   ├── 06-event-driven-and-data-sharing-patterns.md
+│   ├── 07-selecting-and-combining-architecture-patterns.md
+│   ├── practice-questions.md
+│   ├── README.md
+│   └── roadmap-Data-Architecture-Patterns-and-Reference-Architectures.md
+├── 04-Conceptual-Logical-and-Physical-Data-Modeling/
+│   ├── Projects/
+│   │   ├── 04-enterprise-conceptual-and-logical-data-model.md
+│   │   └── README.md
+│   ├── 01-conceptual-logical-and-physical-models.md
+│   ├── 02-entities-relationships-cardinality-and-constraints.md
+│   ├── 03-normalization-and-relational-modeling.md
+│   ├── 04-dimensional-modeling-facts-dimensions-and-grain.md
+│   ├── 05-data-vault-and-historical-modeling.md
+│   ├── 06-event-modeling-and-domain-driven-design.md
+│   ├── 07-schema-evolution-and-backward-compatibility.md
+│   ├── 08-model-review-naming-standards-and-data-dictionaries.md
+│   ├── practice-questions.md
+│   ├── README.md
+│   └── roadmap-Conceptual-Logical-and-Physical-Data-Modeling.md
+├── 05-Database-and-Storage-Architecture/
+│   ├── Projects/
+│   │   ├── 05-storage-technology-selection-and-logical-layout.md
+│   │   └── README.md
+│   ├── 01-oltp-olap-and-operational-analytical-separation.md
+│   ├── 02-relational-nosql-and-specialized-database-selection.md
+│   ├── 03-object-storage-and-file-format-selection.md
+│   ├── 04-warehouse-lakehouse-and-table-format-design.md
+│   ├── 05-partitioning-indexing-clustering-and-data-layout.md
+│   ├── 06-replication-consistency-and-transaction-boundaries.md
+│   ├── 07-retention-archival-and-data-lifecycle-storage-tiers.md
+│   ├── practice-questions.md
+│   ├── README.md
+│   └── roadmap-Database-and-Storage-Architecture.md
+├── 06-Data-Integration-and-Interoperability/
+│   ├── Projects/
+│   │   ├── 06-cross-system-data-integration-design.md
+│   │   └── README.md
+│   ├── 01-batch-etl-elt-and-incremental-ingestion.md
+│   ├── 02-change-data-capture-and-database-replication.md
+│   ├── 03-apis-files-and-managed-connectors.md
+│   ├── 04-streaming-events-and-message-contracts.md
+│   ├── 05-data-contracts-schema-registry-and-compatibility.md
+│   ├── 06-data-virtualization-federation-and-data-sharing.md
+│   ├── 07-idempotency-deduplication-and-reconciliation.md
+│   ├── 08-integration-pattern-selection-and-failure-handling.md
+│   ├── practice-questions.md
+│   ├── README.md
+│   └── roadmap-Data-Integration-and-Interoperability.md
+├── 07-Enterprise-Data-Platform-and-Lakehouse-Architecture/
+│   ├── Projects/
+│   │   ├── 07-enterprise-lakehouse-reference-architecture.md
+│   │   └── README.md
+│   ├── 01-platform-capabilities-and-logical-reference-architecture.md
+│   ├── 02-ingestion-storage-processing-and-consumption-zones.md
+│   ├── 03-bronze-silver-gold-and-data-product-boundaries.md
+│   ├── 04-compute-storage-and-control-plane-separation.md
+│   ├── 05-catalogs-metastores-and-platform-metadata.md
+│   ├── 06-self-service-platforms-and-developer-experience.md
+│   ├── 07-multi-team-isolation-and-tenant-boundaries.md
+│   ├── 08-platform-service-levels-and-product-thinking.md
+│   ├── practice-questions.md
+│   ├── README.md
+│   └── roadmap-Enterprise-Data-Platform-and-Lakehouse-Architecture.md
+├── 08-Cloud-Hybrid-and-Multi-Cloud-Data-Architecture/
+│   ├── Projects/
+│   │   ├── 08-cloud-platform-architecture-comparison.md
+│   │   └── README.md
+│   ├── 01-cloud-data-architecture-principles.md
+│   ├── 02-aws-data-architecture-reference-patterns.md
+│   ├── 03-azure-data-architecture-reference-patterns.md
+│   ├── 04-gcp-data-architecture-reference-patterns.md
+│   ├── 05-networking-identity-and-private-connectivity.md
+│   ├── 06-hybrid-connectivity-and-on-premises-integration.md
+│   ├── 07-portability-lock-in-and-multi-cloud-trade-offs.md
+│   ├── 08-infrastructure-as-code-and-environment-strategy.md
+│   ├── practice-questions.md
+│   ├── README.md
+│   └── roadmap-Cloud-Hybrid-and-Multi-Cloud-Data-Architecture.md
+├── 09-Streaming-and-Real-Time-Data-Architecture/
+│   ├── Projects/
+│   │   ├── 09-real-time-risk-monitoring-architecture.md
+│   │   └── README.md
+│   ├── 01-real-time-use-cases-and-latency-budgets.md
+│   ├── 02-event-brokers-topics-partitions-and-retention.md
+│   ├── 03-event-time-processing-ordering-and-watermarks.md
+│   ├── 04-stream-processing-state-and-delivery-semantics.md
+│   ├── 05-cdc-event-backbones-and-replay.md
+│   ├── 06-real-time-serving-stores-and-materialized-views.md
+│   ├── 07-late-events-backpressure-and-stream-failure-modes.md
+│   ├── practice-questions.md
+│   ├── README.md
+│   └── roadmap-Streaming-and-Real-Time-Data-Architecture.md
+├── 10-Data-Governance-Security-Privacy-and-Compliance/
+│   ├── Projects/
+│   │   ├── 10-sensitive-data-governance-and-access-design.md
+│   │   └── README.md
+│   ├── 01-governance-operating-model-and-accountability.md
+│   ├── 02-data-classification-sensitivity-and-criticality.md
+│   ├── 03-identity-access-control-and-least-privilege.md
+│   ├── 04-encryption-key-management-and-secrets.md
+│   ├── 05-pii-masking-tokenization-and-de-identification.md
+│   ├── 06-consent-purpose-limitation-and-data-residency.md
+│   ├── 07-retention-deletion-legal-holds-and-auditability.md
+│   ├── 08-regulatory-controls-and-evidence-design.md
+│   ├── 09-governance-by-design-and-policy-enforcement.md
+│   ├── practice-questions.md
+│   ├── README.md
+│   └── roadmap-Data-Governance-Security-Privacy-and-Compliance.md
+├── 11-Metadata-Lineage-Quality-and-Master-Data/
+│   ├── Projects/
+│   │   ├── 11-enterprise-metadata-and-lineage-design.md
+│   │   └── README.md
+│   ├── 01-business-technical-and-operational-metadata.md
+│   ├── 02-data-catalogs-discovery-and-classification.md
+│   ├── 03-end-to-end-lineage-and-impact-analysis.md
+│   ├── 04-data-quality-dimensions-and-critical-data-elements.md
+│   ├── 05-data-observability-and-quality-service-levels.md
+│   ├── 06-master-data-management-and-golden-records.md
+│   ├── 07-reference-data-entity-resolution-and-identifiers.md
+│   ├── 08-metadata-standards-and-interoperability.md
+│   ├── practice-questions.md
+│   ├── README.md
+│   └── roadmap-Metadata-Lineage-Quality-and-Master-Data.md
+├── 12-Reliability-Resilience-and-Disaster-Recovery/
+│   ├── Projects/
+│   │   ├── 12-disaster-recovery-and-resilience-plan.md
+│   │   └── README.md
+│   ├── 01-reliability-objectives-sli-slo-and-sla.md
+│   ├── 02-failure-domains-and-blast-radius.md
+│   ├── 03-high-availability-and-redundancy-patterns.md
+│   ├── 04-backup-restore-and-recovery-validation.md
+│   ├── 05-rpo-rto-and-disaster-recovery-strategies.md
+│   ├── 06-replay-reprocessing-and-backfill-architecture.md
+│   ├── 07-incident-response-runbooks-and-postmortems.md
+│   ├── 08-business-continuity-and-resilience-testing.md
+│   ├── practice-questions.md
+│   ├── README.md
+│   └── roadmap-Reliability-Resilience-and-Disaster-Recovery.md
+├── 13-Performance-Scalability-and-Cost-Architecture/
+│   ├── Projects/
+│   │   ├── 13-capacity-cost-and-performance-review.md
+│   │   └── README.md
+│   ├── 01-capacity-planning-and-growth-forecasting.md
+│   ├── 02-throughput-latency-concurrency-and-queueing.md
+│   ├── 03-query-performance-and-data-locality.md
+│   ├── 04-scaling-partitioning-sharding-and-hotspots.md
+│   ├── 05-caching-materialization-and-serving-trade-offs.md
+│   ├── 06-cost-modeling-unit-economics-and-finops.md
+│   ├── 07-performance-testing-and-capacity-validation.md
+│   ├── 08-architecture-optimization-with-measured-evidence.md
+│   ├── practice-questions.md
+│   ├── README.md
+│   └── roadmap-Performance-Scalability-and-Cost-Architecture.md
+├── 14-Data-Access-Serving-Semantic-and-AI-Data-Architecture/
+│   ├── Projects/
+│   │   ├── 14-analytics-and-ai-data-serving-architecture.md
+│   │   └── README.md
+│   ├── 01-analytical-serving-patterns-and-consumer-needs.md
+│   ├── 02-warehouse-marts-and-semantic-layers.md
+│   ├── 03-operational-data-serving-and-low-latency-access.md
+│   ├── 04-feature-platforms-and-training-serving-consistency.md
+│   ├── 05-document-data-embedding-and-vector-pipelines.md
+│   ├── 06-rag-knowledge-data-and-permission-aware-retrieval.md
+│   ├── 07-data-products-apis-and-consumer-contracts.md
+│   ├── 08-access-patterns-cache-strategy-and-freshness.md
+│   ├── practice-questions.md
+│   ├── README.md
+│   └── roadmap-Data-Access-Serving-Semantic-and-AI-Data-Architecture.md
+├── 15-Architecture-Documentation-Reviews-and-Operating-Model/
+│   ├── Projects/
+│   │   ├── 15-current-state-to-target-state-architecture-review.md
+│   │   └── README.md
+│   ├── 01-context-container-component-and-deployment-diagrams.md
+│   ├── 02-data-flow-and-trust-boundary-diagrams.md
+│   ├── 03-architecture-description-and-viewpoints.md
+│   ├── 04-architecture-decision-records-and-decision-log.md
+│   ├── 05-design-reviews-threat-models-and-risk-registers.md
+│   ├── 06-reference-architectures-standards-and-reusable-patterns.md
+│   ├── 07-team-boundaries-ownership-and-platform-operating-model.md
+│   ├── 08-migration-roadmaps-and-architecture-modernization.md
+│   ├── 09-communicating-trade-offs-to-technical-and-business-stakeholders.md
+│   ├── practice-questions.md
+│   ├── README.md
+│   └── roadmap-Architecture-Documentation-Reviews-and-Operating-Model.md
+├── 16-Enterprise-Data-Architecture-Case-Studies-and-Capstone/
+│   ├── Projects/
+│   │   ├── 16-enterprise-data-architecture-capstone.md
+│   │   └── README.md
+│   ├── 01-case-study-banking-data-platform.md
+│   ├── 02-case-study-customer-360-and-master-data.md
+│   ├── 03-case-study-real-time-fraud-and-risk-platform.md
+│   ├── 04-case-study-enterprise-lakehouse-modernization.md
+│   ├── 05-case-study-multi-cloud-data-platform.md
+│   ├── 06-case-study-governed-rag-and-enterprise-knowledge.md
+│   ├── 07-capstone-requirements-and-architecture-deliverables.md
+│   ├── 08-capstone-validation-defense-and-review-rubric.md
+│   ├── practice-questions.md
+│   ├── README.md
+│   └── roadmap-Enterprise-Data-Architecture-Case-Studies-and-Capstone.md
+└── README.md
+```
 
 ### Stage 3 — Data Structures & Algorithms — `Data Structures & Algorithms/`
 
