@@ -53,11 +53,94 @@ These folders already exist, and their lesson files are written. Only the module
 
 ```text
 Stage 0 — Computer & Digital Foundation/
-├── 00-Stage-0-Overview/   (4 files — already written)
-├── 01-How-Computers-Work/   (23 files — already written)
-├── 02-Operating-System-Fundamentals/   (19 files — already written)
-├── 03-Command-Line/   (15 files — already written)
-├── 04-Developer-Environment/   (17 files — already written)
+├── 00-Stage-0-Overview/
+│   ├── Projects/
+│   │   ├── 01-stage-0-incident-simulation.md
+│   │   └── README.md
+│   ├── README.md
+│   └── learning-plan.md
+├── 01-How-Computers-Work/
+│   ├── 01-motherboard-and-buses.md
+│   ├── 02-cpu.md
+│   ├── 03-cores.md
+│   ├── 04-binary-bits-and-bytes.md
+│   ├── 05-hexadecimal.md
+│   ├── 06-registers.md
+│   ├── 07-instructions-and-machine-code.md
+│   ├── 08-compilation-and-interpretation.md
+│   ├── 09-cache.md
+│   ├── 10-ram.md
+│   ├── 11-storage.md
+│   ├── 12-hdd-vs-ssd.md
+│   ├── 13-gpu.md
+│   ├── 14-files.md
+│   ├── 15-input-output.md
+│   ├── 16-processes.md
+│   ├── 17-what-happens-when-a-program-starts.md
+│   ├── 18-what-happens-when-a-function-executes.md
+│   ├── 19-why-ram-and-storage-are-different.md
+│   ├── 20-why-gpus-matter-for-ai.md
+│   ├── Projects/
+│   │   ├── 01-program-execution-and-gpu-audit.md
+│   │   └── README.md
+│   └── README.md
+├── 02-Operating-System-Fundamentals/
+│   ├── 01-kernel-and-user-space.md
+│   ├── 02-system-calls.md
+│   ├── 03-processes.md
+│   ├── 04-threads.md
+│   ├── 05-scheduling.md
+│   ├── 06-virtual-memory.md
+│   ├── 07-filesystems.md
+│   ├── 08-permissions.md
+│   ├── 09-environment-variables.md
+│   ├── 10-signals.md
+│   ├── 11-standard-input-output.md
+│   ├── 12-pipes.md
+│   ├── 13-shell.md
+│   ├── 14-process-lifecycle.md
+│   ├── 15-os-tools-overview.md
+│   ├── 16-local-networking-for-development.md
+│   ├── Projects/
+│   │   ├── 01-process-resource-and-port-diagnosis.md
+│   │   └── README.md
+│   └── README.md
+├── 03-Command-Line/
+│   ├── 01-navigation.md
+│   ├── 02-file-operations.md
+│   ├── 03-viewing-files.md
+│   ├── 04-searching.md
+│   ├── 05-text-processing.md
+│   ├── 06-pipes-and-redirection.md
+│   ├── 07-environment-variables.md
+│   ├── 08-shell-scripts.md
+│   ├── 09-permissions.md
+│   ├── 10-command-line-tools-overview.md
+│   ├── 11-safe-terminal-and-filesystem-literacy.md
+│   ├── 12-shell-quoting-and-standard-streams.md
+│   ├── Projects/
+│   │   ├── 01-shell-file-and-stream-investigation.md
+│   │   └── README.md
+│   └── README.md
+├── 04-Developer-Environment/
+│   ├── 01-vscode-and-terminal.md
+│   ├── 02-ide-concepts.md
+│   ├── 03-extensions.md
+│   ├── 04-formatters-and-linters.md
+│   ├── 05-debugger.md
+│   ├── 06-virtual-environments.md
+│   ├── 07-package-managers.md
+│   ├── 08-project-structure.md
+│   ├── 09-python-tooling.md
+│   ├── 10-git-github-and-ssh-basics.md
+│   ├── 11-reproducible-python-workspaces-with-uv.md
+│   ├── 12-secrets-and-local-security-hygiene.md
+│   ├── 13-evidence-based-debugging-and-notes.md
+│   ├── Projects/
+│   │   ├── 01-developer-environment-health-check.md
+│   │   ├── 02-python-workspace-bootstrap.md
+│   │   └── README.md
+│   └── README.md
 └── README.md
 ```
 
@@ -65,31 +148,313 @@ Stage 0 — Computer & Digital Foundation/
 
 ```text
 Stage 1 — Programming & Computational Thinking/
-├── 00-Stage-1-Overview/   (7 files — already written)
-├── 01-Computational-Thinking-and-Program-Design/   (11 files — already written)
-├── 02-Python-Core-Language-and-Data-Types/   (12 files — already written)
-├── 03-Control-Flow-Functions-Scope-and-Errors/   (9 files — already written)
-├── 04-Problem-Solving-Collections-and-Algorithmic-Habits/   (10 files — already written)
-├── 05-Text-Files-Structured-Data-and-CLI-Programs/   (11 files — already written)
-├── 06-Modules-Packages-Dependencies-and-Code-Quality/   (9 files — already written)
-├── 07-Testing-and-Systematic-Debugging/   (9 files — already written)
-├── 08-Object-Oriented-Design-Data-Modelling-and-Functional-Style/   (10 files — already written)
-├── 09-Advanced-Production-Oriented-Python-Foundations/   (13 files — already written)
-├── 10-Production-Habits-for-Python-Programs/   (10 files — already written)
-├── 11-Advanced-Python-Data-Model-and-Object-Design/   (13 files — structure created, empty)
-├── 12-Metaprogramming-and-Dynamic-Python/   (12 files — structure created, empty)
-├── 13-Standard-Library-Toolkit/   (12 files — structure created, empty)
-├── 14-Bytes-Binary-Data-and-Advanced-Text-Processing/   (10 files — structure created, empty)
-├── 15-Modern-Python-Language-Features/   (12 files — structure created, empty)
-├── 16-Advanced-Testing-and-Test-Architecture/   (11 files — structure created, empty)
-├── 17-Profiling-Memory-and-Runtime-Performance/   (11 files — structure created, empty)
-├── 18-Packaging-Distribution-and-Publishing/   (12 files — structure created, empty)
-├── 19-CPython-Internals-and-Runtime-Behaviour/   (12 files — structure created, empty)
-├── 20-Design-Patterns-and-Library-API-Design/   (12 files — structure created, empty)
-├── 21-Data-Visualization-and-Notebook-Workflows/   (8 files — structure created, empty)
-├── 22-Secure-Python-Coding/   (10 files — structure created, empty)
-├── 23-Code-Reading-Refactoring-and-Code-Review/   (10 files — structure created, empty)
-├── 24-Functions-and-OOP-Gap-Lessons/   (13 files — structure created, empty)
+├── 00-Stage-1-Overview/
+│   ├── Projects/
+│   │   ├── 01-personal-expense-ledger-cli.md
+│   │   ├── 02-log-investigation-and-reliability-cli.md
+│   │   ├── 03-data-quality-and-transformation-pipeline.md
+│   │   ├── 04-rule-based-risk-review-engine.md
+│   │   └── README.md
+│   ├── README.md
+│   └── learning-plan.md
+├── 01-Computational-Thinking-and-Program-Design/
+│   ├── 01-algorithms-programs-and-data.md
+│   ├── 02-values-expressions-statements-and-variables.md
+│   ├── 03-input-process-output.md
+│   ├── 04-sequence-selection-iteration-and-abstraction.md
+│   ├── 05-problem-decomposition.md
+│   ├── 06-preconditions-postconditions-and-edge-cases.md
+│   ├── 07-pseudocode-flowcharts-and-dry-runs.md
+│   ├── 08-state-and-state-modelling.md
+│   ├── README.md
+│   └── practice-questions.md
+├── 02-Python-Core-Language-and-Data-Types/
+│   ├── 01-python-files-interpreter-repl-and-indentation.md
+│   ├── 02-variables-basic-types-and-none.md
+│   ├── 03-operators-and-precedence.md
+│   ├── 04-strings-indexing-slicing-and-formatting.md
+│   ├── 05-lists-mutation-copying-and-aliasing.md
+│   ├── 06-tuples-and-unpacking.md
+│   ├── 07-dictionaries-and-lookups.md
+│   ├── 08-sets-and-unique-values.md
+│   ├── 09-type-conversion-and-truthiness.md
+│   ├── 10-mutability-and-immutability.md
+│   ├── README.md
+│   └── practice-questions.md
+├── 03-Control-Flow-Functions-Scope-and-Errors/
+│   ├── 01-conditionals-guards-and-boolean-logic.md
+│   ├── 02-for-while-loops-and-loop-control.md
+│   ├── 03-functions-parameters-and-return-values.md
+│   ├── 04-function-arguments-defaults-and-docstrings.md
+│   ├── 05-scope-lifetime-and-global-state.md
+│   ├── 06-pure-functions-and-side-effects.md
+│   ├── 07-exceptions-validation-and-useful-errors.md
+│   ├── README.md
+│   └── practice-questions.md
+├── 04-Problem-Solving-Collections-and-Algorithmic-Habits/
+│   ├── 01-search-count-filter-map-and-aggregate.md
+│   ├── 02-grouping-deduplication-and-sorting.md
+│   ├── 03-big-o-time-and-space-complexity.md
+│   ├── 04-choosing-lists-dictionaries-sets-stacks-and-queues.md
+│   ├── 05-comprehensions-and-readable-code.md
+│   ├── 06-recursion-basics.md
+│   ├── 07-basic-parsing-and-regular-expressions.md
+│   ├── README.md
+│   └── practice-questions.md
+├── 05-Text-Files-Structured-Data-and-CLI-Programs/
+│   ├── 01-reading-and-writing-text-files.md
+│   ├── 02-pathlib-and-portable-paths.md
+│   ├── 03-csv-files.md
+│   ├── 04-json-and-serialization.md
+│   ├── 05-encodings-and-newlines.md
+│   ├── 06-command-line-arguments-with-argparse.md
+│   ├── 07-standard-streams-and-exit-codes.md
+│   ├── 08-logging-versus-print.md
+│   ├── 09-environment-configuration-and-input-validation.md
+│   ├── README.md
+│   └── practice-questions.md
+├── 06-Modules-Packages-Dependencies-and-Code-Quality/
+│   ├── 01-imports-modules-and-main.md
+│   ├── 02-project-layout-and-package-structure.md
+│   ├── 03-pyproject-lock-files-and-uv.md
+│   ├── 04-dependency-management-and-semantic-versioning.md
+│   ├── 05-ruff-formatting-and-linting.md
+│   ├── 06-type-hints-and-type-checking.md
+│   ├── 07-docstrings-readmes-and-user-documentation.md
+│   ├── README.md
+│   └── practice-questions.md
+├── 07-Testing-and-Systematic-Debugging/
+│   ├── 01-test-levels-unit-integration-and-end-to-end.md
+│   ├── 02-pytest-assertions-fixtures-and-parametrization.md
+│   ├── 03-arrange-act-assert-and-test-design.md
+│   ├── 04-boundary-invalid-and-regression-tests.md
+│   ├── 05-debuggers-breakpoints-and-call-stacks.md
+│   ├── 06-tracebacks-logging-and-minimal-reproductions.md
+│   ├── 07-mocking-and-test-doubles.md
+│   ├── README.md
+│   └── practice-questions.md
+├── 08-Object-Oriented-Design-Data-Modelling-and-Functional-Style/
+│   ├── 01-encapsulation-abstraction-and-composition.md
+│   ├── 02-inheritance-and-polymorphism.md
+│   ├── 03-dataclasses-and-data-models.md
+│   ├── 04-class-and-instance-attributes.md
+│   ├── 05-protocols-interfaces-and-dependency-inversion.md
+│   ├── 06-pure-functions-immutability-and-higher-order-functions.md
+│   ├── 07-separating-side-effects-from-domain-logic.md
+│   ├── 08-dependency-boundaries-and-layered-design.md
+│   ├── README.md
+│   └── practice-questions.md
+├── 09-Advanced-Production-Oriented-Python-Foundations/
+│   ├── 01-iterables-iterators-and-generators.md
+│   ├── 02-decorators.md
+│   ├── 03-context-managers.md
+│   ├── 04-generator-expressions-and-memory-tradeoffs.md
+│   ├── 05-advanced-typing-essentials.md
+│   ├── 06-enums-and-state-machines.md
+│   ├── 07-datetime-timezones-and-timestamps.md
+│   ├── 08-counter-defaultdict-and-deque.md
+│   ├── 09-functools-cache-and-partial.md
+│   ├── 10-python-object-model-and-garbage-collection.md
+│   ├── 11-concurrency-vocabulary.md
+│   ├── README.md
+│   └── practice-questions.md
+├── 10-Production-Habits-for-Python-Programs/
+│   ├── 01-configuration-and-env-files.md
+│   ├── 02-safe-and-useful-logging.md
+│   ├── 03-validation-errors-and-exit-codes.md
+│   ├── 04-idempotency-and-repeatable-jobs.md
+│   ├── 05-safe-file-writes.md
+│   ├── 06-profiling-and-measuring-before-optimizing.md
+│   ├── 07-dependency-upgrades-and-supply-chain-awareness.md
+│   ├── 08-readmes-runbooks-and-release-basics.md
+│   ├── README.md
+│   └── practice-questions.md
+├── 11-Advanced-Python-Data-Model-and-Object-Design/
+│   ├── 01-dunder-methods-repr-str-eq-and-hash.md
+│   ├── 02-rich-comparison-and-total-ordering.md
+│   ├── 03-container-protocols-getitem-len-iter-and-contains.md
+│   ├── 04-operator-overloading-and-numeric-protocols.md
+│   ├── 05-properties-and-computed-attributes.md
+│   ├── 06-descriptors-and-attribute-lookup-order.md
+│   ├── 07-slots-and-memory-layout.md
+│   ├── 08-mro-super-and-cooperative-inheritance.md
+│   ├── 09-mixins-and-multiple-inheritance-pitfalls.md
+│   ├── 10-abstract-base-classes-and-collections-abc.md
+│   ├── 11-copying-pickling-and-object-lifecycle-hooks.md
+│   ├── README.md
+│   ├── practice-questions.md
+│   └── roadmap-Advanced-Python-Data-Model-and-Object-Design.md
+├── 12-Metaprogramming-and-Dynamic-Python/
+│   ├── 01-introspection-with-inspect-and-dir.md
+│   ├── 02-getattr-setattr-and-dynamic-attribute-access.md
+│   ├── 03-parametrized-and-class-based-decorators.md
+│   ├── 04-class-decorators-and-class-factories.md
+│   ├── 05-init-subclass-and-subclass-registries.md
+│   ├── 06-type-and-dynamic-class-creation.md
+│   ├── 07-metaclasses.md
+│   ├── 08-ast-and-code-generation-basics.md
+│   ├── 09-eval-exec-and-their-risks.md
+│   ├── 10-designing-declarative-apis-and-mini-dsls.md
+│   ├── README.md
+│   ├── practice-questions.md
+│   └── roadmap-Metaprogramming-and-Dynamic-Python.md
+├── 13-Standard-Library-Toolkit/
+│   ├── 01-itertools-and-iteration-recipes.md
+│   ├── 02-operator-and-functional-composition.md
+│   ├── 03-shutil-tempfile-zipfile-and-tarfile.md
+│   ├── 04-subprocess-and-running-external-commands-safely.md
+│   ├── 05-sqlite3-embedded-database.md
+│   ├── 06-hashlib-hmac-secrets-and-uuid.md
+│   ├── 07-random-and-statistics.md
+│   ├── 08-tomllib-and-configparser.md
+│   ├── 09-urllib-sockets-and-http-server-basics.md
+│   ├── 10-weakref-contextvars-and-copy.md
+│   ├── README.md
+│   ├── practice-questions.md
+│   └── roadmap-Standard-Library-Toolkit.md
+├── 14-Bytes-Binary-Data-and-Advanced-Text-Processing/
+│   ├── 01-bytes-bytearray-and-memoryview.md
+│   ├── 02-struct-and-binary-file-formats.md
+│   ├── 03-unicode-normalization-and-text-pitfalls.md
+│   ├── 04-advanced-regular-expressions.md
+│   ├── 05-difflib-textwrap-and-string-utilities.md
+│   ├── 06-pickle-marshal-and-shelve-risks.md
+│   ├── 07-base64-zlib-gzip-and-stream-compression.md
+│   ├── 08-mmap-and-large-binary-files.md
+│   ├── README.md
+│   ├── practice-questions.md
+│   └── roadmap-Bytes-Binary-Data-and-Advanced-Text-Processing.md
+├── 15-Modern-Python-Language-Features/
+│   ├── 01-structural-pattern-matching.md
+│   ├── 02-assignment-expressions-and-walrus-operator.md
+│   ├── 03-positional-only-keyword-only-and-star-argument-design.md
+│   ├── 04-exception-chaining-notes-and-custom-hierarchies.md
+│   ├── 05-exception-groups-and-except-star.md
+│   ├── 06-modern-generics-typeddict-and-type-parameter-syntax.md
+│   ├── 07-advanced-dataclasses-and-attrs.md
+│   ├── 08-f-string-internals-and-template-strings.md
+│   ├── 09-the-warnings-module-and-deprecations.md
+│   ├── 10-python-version-differences-3-10-to-3-14.md
+│   ├── README.md
+│   ├── practice-questions.md
+│   └── roadmap-Modern-Python-Language-Features.md
+├── 16-Advanced-Testing-and-Test-Architecture/
+│   ├── 01-coverage-line-branch-and-what-it-really-means.md
+│   ├── 02-mutation-testing.md
+│   ├── 03-pytest-plugins-hooks-and-conftest-architecture.md
+│   ├── 04-snapshot-and-golden-file-testing.md
+│   ├── 05-flaky-tests-and-test-isolation.md
+│   ├── 06-testing-cli-and-subprocess-programs.md
+│   ├── 07-testing-time-randomness-and-concurrency.md
+│   ├── 08-test-matrices-with-tox-and-nox.md
+│   ├── 09-fuzzing-basics.md
+│   ├── README.md
+│   ├── practice-questions.md
+│   └── roadmap-Advanced-Testing-and-Test-Architecture.md
+├── 17-Profiling-Memory-and-Runtime-Performance/
+│   ├── 01-cprofile-pstats-and-flame-graphs.md
+│   ├── 02-sampling-profilers-with-py-spy.md
+│   ├── 03-timeit-and-microbenchmark-pitfalls.md
+│   ├── 04-tracemalloc-and-memory-leak-hunting.md
+│   ├── 05-memray-and-allocation-analysis.md
+│   ├── 06-garbage-collector-tuning-and-reference-cycles.md
+│   ├── 07-cpython-performance-idioms.md
+│   ├── 08-ctypes-and-cffi-for-native-code.md
+│   ├── 09-c-and-rust-extensions-awareness-pyo3-and-pybind11.md
+│   ├── README.md
+│   ├── practice-questions.md
+│   └── roadmap-Profiling-Memory-and-Runtime-Performance.md
+├── 18-Packaging-Distribution-and-Publishing/
+│   ├── 01-build-backends-and-pep-517.md
+│   ├── 02-wheels-sdists-and-binary-compatibility.md
+│   ├── 03-entry-points-and-console-scripts.md
+│   ├── 04-plugin-architectures-with-entry-points.md
+│   ├── 05-publishing-to-testpypi-and-pypi.md
+│   ├── 06-trusted-publishing-and-signed-releases.md
+│   ├── 07-versioning-changelogs-and-release-automation.md
+│   ├── 08-namespace-packages-and-monorepos.md
+│   ├── 09-private-indexes-and-internal-packages.md
+│   ├── 10-sbom-and-license-compliance.md
+│   ├── README.md
+│   ├── practice-questions.md
+│   └── roadmap-Packaging-Distribution-and-Publishing.md
+├── 19-CPython-Internals-and-Runtime-Behaviour/
+│   ├── 01-source-to-bytecode-pipeline.md
+│   ├── 02-reading-bytecode-with-dis.md
+│   ├── 03-frames-call-stack-and-the-evaluation-loop.md
+│   ├── 04-import-system-finders-loaders-and-sys-modules.md
+│   ├── 05-memory-allocator-and-small-object-optimizations.md
+│   ├── 06-gil-internals-and-subinterpreters.md
+│   ├── 07-specializing-interpreter-and-jit.md
+│   ├── 08-sys-os-and-runtime-introspection.md
+│   ├── 09-post-mortem-and-remote-attach-debugging.md
+│   ├── 10-sys-monitoring-and-tracing-hooks.md
+│   ├── README.md
+│   ├── practice-questions.md
+│   └── roadmap-CPython-Internals-and-Runtime-Behaviour.md
+├── 20-Design-Patterns-and-Library-API-Design/
+│   ├── 01-pythonic-design-patterns-overview.md
+│   ├── 02-creational-patterns-factory-builder-and-singleton-alternatives.md
+│   ├── 03-structural-patterns-adapter-facade-and-proxy.md
+│   ├── 04-behavioural-patterns-strategy-observer-and-command.md
+│   ├── 05-plugin-and-registry-patterns.md
+│   ├── 06-designing-public-apis.md
+│   ├── 07-backward-compatibility-and-deprecation-policy.md
+│   ├── 08-error-hierarchies-for-libraries.md
+│   ├── 09-sans-io-and-testable-library-design.md
+│   ├── 10-anti-patterns-and-refactoring-to-patterns.md
+│   ├── README.md
+│   ├── practice-questions.md
+│   └── roadmap-Design-Patterns-and-Library-API-Design.md
+├── 21-Data-Visualization-and-Notebook-Workflows/
+│   ├── 01-matplotlib-figure-and-axes-model.md
+│   ├── 02-choosing-the-right-chart.md
+│   ├── 03-seaborn-and-plotly.md
+│   ├── 04-jupyter-notebook-workflows.md
+│   ├── 05-reproducible-notebooks-with-papermill-and-nbstripout.md
+│   ├── 06-figures-for-reports-and-dashboards.md
+│   ├── README.md
+│   ├── practice-questions.md
+│   └── roadmap-Data-Visualization-and-Notebook-Workflows.md
+├── 22-Secure-Python-Coding/
+│   ├── 01-untrusted-input-and-injection-risks.md
+│   ├── 02-unsafe-deserialization.md
+│   ├── 03-path-traversal-and-safe-file-handling.md
+│   ├── 04-shell-and-subprocess-injection.md
+│   ├── 05-secrets-tokens-and-cryptography-basics.md
+│   ├── 06-ssrf-and-safe-http-clients.md
+│   ├── 07-static-analysis-with-bandit-and-pip-audit.md
+│   ├── 08-threat-modelling-small-python-services.md
+│   ├── README.md
+│   ├── practice-questions.md
+│   └── roadmap-Secure-Python-Coding.md
+├── 23-Code-Reading-Refactoring-and-Code-Review/
+│   ├── 01-reading-unfamiliar-codebases.md
+│   ├── 02-characterization-tests-for-legacy-code.md
+│   ├── 03-refactoring-catalogue.md
+│   ├── 04-code-smells-and-technical-debt.md
+│   ├── 05-writing-and-receiving-code-review.md
+│   ├── 06-git-blame-bisect-and-history-archaeology.md
+│   ├── 07-contributing-to-open-source-python-projects.md
+│   ├── 08-reading-cpython-and-library-source.md
+│   ├── README.md
+│   ├── practice-questions.md
+│   └── roadmap-Code-Reading-Refactoring-and-Code-Review.md
+├── 24-Functions-and-OOP-Gap-Lessons/
+│   ├── 01-first-class-functions-and-callables.md
+│   ├── 02-lambda-expressions-and-when-not-to-use-them.md
+│   ├── 03-closures-and-captured-variables.md
+│   ├── 04-nonlocal-and-late-binding-pitfalls.md
+│   ├── 05-map-filter-reduce-and-sorting-with-key-functions.md
+│   ├── 06-callable-objects-with-call.md
+│   ├── 07-function-design-review-and-refactoring-checklist.md
+│   ├── 08-classes-and-objects-from-first-principles.md
+│   ├── 09-init-new-and-object-construction.md
+│   ├── 10-inheritance-and-super-constructor-chaining.md
+│   ├── 11-class-design-review-and-refactoring-checklist.md
+│   ├── README.md
+│   ├── practice-questions.md
+│   └── roadmap-Functions-and-OOP-Gap-Lessons.md
 └── README.md
 ```
 
@@ -97,41 +462,435 @@ Stage 1 — Programming & Computational Thinking/
 
 ```text
 Stage 2 — Python for Data Engineering_1/
-├── 00-Stage-2-Overview/   (17 files — already written)
-├── 01-Data-Engineering-Foundations-and-Pipeline-Thinking/   (11 files — already written)
-├── 02-Numerical-Computing-with-NumPy/   (9 files — already written)
-├── 03-DataFrames-with-pandas/   (17 files — already written)
-├── 04-Columnar-Engines-Arrow-Polars-and-DuckDB/   (12 files — already written)
-├── 05-Data-Formats-Compression-and-File-Layout/   (13 files — already written)
-├── 06-SQL-for-Data-Engineers/   (14 files — already written)
-├── 07-Python-Database-Connectivity/   (13 files — already written)
-├── 08-Data-Modelling-for-Analytics/   (12 files — already written)
-├── 09-Data-Ingestion-and-Extraction-Patterns/   (14 files — already written)
-├── 10-Concurrency-and-Parallelism-in-Practice/   (12 files — already written)
-├── 11-Data-Validation-Contracts-and-Quality/   (12 files — already written)
-├── 12-Transformation-Patterns-and-Pipeline-Design/   (13 files — already written)
-├── 13-Orchestration-and-Workflow-Management/   (14 files — already written)
-├── 14-Distributed-Processing-with-PySpark/   (20 files — already written)
-├── 15-Lakehouse-Table-Formats/   (12 files — already written)
-├── 16-Streaming-and-Event-Driven-Data/   (17 files — already written)
-├── 17-Cloud-Storage-and-Cloud-Data-Platforms/   (12 files — already written)
-├── 18-Containers-Infrastructure-and-CI-CD-for-Data/   (10 files — already written)
-├── 19-Testing-Data-Pipelines/   (10 files — already written)
-├── 20-Observability-Lineage-Governance-and-Security/   (13 files — already written)
-├── 21-Performance-Scaling-and-Cost-Optimization/   (10 files — already written)
-└── 22-Serving-Data-for-Analytics-ML-and-AI/   (8 files — already written)
+├── 00-Stage-2-Overview/
+│   ├── Projects/
+│   │   ├── 01-api-to-warehouse-incremental-ingestion.md
+│   │   ├── 02-cdc-replication-postgres-to-lakehouse.md
+│   │   ├── 03-orchestrated-elt-with-airflow-and-dbt.md
+│   │   ├── 04-lakehouse-medallion-pipeline-with-pyspark-and-delta.md
+│   │   ├── 05-real-time-kafka-streaming-pipeline.md
+│   │   ├── 06-data-quality-and-observability-platform.md
+│   │   ├── 07-capstone-end-to-end-data-platform.md
+│   │   ├── README.md
+│   │   ├── api-to-warehouse-incremental-ingestion.md
+│   │   ├── capstone-end-to-end-data-platform.md
+│   │   ├── cdc-replication-postgres-to-lakehouse.md
+│   │   ├── data-quality-and-observability-platform.md
+│   │   ├── lakehouse-medallion-pipeline-with-pyspark-and-delta.md
+│   │   ├── orchestrated-elt-with-airflow-and-dbt.md
+│   │   └── real-time-kafka-streaming-pipeline.md
+│   ├── README.md
+│   └── learning-plan.md
+├── 01-Data-Engineering-Foundations-and-Pipeline-Thinking/
+│   ├── 01-what-data-engineers-build.md
+│   ├── 02-data-lifecycle-from-sources-to-consumers.md
+│   ├── 03-batch-micro-batch-and-streaming.md
+│   ├── 04-etl-elt-and-reverse-etl.md
+│   ├── 05-oltp-vs-olap-workloads.md
+│   ├── 06-warehouse-lake-and-lakehouse-architectures.md
+│   ├── 07-medallion-bronze-silver-gold-layers.md
+│   ├── 08-slas-freshness-latency-and-data-consumers.md
+│   ├── README.md
+│   ├── practice-questions.md
+│   └── roadmap-Data-Engineering-Foundations-and-Pipeline-Thinking.md
+├── 02-Numerical-Computing-with-NumPy/
+│   ├── 01-ndarray-dtypes-and-memory-layout.md
+│   ├── 02-vectorization-and-broadcasting.md
+│   ├── 03-indexing-boolean-masks-and-fancy-indexing.md
+│   ├── 04-aggregations-and-axis-semantics.md
+│   ├── 05-nan-missing-values-and-sentinels.md
+│   ├── 06-views-copies-and-memory-efficiency.md
+│   ├── README.md
+│   ├── practice-questions.md
+│   └── roadmap-Numerical-Computing-with-NumPy.md
+├── 03-DataFrames-with-pandas/
+│   ├── 01-series-dataframe-and-index.md
+│   ├── 02-reading-and-writing-data-sources.md
+│   ├── 03-selection-with-loc-iloc-and-query.md
+│   ├── 04-dtypes-nullable-types-and-categoricals.md
+│   ├── 05-cleaning-missing-duplicates-and-outliers.md
+│   ├── 06-groupby-aggregate-transform-and-apply.md
+│   ├── 07-merge-join-concat-and-join-cardinality.md
+│   ├── 08-reshaping-pivot-melt-stack-and-unstack.md
+│   ├── 09-time-series-resampling-and-rolling-windows.md
+│   ├── 10-string-and-datetime-accessors.md
+│   ├── 11-method-chaining-and-pipe.md
+│   ├── 12-copy-on-write-and-chained-assignment-pitfalls.md
+│   ├── 13-chunked-processing-and-memory-reduction.md
+│   ├── README.md
+│   ├── interview-practice.md
+│   ├── practice-questions.md
+│   └── roadmap-DataFrames-with-pandas.md
+├── 04-Columnar-Engines-Arrow-Polars-and-DuckDB/
+│   ├── 01-apache-arrow-columnar-memory-model.md
+│   ├── 02-polars-expressions-and-contexts.md
+│   ├── 03-polars-lazy-api-and-query-optimization.md
+│   ├── 04-polars-streaming-for-larger-than-memory-data.md
+│   ├── 05-duckdb-in-process-analytics.md
+│   ├── 06-querying-files-and-object-storage-with-duckdb.md
+│   ├── 07-zero-copy-interop-between-pandas-polars-duckdb-and-arrow.md
+│   ├── 08-choosing-a-dataframe-engine.md
+│   ├── 09-mini-project.md
+│   ├── README.md
+│   ├── practice-questions.md
+│   └── roadmap-Columnar-Engines-Arrow-Polars-and-DuckDB.md
+├── 05-Data-Formats-Compression-and-File-Layout/
+│   ├── 01-row-oriented-vs-columnar-storage.md
+│   ├── 02-parquet-internals-row-groups-pages-and-statistics.md
+│   ├── 03-reading-and-writing-parquet-with-pyarrow.md
+│   ├── 04-avro-files-and-row-oriented-formats.md
+│   ├── 05-orc-and-format-selection-tradeoffs.md
+│   ├── 06-nested-semi-structured-data-flatten-and-explode.md
+│   ├── 07-compression-codecs-snappy-gzip-zstd-lz4.md
+│   ├── 08-partitioning-and-hive-style-directory-layouts.md
+│   ├── 09-small-files-problem-and-target-file-sizing.md
+│   ├── 10-excel-xml-and-fixed-width-legacy-formats.md
+│   ├── README.md
+│   ├── practice-questions.md
+│   └── roadmap-Data-Formats-Compression-and-File-Layout.md
+├── 06-SQL-for-Data-Engineers/
+│   ├── 01-select-filter-sort-and-null-semantics.md
+│   ├── 02-joins-and-join-explosion.md
+│   ├── 03-aggregation-group-by-and-having.md
+│   ├── 04-subqueries-and-ctes.md
+│   ├── 05-window-functions-ranking-running-totals-and-lag-lead.md
+│   ├── 06-set-operations-and-deduplication-patterns.md
+│   ├── 07-ddl-constraints-and-column-data-types.md
+│   ├── 08-indexes-and-reading-explain-plans.md
+│   ├── 09-transactions-isolation-levels-and-locking.md
+│   ├── 10-merge-upsert-and-scd-implementation-in-sql.md
+│   ├── README.md
+│   ├── interview-practice.md
+│   ├── practice-questions.md
+│   └── roadmap-SQL-for-Data-Engineers.md
+├── 07-Python-Database-Connectivity/
+│   ├── 01-db-api-pep-249-connections-and-cursors.md
+│   ├── 02-postgresql-from-python-with-psycopg.md
+│   ├── 03-parameterized-queries-and-sql-injection.md
+│   ├── 04-transaction-control-from-python.md
+│   ├── 05-connection-pooling.md
+│   ├── 06-sqlalchemy-core-engine-and-metadata.md
+│   ├── 07-sqlalchemy-orm-when-to-use-and-avoid.md
+│   ├── 08-schema-migrations-with-alembic.md
+│   ├── 09-bulk-loading-with-copy-and-executemany.md
+│   ├── 10-server-side-cursors-and-streaming-large-results.md
+│   ├── README.md
+│   ├── practice-questions.md
+│   └── roadmap-Python-Database-Connectivity.md
+├── 08-Data-Modelling-for-Analytics/
+│   ├── 01-normalization-and-denormalization.md
+│   ├── 02-dimensional-modelling-facts-and-dimensions.md
+│   ├── 03-star-and-snowflake-schemas.md
+│   ├── 04-grain-natural-keys-and-surrogate-keys.md
+│   ├── 05-slowly-changing-dimension-types.md
+│   ├── 06-data-vault-hubs-links-and-satellites.md
+│   ├── 07-one-big-table-and-wide-denormalized-models.md
+│   ├── 08-modelling-event-and-clickstream-data.md
+│   ├── README.md
+│   ├── interview-practice.md
+│   ├── practice-questions.md
+│   └── roadmap-Data-Modelling-for-Analytics.md
+├── 09-Data-Ingestion-and-Extraction-Patterns/
+│   ├── 01-http-fundamentals-for-data-extraction.md
+│   ├── 02-httpx-and-requests-sessions-and-timeouts.md
+│   ├── 03-api-authentication-keys-oauth2-and-token-refresh.md
+│   ├── 04-pagination-offset-cursor-and-keyset.md
+│   ├── 05-rate-limits-http-429-and-retry-after.md
+│   ├── 06-full-vs-incremental-extraction-and-watermarks.md
+│   ├── 07-change-data-capture-concepts.md
+│   ├── 08-webhooks-and-push-based-ingestion.md
+│   ├── 09-html-parsing-and-responsible-scraping.md
+│   ├── 10-sftp-and-file-drop-ingestion.md
+│   ├── 11-ingestion-frameworks-dlt-and-managed-connectors.md
+│   ├── README.md
+│   ├── practice-questions.md
+│   └── roadmap-Data-Ingestion-and-Extraction-Patterns.md
+├── 10-Concurrency-and-Parallelism-in-Practice/
+│   ├── 01-threading-and-threadpoolexecutor.md
+│   ├── 02-multiprocessing-and-processpoolexecutor.md
+│   ├── 03-asyncio-event-loop-coroutines-and-tasks.md
+│   ├── 04-taskgroups-cancellation-and-timeouts.md
+│   ├── 05-async-http-extraction-with-httpx.md
+│   ├── 06-semaphores-and-bounded-concurrency.md
+│   ├── 07-queues-and-producer-consumer-pipelines.md
+│   ├── 08-race-conditions-locks-and-thread-safety.md
+│   ├── 09-gil-free-threaded-python-and-choosing-a-model.md
+│   ├── README.md
+│   ├── practice-questions.md
+│   └── roadmap-Concurrency-and-Parallelism-in-Practice.md
+├── 11-Data-Validation-Contracts-and-Quality/
+│   ├── 01-data-quality-dimensions.md
+│   ├── 02-pydantic-models-validators-and-serialization.md
+│   ├── 03-dataframe-schema-validation-with-pandera.md
+│   ├── 04-declarative-checks-with-great-expectations-and-soda.md
+│   ├── 05-data-contracts-and-producer-ownership.md
+│   ├── 06-schema-evolution-and-compatibility-rules.md
+│   ├── 07-quarantine-dead-letter-and-bad-record-handling.md
+│   ├── 08-volume-freshness-and-distribution-anomaly-checks.md
+│   ├── 09-reconciliation-and-row-count-audits.md
+│   ├── README.md
+│   ├── practice-questions.md
+│   └── roadmap-Data-Validation-Contracts-and-Quality.md
+├── 12-Transformation-Patterns-and-Pipeline-Design/
+│   ├── 01-structuring-extract-transform-load-code.md
+│   ├── 02-deduplication-and-merge-based-loads.md
+│   ├── 03-incremental-processing-and-backfills.md
+│   ├── 04-late-arriving-data-and-reprocessing-windows.md
+│   ├── 05-hashing-for-surrogate-keys-and-change-detection.md
+│   ├── 06-lookups-enrichment-and-reference-data.md
+│   ├── 07-metadata-and-config-driven-pipelines.md
+│   ├── 08-checkpoints-pipeline-state-and-resumability.md
+│   ├── 09-dbt-fundamentals-models-tests-and-python-models.md
+│   ├── README.md
+│   ├── interview-practice.md
+│   ├── practice-questions.md
+│   └── roadmap-Transformation-Patterns-and-Pipeline-Design.md
+├── 13-Orchestration-and-Workflow-Management/
+│   ├── 01-dags-dependencies-and-scheduling-concepts.md
+│   ├── 02-limits-of-cron-and-why-orchestrators-exist.md
+│   ├── 03-apache-airflow-architecture.md
+│   ├── 04-airflow-dags-operators-and-taskflow-api.md
+│   ├── 05-airflow-connections-variables-hooks-and-xcoms.md
+│   ├── 06-sensors-deferrable-operators-and-data-aware-scheduling.md
+│   ├── 07-task-retries-slas-and-failure-callbacks.md
+│   ├── 08-backfills-catchup-and-partitioned-runs.md
+│   ├── 09-dagster-software-defined-assets.md
+│   ├── 10-prefect-flows-and-tasks.md
+│   ├── 11-testing-and-validating-dags.md
+│   ├── README.md
+│   ├── practice-questions.md
+│   └── roadmap-Orchestration-and-Workflow-Management.md
+├── 14-Distributed-Processing-with-PySpark/
+│   ├── 01-distributed-computing-driver-executors-and-cluster-managers.md
+│   ├── 02-sparksession-configuration-and-deploy-modes.md
+│   ├── 03-rdds-vs-dataframes.md
+│   ├── 04-transformations-actions-and-lazy-evaluation.md
+│   ├── 05-dataframe-api-select-filter-and-withcolumn.md
+│   ├── 06-spark-sql-and-temporary-views.md
+│   ├── 07-joins-shuffle-and-broadcast-joins.md
+│   ├── 08-partitioning-repartition-and-coalesce.md
+│   ├── 09-data-skew-and-salting.md
+│   ├── 10-caching-and-persistence-levels.md
+│   ├── 11-python-udfs-vs-pandas-udfs-vs-built-ins.md
+│   ├── 12-catalyst-optimizer-and-explain-plans.md
+│   ├── 13-adaptive-query-execution.md
+│   ├── 14-data-sources-save-modes-and-bucketing.md
+│   ├── 15-spark-ui-and-debugging-slow-jobs.md
+│   ├── 16-testing-pyspark-code.md
+│   ├── README.md
+│   ├── interview-practice.md
+│   ├── practice-questions.md
+│   └── roadmap-Distributed-Processing-with-PySpark.md
+├── 15-Lakehouse-Table-Formats/
+│   ├── 01-why-open-table-formats-exist.md
+│   ├── 02-delta-lake-transaction-log.md
+│   ├── 03-apache-iceberg-snapshots-and-manifests.md
+│   ├── 04-apache-hudi-overview.md
+│   ├── 05-acid-merge-update-and-delete-on-data-lakes.md
+│   ├── 06-time-travel-and-table-versioning.md
+│   ├── 07-compaction-z-ordering-and-liquid-clustering.md
+│   ├── 08-vacuum-retention-and-table-maintenance.md
+│   ├── 09-catalogs-hive-metastore-glue-unity-and-polaris.md
+│   ├── README.md
+│   ├── interview-practice.md
+│   └── roadmap-Lakehouse-Table-Formats.md
+├── 16-Streaming-and-Event-Driven-Data/
+│   ├── 01-event-streams-vs-message-queues.md
+│   ├── 02-kafka-topics-partitions-offsets-and-replication.md
+│   ├── 03-kafka-producers-in-python.md
+│   ├── 04-kafka-consumers-and-consumer-groups.md
+│   ├── 05-delivery-semantics-at-most-at-least-and-exactly-once.md
+│   ├── 06-protobuf-and-schema-registry.md
+│   ├── 07-event-time-processing-time-and-watermarks.md
+│   ├── 08-tumbling-sliding-and-session-windows.md
+│   ├── 09-stateful-stream-processing.md
+│   ├── 10-spark-structured-streaming.md
+│   ├── 11-apache-flink-and-pyflink-overview.md
+│   ├── 12-debezium-cdc-streams-into-kafka.md
+│   ├── 13-backpressure-and-consumer-lag.md
+│   ├── README.md
+│   ├── interview-practice.md
+│   ├── practice-questions.md
+│   └── roadmap-Streaming-and-Event-Driven-Data.md
+├── 17-Cloud-Storage-and-Cloud-Data-Platforms/
+│   ├── 01-object-storage-s3-gcs-and-adls.md
+│   ├── 02-boto3-and-s3-operations.md
+│   ├── 03-fsspec-and-cloud-agnostic-file-access.md
+│   ├── 04-iam-roles-and-least-privilege-for-pipelines.md
+│   ├── 05-cloud-warehouses-snowflake-bigquery-and-redshift.md
+│   ├── 06-python-warehouse-connectors-and-bulk-loads.md
+│   ├── 07-serverless-data-processing.md
+│   ├── 08-managed-spark-databricks-emr-and-dataproc.md
+│   ├── 09-storage-classes-and-lifecycle-policies.md
+│   ├── README.md
+│   ├── practice-questions.md
+│   └── roadmap-Cloud-Storage-and-Cloud-Data-Platforms.md
+├── 18-Containers-Infrastructure-and-CI-CD-for-Data/
+│   ├── 01-docker-images-for-python-pipelines.md
+│   ├── 02-docker-compose-for-local-data-stacks.md
+│   ├── 03-kubernetes-concepts-for-data-workloads.md
+│   ├── 04-terraform-basics-for-data-infrastructure.md
+│   ├── 05-ci-pipelines-for-data-projects.md
+│   ├── 06-environment-promotion-dev-staging-and-prod.md
+│   ├── 07-cloud-secrets-managers.md
+│   ├── README.md
+│   ├── practice-questions.md
+│   └── roadmap-Containers-Infrastructure-and-CI-CD-for-Data.md
+├── 19-Testing-Data-Pipelines/
+│   ├── 01-testing-transformations-with-fixture-dataframes.md
+│   ├── 02-dataframe-equality-and-tolerance-assertions.md
+│   ├── 03-integration-tests-with-testcontainers.md
+│   ├── 04-property-based-testing-with-hypothesis.md
+│   ├── 05-synthetic-and-sampled-test-data.md
+│   ├── 06-schema-and-contract-regression-tests.md
+│   ├── 07-end-to-end-pipeline-smoke-tests.md
+│   ├── README.md
+│   ├── practice-questions.md
+│   └── roadmap-Testing-Data-Pipelines.md
+├── 20-Observability-Lineage-Governance-and-Security/
+│   ├── 01-pipeline-metrics-and-run-metadata.md
+│   ├── 02-opentelemetry-tracing-for-pipelines.md
+│   ├── 03-alerting-and-on-call-for-data.md
+│   ├── 04-data-lineage-with-openlineage.md
+│   ├── 05-data-catalogs-and-metadata-management.md
+│   ├── 06-pii-detection-masking-and-tokenization.md
+│   ├── 07-encryption-at-rest-and-in-transit.md
+│   ├── 08-row-and-column-level-access-control.md
+│   ├── 09-retention-deletion-and-gdpr-compliance.md
+│   ├── 10-data-incident-response-and-postmortems.md
+│   ├── README.md
+│   ├── practice-questions.md
+│   └── roadmap-Observability-Lineage-Governance-and-Security.md
+├── 21-Performance-Scaling-and-Cost-Optimization/
+│   ├── 01-estimating-data-size-and-memory-footprint.md
+│   ├── 02-predicate-pushdown-and-projection-pruning.md
+│   ├── 03-parallel-dataframes-with-dask.md
+│   ├── 04-ray-data-overview.md
+│   ├── 05-numba-and-cython-for-hot-loops.md
+│   ├── 06-benchmarking-pipelines.md
+│   ├── 07-compute-cost-optimization.md
+│   ├── README.md
+│   ├── practice-questions.md
+│   └── roadmap-Performance-Scaling-and-Cost-Optimization.md
+└── 22-Serving-Data-for-Analytics-ML-and-AI/
+    ├── 01-fastapi-data-services.md
+    ├── 02-serving-aggregates-and-caching-layers.md
+    ├── 03-semantic-layers-and-metric-definitions.md
+    ├── 04-feature-stores-and-ml-handoff.md
+    ├── 05-embedding-and-vector-data-pipelines.md
+    ├── README.md
+    ├── practice-questions.md
+    └── roadmap-Serving-Data-for-Analytics-ML-and-AI.md
 ```
 
 ### Stage 2B — Python for Data Engineering_2
 
 ```text
 Stage 2B — Python for Data Engineering_2/
-├── 00-Gap-Modules-Overview/   (13 files — already written)
-├── 01-Docker-Essentials-for-Data-Labs/   (13 files — already written)
-├── 02-Linux-and-Shell-for-Data-Servers/   (13 files — already written)
-├── 03-AWS-Data-Engineering-Deep-Dive/   (19 files — already written)
-├── 04-Databricks-Lakehouse-Platform-Deep-Dive/   (19 files — already written)
-├── 05-Data-Engineering-System-Design-Interviews/   (22 files — already written)
+├── 00-Gap-Modules-Overview/
+│   ├── Projects/
+│   │   ├── 01-dockerized-local-data-lab.md
+│   │   ├── 02-remote-server-pipeline-operations.md
+│   │   ├── 03-aws-serverless-lakehouse.md
+│   │   ├── 04-databricks-lakehouse-platform.md
+│   │   ├── 05-system-design-interview-portfolio.md
+│   │   ├── README.md
+│   │   ├── aws-serverless-lakehouse.md
+│   │   ├── databricks-lakehouse-platform.md
+│   │   ├── dockerized-local-data-lab.md
+│   │   ├── remote-server-pipeline-operations.md
+│   │   └── system-design-interview-portfolio.md
+│   ├── README.md
+│   └── learning-plan.md
+├── 01-Docker-Essentials-for-Data-Labs/
+│   ├── 01-containers-images-and-registries-for-users.md
+│   ├── 02-running-databases-and-services-in-containers.md
+│   ├── 03-ports-networks-and-service-discovery.md
+│   ├── 04-volumes-bind-mounts-and-data-persistence.md
+│   ├── 05-environment-variables-and-configuration-for-containers.md
+│   ├── 06-logs-exec-and-troubleshooting-containers.md
+│   ├── 07-using-docker-compose-stacks.md
+│   ├── 08-resource-limits-and-laptop-capacity.md
+│   ├── 09-cleanup-disk-usage-and-housekeeping.md
+│   ├── 10-docker-desktop-wsl2-and-platform-differences.md
+│   ├── README.md
+│   ├── practice-questions.md
+│   └── roadmap-Docker-Essentials-for-Data-Labs.md
+├── 02-Linux-and-Shell-for-Data-Servers/
+│   ├── 01-remote-servers-ssh-config-keys-and-jump-hosts.md
+│   ├── 02-ssh-tunnels-and-port-forwarding-for-data-tools.md
+│   ├── 03-tmux-and-long-running-sessions.md
+│   ├── 04-file-transfer-at-scale-scp-rsync-and-rclone.md
+│   ├── 05-systemd-services-timers-and-journalctl.md
+│   ├── 06-server-resource-monitoring-cpu-memory-disk-and-io.md
+│   ├── 07-disk-space-inodes-and-large-file-management.md
+│   ├── 08-command-line-data-tools-jq-csvkit-miller-and-duckdb-cli.md
+│   ├── 09-log-investigation-on-servers.md
+│   ├── 10-users-sudo-packages-and-server-hygiene.md
+│   ├── README.md
+│   ├── practice-questions.md
+│   └── roadmap-Linux-and-Shell-for-Data-Servers.md
+├── 03-AWS-Data-Engineering-Deep-Dive/
+│   ├── 01-aws-data-services-landscape-and-reference-architectures.md
+│   ├── 02-s3-tables-access-points-and-batch-operations.md
+│   ├── 03-glue-data-catalog-crawlers-and-schema-management.md
+│   ├── 04-glue-etl-jobs-and-glue-data-quality.md
+│   ├── 05-athena-advanced-partition-projection-ctas-and-iceberg.md
+│   ├── 06-lake-formation-permissions-and-governance.md
+│   ├── 07-redshift-deep-dive-serverless-spectrum-and-data-sharing.md
+│   ├── 08-kinesis-data-streams-firehose-and-msk.md
+│   ├── 09-emr-on-ec2-eks-and-serverless.md
+│   ├── 10-step-functions-eventbridge-and-mwaa-orchestration.md
+│   ├── 11-dms-and-zero-etl-integrations.md
+│   ├── 12-cloudwatch-cloudtrail-and-cost-explorer-for-data.md
+│   ├── 13-kms-vpc-endpoints-and-private-networking-for-data.md
+│   ├── 14-sagemaker-unified-studio-and-datazone-overview.md
+│   ├── README.md
+│   ├── interview-practice.md
+│   ├── practice-questions.md
+│   └── roadmap-AWS-Data-Engineering-Deep-Dive.md
+├── 04-Databricks-Lakehouse-Platform-Deep-Dive/
+│   ├── 01-databricks-architecture-workspaces-and-planes.md
+│   ├── 02-compute-clusters-serverless-and-sql-warehouses.md
+│   ├── 03-notebooks-git-folders-and-project-structure.md
+│   ├── 04-unity-catalog-deep-dive-volumes-locations-and-permissions.md
+│   ├── 05-auto-loader-and-incremental-file-ingestion.md
+│   ├── 06-lakeflow-connect-managed-ingestion.md
+│   ├── 07-lakeflow-declarative-pipelines-and-expectations.md
+│   ├── 08-lakeflow-jobs-orchestration.md
+│   ├── 09-photon-performance-and-predictive-optimization.md
+│   ├── 10-databricks-sql-ai-bi-dashboards-and-genie.md
+│   ├── 11-delta-sharing-and-marketplace.md
+│   ├── 12-databricks-asset-bundles-and-ci-cd.md
+│   ├── 13-cost-management-and-system-tables.md
+│   ├── 14-mlflow-and-feature-engineering-handoff.md
+│   ├── README.md
+│   ├── interview-practice.md
+│   ├── practice-questions.md
+│   └── roadmap-Databricks-Lakehouse-Platform-Deep-Dive.md
+├── 05-Data-Engineering-System-Design-Interviews/
+│   ├── 01-system-design-interview-format-and-evaluation-rubric.md
+│   ├── 02-requirements-clarification-and-scoping.md
+│   ├── 03-back-of-the-envelope-estimation-for-data-systems.md
+│   ├── 04-a-reusable-design-framework-for-data-platforms.md
+│   ├── 05-trade-off-catalogue-batch-streaming-storage-and-engines.md
+│   ├── 06-diagramming-and-communicating-designs.md
+│   ├── 07-design-case-batch-analytics-platform.md
+│   ├── 08-design-case-real-time-clickstream-analytics.md
+│   ├── 09-design-case-cdc-replication-to-lakehouse.md
+│   ├── 10-design-case-ml-feature-platform.md
+│   ├── 11-design-case-log-and-metrics-analytics-at-scale.md
+│   ├── 12-design-case-ad-attribution-and-deduplication.md
+│   ├── 13-design-case-iot-telemetry-ingestion.md
+│   ├── 14-design-case-gdpr-deletion-across-a-platform.md
+│   ├── 15-design-case-rag-and-vector-data-platform.md
+│   ├── 16-failure-scenarios-and-deep-dive-follow-up-questions.md
+│   ├── 17-behavioural-interviews-for-data-engineers.md
+│   ├── 18-take-home-assignments-and-live-pipeline-coding.md
+│   ├── 19-mock-interview-plans-and-self-review.md
+│   ├── README.md
+│   ├── practice-questions.md
+│   └── roadmap-Data-Engineering-System-Design-Interviews.md
 └── README.md
 ```
 
