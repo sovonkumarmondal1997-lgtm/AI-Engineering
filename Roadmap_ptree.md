@@ -75,6 +75,19 @@ Programming & Computational Thinking/
 ├── 08-Object-Oriented-Design-Data-Modelling-and-Functional-Style/   (10 files — already written)
 ├── 09-Advanced-Production-Oriented-Python-Foundations/   (13 files — already written)
 ├── 10-Production-Habits-for-Python-Programs/   (10 files — already written)
+├── 11-Advanced-Python-Data-Model-and-Object-Design/   (13 files — structure created, empty)
+├── 12-Metaprogramming-and-Dynamic-Python/   (12 files — structure created, empty)
+├── 13-Standard-Library-Toolkit/   (12 files — structure created, empty)
+├── 14-Bytes-Binary-Data-and-Advanced-Text-Processing/   (10 files — structure created, empty)
+├── 15-Modern-Python-Language-Features/   (12 files — structure created, empty)
+├── 16-Advanced-Testing-and-Test-Architecture/   (11 files — structure created, empty)
+├── 17-Profiling-Memory-and-Runtime-Performance/   (11 files — structure created, empty)
+├── 18-Packaging-Distribution-and-Publishing/   (12 files — structure created, empty)
+├── 19-CPython-Internals-and-Runtime-Behaviour/   (12 files — structure created, empty)
+├── 20-Design-Patterns-and-Library-API-Design/   (12 files — structure created, empty)
+├── 21-Data-Visualization-and-Notebook-Workflows/   (8 files — structure created, empty)
+├── 22-Secure-Python-Coding/   (10 files — structure created, empty)
+├── 23-Code-Reading-Refactoring-and-Code-Review/   (10 files — structure created, empty)
 └── README.md
 ```
 
