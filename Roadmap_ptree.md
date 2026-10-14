@@ -88,6 +88,7 @@ Programming & Computational Thinking/
 ├── 21-Data-Visualization-and-Notebook-Workflows/   (8 files — structure created, empty)
 ├── 22-Secure-Python-Coding/   (10 files — structure created, empty)
 ├── 23-Code-Reading-Refactoring-and-Code-Review/   (10 files — structure created, empty)
+├── 24-Functions-and-OOP-Gap-Lessons/   (13 files — structure created, empty)
 └── README.md
 ```
 
