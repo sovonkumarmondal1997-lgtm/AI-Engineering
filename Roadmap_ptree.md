@@ -22,10 +22,10 @@ AI Engineering/
 ├── README.md
 ├── Roadmap.md
 ├── Roadmap_ptree.md
-├── Computer & Digital Foundation/           # Stage 0 (exists)
-├── Programming & Computational Thinking/    # Stage 1 (exists)
-├── Python for Data Engineering_1/           # Stage 2 (exists)
-├── Python for Data Engineering_2/           # Stage 2B (exists)
+├── Stage 0 — Computer & Digital Foundation/           # Stage 0 (exists)
+├── Stage 1 — Programming & Computational Thinking/    # Stage 1 (exists)
+├── Stage 2 — Python for Data Engineering_1/           # Stage 2 (exists)
+├── Stage 2B — Data Engineering Gap Modules — Python for Data Engineering_2/           # Stage 2B (exists)
 ├── Data Structures & Algorithms/            # Stage 3
 ├── Mathematics for Machine Learning/        # Stage 4
 ├── Machine Learning Foundations/            # Stage 5
@@ -48,10 +48,10 @@ AI Engineering/
 
 These folders already exist, and their lesson files are written. Only the module level is shown here, to keep the tree readable.
 
-### Stage 0 — `Computer & Digital Foundation/`
+### Stage 0 — Computer & Digital Foundation
 
 ```text
-Computer & Digital Foundation/
+Stage 0 — Computer & Digital Foundation/
 ├── 00-Stage-0-Overview/   (4 files — already written)
 ├── 01-How-Computers-Work/   (23 files — already written)
 ├── 02-Operating-System-Fundamentals/   (19 files — already written)
@@ -60,10 +60,10 @@ Computer & Digital Foundation/
 └── README.md
 ```
 
-### Stage 1 — `Programming & Computational Thinking/`
+### Stage 1 — Programming & Computational Thinking
 
 ```text
-Programming & Computational Thinking/
+Stage 1 — Programming & Computational Thinking/
 ├── 00-Stage-1-Overview/   (7 files — already written)
 ├── 01-Computational-Thinking-and-Program-Design/   (11 files — already written)
 ├── 02-Python-Core-Language-and-Data-Types/   (12 files — already written)
@@ -92,10 +92,10 @@ Programming & Computational Thinking/
 └── README.md
 ```
 
-### Stage 2 — `Python for Data Engineering_1/`
+### Stage 2 — Python for Data Engineering_1
 
 ```text
-Python for Data Engineering_1/
+Stage 2 — Python for Data Engineering_1/
 ├── 00-Stage-2-Overview/   (17 files — already written)
 ├── 01-Data-Engineering-Foundations-and-Pipeline-Thinking/   (11 files — already written)
 ├── 02-Numerical-Computing-with-NumPy/   (9 files — already written)
@@ -121,10 +121,10 @@ Python for Data Engineering_1/
 └── 22-Serving-Data-for-Analytics-ML-and-AI/   (8 files — already written)
 ```
 
-### Stage 2B — Data Engineering Gap Modules — `Python for Data Engineering_2/`
+### Stage 2B — Data Engineering Gap Modules — Python for Data Engineering_2
 
 ```text
-Python for Data Engineering_2/
+Stage 2B — Data Engineering Gap Modules — Python for Data Engineering_2/
 ├── 00-Gap-Modules-Overview/   (13 files — already written)
 ├── 01-Docker-Essentials-for-Data-Labs/   (13 files — already written)
 ├── 02-Linux-and-Shell-for-Data-Servers/   (13 files — already written)

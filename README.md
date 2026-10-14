@@ -13,14 +13,14 @@ when work on that stage begins.
 
 | Folder | Roadmap Stage | Status |
 |---|---|---|
-| [`Computer & Digital Foundation/`](./Computer%20%26%20Digital%20Foundation/README.md) | Stage 0 — Computer, Linux, and Developer Foundations | In progress — Modules 01–04 have full lesson content and a hands-on Projects folder each; Module 00 holds the learning plan and the Stage 0 capstone project |
+| [`Stage 0 — Computer & Digital Foundation/`](./Stage%200%20%E2%80%94%20Computer%20%26%20Digital%20Foundation/README.md) | Stage 0 — Computer, Linux, and Developer Foundations | In progress — Modules 01–04 have full lesson content and a hands-on Projects folder each; Module 00 holds the learning plan and the Stage 0 capstone project |
 
 Later stages (Stage 1 — Programming Foundations, Stage 2 — Core Computer Science, etc.) will get
 their own folders here as they are started. No later-stage folders exist yet.
 
 ## Stage 0 modules
 
-`Computer & Digital Foundation/` is the current Stage 0 curriculum, organized into five modules:
+`Stage 0 — Computer & Digital Foundation/` is the current Stage 0 curriculum, organized into five modules:
 
 - **00 — Stage 0 Overview** — the single authoritative learning plan (stage outcome, audit,
   practical gaps, recommended tools, projects, and completion gate) and the Stage 0 capstone
@@ -36,13 +36,13 @@ their own folders here as they are started. No later-stage folders exist yet.
   evidence-based debugging.
 
 See
-[`Computer & Digital Foundation/README.md`](./Computer%20%26%20Digital%20Foundation/README.md) for
+[`Stage 0 — Computer & Digital Foundation/README.md`](./Stage%200%20%E2%80%94%20Computer%20%26%20Digital%20Foundation/README.md) for
 the full module breakdown, topic counts, and links to every module and project.
 
 ## Working principle
 
 Progress is tracked explicitly per stage — see each stage's own overview folder (for Stage 0,
-[`00-Stage-0-Overview/learning-plan.md`](./Computer%20%26%20Digital%20Foundation/00-Stage-0-Overview/learning-plan.md))
+[`00-Stage-0-Overview/learning-plan.md`](./Stage%200%20%E2%80%94%20Computer%20%26%20Digital%20Foundation/00-Stage-0-Overview/learning-plan.md))
 for its stage outcome, audit, and completion gate. A stage is not considered complete just because
 material has been read — completion requires demonstrated capability against that stage's gate
 criteria.
