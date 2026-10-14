@@ -27,7 +27,7 @@ AI Engineering/
 ├── Stage 2 — Python for Data Engineering_1/           # Stage 2 (exists)
 ├── Stage 2B — Python for Data Engineering_2/           # Stage 2B (exists)
 ├── Stage 2C — Data Engineering_3/           # Stage 2C (exists)
-├── STAGE - 2D DATA ARCHITECURE/           # Stage 2D (tree provided)
+├── Stage 2D — Data Architecture/           # Stage 2D (exists)
 ├── Data Structures & Algorithms/            # Stage 3
 ├── Mathematics for Machine Learning/        # Stage 4
 ├── Machine Learning Foundations/            # Stage 5
@@ -996,7 +996,7 @@ Stage 2C — Data Engineering_3/
 ### Stage 2D — Data Architecture
 
 ```text
-STAGE - 2D DATA ARCHITECURE/
+Stage 2D — Data Architecture/
 ├── 00-Stage-2D-Overview/
 │   ├── Projects/
 │   │   ├── 01-enterprise-data-architecture-capstone.md
