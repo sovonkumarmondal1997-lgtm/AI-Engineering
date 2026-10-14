@@ -5,7 +5,7 @@ Every stage and module here matches a stage and module in the roadmap, in the sa
 
 ## How to read this tree
 
-- **Stages 0–2 already exist** in this repository. Their module folders are listed from disk, with file counts.
+- **Stages 0–2C already exist** in this repository. Their module folders are listed from disk, with file counts.
 - **Stages 3–18 are new.** Create each folder only when you start that stage, the same rule the repo already uses.
 - Naming follows the existing repo conventions:
   - Stage folder: a readable title, e.g. `Mathematics for Machine Learning/`
@@ -25,7 +25,8 @@ AI Engineering/
 ├── Stage 0 — Computer & Digital Foundation/           # Stage 0 (exists)
 ├── Stage 1 — Programming & Computational Thinking/    # Stage 1 (exists)
 ├── Stage 2 — Python for Data Engineering_1/           # Stage 2 (exists)
-├── Stage 2B — Data Engineering Gap Modules — Python for Data Engineering_2/           # Stage 2B (exists)
+├── Stage 2B — Python for Data Engineering_2/           # Stage 2B (exists)
+├── Stage 2C — Data Engineering_3/           # Stage 2C (exists)
 ├── Data Structures & Algorithms/            # Stage 3
 ├── Mathematics for Machine Learning/        # Stage 4
 ├── Machine Learning Foundations/            # Stage 5
@@ -121,10 +122,10 @@ Stage 2 — Python for Data Engineering_1/
 └── 22-Serving-Data-for-Analytics-ML-and-AI/   (8 files — already written)
 ```
 
-### Stage 2B — Data Engineering Gap Modules — Python for Data Engineering_2
+### Stage 2B — Python for Data Engineering_2
 
 ```text
-Stage 2B — Data Engineering Gap Modules — Python for Data Engineering_2/
+Stage 2B — Python for Data Engineering_2/
 ├── 00-Gap-Modules-Overview/   (13 files — already written)
 ├── 01-Docker-Essentials-for-Data-Labs/   (13 files — already written)
 ├── 02-Linux-and-Shell-for-Data-Servers/   (13 files — already written)
@@ -132,6 +133,102 @@ Stage 2B — Data Engineering Gap Modules — Python for Data Engineering_2/
 ├── 04-Databricks-Lakehouse-Platform-Deep-Dive/   (19 files — already written)
 ├── 05-Data-Engineering-System-Design-Interviews/   (22 files — already written)
 └── README.md
+```
+
+### Stage 2C — Data Engineering_3
+
+```text
+Stage 2C — Data Engineering_3/
+├── README.md
+├── 01-NoSQL-and-Distributed-Databases/
+│   ├── 01-nosql-families-and-when-to-use-them.md
+│   ├── 02-cap-theorem-and-consistency-models.md
+│   ├── 03-mongodb-document-modelling-and-aggregation.md
+│   ├── 04-cassandra-wide-column-partitioning-and-tombstones.md
+│   ├── 05-dynamodb-single-table-design-and-streams.md
+│   ├── 06-redis-caching-and-data-structures.md
+│   ├── 07-elasticsearch-and-opensearch-for-search-and-logs.md
+│   ├── 08-graph-databases-neo4j-and-cypher.md
+│   └── 09-change-streams-and-nosql-to-lakehouse-ingestion.md
+├── 02-Hadoop-Ecosystem-and-Legacy-Big-Data/
+│   ├── 01-hdfs-architecture-namenode-datanodes-and-replication.md
+│   ├── 02-yarn-resource-management.md
+│   ├── 03-mapreduce-model-and-why-spark-replaced-it.md
+│   ├── 04-hive-metastore-and-hiveql.md
+│   ├── 05-hbase-and-wide-column-on-hdfs.md
+│   ├── 06-sqoop-flume-and-oozie-legacy-tooling.md
+│   └── 07-migrating-hadoop-workloads-to-cloud-lakehouse.md
+├── 03-Snowflake-Deep-Dive/
+│   ├── 01-snowflake-architecture-storage-compute-and-services.md
+│   ├── 02-virtual-warehouses-sizing-and-scaling.md
+│   ├── 03-micro-partitions-clustering-and-pruning.md
+│   ├── 04-stages-copy-into-and-snowpipe.md
+│   ├── 05-streams-tasks-and-dynamic-tables.md
+│   ├── 06-snowpark-python-and-udfs.md
+│   ├── 07-time-travel-cloning-and-zero-copy.md
+│   ├── 08-rbac-masking-policies-and-row-access.md
+│   ├── 09-data-sharing-and-marketplace.md
+│   └── 10-cost-monitoring-and-resource-monitors.md
+├── 04-Google-Cloud-BigQuery-and-GCP-Data-Engineering/
+│   ├── 01-gcp-data-services-landscape.md
+│   ├── 02-bigquery-architecture-slots-and-storage.md
+│   ├── 03-partitioning-clustering-and-query-cost-control.md
+│   ├── 04-bigquery-loading-streaming-and-external-tables.md
+│   ├── 05-bigquery-ml-and-scheduled-queries.md
+│   ├── 06-pubsub-and-dataflow-apache-beam.md
+│   ├── 07-dataproc-and-dataproc-serverless.md
+│   ├── 08-cloud-composer-and-workflows.md
+│   └── 09-dataplex-iam-and-governance.md
+├── 05-Azure-Data-Engineering-and-Microsoft-Fabric/
+│   ├── 01-azure-data-services-landscape.md
+│   ├── 02-adls-gen2-and-blob-storage.md
+│   ├── 03-azure-data-factory-pipelines-and-mapping-data-flows.md
+│   ├── 04-synapse-analytics-dedicated-and-serverless-pools.md
+│   ├── 05-event-hubs-and-stream-analytics.md
+│   ├── 06-microsoft-fabric-lakehouse-and-onelake.md
+│   ├── 07-azure-databricks-integration.md
+│   ├── 08-entra-id-rbac-and-key-vault.md
+│   └── 09-purview-governance-and-lineage.md
+├── 06-dbt-and-Analytics-Engineering/
+│   ├── 01-dbt-project-structure-and-materializations.md
+│   ├── 02-sources-seeds-snapshots-and-incremental-models.md
+│   ├── 03-jinja-macros-and-packages.md
+│   ├── 04-tests-contracts-and-model-governance.md
+│   ├── 05-documentation-lineage-and-exposures.md
+│   ├── 06-dbt-performance-and-slim-ci.md
+│   ├── 07-semantic-layer-and-metricflow.md
+│   └── 08-deploying-dbt-with-airflow-and-dbt-cloud.md
+├── 07-Real-Time-OLAP-and-Query-Engines/
+│   ├── 01-clickhouse-architecture-and-mergetree.md
+│   ├── 02-apache-druid-and-apache-pinot-overview.md
+│   ├── 03-trino-and-presto-federated-queries.md
+│   ├── 04-starrocks-and-doris-overview.md
+│   ├── 05-materialized-views-and-pre-aggregation.md
+│   └── 06-choosing-an-olap-engine-for-low-latency-dashboards.md
+├── 08-Data-Platform-Architecture-and-Data-Products/
+│   ├── 01-lambda-vs-kappa-architecture.md
+│   ├── 02-data-mesh-principles-and-domain-ownership.md
+│   ├── 03-data-products-and-slas.md
+│   ├── 04-master-data-management-and-entity-resolution.md
+│   ├── 05-metadata-driven-platform-design.md
+│   ├── 06-multi-tenant-and-multi-region-data-platforms.md
+│   └── 07-build-vs-buy-and-vendor-selection.md
+├── 09-Analytics-Foundations-for-Data-Engineers/
+│   ├── 01-descriptive-statistics-and-distributions-at-scale.md
+│   ├── 02-sampling-and-approximate-algorithms-hyperloglog-and-sketches.md
+│   ├── 03-hypothesis-testing-and-confidence-intervals.md
+│   ├── 04-ab-testing-and-experiment-data-pipelines.md
+│   ├── 05-cohort-funnel-and-retention-analysis.md
+│   ├── 06-time-series-analysis-and-forecasting-basics.md
+│   ├── 07-bi-tools-and-dashboard-design-metabase-superset-tableau.md
+│   ├── 08-data-visualization-with-matplotlib-plotly-and-altair.md
+│   └── 09-data-storytelling-and-stakeholder-communication.md
+└── 10-Big-Data-ML-and-MLOps-Handoff/
+    ├── 01-distributed-ml-with-spark-mllib.md
+    ├── 02-feature-engineering-at-scale.md
+    ├── 03-training-data-pipelines-and-dataset-versioning.md
+    ├── 04-model-registry-and-batch-vs-online-inference.md
+    └── 05-data-drift-monitoring-for-ml-pipelines.md
 ```
 
 ## 3. New stages (3–18) — full file plan
