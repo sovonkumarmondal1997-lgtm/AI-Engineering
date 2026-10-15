@@ -28,8 +28,10 @@ AI Engineering/
 ├── Stage 2B — Python for Data Engineering_2/           # Stage 2B (exists)
 ├── Stage 2C — Data Engineering_3/           # Stage 2C (exists)
 ├── Stage 2D — Data Architecture/           # Stage 2D (exists)
-├── Stage 3 — Data Structures & Algorithms/            # Stage 3
-├── Mathematics for Machine Learning/        # Stage 4
+├── Stage 3 — Data Structures & Algorithms/            # Stage 3 (exists)
+├── Stage 4A — Basic Mathematics Prerequisite/         # Stage 4A
+├── Stage 4B — Mathematics for Machine Learning/       # Stage 4B
+├── Stage 4C — Advanced Mathematics for Machine Learning — Deep Learning/   # Stage 4C
 ├── Machine Learning Foundations/            # Stage 5
 ├── Deep Learning & Transformers/            # Stage 6
 ├── Backend Engineering for AI Systems/      # Stage 7
