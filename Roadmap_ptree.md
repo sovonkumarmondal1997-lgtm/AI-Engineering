@@ -34,6 +34,7 @@ AI Engineering/
 ├── Stage 4C — Advanced Mathematics for Machine Learning — Deep Learning/   # Stage 4C
 ├── STAGE 5A - Machine Learning Foundation/            # Stage 5A
 ├── STAGE 5B - Advanced Machine Learning/              # Stage 5B
+├── STAGE 5C - MLOps/                                  # Stage 5C
 ├── Deep Learning & Transformers/            # Stage 6
 ├── Backend Engineering for AI Systems/      # Stage 7
 ├── LLM Application Engineering/             # Stage 8
@@ -2359,6 +2360,169 @@ STAGE 5B - Advanced Machine Learning/
     └── 07-advanced-ml-capstone.md
 ```
 
+### Stage 5C — MLOps
+
+```text
+STAGE 5C - MLOps/
+├── README.md
+├── 00-Stage-Overview-and-Learning-Plan/
+│   ├── README.md
+│   ├── learning-plan.md
+│   ├── architecture-and-tooling-map.md
+│   ├── prerequisites-and-exit-criteria.md
+│   └── Projects/01-local-mlops-environment.md
+├── 01-Production-ML-Lifecycle-and-System-Design/
+│   ├── README.md
+│   ├── 01-notebook-to-production.md
+│   ├── 02-batch-vs-online-inference.md
+│   ├── 03-production-ml-system-components.md
+│   ├── 04-latency-throughput-cost-and-reliability.md
+│   ├── 05-failure-modes-and-human-oversight.md
+│   └── Projects/01-production-ml-system-design.md
+├── 02-Code-Quality-Testing-and-Project-Structure/
+│   ├── README.md
+│   ├── 01-package-structure-and-configuration.md
+│   ├── 02-type-hints-linting-and-formatting.md
+│   ├── 03-unit-tests-for-features-and-transformations.md
+│   ├── 04-integration-and-contract-tests.md
+│   ├── 05-data-and-model-behavior-tests.md
+│   ├── 06-logging-exceptions-and-error-handling.md
+│   └── Projects/01-tested-ml-training-package.md
+├── 03-Data-and-Feature-Pipeline-Engineering/
+│   ├── README.md
+│   ├── 01-data-contracts-and-schema-validation.md
+│   ├── 02-data-quality-gates-and-failure-policies.md
+│   ├── 03-idempotency-retries-and-backfills.md
+│   ├── 04-point-in-time-correctness.md
+│   ├── 05-feature-pipeline-reproducibility.md
+│   ├── 06-batch-and-online-feature-computation.md
+│   ├── 07-feature-store-concepts.md
+│   └── Projects/01-reliable-feature-pipeline.md
+├── 04-Workflow-Orchestration-and-Scheduling/
+│   ├── README.md
+│   ├── 01-dags-tasks-dependencies-and-scheduling.md
+│   ├── 02-airflow-orchestration-fundamentals.md
+│   ├── 03-retries-timeouts-alerts-and-slas.md
+│   ├── 04-backfills-catchup-and-idempotency.md
+│   ├── 05-parameterized-and-reusable-pipelines.md
+│   ├── 06-workflow-testing-and-local-development.md
+│   └── Projects/01-orchestrated-training-and-batch-scoring.md
+├── 05-Experiment-Tracking-and-Model-Registry/
+│   ├── README.md
+│   ├── 01-mlflow-tracking-and-experiment-runs.md
+│   ├── 02-parameters-metrics-and-artifacts.md
+│   ├── 03-model-packaging-and-serialization.md
+│   ├── 04-model-registry-and-versioning.md
+│   ├── 05-model-lineage-and-provenance.md
+│   ├── 06-approval-and-promotion-workflows.md
+│   └── Projects/01-registered-model-with-lineage.md
+├── 06-Reproducible-Training-and-Resource-Management/
+│   ├── README.md
+│   ├── 01-reproducible-training-runs.md
+│   ├── 02-lockfiles-and-containerized-training.md
+│   ├── 03-cpu-memory-gpu-and-storage-profiling.md
+│   ├── 04-parallelism-and-resource-limits.md
+│   ├── 05-checkpointing-and-resuming-training.md
+│   └── Projects/01-resource-aware-training.md
+├── 07-Containers-and-Environment-Packaging/
+│   ├── README.md
+│   ├── 01-docker-images-for-ml.md
+│   ├── 02-dockerfiles-dependencies-and-layer-caching.md
+│   ├── 03-non-root-users-secrets-and-image-hygiene.md
+│   ├── 04-docker-compose-for-local-ml-services.md
+│   └── Projects/01-containerized-training-and-inference.md
+├── 08-CI-CD-and-Release-Automation/
+│   ├── README.md
+│   ├── 01-ci-cd-for-machine-learning.md
+│   ├── 02-automated-lint-test-and-build.md
+│   ├── 03-data-validation-and-model-quality-gates.md
+│   ├── 04-model-promotion-and-approval.md
+│   ├── 05-canary-blue-green-and-shadow-releases.md
+│   ├── 06-rollback-and-release-recovery.md
+│   ├── 07-github-actions-or-equivalent-platform.md
+│   └── Projects/01-ci-cd-for-an-ml-model.md
+├── 09-Model-Serving-and-Inference-APIs/
+│   ├── README.md
+│   ├── 01-batch-scoring-jobs.md
+│   ├── 02-online-inference-service-architecture.md
+│   ├── 03-fastapi-request-response-and-validation.md
+│   ├── 04-model-loading-warmup-and-process-lifecycle.md
+│   ├── 05-input-output-schemas-and-compatibility.md
+│   ├── 06-concurrency-timeouts-and-resource-limits.md
+│   ├── 07-authentication-and-rate-limiting.md
+│   ├── 08-latency-throughput-and-load-testing.md
+│   └── Projects/
+│       ├── 01-batch-inference-pipeline.md
+│       └── 02-online-prediction-api.md
+├── 10-Cloud-Deployment-and-Infrastructure/
+│   ├── README.md
+│   ├── 01-cloud-ml-deployment-architecture.md
+│   ├── 02-object-storage-and-model-artifacts.md
+│   ├── 03-compute-identity-networking-and-secrets.md
+│   ├── 04-managed-training-and-inference-options.md
+│   ├── 05-infrastructure-as-code-introduction.md
+│   ├── 06-environment-separation-and-configuration.md
+│   ├── 07-cost-controls-and-resource-cleanup.md
+│   └── Projects/01-cloud-deployed-ml-workflow.md
+├── 11-Data-Model-and-Service-Monitoring/
+│   ├── README.md
+│   ├── 01-logs-metrics-and-traces.md
+│   ├── 02-data-quality-and-schema-drift-monitoring.md
+│   ├── 03-feature-and-prediction-distribution-monitoring.md
+│   ├── 04-data-drift-vs-concept-drift.md
+│   ├── 05-delayed-labels-and-real-world-performance.md
+│   ├── 06-service-latency-errors-and-saturation.md
+│   ├── 07-alerts-runbooks-and-operational-reports.md
+│   └── Projects/01-model-and-service-monitoring-dashboard.md
+├── 12-Retraining-and-Continuous-Training/
+│   ├── README.md
+│   ├── 01-retraining-triggers-and-policy.md
+│   ├── 02-scheduled-vs-event-driven-retraining.md
+│   ├── 03-training-windows-and-label-maturity.md
+│   ├── 04-retraining-validation-and-promotion-gates.md
+│   ├── 05-preventing-model-regression.md
+│   ├── 06-human-approval-and-rollback.md
+│   └── Projects/01-automated-retraining-pipeline.md
+├── 13-Production-Reliability-Security-and-Governance/
+│   ├── README.md
+│   ├── 01-service-level-indicators-and-objectives.md
+│   ├── 02-retries-circuit-breakers-and-fallbacks.md
+│   ├── 03-secrets-identity-and-least-privilege.md
+│   ├── 04-sensitive-data-privacy-and-retention.md
+│   ├── 05-model-cards-dataset-cards-and-audit-trails.md
+│   ├── 06-fairness-and-responsible-deployment.md
+│   ├── 07-disaster-recovery-and-incident-response.md
+│   └── Projects/01-production-readiness-and-risk-review.md
+├── 14-Inference-Performance-and-Cost-Optimization/
+│   ├── README.md
+│   ├── 01-profiling-inference-bottlenecks.md
+│   ├── 02-batching-caching-and-concurrency.md
+│   ├── 03-model-size-memory-and-startup-time.md
+│   ├── 04-latency-throughput-and-cost-tradeoffs.md
+│   ├── 05-autoscaling-and-capacity-planning.md
+│   └── Projects/01-inference-performance-benchmark.md
+├── 15-Production-ML-Architecture-Patterns/
+│   ├── README.md
+│   ├── 01-batch-scoring-architecture.md
+│   ├── 02-real-time-scoring-architecture.md
+│   ├── 03-streaming-prediction-patterns.md
+│   ├── 04-human-in-the-loop-review-pattern.md
+│   ├── 05-shadow-canary-and-champion-challenger.md
+│   ├── 06-multi-model-serving-and-routing.md
+│   └── Projects/01-production-architecture-comparison.md
+└── 16-Stage-5C-Production-Projects-and-Capstone/
+    ├── README.md
+    ├── production-project-rubric.md
+    ├── 01-reproducible-training-pipeline-with-mlflow.md
+    ├── 02-orchestrated-daily-batch-scoring.md
+    ├── 03-containerized-online-inference-service.md
+    ├── 04-ci-cd-model-registry-and-safe-promotion.md
+    ├── 05-monitoring-drift-and-alerting.md
+    ├── 06-automated-retraining-and-rollback.md
+    ├── 07-cloud-deployed-end-to-end-ml-platform.md
+    └── 08-final-production-mlops-capstone.md
+```
+
 ### Stage 6 — Deep Learning & Transformers — `Deep Learning & Transformers/`
 
 ```text
@@ -4166,6 +4330,7 @@ Modules exclude the `00-` overview folder. Lessons are the numbered `NN-*.md` fi
 | 4C | Advanced Mathematics for Machine Learning — Deep Learning | `Stage 4C — Advanced Mathematics for Machine Learning — Deep Learning/` | 8 | 90 | 90 | none (module lessons only, no stage project) |
 | 5A | Machine Learning Foundation | `STAGE 5A - Machine Learning Foundation/` | 14 | 130 | 178 | `foundation-capstone-and-reproducible-report` |
 | 5B | Advanced Machine Learning | `STAGE 5B - Advanced Machine Learning/` | 13 | 94 | 124 | `advanced-ml-capstone` |
+| 5C | MLOps | `STAGE 5C - MLOps/` | 16 | 100 | 139 | `final-production-mlops-capstone` |
 | 6 | Deep Learning & Transformers | `Deep Learning & Transformers/` | 14 | 69 | 130 | `train-a-small-gpt-and-write-the-report` |
 | 7 | Backend Engineering for AI Systems | `Backend Engineering for AI Systems/` | 11 | 50 | 99 | `production-ready-ai-api-service` |
 | 8 | LLM Application Engineering | `LLM Application Engineering/` | 13 | 56 | 113 | `structured-document-extraction-service` |
@@ -4179,12 +4344,12 @@ Modules exclude the `00-` overview folder. Lessons are the numbered `NN-*.md` fi
 | 16 | Flagship Portfolio Projects | `Flagship Portfolio Projects/` | 7 | — | 156 | 7 flagship repos (1 optional) |
 | 17 | Interview Preparation & Getting Hired | `Interview Preparation & Getting Hired/` | 10 | 30 | 75 | `job-search-campaign-tracker` |
 | 18 | Career Growth to Senior | `Career Growth to Senior/` | 6 | 19 | 48 | `senior-readiness-evidence-portfolio` |
-| **Total** | | | **295** | **2002** | **3265** | |
+| **Total** | | | **311** | **2102** | **3404** | |
 
 ## 5. Build order
 
 ```text
-Stage 0 (exists) → 1 (exists) → 2 (exists, wrap up) → 3 → 4 → 5A → 5B → 6 → 7 → 8 → 9 → 10 → 11
+Stage 0 (exists) → 1 (exists) → 2 (exists, wrap up) → 3 → 4 → 5A → 5B → 5C → 6 → 7 → 8 → 9 → 10 → 11
                                                                                     │
                                   Milestone M4: start applying for first AI job ◄───┘
 
