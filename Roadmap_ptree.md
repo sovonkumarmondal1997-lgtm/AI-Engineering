@@ -32,6 +32,7 @@ AI Engineering/
 ├── Stage 4A — Basic Mathematics Prerequisite/         # Stage 4A
 ├── Stage 4B — Mathematics for Machine Learning/       # Stage 4B
 ├── Stage 4C — Advanced Mathematics for Machine Learning — Deep Learning/   # Stage 4C
+├── STAGE 5A - Machine Learning Foundation/            # Stage 5A
 ├── Deep Learning & Transformers/            # Stage 6
 ├── Backend Engineering for AI Systems/      # Stage 7
 ├── LLM Application Engineering/             # Stage 8
@@ -2012,6 +2013,207 @@ Stage 4C — Advanced Mathematics for Machine Learning — Deep Learning/
     └── 90-random-variables-and-noise-in-stochastic-gradient-descent.md
 ```
 
+### Stage 5A — Machine Learning Foundation
+
+```text
+STAGE 5A - Machine Learning Foundation/
+├── README.md
+├── 00-Stage-Overview-and-Learning-Plan/
+│   ├── README.md
+│   ├── learning-plan.md
+│   ├── prerequisites-and-success-criteria.md
+│   ├── tools-and-environment-setup.md
+│   └── Projects/
+│       └── 01-learning-environment-smoke-test.md
+├── 01-Machine-Learning-Fundamentals-and-Problem-Framing/
+│   ├── README.md
+│   ├── 01-rules-vs-machine-learning.md
+│   ├── 02-ai-vs-ml-vs-deep-learning.md
+│   ├── 03-learning-paradigms.md
+│   ├── 04-ml-problem-types-and-learning-tasks.md
+│   ├── 05-features-labels-parameters-and-hyperparameters.md
+│   ├── 06-training-inference-and-generalization.md
+│   ├── 07-batch-online-and-incremental-learning.md
+│   ├── 08-parametric-vs-nonparametric-models.md
+│   ├── 09-generative-vs-discriminative-models.md
+│   ├── 10-business-problem-framing-and-baselines.md
+│   ├── 11-ml-lifecycle-and-when-not-to-use-ml.md
+│   ├── practice-questions.md
+│   └── Projects/01-ml-problem-framing-and-baseline.md
+├── 02-Data-Understanding-EDA-and-Data-Quality/
+│   ├── README.md
+│   ├── 01-dataset-structure-and-variable-types.md
+│   ├── 02-univariate-eda.md
+│   ├── 03-bivariate-and-multivariate-eda.md
+│   ├── 04-statistics-distributions-and-visualization.md
+│   ├── 05-missing-data-duplicates-and-invalid-values.md
+│   ├── 06-outlier-investigation.md
+│   ├── 07-target-distribution-and-class-imbalance.md
+│   ├── 08-correlation-vs-causation.md
+│   ├── 09-sampling-bias-and-data-representativeness.md
+│   ├── 10-dataset-shift-and-data-quality-validation.md
+│   ├── 11-data-dictionaries-and-documentation.md
+│   ├── practice-questions.md
+│   └── Projects/01-eda-and-data-quality-report.md
+├── 03-Data-Preprocessing-and-Feature-Engineering/
+│   ├── README.md
+│   ├── 01-train-validation-test-and-splitting-strategies.md
+│   ├── 02-missing-value-imputation.md
+│   ├── 03-outlier-treatment-and-robust-transformations.md
+│   ├── 04-categorical-encoding.md
+│   ├── 05-standardization-and-normalization.md
+│   ├── 06-log-and-power-transformations.md
+│   ├── 07-datetime-and-cyclical-features.md
+│   ├── 08-interactions-polynomial-features-and-binning.md
+│   ├── 09-text-feature-extraction-introduction.md
+│   ├── 10-scikit-learn-pipelines-and-column-transformers.md
+│   ├── 11-data-leakage-and-training-serving-skew.md
+│   ├── 12-reusable-preprocessing-and-feature-validation.md
+│   ├── practice-questions.md
+│   └── Projects/
+│       ├── 01-reusable-preprocessing-pipeline.md
+│       └── 02-data-leakage-hunt.md
+├── 04-Regression-Algorithms/
+│   ├── README.md
+│   ├── 01-regression-baselines.md
+│   ├── 02-simple-and-multiple-linear-regression.md
+│   ├── 03-least-squares-and-regression-assumptions.md
+│   ├── 04-coefficients-intercepts-and-residual-analysis.md
+│   ├── 05-polynomial-regression.md
+│   ├── 06-ridge-lasso-and-elastic-net.md
+│   ├── 07-robust-regression-and-outlier-sensitivity.md
+│   ├── 08-categorical-and-interaction-terms.md
+│   ├── 09-quantile-regression-and-prediction-intervals.md
+│   ├── 10-linear-regression-from-scratch-with-numpy.md
+│   ├── practice-questions.md
+│   └── Projects/01-regression-model-benchmark.md
+├── 05-Classification-Algorithms/
+│   ├── README.md
+│   ├── 01-binary-multiclass-and-multilabel-classification.md
+│   ├── 02-logistic-regression.md
+│   ├── 03-sigmoid-softmax-and-decision-boundaries.md
+│   ├── 04-cross-entropy-and-log-loss.md
+│   ├── 05-multiclass-classification-strategies.md
+│   ├── 06-knn-classification.md
+│   ├── 07-naive-bayes-classifiers.md
+│   ├── 08-support-vector-machines-introduction.md
+│   ├── 09-linear-and-quadratic-discriminant-analysis.md
+│   ├── 10-probability-scores-and-decision-thresholds.md
+│   ├── 11-classifier-from-scratch-with-numpy.md
+│   ├── practice-questions.md
+│   └── Projects/01-classification-algorithm-comparison.md
+├── 06-Model-Evaluation-and-Metrics/
+│   ├── README.md
+│   ├── 01-training-validation-and-test-performance.md
+│   ├── 02-confusion-matrix.md
+│   ├── 03-accuracy-and-its-limitations.md
+│   ├── 04-precision-recall-f1-and-averaging.md
+│   ├── 05-specificity-sensitivity-and-balanced-accuracy.md
+│   ├── 06-roc-auc-and-precision-recall-curves.md
+│   ├── 07-log-loss-and-probabilistic-scoring.md
+│   ├── 08-regression-metrics-and-mape-limitations.md
+│   ├── 09-subgroup-metrics-and-confidence-intervals.md
+│   ├── 10-metric-selection-for-business-outcomes.md
+│   ├── practice-questions.md
+│   └── Projects/01-metric-selection-and-evaluation-report.md
+├── 07-Generalization-Regularization-and-Model-Selection/
+│   ├── README.md
+│   ├── 01-underfitting-overfitting-and-generalization-error.md
+│   ├── 02-bias-variance-tradeoff.md
+│   ├── 03-empirical-risk-and-expected-risk.md
+│   ├── 04-l1-l2-regularization-and-early-stopping.md
+│   ├── 05-cross-validation-fundamentals.md
+│   ├── 06-stratified-group-and-time-aware-validation.md
+│   ├── 07-nested-cross-validation-introduction.md
+│   ├── 08-grid-search-and-randomized-search.md
+│   ├── 09-learning-and-validation-curves.md
+│   ├── 10-selection-bias-and-leakage-safe-model-selection.md
+│   ├── practice-questions.md
+│   └── Projects/01-diagnose-an-overfit-model.md
+├── 08-Core-Classical-ML-Algorithms/
+│   ├── README.md
+│   ├── 01-knn-distance-voting-and-weighting.md
+│   ├── 02-distance-metrics-and-feature-scaling.md
+│   ├── 03-naive-bayes-and-conditional-independence.md
+│   ├── 04-svm-maximum-margin-and-kernel-trick.md
+│   ├── 05-gaussian-processes-conceptual-introduction.md
+│   ├── 06-discriminant-analysis.md
+│   ├── 07-instance-based-vs-model-based-learning.md
+│   ├── 08-computational-cost-and-algorithm-failure-modes.md
+│   ├── practice-questions.md
+│   └── Projects/01-classical-algorithm-benchmark.md
+├── 09-Trees-Ensembles-and-Gradient-Boosting/
+│   ├── README.md
+│   ├── 01-decision-tree-structure-and-splitting.md
+│   ├── 02-gini-entropy-information-gain-and-variance-reduction.md
+│   ├── 03-tree-depth-pruning-and-leaf-constraints.md
+│   ├── 04-random-forests-and-bagging.md
+│   ├── 05-extra-trees-and-ensemble-diversity.md
+│   ├── 06-boosting-vs-bagging.md
+│   ├── 07-gradient-boosting-fundamentals.md
+│   ├── 08-xgboost-lightgbm-and-catboost.md
+│   ├── 09-hyperparameter-tuning-and-missing-value-handling.md
+│   ├── 10-feature-importance-introduction.md
+│   ├── practice-questions.md
+│   └── Projects/01-tabular-model-benchmark.md
+├── 10-Unsupervised-Learning-and-Clustering/
+│   ├── README.md
+│   ├── 01-what-unsupervised-learning-can-establish.md
+│   ├── 02-k-means-and-cluster-count.md
+│   ├── 03-initialization-and-convergence.md
+│   ├── 04-hierarchical-clustering-and-dendrograms.md
+│   ├── 05-dbscan-and-hdbscan.md
+│   ├── 06-gaussian-mixture-models-introduction.md
+│   ├── 07-expectation-maximization-intuition.md
+│   ├── 08-clustering-metrics-and-stability.md
+│   ├── 09-cluster-interpretation-and-profiling.md
+│   ├── practice-questions.md
+│   └── Projects/01-customer-segmentation.md
+├── 11-Classical-NLP-and-Text-Classification/
+│   ├── README.md
+│   ├── 01-text-normalization-and-cleaning.md
+│   ├── 02-tokenization-vocabulary-and-n-grams.md
+│   ├── 03-stop-words-stemming-and-lemmatization.md
+│   ├── 04-bag-of-words-and-tf-idf.md
+│   ├── 05-sparse-feature-matrices.md
+│   ├── 06-naive-bayes-logistic-regression-and-linear-svm-for-text.md
+│   ├── 07-text-evaluation-and-error-analysis.md
+│   ├── 08-rare-terms-vocabulary-drift-and-pipeline.md
+│   ├── practice-questions.md
+│   └── Projects/01-support-ticket-classifier-baseline.md
+├── 12-Experiment-Tracking-and-Reproducibility/
+│   ├── README.md
+│   ├── 01-why-experiments-fail-to-reproduce.md
+│   ├── 02-random-seeds-and-nondeterminism.md
+│   ├── 03-dataset-snapshots-and-versioning.md
+│   ├── 04-code-config-and-dependency-versioning.md
+│   ├── 05-mlflow-runs-parameters-and-metrics.md
+│   ├── 06-artifacts-and-experiment-reports.md
+│   ├── 07-systematic-run-comparison-and-cherry-picking.md
+│   ├── practice-questions.md
+│   └── Projects/01-tracked-experiment-suite.md
+├── 13-Error-Analysis-Debugging-and-Model-Improvement/
+│   ├── README.md
+│   ├── 01-confusion-matrix-driven-error-analysis.md
+│   ├── 02-false-positive-and-false-negative-inspection.md
+│   ├── 03-performance-slices-and-subgroups.md
+│   ├── 04-failure-taxonomies-and-edge-cases.md
+│   ├── 05-label-noise-and-data-errors.md
+│   ├── 06-learning-curves-and-residual-diagnostics.md
+│   ├── 07-data-centric-vs-model-centric-improvement.md
+│   ├── 08-ablation-studies-and-impact-prioritization.md
+│   ├── practice-questions.md
+│   └── Projects/01-error-analysis-and-improvement-report.md
+└── 14-Stage-5A-Projects-and-Capstone/
+    ├── README.md
+    ├── project-standards-and-rubric.md
+    ├── 01-end-to-end-classification-with-error-analysis.md
+    ├── 02-regression-benchmark.md
+    ├── 03-tabular-ensemble-benchmark.md
+    ├── 04-classical-nlp-classifier.md
+    └── 05-foundation-capstone-and-reproducible-report.md
+```
+
 ### Stage 6 — Deep Learning & Transformers — `Deep Learning & Transformers/`
 
 ```text
@@ -3817,6 +4019,7 @@ Modules exclude the `00-` overview folder. Lessons are the numbered `NN-*.md` fi
 | 4A | Basic Mathematics Prerequisite | `Stage 4A — Basic Mathematics Prerequisite/` | 11 | 199 | 202 | none (module lessons only, no stage project) |
 | 4B | Mathematics for Machine Learning | `Stage 4B — Mathematics for Machine Learning/` | 10 | 54 | 99 | `math-for-ml-notebook-library` |
 | 4C | Advanced Mathematics for Machine Learning — Deep Learning | `Stage 4C — Advanced Mathematics for Machine Learning — Deep Learning/` | 8 | 90 | 90 | none (module lessons only, no stage project) |
+| 5A | Machine Learning Foundation | `STAGE 5A - Machine Learning Foundation/` | 14 | 130 | 178 | `foundation-capstone-and-reproducible-report` |
 | 6 | Deep Learning & Transformers | `Deep Learning & Transformers/` | 14 | 69 | 130 | `train-a-small-gpt-and-write-the-report` |
 | 7 | Backend Engineering for AI Systems | `Backend Engineering for AI Systems/` | 11 | 50 | 99 | `production-ready-ai-api-service` |
 | 8 | LLM Application Engineering | `LLM Application Engineering/` | 13 | 56 | 113 | `structured-document-extraction-service` |
@@ -3830,12 +4033,12 @@ Modules exclude the `00-` overview folder. Lessons are the numbered `NN-*.md` fi
 | 16 | Flagship Portfolio Projects | `Flagship Portfolio Projects/` | 7 | — | 156 | 7 flagship repos (1 optional) |
 | 17 | Interview Preparation & Getting Hired | `Interview Preparation & Getting Hired/` | 10 | 30 | 75 | `job-search-campaign-tracker` |
 | 18 | Career Growth to Senior | `Career Growth to Senior/` | 6 | 19 | 48 | `senior-readiness-evidence-portfolio` |
-| **Total** | | | **268** | **1778** | **2963** | |
+| **Total** | | | **282** | **1908** | **3141** | |
 
 ## 5. Build order
 
 ```text
-Stage 0 (exists) → 1 (exists) → 2 (exists, wrap up) → 3 → 4 → 6 → 7 → 8 → 9 → 10 → 11
+Stage 0 (exists) → 1 (exists) → 2 (exists, wrap up) → 3 → 4 → 5A → 6 → 7 → 8 → 9 → 10 → 11
                                                                                     │
                                   Milestone M4: start applying for first AI job ◄───┘
 
