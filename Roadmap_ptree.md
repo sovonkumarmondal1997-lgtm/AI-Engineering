@@ -3923,19 +3923,22 @@ Career Growth to Senior/
         └── 01-senior-application-packet.md
 ```
 
-## 4. Summary of stages (Stage 1 to Stage 18)
+## 4. Summary of stages (Stage 0 to Stage 18)
 
 Modules exclude the `00-` overview folder. Lessons are the numbered `NN-*.md` files inside modules. Files is the total file count of the stage tree.
 
 | Stage | Name | Folder | Modules | Lessons | Files | Stage project |
 |---|---|---|---|---|---|---|
+| 0 | Computer & Digital Foundation | `Stage 0 — Computer & Digital Foundation/` | 4 | 61 | 79 | `stage-0-incident-simulation` |
 | 1 | Programming & Computational Thinking | `Stage 1 — Programming & Computational Thinking/` | 24 | 212 | 282 | 4 stage projects: `personal-expense-ledger-cli`, `log-investigation-and-reliability-cli`, `data-quality-and-transformation-pipeline`, `rule-based-risk-review-engine` |
 | 2 | Python for Data Engineering_1 | `Stage 2 — Python for Data Engineering_1/` | 22 | 206 | 295 | 7 stage projects, ending in `capstone-end-to-end-data-platform` |
 | 2B | Python for Data Engineering_2 | `Stage 2B — Python for Data Engineering_2/` | 5 | 67 | 98 | 5 stage projects, ending in `system-design-interview-portfolio` |
 | 2C | Data Engineering_3 | `Stage 2C — Data Engineering_3/` | 10 | 79 | 80 | none (module lessons only, no stage project) |
 | 2D | Data Architecture | `Stage 2D — Data Architecture/` | 16 | 124 | 209 | `enterprise-data-architecture-capstone` |
 | 3 | Data Structures & Algorithms | `Stage 3 — Data Structures & Algorithms/` | 16 | 166 | 253 | `algorithm-toolkit-and-benchmark` |
-| 4 | Mathematics for Machine Learning | `Mathematics for Machine Learning/` | 10 | 54 | 99 | `math-for-ml-notebook-library` |
+| 4A | Basic Mathematics Prerequisite | `Stage 4A — Basic Mathematics Prerequisite/` | 11 | 199 | 202 | none (module lessons only, no stage project) |
+| 4B | Mathematics for Machine Learning | `Stage 4B — Mathematics for Machine Learning/` | 10 | 54 | 99 | `math-for-ml-notebook-library` |
+| 4C | Advanced Mathematics for Machine Learning — Deep Learning | `Stage 4C — Advanced Mathematics for Machine Learning — Deep Learning/` | 8 | 90 | 90 | none (module lessons only, no stage project) |
 | 5 | Machine Learning Foundations | `Machine Learning Foundations/` | 10 | 48 | 93 | `end-to-end-classifier-with-error-analysis` |
 | 6 | Deep Learning & Transformers | `Deep Learning & Transformers/` | 14 | 69 | 130 | `train-a-small-gpt-and-write-the-report` |
 | 7 | Backend Engineering for AI Systems | `Backend Engineering for AI Systems/` | 11 | 50 | 99 | `production-ready-ai-api-service` |
@@ -3950,7 +3953,7 @@ Modules exclude the `00-` overview folder. Lessons are the numbered `NN-*.md` fi
 | 16 | Flagship Portfolio Projects | `Flagship Portfolio Projects/` | 7 | — | 156 | 7 flagship repos (1 optional) |
 | 17 | Interview Preparation & Getting Hired | `Interview Preparation & Getting Hired/` | 10 | 30 | 75 | `job-search-campaign-tracker` |
 | 18 | Career Growth to Senior | `Career Growth to Senior/` | 6 | 19 | 48 | `senior-readiness-evidence-portfolio` |
-| **Total** | | | **255** | **1476** | **2685** | |
+| **Total** | | | **278** | **1826** | **3056** | |
 
 ## 5. Build order
 
