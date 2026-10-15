@@ -28,6 +28,7 @@ AI Engineering/
 ├── Stage 2B — Python for Data Engineering_2/           # Stage 2B (exists)
 ├── Stage 2C — Data Engineering_3/           # Stage 2C (exists)
 ├── Stage 2D — Data Architecture/           # Stage 2D (exists)
+├── Stage 2E — Production DevOps & Platform Engineering/           # Stage 2E
 ├── Stage 3 — Data Structures & Algorithms/            # Stage 3 (exists)
 ├── Stage 4A — Basic Mathematics Prerequisite/         # Stage 4A
 ├── Stage 4B — Mathematics for Machine Learning/       # Stage 4B
@@ -1244,6 +1245,158 @@ Stage 2D — Data Architecture/
 │   ├── README.md
 │   └── roadmap-Enterprise-Data-Architecture-Case-Studies-and-Capstone.md
 └── README.md
+```
+
+### Stage 2E — Production DevOps & Platform Engineering
+
+```text
+Stage 2E — Production DevOps & Platform Engineering/
+├── README.md
+├── 00-Stage-2E-Overview/
+│   ├── README.md
+│   ├── learning-plan.md
+│   ├── prerequisites-and-exit-criteria.md
+│   ├── production-devops-tooling-map.md
+│   └── Projects/
+│       ├── README.md
+│       └── 01-production-readiness-baseline.md
+│
+├── 01-Production-Kubernetes-Operations/
+│   ├── README.md
+│   ├── 01-production-cluster-architecture-and-control-plane.md
+│   ├── 02-namespaces-resource-quotas-and-limit-ranges.md
+│   ├── 03-probes-health-checks-and-workload-recovery.md
+│   ├── 04-deployments-statefulsets-jobs-and-cronjobs-in-production.md
+│   ├── 05-pod-disruption-budgets-and-graceful-shutdown.md
+│   ├── 06-horizontal-and-vertical-autoscaling.md
+│   ├── 07-node-pools-taints-affinity-and-workload-placement.md
+│   ├── 08-cluster-upgrades-and-version-compatibility.md
+│   ├── 09-kubernetes-rbac-and-network-policies.md
+│   ├── 10-production-cluster-troubleshooting.md
+│   ├── practice-questions.md
+│   └── Projects/
+│       ├── README.md
+│       └── 01-resilient-data-pipeline-on-kubernetes.md
+│
+├── 02-Advanced-Infrastructure-as-Code-and-Cloud-Operations/
+│   ├── README.md
+│   ├── 01-terraform-state-backends-locking-and-recovery.md
+│   ├── 02-terraform-modules-and-environment-reuse.md
+│   ├── 03-state-migration-import-and-drift-detection.md
+│   ├── 04-safe-infrastructure-plans-and-change-approval.md
+│   ├── 05-cloud-account-and-environment-boundaries.md
+│   ├── 06-policy-as-code-for-infrastructure-guardrails.md
+│   ├── 07-cloud-quotas-service-limits-and-resource-governance.md
+│   ├── 08-infrastructure-decommissioning-and-orphan-cleanup.md
+│   ├── practice-questions.md
+│   └── Projects/
+│       ├── README.md
+│       └── 01-governed-multi-environment-data-platform-infrastructure.md
+│
+├── 03-GitOps-and-Progressive-Delivery/
+│   ├── README.md
+│   ├── 01-gitops-principles-and-desired-state-reconciliation.md
+│   ├── 02-configuration-and-secret-reference-management.md
+│   ├── 03-deployment-drift-detection-and-reconciliation.md
+│   ├── 04-progressive-delivery-with-canary-and-blue-green-releases.md
+│   ├── 05-release-health-analysis-and-automated-abort.md
+│   ├── 06-database-and-data-platform-migration-safety.md
+│   ├── 07-backward-compatible-pipeline-and-api-releases.md
+│   ├── 08-release-evidence-and-audit-trails.md
+│   ├── practice-questions.md
+│   └── Projects/
+│       ├── README.md
+│       └── 01-gitops-controlled-data-service-release.md
+│
+├── 04-Site-Reliability-Engineering-and-Incident-Management/
+│   ├── README.md
+│   ├── 01-service-level-indicators-objectives-and-error-budgets.md
+│   ├── 02-reliability-targets-for-batch-streaming-and-inference.md
+│   ├── 03-alert-quality-noise-reduction-and-escalation-policies.md
+│   ├── 04-incident-severity-roles-and-command-structure.md
+│   ├── 05-production-triage-and-blameless-postmortems.md
+│   ├── 06-capacity-related-failures-and-cascading-outages.md
+│   ├── 07-toil-reduction-and-operational-automation.md
+│   ├── 08-runbook-design-and-operational-readiness-reviews.md
+│   ├── 09-error-budget-policies-and-release-freezes.md
+│   ├── practice-questions.md
+│   └── Projects/
+│       ├── README.md
+│       └── 01-production-incident-simulation-and-postmortem.md
+│
+├── 05-Production-Observability-and-Performance-Operations/
+│   ├── README.md
+│   ├── 01-production-telemetry-architecture-and-retention.md
+│   ├── 02-service-dependencies-and-end-to-end-failure-correlation.md
+│   ├── 03-actionable-alerts-and-symptom-based-monitoring.md
+│   ├── 04-saturation-queue-depth-and-resource-exhaustion.md
+│   ├── 05-distributed-trace-analysis-and-bottleneck-isolation.md
+│   ├── 06-scheduled-job-freshness-and-deadline-monitoring.md
+│   ├── 07-observability-cost-cardinality-and-data-retention.md
+│   ├── 08-production-load-stress-and-soak-testing.md
+│   ├── practice-questions.md
+│   └── Projects/
+│       ├── README.md
+│       └── 01-platform-health-and-bottleneck-investigation.md
+│
+├── 06-Production-Security-and-Software-Supply-Chain/
+│   ├── README.md
+│   ├── 01-threat-modelling-for-data-and-ml-platforms.md
+│   ├── 02-container-image-scanning-and-vulnerability-triage.md
+│   ├── 03-software-bills-of-materials-and-dependency-provenance.md
+│   ├── 04-image-signing-and-deployment-verification.md
+│   ├── 05-build-isolation-and-short-lived-ci-identities.md
+│   ├── 06-workload-identity-and-credential-rotation.md
+│   ├── 07-runtime-security-and-container-hardening.md
+│   ├── 08-admission-controls-and-deployment-policy-enforcement.md
+│   ├── 09-security-auditing-and-vulnerability-remediation-workflows.md
+│   ├── practice-questions.md
+│   └── Projects/
+│       ├── README.md
+│       └── 01-secure-and-verified-container-release.md
+│
+├── 07-Backup-Disaster-Recovery-and-Resilience-Testing/
+│   ├── README.md
+│   ├── 01-recovery-time-and-recovery-point-objectives.md
+│   ├── 02-backup-scope-retention-and-immutability.md
+│   ├── 03-restoring-platform-metadata-and-configuration.md
+│   ├── 04-recovering-data-pipeline-state-and-checkpoints.md
+│   ├── 05-recovering-model-artifacts-and-registry-metadata.md
+│   ├── 06-regional-failure-and-dependency-outage-strategies.md
+│   ├── 07-restore-drills-and-recovery-evidence.md
+│   ├── 08-failure-injection-and-resilience-exercises.md
+│   ├── practice-questions.md
+│   └── Projects/
+│       ├── README.md
+│       └── 01-tested-disaster-recovery-for-data-and-ml.md
+│
+├── 08-Platform-Capacity-and-FinOps-Operations/
+│   ├── README.md
+│   ├── 01-platform-capacity-forecasting-and-headroom.md
+│   ├── 02-workload-priorities-quotas-and-resource-contention.md
+│   ├── 03-cloud-budget-alerts-and-spending-guardrails.md
+│   ├── 04-cost-allocation-by-team-project-and-workload.md
+│   ├── 05-idle-resource-detection-and-automated-cleanup.md
+│   ├── 06-cost-reliability-and-performance-tradeoffs.md
+│   ├── 07-capacity-and-cost-review-for-production-releases.md
+│   ├── practice-questions.md
+│   └── Projects/
+│       ├── README.md
+│       └── 01-capacity-and-cost-governance-for-data-ml-platforms.md
+│
+└── 09-Production-DevOps-Integrated-Capstone/
+    ├── README.md
+    ├── capstone-requirements.md
+    ├── production-readiness-checklist.md
+    ├── incident-and-recovery-rubric.md
+    ├── security-and-release-rubric.md
+    ├── cost-and-reliability-rubric.md
+    └── Projects/
+        ├── README.md
+        ├── 01-production-data-platform-deployment.md
+        ├── 02-reliable-scheduled-pipeline-operations.md
+        ├── 03-production-ml-service-operations.md
+        └── 04-end-to-end-production-devops-capstone.md
 ```
 
 ### Stage 3 — Data Structures & Algorithms
@@ -4324,6 +4477,7 @@ Modules exclude the `00-` overview folder. Lessons are the numbered `NN-*.md` fi
 | 2B | Python for Data Engineering_2 | `Stage 2B — Python for Data Engineering_2/` | 5 | 67 | 98 | 5 stage projects, ending in `system-design-interview-portfolio` |
 | 2C | Data Engineering_3 | `Stage 2C — Data Engineering_3/` | 10 | 79 | 80 | none (module lessons only, no stage project) |
 | 2D | Data Architecture | `Stage 2D — Data Architecture/` | 16 | 124 | 209 | `enterprise-data-architecture-capstone` |
+| 2E | Production DevOps & Platform Engineering | `Stage 2E — Production DevOps & Platform Engineering/` | 9 | 67 | 117 | `end-to-end-production-devops-capstone` |
 | 3 | Data Structures & Algorithms | `Stage 3 — Data Structures & Algorithms/` | 16 | 166 | 253 | `algorithm-toolkit-and-benchmark` |
 | 4A | Basic Mathematics Prerequisite | `Stage 4A — Basic Mathematics Prerequisite/` | 11 | 199 | 202 | none (module lessons only, no stage project) |
 | 4B | Mathematics for Machine Learning | `Stage 4B — Mathematics for Machine Learning/` | 10 | 54 | 99 | `math-for-ml-notebook-library` |
@@ -4344,7 +4498,7 @@ Modules exclude the `00-` overview folder. Lessons are the numbered `NN-*.md` fi
 | 16 | Flagship Portfolio Projects | `Flagship Portfolio Projects/` | 7 | — | 156 | 7 flagship repos (1 optional) |
 | 17 | Interview Preparation & Getting Hired | `Interview Preparation & Getting Hired/` | 10 | 30 | 75 | `job-search-campaign-tracker` |
 | 18 | Career Growth to Senior | `Career Growth to Senior/` | 6 | 19 | 48 | `senior-readiness-evidence-portfolio` |
-| **Total** | | | **311** | **2102** | **3404** | |
+| **Total** | | | **320** | **2169** | **3521** | |
 
 ## 5. Build order
 
