@@ -1791,6 +1791,226 @@ Stage 4A — Advanced Mathematics for Machine Learning — Deep Learning/
     └── 90-random-variables-and-noise-in-stochastic-gradient-descent.md
 ```
 
+### Stage 4B — Basic Mathematics Prerequisite
+
+```text
+STAGE 4B - Basic Mathematics Prerequisite/
+├── 00-Prerequisite-Overview/
+│   ├── README.md
+│   └── learning-plan.md
+├── README.md
+├── 01-Arithmetic-Fundamentals/
+│   ├── 01-what-mathematics-is-and-why-numbers-matter.md
+│   ├── 02-natural-numbers-whole-numbers-integers-rational-numbers-and-irrational-numbers.md
+│   ├── 03-positive-and-negative-numbers.md
+│   ├── 04-number-lines-and-comparing-numbers.md
+│   ├── 05-place-value-and-decimal-notation.md
+│   ├── 06-addition-and-subtraction.md
+│   ├── 07-multiplication-and-division.md
+│   ├── 08-order-of-operations-bodmas-or-pemdas.md
+│   ├── 09-absolute-value.md
+│   ├── 10-factors-and-multiples.md
+│   ├── 11-prime-numbers-and-composite-numbers.md
+│   ├── 12-divisibility-rules.md
+│   ├── 13-highest-common-factor-and-lowest-common-multiple.md
+│   ├── 14-rounding-and-estimation.md
+│   ├── 15-decimal-arithmetic.md
+│   ├── 16-units-and-basic-unit-conversions.md
+│   ├── 17-mental-arithmetic-and-calculation-checks.md
+│   └── 18-common-arithmetic-errors-and-how-to-detect-them.md
+├── 02-Fractions-Percentages-Ratios-and-Proportions/
+│   ├── 01-what-fractions-represent.md
+│   ├── 02-numerators-and-denominators.md
+│   ├── 03-equivalent-fractions.md
+│   ├── 04-simplifying-fractions.md
+│   ├── 05-comparing-and-ordering-fractions.md
+│   ├── 06-adding-and-subtracting-fractions.md
+│   ├── 07-multiplying-and-dividing-fractions.md
+│   ├── 08-converting-fractions-to-decimals.md
+│   ├── 09-converting-decimals-to-percentages.md
+│   ├── 10-converting-percentages-to-fractions.md
+│   ├── 11-understanding-ratios.md
+│   ├── 12-simplifying-ratios.md
+│   ├── 13-equivalent-ratios.md
+│   ├── 14-rates-and-unit-rates.md
+│   ├── 15-direct-proportion.md
+│   ├── 16-inverse-proportion.md
+│   ├── 17-finding-a-percentage-of-a-quantity.md
+│   ├── 18-percentage-increase-and-decrease.md
+│   ├── 19-reverse-percentages.md
+│   ├── 20-percentage-points-versus-percentage-change.md
+│   ├── 21-weighted-averages.md
+│   └── 22-scaling-quantities-and-interpreting-proportional-changes.md
+├── 03-Algebra-Fundamentals/
+│   ├── 01-what-algebra-is-and-why-variables-are-used.md
+│   ├── 02-variables-constants-coefficients-and-terms.md
+│   ├── 03-algebraic-expressions.md
+│   ├── 04-translating-word-problems-into-expressions.md
+│   ├── 05-like-and-unlike-terms.md
+│   ├── 06-simplifying-algebraic-expressions.md
+│   ├── 07-the-distributive-property.md
+│   ├── 08-expanding-brackets.md
+│   ├── 09-factorization-fundamentals.md
+│   ├── 10-common-algebraic-identities.md
+│   ├── 11-substitution-into-formulas.md
+│   ├── 12-rearranging-formulas.md
+│   ├── 13-evaluating-expressions-with-negative-numbers.md
+│   ├── 14-fractions-in-algebraic-expressions.md
+│   ├── 15-ratios-and-proportional-relationships-in-algebra.md
+│   ├── 16-polynomials-and-their-basic-terminology.md
+│   ├── 17-introduction-to-quadratic-expressions.md
+│   └── 18-common-algebra-mistakes.md
+├── 04-Equations-and-Inequalities/
+│   ├── 01-what-an-equation-represents.md
+│   ├── 02-equality-and-the-balance-principle.md
+│   ├── 03-solving-one-step-equations.md
+│   ├── 04-solving-multi-step-linear-equations.md
+│   ├── 05-equations-with-brackets.md
+│   ├── 06-equations-with-fractions.md
+│   ├── 07-equations-with-variables-on-both-sides.md
+│   ├── 08-translating-word-problems-into-equations.md
+│   ├── 09-formula-rearrangement-and-solving-for-a-selected-variable.md
+│   ├── 10-what-inequalities-represent.md
+│   ├── 11-less-than-and-greater-than-relationships.md
+│   ├── 12-solving-linear-inequalities.md
+│   ├── 13-reversing-inequality-signs-when-multiplying-or-dividing-by-negative-values.md
+│   ├── 14-compound-inequalities.md
+│   ├── 15-interval-notation-and-solution-sets.md
+│   ├── 16-absolute-value-equations-and-inequalities.md
+│   ├── 17-introduction-to-systems-of-linear-equations.md
+│   └── 18-checking-solutions-and-identifying-invalid-results.md
+├── 05-Exponents-Powers-and-Roots/
+│   ├── 01-meaning-of-powers-and-exponents.md
+│   ├── 02-base-and-exponent.md
+│   ├── 03-multiplication-of-powers-with-the-same-base.md
+│   ├── 04-division-of-powers-with-the-same-base.md
+│   ├── 05-power-of-a-power.md
+│   ├── 06-powers-of-products-and-quotients.md
+│   ├── 07-zero-exponents.md
+│   ├── 08-negative-exponents.md
+│   ├── 09-fractional-exponents.md
+│   ├── 10-squares-cubes-and-higher-powers.md
+│   ├── 11-square-roots-and-cube-roots.md
+│   ├── 12-simplifying-radicals.md
+│   ├── 13-scientific-notation.md
+│   ├── 14-orders-of-magnitude.md
+│   ├── 15-exponential-growth-and-decay.md
+│   ├── 16-comparing-linear-and-exponential-growth.md
+│   ├── 17-powers-of-2-and-binary-scale-intuition.md
+│   └── 18-common-exponent-errors.md
+├── 06-Logarithms/
+│   ├── 01-what-logarithms-mean.md
+│   ├── 02-the-relationship-between-exponents-and-logarithms.md
+│   ├── 03-logarithms-in-base-10.md
+│   ├── 04-natural-logarithms-and-the-constant-e.md
+│   ├── 05-evaluating-simple-logarithms.md
+│   ├── 06-logarithms-of-1-and-of-the-base.md
+│   ├── 07-product-rule-for-logarithms.md
+│   ├── 08-quotient-rule-for-logarithms.md
+│   ├── 09-power-rule-for-logarithms.md
+│   ├── 10-change-of-base-formula.md
+│   ├── 11-solving-simple-exponential-equations.md
+│   ├── 12-solving-simple-logarithmic-equations.md
+│   ├── 13-graphs-of-exponential-and-logarithmic-functions.md
+│   ├── 14-logarithmic-scales-and-orders-of-magnitude.md
+│   └── 15-common-logarithm-mistakes.md
+├── 07-Functions/
+│   ├── 01-what-a-function-is.md
+│   ├── 02-inputs-outputs-and-the-function-rule.md
+│   ├── 03-function-notation-f-of-x.md
+│   ├── 04-domain-and-range.md
+│   ├── 05-independent-and-dependent-variables.md
+│   ├── 06-evaluating-functions.md
+│   ├── 07-linear-functions.md
+│   ├── 08-quadratic-functions.md
+│   ├── 09-polynomial-functions.md
+│   ├── 10-exponential-functions.md
+│   ├── 11-logarithmic-functions.md
+│   ├── 12-absolute-value-functions.md
+│   ├── 13-piecewise-defined-functions.md
+│   ├── 14-function-composition.md
+│   ├── 15-inverse-functions-and-their-meaning.md
+│   ├── 16-interpreting-function-graphs.md
+│   ├── 17-understanding-parameters-in-a-function.md
+│   ├── 18-introduction-to-sigmoid-and-relu-functions.md
+│   └── 19-recognizing-how-changing-parameters-affects-outputs.md
+├── 08-Graphs-and-Coordinate-Geometry/
+│   ├── 01-the-cartesian-coordinate-plane.md
+│   ├── 02-the-x-axis-and-y-axis.md
+│   ├── 03-ordered-pairs-and-plotting-points.md
+│   ├── 04-reading-coordinates-from-graphs.md
+│   ├── 05-independent-and-dependent-variables-on-graphs.md
+│   ├── 06-intercepts.md
+│   ├── 07-slope-and-rate-of-change.md
+│   ├── 08-equation-of-a-straight-line.md
+│   ├── 09-slope-intercept-form.md
+│   ├── 10-graphing-linear-equations.md
+│   ├── 11-understanding-quadratic-graphs.md
+│   ├── 12-graphing-exponential-and-logarithmic-functions.md
+│   ├── 13-interpreting-increasing-and-decreasing-functions.md
+│   ├── 14-local-maxima-and-minima-as-visual-ideas.md
+│   ├── 15-distance-between-two-points.md
+│   ├── 16-midpoints.md
+│   ├── 17-understanding-graph-scales-and-axes.md
+│   └── 18-interpreting-charts-without-misleading-conclusions.md
+├── 09-Basic-Geometry-and-Trigonometry/
+│   ├── 01-points-lines-line-segments-and-angles.md
+│   ├── 02-parallel-and-perpendicular-lines.md
+│   ├── 03-types-of-angles.md
+│   ├── 04-triangles-and-their-properties.md
+│   ├── 05-pythagorean-theorem.md
+│   ├── 06-perimeter-and-area.md
+│   ├── 07-area-of-triangles-and-rectangles.md
+│   ├── 08-circles-radius-diameter-and-circumference.md
+│   ├── 09-coordinate-distance-and-geometric-interpretation.md
+│   ├── 10-degrees-and-radians.md
+│   ├── 11-right-triangle-trigonometry.md
+│   ├── 12-sine-cosine-and-tangent.md
+│   ├── 13-basic-trigonometric-identities.md
+│   ├── 14-unit-circle-intuition.md
+│   ├── 15-periodic-functions.md
+│   ├── 16-sine-and-cosine-graphs.md
+│   ├── 17-amplitude-period-and-phase.md
+│   └── 18-basic-geometric-intuition-for-angles-between-vectors.md
+├── 10-Sequences-and-Mathematical-Patterns/
+│   ├── 01-what-a-sequence-is.md
+│   ├── 02-sequence-terms-and-indices.md
+│   ├── 03-arithmetic-sequences.md
+│   ├── 04-geometric-sequences.md
+│   ├── 05-common-differences-and-common-ratios.md
+│   ├── 06-explicit-formulas-for-sequences.md
+│   ├── 07-recursive-definitions.md
+│   ├── 08-summation-notation.md
+│   ├── 09-expanding-a-summation-into-individual-terms.md
+│   ├── 10-basic-finite-sums.md
+│   ├── 11-introduction-to-infinite-sequences.md
+│   ├── 12-recognizing-mathematical-patterns.md
+│   ├── 13-growth-rates-and-repeated-multiplication.md
+│   ├── 14-simple-recurrence-relations.md
+│   └── 15-understanding-indexed-data-and-parameter-lists.md
+└── 11-Mathematical-Notation-and-Problem-Solving/
+    ├── 01-common-mathematical-symbols.md
+    ├── 02-equality-equivalence-and-approximation.md
+    ├── 03-inequality-symbols.md
+    ├── 04-subscripts-and-superscripts.md
+    ├── 05-indices-and-indexed-variables.md
+    ├── 06-greek-letters-commonly-used-in-mathematics.md
+    ├── 07-variables-versus-parameters.md
+    ├── 08-function-notation.md
+    ├── 09-set-notation-and-basic-set-operations.md
+    ├── 10-interval-notation.md
+    ├── 11-the-meaning-of-summation-and-product-notation.md
+    ├── 12-reading-formulas-from-left-to-right.md
+    ├── 13-understanding-assumptions-and-conditions.md
+    ├── 14-translating-words-into-mathematical-expressions.md
+    ├── 15-breaking-complex-problems-into-smaller-steps.md
+    ├── 16-checking-answers-by-substitution.md
+    ├── 17-estimation-and-sanity-checks.md
+    ├── 18-dimensional-and-unit-consistency.md
+    ├── 19-identifying-common-algebraic-errors.md
+    └── 20-reading-beginner-level-mathematical-explanations-and-research-formulas.md
+```
+
 ### Stage 5 — Machine Learning Foundations — `Machine Learning Foundations/`
 
 ```text
