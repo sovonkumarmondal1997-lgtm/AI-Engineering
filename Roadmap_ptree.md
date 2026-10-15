@@ -1552,249 +1552,10 @@ Stage 3 — Data Structures & Algorithms/
         └── 03-final-timed-interview-simulation.md
 ```
 
-### Stage 4 — Mathematics for Machine Learning — `Mathematics for Machine Learning/`
+### Stage 4A — Basic Mathematics Prerequisite
 
 ```text
-Mathematics for Machine Learning/
-├── README.md
-├── 00-Stage-4-Overview/
-│   ├── README.md
-│   ├── learning-plan.md
-│   └── Projects/
-│       ├── README.md
-│       └── 01-math-for-ml-notebook-library.md
-├── 01-Math-Refresher-and-Notation/
-│   ├── README.md
-│   ├── 01-numbers-and-algebra-refresher.md
-│   ├── 02-functions-and-graphs.md
-│   ├── 03-exponents-and-logarithms.md
-│   ├── 04-summation-and-product-notation.md
-│   ├── 05-reading-math-in-papers.md
-│   ├── practice-questions.md
-│   └── Projects/
-│       ├── README.md
-│       └── 01-plot-common-functions.md
-├── 02-Vectors-and-Vector-Spaces/
-│   ├── README.md
-│   ├── 01-what-a-vector-is.md
-│   ├── 02-vector-operations.md
-│   ├── 03-dot-product-and-projection.md
-│   ├── 04-norms-and-distance.md
-│   ├── 05-linear-independence-and-span.md
-│   ├── practice-questions.md
-│   └── Projects/
-│       ├── README.md
-│       └── 01-vectors-in-numpy.md
-├── 03-Matrices-and-Linear-Transformations/
-│   ├── README.md
-│   ├── 01-matrices-as-data-and-functions.md
-│   ├── 02-matrix-multiplication.md
-│   ├── 03-transpose-inverse-and-identity.md
-│   ├── 04-matrix-shapes-and-broadcasting.md
-│   ├── 05-eigenvalues-and-eigenvectors.md
-│   ├── 06-svd-and-low-rank-approximation.md
-│   ├── practice-questions.md
-│   └── Projects/
-│       ├── README.md
-│       └── 01-image-compression-with-svd.md
-├── 04-Similarity-Distance-and-Embedding-Math/
-│   ├── README.md
-│   ├── 01-cosine-similarity.md
-│   ├── 02-euclidean-vs-cosine.md
-│   ├── 03-high-dimensional-geometry.md
-│   ├── 04-nearest-neighbors-intuition.md
-│   ├── practice-questions.md
-│   └── Projects/
-│       ├── README.md
-│       └── 01-word-vector-similarity-explorer.md
-├── 05-Derivatives-and-Gradients/
-│   ├── README.md
-│   ├── 01-rates-of-change.md
-│   ├── 02-derivative-rules.md
-│   ├── 03-partial-derivatives.md
-│   ├── 04-gradients.md
-│   ├── 05-numerical-vs-analytical-derivatives.md
-│   ├── practice-questions.md
-│   └── Projects/
-│       ├── README.md
-│       └── 01-numerical-gradient-checker.md
-├── 06-Chain-Rule-and-Optimization/
-│   ├── README.md
-│   ├── 01-the-chain-rule.md
-│   ├── 02-computational-graphs.md
-│   ├── 03-gradient-descent.md
-│   ├── 04-learning-rate-and-convergence.md
-│   ├── 05-sgd-momentum-and-adam-intuition.md
-│   ├── practice-questions.md
-│   └── Projects/
-│       ├── README.md
-│       └── 01-gradient-descent-visualizer.md
-├── 07-Probability-Fundamentals/
-│   ├── README.md
-│   ├── 01-events-and-probability.md
-│   ├── 02-conditional-probability.md
-│   ├── 03-bayes-theorem.md
-│   ├── 04-random-variables.md
-│   ├── 05-expectation-and-variance.md
-│   ├── 06-independence-and-correlation.md
-│   ├── practice-questions.md
-│   └── Projects/
-│       ├── README.md
-│       └── 01-probability-simulations.md
-├── 08-Distributions-and-Sampling/
-│   ├── README.md
-│   ├── 01-bernoulli-and-binomial.md
-│   ├── 02-normal-distribution.md
-│   ├── 03-categorical-distribution-and-softmax.md
-│   ├── 04-law-of-large-numbers.md
-│   ├── 05-central-limit-theorem.md
-│   ├── 06-sampling-methods.md
-│   ├── practice-questions.md
-│   └── Projects/
-│       ├── README.md
-│       └── 01-sampling-from-a-next-token-distribution.md
-├── 09-Statistics-for-Experiments-and-Evals/
-│   ├── README.md
-│   ├── 01-descriptive-statistics.md
-│   ├── 02-confidence-intervals.md
-│   ├── 03-bootstrap-resampling.md
-│   ├── 04-hypothesis-testing-and-p-values.md
-│   ├── 05-paired-tests-for-model-comparison.md
-│   ├── 06-sample-size-and-statistical-power.md
-│   ├── 07-multiple-comparisons.md
-│   ├── practice-questions.md
-│   └── Projects/
-│       ├── README.md
-│       └── 01-is-prompt-b-really-better.md
-└── 10-Information-Theory-for-ML/
-    ├── README.md
-    ├── 01-information-and-surprise.md
-    ├── 02-entropy.md
-    ├── 03-cross-entropy-loss.md
-    ├── 04-kl-divergence.md
-    ├── 05-perplexity.md
-    ├── practice-questions.md
-    └── Projects/
-        ├── README.md
-        └── 01-compute-perplexity-of-text.md
-```
-
-### Stage 4A — Advanced Mathematics for Machine Learning — Deep Learning
-
-```text
-Stage 4A — Advanced Mathematics for Machine Learning — Deep Learning/
-│
-├── 01-Linear-Algebra-Advanced-Topics/
-│   ├── 01-matrix-rank-and-rank-nullity-theorem.md
-│   ├── 02-null-space-column-space-and-row-space.md
-│   ├── 03-basis-dimension-and-change-of-basis.md
-│   ├── 04-orthogonality-and-orthonormal-bases.md
-│   ├── 05-orthogonal-projections-and-least-squares-solutions.md
-│   ├── 06-positive-definite-and-positive-semidefinite-matrices.md
-│   ├── 07-singular-value-decomposition-svd-mathematical-derivation.md
-│   ├── 08-eigendecomposition-and-spectral-theorem.md
-│   ├── 09-matrix-calculus.md
-│   ├── 10-jacobian-matrices.md
-│   ├── 11-hessian-matrices.md
-│   └── 12-kronecker-products-and-vectorization.md
-│
-├── 02-Calculus-Advanced-Topics/
-│   ├── 13-limits-and-continuity.md
-│   ├── 14-multivariable-functions.md
-│   ├── 15-multivariable-chain-rule.md
-│   ├── 16-directional-derivatives.md
-│   ├── 17-second-order-derivatives.md
-│   ├── 18-taylor-series-and-taylor-approximation.md
-│   ├── 19-jacobian-and-hessian-applications.md
-│   ├── 20-implicit-differentiation.md
-│   ├── 21-constrained-optimization.md
-│   └── 22-lagrange-multipliers-and-kkt-conditions.md
-│
-├── 03-Optimization-Advanced-Topics/
-│   ├── 23-convex-sets-and-convex-functions.md
-│   ├── 24-convex-and-non-convex-optimization.md
-│   ├── 25-first-order-and-second-order-optimality-conditions.md
-│   ├── 26-newtons-method.md
-│   ├── 27-quasi-newton-methods.md
-│   ├── 28-coordinate-descent.md
-│   ├── 29-proximal-gradient-methods.md
-│   ├── 30-constrained-and-regularized-optimization.md
-│   ├── 31-saddle-points-and-local-minima.md
-│   ├── 32-gradient-conditioning-and-ill-conditioning.md
-│   ├── 33-convergence-rates-and-convergence-analysis.md
-│   └── 34-stochastic-optimization-theory.md
-│
-├── 04-Probability-Advanced-Topics/
-│   ├── 35-joint-probability-distributions.md
-│   ├── 36-marginal-and-conditional-distributions.md
-│   ├── 37-probability-density-and-mass-functions.md
-│   ├── 38-cumulative-distribution-functions.md
-│   ├── 39-covariance-matrices.md
-│   ├── 40-conditional-expectation.md
-│   ├── 41-law-of-total-expectation.md
-│   ├── 42-law-of-total-variance.md
-│   ├── 43-independence-and-conditional-independence.md
-│   ├── 44-multivariate-gaussian-distribution.md
-│   ├── 45-change-of-variables-for-random-variables.md
-│   ├── 46-markov-chains.md
-│   ├── 47-monte-carlo-estimation.md
-│   └── 48-bayesian-inference-and-posterior-distributions.md
-│
-├── 05-Statistics-Advanced-Topics/
-│   ├── 49-maximum-likelihood-estimation-mle.md
-│   ├── 50-maximum-a-posteriori-estimation-map.md
-│   ├── 51-bayesian-vs-frequentist-statistics.md
-│   ├── 52-bias-variance-and-mean-squared-error.md
-│   ├── 53-consistency-and-asymptotic-normality.md
-│   ├── 54-likelihood-functions-and-log-likelihood.md
-│   ├── 55-fisher-information.md
-│   ├── 56-statistical-decision-theory.md
-│   ├── 57-empirical-risk-and-expected-risk.md
-│   ├── 58-bootstrap-confidence-intervals-and-advanced-resampling.md
-│   ├── 59-bayesian-parameter-estimation.md
-│   └── 60-uncertainty-quantification.md
-│
-├── 06-Information-Theory-Advanced-Topics/
-│   ├── 61-conditional-entropy.md
-│   ├── 62-mutual-information.md
-│   ├── 63-joint-entropy.md
-│   ├── 64-jensen-shannon-divergence.md
-│   ├── 65-cross-entropy-and-kl-divergence-mathematical-derivations.md
-│   ├── 66-differential-entropy.md
-│   ├── 67-maximum-entropy-principle.md
-│   ├── 68-information-bottleneck-principle.md
-│   └── 69-rate-distortion-theory.md
-│
-├── 07-Mathematical-Foundations-for-Deep-Learning/
-│   ├── 70-computational-graphs-and-functional-composition.md
-│   ├── 71-vector-jacobian-products-vjps.md
-│   ├── 72-jacobian-vector-products-jvps.md
-│   ├── 73-reverse-mode-automatic-differentiation.md
-│   ├── 74-forward-mode-automatic-differentiation.md
-│   ├── 75-backpropagation-through-computational-graphs.md
-│   ├── 76-softmax-derivatives-and-cross-entropy-gradients.md
-│   ├── 77-vanishing-and-exploding-gradients-mathematical-analysis.md
-│   ├── 78-weight-initialization-and-activation-statistics.md
-│   ├── 79-numerical-stability-in-exponential-and-logarithmic-operations.md
-│   └── 80-floating-point-arithmetic-and-numerical-error.md
-│
-└── 08-Mathematical-Foundations-for-Transformers-and-Advanced-ML/
-    ├── 81-positional-encoding-mathematics.md
-    ├── 82-scaled-dot-product-attention.md
-    ├── 83-attention-as-matrix-operations.md
-    ├── 84-softmax-temperature-and-probability-distributions.md
-    ├── 85-embedding-spaces-and-representation-geometry.md
-    ├── 86-low-rank-matrix-approximations.md
-    ├── 87-random-projections-and-dimensionality-reduction.md
-    ├── 88-principal-component-analysis-pca-mathematical-derivation.md
-    ├── 89-singular-value-and-spectral-analysis-of-neural-networks.md
-    └── 90-random-variables-and-noise-in-stochastic-gradient-descent.md
-```
-
-### Stage 4B — Basic Mathematics Prerequisite
-
-```text
-STAGE 4B - Basic Mathematics Prerequisite/
+Stage 4A — Basic Mathematics Prerequisite/
 ├── 00-Prerequisite-Overview/
 │   ├── README.md
 │   └── learning-plan.md
@@ -2009,6 +1770,245 @@ STAGE 4B - Basic Mathematics Prerequisite/
     ├── 18-dimensional-and-unit-consistency.md
     ├── 19-identifying-common-algebraic-errors.md
     └── 20-reading-beginner-level-mathematical-explanations-and-research-formulas.md
+```
+
+### Stage 4B — Mathematics for Machine Learning
+
+```text
+Stage 4B — Mathematics for Machine Learning/
+├── README.md
+├── 00-Stage-4-Overview/
+│   ├── README.md
+│   ├── learning-plan.md
+│   └── Projects/
+│       ├── README.md
+│       └── 01-math-for-ml-notebook-library.md
+├── 01-Math-Refresher-and-Notation/
+│   ├── README.md
+│   ├── 01-numbers-and-algebra-refresher.md
+│   ├── 02-functions-and-graphs.md
+│   ├── 03-exponents-and-logarithms.md
+│   ├── 04-summation-and-product-notation.md
+│   ├── 05-reading-math-in-papers.md
+│   ├── practice-questions.md
+│   └── Projects/
+│       ├── README.md
+│       └── 01-plot-common-functions.md
+├── 02-Vectors-and-Vector-Spaces/
+│   ├── README.md
+│   ├── 01-what-a-vector-is.md
+│   ├── 02-vector-operations.md
+│   ├── 03-dot-product-and-projection.md
+│   ├── 04-norms-and-distance.md
+│   ├── 05-linear-independence-and-span.md
+│   ├── practice-questions.md
+│   └── Projects/
+│       ├── README.md
+│       └── 01-vectors-in-numpy.md
+├── 03-Matrices-and-Linear-Transformations/
+│   ├── README.md
+│   ├── 01-matrices-as-data-and-functions.md
+│   ├── 02-matrix-multiplication.md
+│   ├── 03-transpose-inverse-and-identity.md
+│   ├── 04-matrix-shapes-and-broadcasting.md
+│   ├── 05-eigenvalues-and-eigenvectors.md
+│   ├── 06-svd-and-low-rank-approximation.md
+│   ├── practice-questions.md
+│   └── Projects/
+│       ├── README.md
+│       └── 01-image-compression-with-svd.md
+├── 04-Similarity-Distance-and-Embedding-Math/
+│   ├── README.md
+│   ├── 01-cosine-similarity.md
+│   ├── 02-euclidean-vs-cosine.md
+│   ├── 03-high-dimensional-geometry.md
+│   ├── 04-nearest-neighbors-intuition.md
+│   ├── practice-questions.md
+│   └── Projects/
+│       ├── README.md
+│       └── 01-word-vector-similarity-explorer.md
+├── 05-Derivatives-and-Gradients/
+│   ├── README.md
+│   ├── 01-rates-of-change.md
+│   ├── 02-derivative-rules.md
+│   ├── 03-partial-derivatives.md
+│   ├── 04-gradients.md
+│   ├── 05-numerical-vs-analytical-derivatives.md
+│   ├── practice-questions.md
+│   └── Projects/
+│       ├── README.md
+│       └── 01-numerical-gradient-checker.md
+├── 06-Chain-Rule-and-Optimization/
+│   ├── README.md
+│   ├── 01-the-chain-rule.md
+│   ├── 02-computational-graphs.md
+│   ├── 03-gradient-descent.md
+│   ├── 04-learning-rate-and-convergence.md
+│   ├── 05-sgd-momentum-and-adam-intuition.md
+│   ├── practice-questions.md
+│   └── Projects/
+│       ├── README.md
+│       └── 01-gradient-descent-visualizer.md
+├── 07-Probability-Fundamentals/
+│   ├── README.md
+│   ├── 01-events-and-probability.md
+│   ├── 02-conditional-probability.md
+│   ├── 03-bayes-theorem.md
+│   ├── 04-random-variables.md
+│   ├── 05-expectation-and-variance.md
+│   ├── 06-independence-and-correlation.md
+│   ├── practice-questions.md
+│   └── Projects/
+│       ├── README.md
+│       └── 01-probability-simulations.md
+├── 08-Distributions-and-Sampling/
+│   ├── README.md
+│   ├── 01-bernoulli-and-binomial.md
+│   ├── 02-normal-distribution.md
+│   ├── 03-categorical-distribution-and-softmax.md
+│   ├── 04-law-of-large-numbers.md
+│   ├── 05-central-limit-theorem.md
+│   ├── 06-sampling-methods.md
+│   ├── practice-questions.md
+│   └── Projects/
+│       ├── README.md
+│       └── 01-sampling-from-a-next-token-distribution.md
+├── 09-Statistics-for-Experiments-and-Evals/
+│   ├── README.md
+│   ├── 01-descriptive-statistics.md
+│   ├── 02-confidence-intervals.md
+│   ├── 03-bootstrap-resampling.md
+│   ├── 04-hypothesis-testing-and-p-values.md
+│   ├── 05-paired-tests-for-model-comparison.md
+│   ├── 06-sample-size-and-statistical-power.md
+│   ├── 07-multiple-comparisons.md
+│   ├── practice-questions.md
+│   └── Projects/
+│       ├── README.md
+│       └── 01-is-prompt-b-really-better.md
+└── 10-Information-Theory-for-ML/
+    ├── README.md
+    ├── 01-information-and-surprise.md
+    ├── 02-entropy.md
+    ├── 03-cross-entropy-loss.md
+    ├── 04-kl-divergence.md
+    ├── 05-perplexity.md
+    ├── practice-questions.md
+    └── Projects/
+        ├── README.md
+        └── 01-compute-perplexity-of-text.md
+```
+
+### Stage 4C — Advanced Mathematics for Machine Learning — Deep Learning
+
+```text
+Stage 4C — Advanced Mathematics for Machine Learning — Deep Learning/
+│
+├── 01-Linear-Algebra-Advanced-Topics/
+│   ├── 01-matrix-rank-and-rank-nullity-theorem.md
+│   ├── 02-null-space-column-space-and-row-space.md
+│   ├── 03-basis-dimension-and-change-of-basis.md
+│   ├── 04-orthogonality-and-orthonormal-bases.md
+│   ├── 05-orthogonal-projections-and-least-squares-solutions.md
+│   ├── 06-positive-definite-and-positive-semidefinite-matrices.md
+│   ├── 07-singular-value-decomposition-svd-mathematical-derivation.md
+│   ├── 08-eigendecomposition-and-spectral-theorem.md
+│   ├── 09-matrix-calculus.md
+│   ├── 10-jacobian-matrices.md
+│   ├── 11-hessian-matrices.md
+│   └── 12-kronecker-products-and-vectorization.md
+│
+├── 02-Calculus-Advanced-Topics/
+│   ├── 13-limits-and-continuity.md
+│   ├── 14-multivariable-functions.md
+│   ├── 15-multivariable-chain-rule.md
+│   ├── 16-directional-derivatives.md
+│   ├── 17-second-order-derivatives.md
+│   ├── 18-taylor-series-and-taylor-approximation.md
+│   ├── 19-jacobian-and-hessian-applications.md
+│   ├── 20-implicit-differentiation.md
+│   ├── 21-constrained-optimization.md
+│   └── 22-lagrange-multipliers-and-kkt-conditions.md
+│
+├── 03-Optimization-Advanced-Topics/
+│   ├── 23-convex-sets-and-convex-functions.md
+│   ├── 24-convex-and-non-convex-optimization.md
+│   ├── 25-first-order-and-second-order-optimality-conditions.md
+│   ├── 26-newtons-method.md
+│   ├── 27-quasi-newton-methods.md
+│   ├── 28-coordinate-descent.md
+│   ├── 29-proximal-gradient-methods.md
+│   ├── 30-constrained-and-regularized-optimization.md
+│   ├── 31-saddle-points-and-local-minima.md
+│   ├── 32-gradient-conditioning-and-ill-conditioning.md
+│   ├── 33-convergence-rates-and-convergence-analysis.md
+│   └── 34-stochastic-optimization-theory.md
+│
+├── 04-Probability-Advanced-Topics/
+│   ├── 35-joint-probability-distributions.md
+│   ├── 36-marginal-and-conditional-distributions.md
+│   ├── 37-probability-density-and-mass-functions.md
+│   ├── 38-cumulative-distribution-functions.md
+│   ├── 39-covariance-matrices.md
+│   ├── 40-conditional-expectation.md
+│   ├── 41-law-of-total-expectation.md
+│   ├── 42-law-of-total-variance.md
+│   ├── 43-independence-and-conditional-independence.md
+│   ├── 44-multivariate-gaussian-distribution.md
+│   ├── 45-change-of-variables-for-random-variables.md
+│   ├── 46-markov-chains.md
+│   ├── 47-monte-carlo-estimation.md
+│   └── 48-bayesian-inference-and-posterior-distributions.md
+│
+├── 05-Statistics-Advanced-Topics/
+│   ├── 49-maximum-likelihood-estimation-mle.md
+│   ├── 50-maximum-a-posteriori-estimation-map.md
+│   ├── 51-bayesian-vs-frequentist-statistics.md
+│   ├── 52-bias-variance-and-mean-squared-error.md
+│   ├── 53-consistency-and-asymptotic-normality.md
+│   ├── 54-likelihood-functions-and-log-likelihood.md
+│   ├── 55-fisher-information.md
+│   ├── 56-statistical-decision-theory.md
+│   ├── 57-empirical-risk-and-expected-risk.md
+│   ├── 58-bootstrap-confidence-intervals-and-advanced-resampling.md
+│   ├── 59-bayesian-parameter-estimation.md
+│   └── 60-uncertainty-quantification.md
+│
+├── 06-Information-Theory-Advanced-Topics/
+│   ├── 61-conditional-entropy.md
+│   ├── 62-mutual-information.md
+│   ├── 63-joint-entropy.md
+│   ├── 64-jensen-shannon-divergence.md
+│   ├── 65-cross-entropy-and-kl-divergence-mathematical-derivations.md
+│   ├── 66-differential-entropy.md
+│   ├── 67-maximum-entropy-principle.md
+│   ├── 68-information-bottleneck-principle.md
+│   └── 69-rate-distortion-theory.md
+│
+├── 07-Mathematical-Foundations-for-Deep-Learning/
+│   ├── 70-computational-graphs-and-functional-composition.md
+│   ├── 71-vector-jacobian-products-vjps.md
+│   ├── 72-jacobian-vector-products-jvps.md
+│   ├── 73-reverse-mode-automatic-differentiation.md
+│   ├── 74-forward-mode-automatic-differentiation.md
+│   ├── 75-backpropagation-through-computational-graphs.md
+│   ├── 76-softmax-derivatives-and-cross-entropy-gradients.md
+│   ├── 77-vanishing-and-exploding-gradients-mathematical-analysis.md
+│   ├── 78-weight-initialization-and-activation-statistics.md
+│   ├── 79-numerical-stability-in-exponential-and-logarithmic-operations.md
+│   └── 80-floating-point-arithmetic-and-numerical-error.md
+│
+└── 08-Mathematical-Foundations-for-Transformers-and-Advanced-ML/
+    ├── 81-positional-encoding-mathematics.md
+    ├── 82-scaled-dot-product-attention.md
+    ├── 83-attention-as-matrix-operations.md
+    ├── 84-softmax-temperature-and-probability-distributions.md
+    ├── 85-embedding-spaces-and-representation-geometry.md
+    ├── 86-low-rank-matrix-approximations.md
+    ├── 87-random-projections-and-dimensionality-reduction.md
+    ├── 88-principal-component-analysis-pca-mathematical-derivation.md
+    ├── 89-singular-value-and-spectral-analysis-of-neural-networks.md
+    └── 90-random-variables-and-noise-in-stochastic-gradient-descent.md
 ```
 
 ### Stage 5 — Machine Learning Foundations — `Machine Learning Foundations/`
