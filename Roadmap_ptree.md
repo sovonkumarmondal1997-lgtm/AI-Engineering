@@ -28,7 +28,7 @@ AI Engineering/
 ├── Stage 2B — Python for Data Engineering_2/           # Stage 2B (exists)
 ├── Stage 2C — Data Engineering_3/           # Stage 2C (exists)
 ├── Stage 2D — Data Architecture/           # Stage 2D (exists)
-├── Data Structures & Algorithms/            # Stage 3
+├── Stage 3 — Data Structures & Algorithms/            # Stage 3
 ├── Mathematics for Machine Learning/        # Stage 4
 ├── Machine Learning Foundations/            # Stage 5
 ├── Deep Learning & Transformers/            # Stage 6
@@ -1242,17 +1242,22 @@ Stage 2D — Data Architecture/
 └── README.md
 ```
 
-### Stage 3 — Data Structures & Algorithms — `Data Structures & Algorithms/`
+### Stage 3 — Data Structures & Algorithms
 
 ```text
-Data Structures & Algorithms/
+Stage 3 — Data Structures & Algorithms/
 ├── README.md
+│
 ├── 00-Stage-3-Overview/
 │   ├── README.md
 │   ├── learning-plan.md
+│   ├── stage-prerequisites-and-learning-objectives.md
+│   ├── dsa-topic-map-and-interview-coverage.md
+│   ├── progress-tracker-and-readiness-checklist.md
 │   └── Projects/
 │       ├── README.md
 │       └── 01-algorithm-toolkit-and-benchmark.md
+│
 ├── 01-Complexity-and-Big-O/
 │   ├── README.md
 │   ├── 01-what-an-algorithm-is.md
@@ -1261,10 +1266,14 @@ Data Structures & Algorithms/
 │   ├── 04-time-vs-space-complexity.md
 │   ├── 05-amortized-analysis.md
 │   ├── 06-measuring-real-performance-in-python.md
+│   ├── 07-best-average-and-worst-case-analysis.md
+│   ├── 08-complexity-analysis-of-loops-and-recursion.md
+│   ├── 09-comparing-algorithmic-complexities.md
 │   ├── practice-questions.md
 │   └── Projects/
 │       ├── README.md
 │       └── 01-benchmark-python-collections.md
+│
 ├── 02-Arrays-Strings-and-Hashing/
 │   ├── README.md
 │   ├── 01-arrays-and-dynamic-arrays.md
@@ -1273,10 +1282,16 @@ Data Structures & Algorithms/
 │   ├── 04-hash-map-and-set-patterns.md
 │   ├── 05-prefix-sums.md
 │   ├── 06-frequency-counting-patterns.md
+│   ├── 07-multidimensional-arrays-and-matrices.md
+│   ├── 08-string-manipulation-and-patterns.md
+│   ├── 09-subarrays-substrings-and-subsequences.md
+│   ├── 10-hashing-collisions-and-performance-tradeoffs.md
 │   ├── practice-questions.md
 │   └── Projects/
 │       ├── README.md
-│       └── 01-build-a-hash-map-from-scratch.md
+│       ├── 01-build-a-hash-map-from-scratch.md
+│       └── 02-array-and-string-problem-toolkit.md
+│
 ├── 03-Two-Pointers-Sliding-Window-and-Binary-Search/
 │   ├── README.md
 │   ├── 01-two-pointers.md
@@ -1284,10 +1299,16 @@ Data Structures & Algorithms/
 │   ├── 03-binary-search.md
 │   ├── 04-binary-search-on-the-answer.md
 │   ├── 05-pattern-recognition-drills.md
+│   ├── 06-fast-and-slow-pointers.md
+│   ├── 07-interval-based-problem-patterns.md
+│   ├── 08-sorting-and-searching-combinations.md
+│   ├── 09-invariants-and-search-space-reduction.md
 │   ├── practice-questions.md
 │   └── Projects/
 │       ├── README.md
-│       └── 01-log-window-analyzer.md
+│       ├── 01-log-window-analyzer.md
+│       └── 02-search-and-window-pattern-library.md
+│
 ├── 04-Stacks-Queues-and-Linked-Lists/
 │   ├── README.md
 │   ├── 01-stacks.md
@@ -1295,10 +1316,16 @@ Data Structures & Algorithms/
 │   ├── 03-monotonic-stack.md
 │   ├── 04-singly-and-doubly-linked-lists.md
 │   ├── 05-lru-cache-design.md
+│   ├── 06-monotonic-queues.md
+│   ├── 07-fast-and-slow-pointer-linked-list-problems.md
+│   ├── 08-expression-parsing-and-balanced-delimiters.md
+│   ├── 09-designing-data-structures-with-combined-components.md
 │   ├── practice-questions.md
 │   └── Projects/
 │       ├── README.md
-│       └── 01-implement-an-lru-cache.md
+│       ├── 01-implement-an-lru-cache.md
+│       └── 02-build-a-stack-queue-and-deque-toolkit.md
+│
 ├── 05-Recursion-Backtracking-and-Sorting/
 │   ├── README.md
 │   ├── 01-recursion-and-the-call-stack.md
@@ -1306,10 +1333,17 @@ Data Structures & Algorithms/
 │   ├── 03-sorting-algorithms.md
 │   ├── 04-merge-sort-and-quick-sort.md
 │   ├── 05-divide-and-conquer.md
+│   ├── 06-recursion-trees-and-recursive-complexity.md
+│   ├── 07-permutations-combinations-and-subsets.md
+│   ├── 08-constraint-satisfaction-and-pruning.md
+│   ├── 09-stable-in-place-and-adaptive-sorting.md
+│   ├── 10-selection-algorithms-and-quickselect.md
 │   ├── practice-questions.md
 │   └── Projects/
 │       ├── README.md
-│       └── 01-sorting-benchmark.md
+│       ├── 01-sorting-benchmark.md
+│       └── 02-backtracking-puzzle-solver.md
+│
 ├── 06-Trees-and-Tries/
 │   ├── README.md
 │   ├── 01-tree-terminology.md
@@ -1317,10 +1351,17 @@ Data Structures & Algorithms/
 │   ├── 03-binary-search-trees.md
 │   ├── 04-balanced-trees-intuition.md
 │   ├── 05-tries-and-prefix-search.md
+│   ├── 06-recursive-and-iterative-tree-problems.md
+│   ├── 07-lowest-common-ancestor.md
+│   ├── 08-binary-tree-views-and-tree-properties.md
+│   ├── 09-binary-search-tree-validation-and-operations.md
+│   ├── 10-serialization-and-deserialization-of-trees.md
 │   ├── practice-questions.md
 │   └── Projects/
 │       ├── README.md
-│       └── 01-autocomplete-with-a-trie.md
+│       ├── 01-autocomplete-with-a-trie.md
+│       └── 02-binary-tree-algorithm-toolkit.md
+│
 ├── 07-Heaps-and-Priority-Queues/
 │   ├── README.md
 │   ├── 01-heap-structure.md
@@ -1328,10 +1369,15 @@ Data Structures & Algorithms/
 │   ├── 03-top-k-problems.md
 │   ├── 04-merging-sorted-streams.md
 │   ├── 05-scheduling-with-priority-queues.md
+│   ├── 06-two-heaps-and-running-medians.md
+│   ├── 07-heap-based-search-and-selection.md
+│   ├── 08-priority-queue-design-tradeoffs.md
 │   ├── practice-questions.md
 │   └── Projects/
 │       ├── README.md
-│       └── 01-top-k-streaming-tracker.md
+│       ├── 01-top-k-streaming-tracker.md
+│       └── 02-running-median-service.md
+│
 ├── 08-Graphs-BFS-DFS-and-Shortest-Paths/
 │   ├── README.md
 │   ├── 01-graph-representations.md
@@ -1340,10 +1386,15 @@ Data Structures & Algorithms/
 │   ├── 04-topological-sort.md
 │   ├── 05-union-find.md
 │   ├── 06-dijkstra-shortest-paths.md
+│   ├── 07-connected-components-and-cycle-detection.md
+│   ├── 08-bipartite-graphs-and-two-coloring.md
+│   ├── 09-grid-and-matrix-graph-problems.md
+│   ├── 10-directed-vs-undirected-and-weighted-vs-unweighted-graphs.md
 │   ├── practice-questions.md
 │   └── Projects/
 │       ├── README.md
 │       └── 01-dependency-resolver.md
+│
 ├── 09-Dynamic-Programming/
 │   ├── README.md
 │   ├── 01-what-dynamic-programming-is.md
@@ -1351,21 +1402,154 @@ Data Structures & Algorithms/
 │   ├── 03-one-dimensional-dp-patterns.md
 │   ├── 04-two-dimensional-dp-patterns.md
 │   ├── 05-edit-distance-and-sequence-alignment.md
+│   ├── 06-state-transition-and-base-case-design.md
+│   ├── 07-knapsack-and-subset-sum.md
+│   ├── 08-grid-path-and-matrix-dp.md
+│   ├── 09-longest-increasing-subsequence.md
+│   ├── 10-interval-and-partition-dp.md
+│   ├── 11-tree-dynamic-programming.md
+│   ├── 12-bitmask-dynamic-programming-introduction.md
+│   ├── 13-space-optimization-in-dynamic-programming.md
 │   ├── practice-questions.md
 │   └── Projects/
 │       ├── README.md
-│       └── 01-fuzzy-text-matcher.md
-└── 10-Coding-Interview-Method/
+│       ├── 01-fuzzy-text-matcher.md
+│       └── 02-dynamic-programming-pattern-library.md
+│
+├── 10-Bit-Manipulation-and-Bitwise-Algorithms/
+│   ├── README.md
+│   ├── 01-binary-representation-and-bitwise-operators.md
+│   ├── 02-bit-masks-and-bit-flags.md
+│   ├── 03-setting-clearing-toggling-and-checking-bits.md
+│   ├── 04-shifts-and-integer-bit-properties.md
+│   ├── 05-counting-set-bits-and-hamming-weight.md
+│   ├── 06-xor-patterns-and-single-number-problems.md
+│   ├── 07-subsets-using-bitmasks.md
+│   ├── 08-bit-tricks-and-common-interview-patterns.md
+│   ├── 09-bitmask-dynamic-programming.md
+│   ├── 10-bit-manipulation-correctness-and-edge-cases.md
+│   ├── practice-questions.md
+│   └── Projects/
+│       ├── README.md
+│       ├── 01-bitwise-utility-library.md
+│       └── 02-subset-enumeration-toolkit.md
+│
+├── 11-Greedy-Algorithms/
+│   ├── README.md
+│   ├── 01-greedy-algorithm-fundamentals.md
+│   ├── 02-greedy-choice-property-and-correctness.md
+│   ├── 03-interval-scheduling-and-activity-selection.md
+│   ├── 04-merge-intervals-and-interval-optimization.md
+│   ├── 05-meeting-room-and-resource-allocation-problems.md
+│   ├── 06-jump-game-and-reachability-patterns.md
+│   ├── 07-gas-station-and-circular-optimization-problems.md
+│   ├── 08-greedy-vs-dynamic-programming.md
+│   ├── 09-huffman-coding-and-greedy-construction.md
+│   ├── 10-proving-or-disproving-a-greedy-strategy.md
+│   ├── practice-questions.md
+│   └── Projects/
+│       ├── README.md
+│       ├── 01-interval-scheduling-optimizer.md
+│       └── 02-resource-allocation-planner.md
+│
+├── 12-Advanced-Graph-Algorithms/
+│   ├── README.md
+│   ├── 01-graph-algorithm-selection-guide.md
+│   ├── 02-bellman-ford-shortest-paths.md
+│   ├── 03-floyd-warshall-all-pairs-shortest-paths.md
+│   ├── 04-minimum-spanning-trees-kruskal-and-prim.md
+│   ├── 05-strongly-connected-components.md
+│   ├── 06-bridges-and-articulation-points.md
+│   ├── 07-advanced-union-find-patterns.md
+│   ├── 08-shortest-paths-with-special-constraints.md
+│   ├── 09-network-flow-and-max-flow-min-cut-introduction.md
+│   ├── 10-bipartite-matching-introduction.md
+│   ├── 11-advanced-topological-ordering-and-dependency-analysis.md
+│   ├── 12-graph-algorithm-complexity-and-tradeoffs.md
+│   ├── practice-questions.md
+│   └── Projects/
+│       ├── README.md
+│       ├── 01-graph-routing-and-algorithm-comparison.md
+│       └── 02-dependency-analysis-and-critical-path-tool.md
+│
+├── 13-Range-Query-Data-Structures/
+│   ├── README.md
+│   ├── 01-range-query-problem-fundamentals.md
+│   ├── 02-prefix-sums-for-range-queries.md
+│   ├── 03-difference-arrays-and-range-updates.md
+│   ├── 04-fenwick-tree-binary-indexed-tree.md
+│   ├── 05-fenwick-tree-point-updates-and-prefix-queries.md
+│   ├── 06-segment-tree-fundamentals.md
+│   ├── 07-segment-tree-range-queries-and-point-updates.md
+│   ├── 08-lazy-propagation-for-range-updates.md
+│   ├── 09-iterative-segment-trees.md
+│   ├── 10-sparse-table-for-static-range-queries.md
+│   ├── 11-choosing-between-prefix-sums-fenwick-and-segment-trees.md
+│   ├── 12-range-query-complexity-and-correctness.md
+│   ├── practice-questions.md
+│   └── Projects/
+│       ├── README.md
+│       ├── 01-range-query-engine.md
+│       └── 02-dynamic-range-statistics-tool.md
+│
+├── 14-Advanced-Problem-Solving-Patterns/
+│   ├── README.md
+│   ├── 01-pattern-recognition-and-problem-classification.md
+│   ├── 02-prefix-suffix-and-cumulative-patterns.md
+│   ├── 03-intervals-and-sweep-line-algorithms.md
+│   ├── 04-coordinate-compression.md
+│   ├── 05-invariants-and-proof-driven-problem-solving.md
+│   ├── 06-meet-in-the-middle.md
+│   ├── 07-monotonicity-and-binary-search-on-the-answer.md
+│   ├── 08-advanced-two-pointers-and-sliding-window.md
+│   ├── 09-combinatorial-counting-and-search-space-pruning.md
+│   ├── 10-randomized-algorithms-and-hashing-tradeoffs.md
+│   ├── 11-choosing-between-greedy-dp-and-backtracking.md
+│   ├── 12-reducing-one-problem-to-a-known-pattern.md
+│   ├── 13-approximating-and-bounding-complexity.md
+│   ├── practice-questions.md
+│   └── Projects/
+│       ├── README.md
+│       ├── 01-pattern-recognition-practice-engine.md
+│       └── 02-mixed-pattern-challenge-set.md
+│
+├── 15-Coding-Interview-Method/
+│   ├── README.md
+│   ├── 01-structured-problem-solving-framework.md
+│   ├── 02-communicating-while-coding.md
+│   ├── 03-testing-and-edge-cases.md
+│   ├── 04-spaced-repetition-practice-system.md
+│   ├── 05-mock-interview-routine.md
+│   ├── 06-clarifying-requirements-and-constraints.md
+│   ├── 07-brute-force-to-optimized-solution.md
+│   ├── 08-explaining-time-and-space-complexity.md
+│   ├── 09-debugging-under-interview-conditions.md
+│   ├── 10-timed-coding-practice-strategy.md
+│   ├── 11-reviewing-failed-solutions-and-error-patterns.md
+│   ├── 12-interview-readiness-rubric.md
+│   ├── practice-questions.md
+│   └── Projects/
+│       ├── README.md
+│       ├── 01-practice-log-first-50-problems.md
+│       └── 02-timed-mock-interview-scorecard.md
+│
+└── 16-Advanced-DSA-Capstone-and-Interview-Readiness/
     ├── README.md
-    ├── 01-structured-problem-solving-framework.md
-    ├── 02-communicating-while-coding.md
-    ├── 03-testing-and-edge-cases.md
-    ├── 04-spaced-repetition-practice-system.md
-    ├── 05-mock-interview-routine.md
+    ├── 01-capstone-requirements-and-success-criteria.md
+    ├── 02-building-a-reusable-dsa-algorithm-toolkit.md
+    ├── 03-benchmarking-and-complexity-validation.md
+    ├── 04-solving-mixed-topic-problems-under-time-limits.md
+    ├── 05-advanced-interview-question-bank.md
+    ├── 06-weekly-mock-interview-and-review-cycle.md
+    ├── 07-final-readiness-assessment.md
+    ├── 08-gaps-remediation-and-revision-plan.md
+    ├── 09-final-project-documentation-and-demonstration.md
     ├── practice-questions.md
     └── Projects/
         ├── README.md
-        └── 01-practice-log-first-50-problems.md
+        ├── 01-dsa-algorithm-toolkit-capstone.md
+        ├── 02-advanced-problem-solving-portfolio.md
+        └── 03-final-timed-interview-simulation.md
 ```
 
 ### Stage 4 — Mathematics for Machine Learning — `Mathematics for Machine Learning/`
