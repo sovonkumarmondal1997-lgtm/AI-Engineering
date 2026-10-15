@@ -3589,27 +3589,34 @@ Career Growth to Senior/
         └── 01-senior-application-packet.md
 ```
 
-## 4. Summary of new stages
+## 4. Summary of stages (Stage 1 to Stage 18)
 
-| Stage | Folder | Modules | Lessons | Files | Stage project |
-|---|---|---|---|---|---|
-| 3 | `Data Structures & Algorithms/` | 10 | 53 | 98 | `algorithm-toolkit-and-benchmark` |
-| 4 | `Mathematics for Machine Learning/` | 10 | 54 | 99 | `math-for-ml-notebook-library` |
-| 5 | `Machine Learning Foundations/` | 10 | 48 | 93 | `end-to-end-classifier-with-error-analysis` |
-| 6 | `Deep Learning & Transformers/` | 14 | 69 | 130 | `train-a-small-gpt-and-write-the-report` |
-| 7 | `Backend Engineering for AI Systems/` | 11 | 50 | 99 | `production-ready-ai-api-service` |
-| 8 | `LLM Application Engineering/` | 13 | 56 | 113 | `structured-document-extraction-service` |
-| 9 | `Retrieval & RAG Systems/` | 13 | 54 | 111 | `rag-v1-foundation-for-flagship-1` |
-| 10 | `Evaluation & Experimentation/` | 11 | 40 | 89 | `evalforge-v1-foundation-for-flagship-2` |
-| 11 | `AI Agents & Tool Use/` | 13 | 51 | 108 | `analyst-agent-v1-foundation-for-flagship-3` |
-| 12 | `AI Safety, Security & Responsible AI/` | 12 | 43 | 96 | `red-team-report-foundation-for-flagship-4` |
-| 13 | `Model Customization & Inference/` | 12 | 40 | 93 | `specialized-small-model-foundation-for-flagship-7` |
-| 14 | `LLMOps & AI System Design/` | 11 | 40 | 89 | `observability-layer-for-your-portfolio` |
-| 15 | `Applied AI in the Field/` | 9 | 28 | 69 | `mock-customer-engagement` |
-| 16 | `Flagship Portfolio Projects/` | 7 | — | 156 | `7 flagship repos (1 optional)` |
-| 17 | `Interview Preparation & Getting Hired/` | 10 | 30 | 75 | `job-search-campaign-tracker` |
-| 18 | `Career Growth to Senior/` | 6 | 19 | 48 | `senior-readiness-evidence-portfolio` |
-| **Total** | | **172** | **675** | **1566** | |
+Modules exclude the `00-` overview folder. Lessons are the numbered `NN-*.md` files inside modules. Files is the total file count of the stage tree.
+
+| Stage | Name | Folder | Modules | Lessons | Files | Stage project |
+|---|---|---|---|---|---|---|
+| 1 | Programming & Computational Thinking | `Stage 1 — Programming & Computational Thinking/` | 24 | 212 | 282 | 4 stage projects: `personal-expense-ledger-cli`, `log-investigation-and-reliability-cli`, `data-quality-and-transformation-pipeline`, `rule-based-risk-review-engine` |
+| 2 | Python for Data Engineering_1 | `Stage 2 — Python for Data Engineering_1/` | 22 | 206 | 295 | 7 stage projects, ending in `capstone-end-to-end-data-platform` |
+| 2B | Python for Data Engineering_2 | `Stage 2B — Python for Data Engineering_2/` | 5 | 67 | 98 | 5 stage projects, ending in `system-design-interview-portfolio` |
+| 2C | Data Engineering_3 | `Stage 2C — Data Engineering_3/` | 10 | 79 | 80 | none (module lessons only, no stage project) |
+| 2D | Data Architecture | `Stage 2D — Data Architecture/` | 16 | 124 | 209 | `enterprise-data-architecture-capstone` |
+| 3 | Data Structures & Algorithms | `Stage 3 — Data Structures & Algorithms/` | 16 | 166 | 253 | `algorithm-toolkit-and-benchmark` |
+| 4 | Mathematics for Machine Learning | `Mathematics for Machine Learning/` | 10 | 54 | 99 | `math-for-ml-notebook-library` |
+| 5 | Machine Learning Foundations | `Machine Learning Foundations/` | 10 | 48 | 93 | `end-to-end-classifier-with-error-analysis` |
+| 6 | Deep Learning & Transformers | `Deep Learning & Transformers/` | 14 | 69 | 130 | `train-a-small-gpt-and-write-the-report` |
+| 7 | Backend Engineering for AI Systems | `Backend Engineering for AI Systems/` | 11 | 50 | 99 | `production-ready-ai-api-service` |
+| 8 | LLM Application Engineering | `LLM Application Engineering/` | 13 | 56 | 113 | `structured-document-extraction-service` |
+| 9 | Retrieval & RAG Systems | `Retrieval & RAG Systems/` | 13 | 54 | 111 | `rag-v1-foundation-for-flagship-1` |
+| 10 | Evaluation & Experimentation | `Evaluation & Experimentation/` | 11 | 40 | 89 | `evalforge-v1-foundation-for-flagship-2` |
+| 11 | AI Agents & Tool Use | `AI Agents & Tool Use/` | 13 | 51 | 108 | `analyst-agent-v1-foundation-for-flagship-3` |
+| 12 | AI Safety, Security & Responsible AI | `AI Safety, Security & Responsible AI/` | 12 | 43 | 96 | `red-team-report-foundation-for-flagship-4` |
+| 13 | Model Customization & Inference | `Model Customization & Inference/` | 12 | 40 | 93 | `specialized-small-model-foundation-for-flagship-7` |
+| 14 | LLMOps & AI System Design | `LLMOps & AI System Design/` | 11 | 40 | 89 | `observability-layer-for-your-portfolio` |
+| 15 | Applied AI in the Field | `Applied AI in the Field/` | 9 | 28 | 69 | `mock-customer-engagement` |
+| 16 | Flagship Portfolio Projects | `Flagship Portfolio Projects/` | 7 | — | 156 | 7 flagship repos (1 optional) |
+| 17 | Interview Preparation & Getting Hired | `Interview Preparation & Getting Hired/` | 10 | 30 | 75 | `job-search-campaign-tracker` |
+| 18 | Career Growth to Senior | `Career Growth to Senior/` | 6 | 19 | 48 | `senior-readiness-evidence-portfolio` |
+| **Total** | | | **255** | **1476** | **2685** | |
 
 ## 5. Build order
 
