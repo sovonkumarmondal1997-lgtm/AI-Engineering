@@ -32,7 +32,6 @@ AI Engineering/
 ├── Stage 4A — Basic Mathematics Prerequisite/         # Stage 4A
 ├── Stage 4B — Mathematics for Machine Learning/       # Stage 4B
 ├── Stage 4C — Advanced Mathematics for Machine Learning — Deep Learning/   # Stage 4C
-├── Machine Learning Foundations/            # Stage 5
 ├── Deep Learning & Transformers/            # Stage 6
 ├── Backend Engineering for AI Systems/      # Stage 7
 ├── LLM Application Engineering/             # Stage 8
@@ -2013,127 +2012,6 @@ Stage 4C — Advanced Mathematics for Machine Learning — Deep Learning/
     └── 90-random-variables-and-noise-in-stochastic-gradient-descent.md
 ```
 
-### Stage 5 — Machine Learning Foundations — `Machine Learning Foundations/`
-
-```text
-Machine Learning Foundations/
-├── README.md
-├── 00-Stage-5-Overview/
-│   ├── README.md
-│   ├── learning-plan.md
-│   └── Projects/
-│       ├── README.md
-│       └── 01-end-to-end-classifier-with-error-analysis.md
-├── 01-What-Machine-Learning-Is/
-│   ├── README.md
-│   ├── 01-rules-vs-learning.md
-│   ├── 02-supervised-unsupervised-and-self-supervised.md
-│   ├── 03-training-validation-and-test-sets.md
-│   ├── 04-the-ml-project-lifecycle.md
-│   ├── practice-questions.md
-│   └── Projects/
-│       ├── README.md
-│       └── 01-first-model-with-scikit-learn.md
-├── 02-Data-Preparation-and-Feature-Engineering/
-│   ├── README.md
-│   ├── 01-exploratory-data-analysis.md
-│   ├── 02-missing-values-and-outliers.md
-│   ├── 03-encoding-categorical-features.md
-│   ├── 04-scaling-and-normalization.md
-│   ├── 05-data-leakage.md
-│   ├── practice-questions.md
-│   └── Projects/
-│       ├── README.md
-│       └── 01-leakage-hunt.md
-├── 03-Linear-and-Logistic-Regression/
-│   ├── README.md
-│   ├── 01-linear-regression.md
-│   ├── 02-loss-functions.md
-│   ├── 03-logistic-regression.md
-│   ├── 04-softmax-regression.md
-│   ├── 05-implementing-from-scratch-in-numpy.md
-│   ├── practice-questions.md
-│   └── Projects/
-│       ├── README.md
-│       └── 01-regression-from-scratch.md
-├── 04-Model-Evaluation-and-Metrics/
-│   ├── README.md
-│   ├── 01-accuracy-and-its-traps.md
-│   ├── 02-precision-recall-and-f1.md
-│   ├── 03-roc-and-pr-curves.md
-│   ├── 04-regression-metrics.md
-│   ├── 05-calibration.md
-│   ├── 06-choosing-metrics-for-business-goals.md
-│   ├── practice-questions.md
-│   └── Projects/
-│       ├── README.md
-│       └── 01-metric-selection-report.md
-├── 05-Overfitting-Regularization-and-Validation/
-│   ├── README.md
-│   ├── 01-bias-variance-trade-off.md
-│   ├── 02-regularization.md
-│   ├── 03-cross-validation.md
-│   ├── 04-hyperparameter-tuning.md
-│   ├── 05-learning-curves.md
-│   ├── practice-questions.md
-│   └── Projects/
-│       ├── README.md
-│       └── 01-diagnose-an-overfit-model.md
-├── 06-Trees-Ensembles-and-Gradient-Boosting/
-│   ├── README.md
-│   ├── 01-decision-trees.md
-│   ├── 02-random-forests.md
-│   ├── 03-gradient-boosting.md
-│   ├── 04-xgboost-and-lightgbm.md
-│   ├── 05-feature-importance.md
-│   ├── practice-questions.md
-│   └── Projects/
-│       ├── README.md
-│       └── 01-tabular-benchmark.md
-├── 07-Unsupervised-Learning/
-│   ├── README.md
-│   ├── 01-k-means-clustering.md
-│   ├── 02-hierarchical-and-density-clustering.md
-│   ├── 03-pca.md
-│   ├── 04-t-sne-and-umap.md
-│   ├── 05-anomaly-detection.md
-│   ├── practice-questions.md
-│   └── Projects/
-│       ├── README.md
-│       └── 01-cluster-support-tickets.md
-├── 08-Classic-NLP-and-Text-Classification/
-│   ├── README.md
-│   ├── 01-text-preprocessing.md
-│   ├── 02-bag-of-words-and-tf-idf.md
-│   ├── 03-naive-bayes-and-linear-text-models.md
-│   ├── 04-limits-of-classic-nlp.md
-│   ├── practice-questions.md
-│   └── Projects/
-│       ├── README.md
-│       └── 01-ticket-classifier-baseline.md
-├── 09-Experiment-Tracking-and-Reproducibility/
-│   ├── README.md
-│   ├── 01-why-experiments-go-wrong.md
-│   ├── 02-seeds-and-determinism.md
-│   ├── 03-mlflow-experiment-tracking.md
-│   ├── 04-data-and-model-versioning.md
-│   ├── 05-writing-experiment-reports.md
-│   ├── practice-questions.md
-│   └── Projects/
-│       ├── README.md
-│       └── 01-tracked-experiment-suite.md
-└── 10-Error-Analysis-and-Model-Debugging/
-    ├── README.md
-    ├── 01-slicing-performance.md
-    ├── 02-confusion-driven-analysis.md
-    ├── 03-label-noise.md
-    ├── 04-building-a-failure-taxonomy.md
-    ├── practice-questions.md
-    └── Projects/
-        ├── README.md
-        └── 01-error-analysis-report.md
-```
-
 ### Stage 6 — Deep Learning & Transformers — `Deep Learning & Transformers/`
 
 ```text
@@ -3939,7 +3817,6 @@ Modules exclude the `00-` overview folder. Lessons are the numbered `NN-*.md` fi
 | 4A | Basic Mathematics Prerequisite | `Stage 4A — Basic Mathematics Prerequisite/` | 11 | 199 | 202 | none (module lessons only, no stage project) |
 | 4B | Mathematics for Machine Learning | `Stage 4B — Mathematics for Machine Learning/` | 10 | 54 | 99 | `math-for-ml-notebook-library` |
 | 4C | Advanced Mathematics for Machine Learning — Deep Learning | `Stage 4C — Advanced Mathematics for Machine Learning — Deep Learning/` | 8 | 90 | 90 | none (module lessons only, no stage project) |
-| 5 | Machine Learning Foundations | `Machine Learning Foundations/` | 10 | 48 | 93 | `end-to-end-classifier-with-error-analysis` |
 | 6 | Deep Learning & Transformers | `Deep Learning & Transformers/` | 14 | 69 | 130 | `train-a-small-gpt-and-write-the-report` |
 | 7 | Backend Engineering for AI Systems | `Backend Engineering for AI Systems/` | 11 | 50 | 99 | `production-ready-ai-api-service` |
 | 8 | LLM Application Engineering | `LLM Application Engineering/` | 13 | 56 | 113 | `structured-document-extraction-service` |
@@ -3953,12 +3830,12 @@ Modules exclude the `00-` overview folder. Lessons are the numbered `NN-*.md` fi
 | 16 | Flagship Portfolio Projects | `Flagship Portfolio Projects/` | 7 | — | 156 | 7 flagship repos (1 optional) |
 | 17 | Interview Preparation & Getting Hired | `Interview Preparation & Getting Hired/` | 10 | 30 | 75 | `job-search-campaign-tracker` |
 | 18 | Career Growth to Senior | `Career Growth to Senior/` | 6 | 19 | 48 | `senior-readiness-evidence-portfolio` |
-| **Total** | | | **278** | **1826** | **3056** | |
+| **Total** | | | **268** | **1778** | **2963** | |
 
 ## 5. Build order
 
 ```text
-Stage 0 (exists) → 1 (exists) → 2 (exists, wrap up) → 3 → 4 → 5 → 6 → 7 → 8 → 9 → 10 → 11
+Stage 0 (exists) → 1 (exists) → 2 (exists, wrap up) → 3 → 4 → 6 → 7 → 8 → 9 → 10 → 11
                                                                                     │
                                   Milestone M4: start applying for first AI job ◄───┘
 
