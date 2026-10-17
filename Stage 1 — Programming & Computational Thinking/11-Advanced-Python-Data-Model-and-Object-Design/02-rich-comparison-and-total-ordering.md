@@ -1,206 +1,358 @@
-# Rich Comparison and Total Ordering in Python
+# Rich Comparison and Total Ordering
 
-**Stage:** Stage 1 — Programming & Computational Thinking  
-**Module:** 11 — Advanced Python Data Model and Object Design  
-**Lesson:** 02 — Rich Comparison and Total Ordering  
-**Target:** Python 3.12+  
-**Learning style:** Theory → runnable examples → tests → production case study → exercises → review
+**Module:** Stage 1 — Programming & Computational Thinking → Module 11 — Advanced Python Data Model and Object Design  
+**Target file:** `02-rich-comparison-and-total-ordering.md`  
+**Python baseline:** Python 3.12+  
+**Level:** Beginner → Intermediate → Advanced
 
-> This lesson follows `roadmap-Advanced-Python-Data-Model-and-Object-Design.md`, Lesson 02. It covers the roadmap's basic, intermediate, and advanced objectives, common mistakes, and self-check questions. It assumes you can write simple classes and functions and have met `__eq__` in Lesson 01.
+## 1. Prerequisites and place in the roadmap
 
-## Learning outcomes
+This lesson follows `01-dunder-methods-repr-str-eq-and-hash.md`. You should be comfortable with classes, tuples, equality, special methods, `NotImplemented`, and the equality/hash contract. It prepares you for the next lesson on container protocols and for later work with operator overloading and object design.
+
+The project tree places this file at:
+
+```text
+Stage 1 — Programming & Computational Thinking/
+└── 11-Advanced-Python-Data-Model-and-Object-Design/
+    ├── 01-dunder-methods-repr-str-eq-and-hash.md
+    ├── 02-rich-comparison-and-total-ordering.md  ← this lesson
+    ├── 03-container-protocols-getitem-len-iter-and-contains.md
+    └── roadmap-Advanced-Python-Data-Model-and-Object-Design.md
+```
+
+The module roadmap is the syllabus authority. This lesson expands its basic, intermediate, advanced, common-mistake, and self-check requirements without changing their intent.
+
+## 2. Learning objectives
 
 By the end, you should be able to:
 
-- Explain the six rich comparison methods: `__lt__`, `__le__`, `__eq__`, `__ne__`, `__gt__`, and `__ge__`.
-- Implement ordering for a value object without accidentally accepting unrelated types.
-- Explain why `sorted()` and `list.sort()` normally need only `<`, and when a `key=` function is better than class-level ordering.
-- Use `functools.total_ordering`, understand what it generates, and recognize its runtime trade-off.
-- Use `NotImplemented` correctly to allow Python's comparison dispatch to work.
-- Use tuple comparisons, dataclass ordering, `field(compare=False)`, `operator.attrgetter`, and `operator.itemgetter`.
-- Explain sorting stability, multi-key sorting, total-order laws, partial orders, NaN, and heterogeneous values.
-- Apply ordering safely with `bisect` and `heapq`, with tests for invariants and edge cases.
+1. Explain and implement `__lt__`, `__le__`, `__eq__`, `__ne__`, `__gt__`, and `__ge__`.
+2. Explain how sorting, `min()`, `max()`, `bisect`, and `heapq` use comparisons.
+3. Choose between a local `key=` function and a class-wide ordering contract.
+4. Implement lexicographic, multi-field ordering safely with tuples and standard-library helpers.
+5. Return `NotImplemented` for unsupported operand types and understand reflected dispatch.
+6. Use `functools.total_ordering` and `dataclass(order=True)` deliberately, including their trade-offs.
+7. Distinguish total orders from partial orders and test ordering laws.
+8. Handle NaN and heterogeneous data deliberately rather than relying on accidental behavior.
+9. Use `cmp_to_key` only when adapting a genuine legacy comparator is appropriate.
+10. Test equality/order consistency and recognize how broken comparisons affect sorting and priority structures.
 
-## 1. What is rich comparison?
+## 3. Intuition: what does “ordering” promise?
 
-A comparison asks a question about two objects: are they equal, different, less than, or greater than one another? Python calls these **rich comparisons** because objects can customize the behavior of each comparison operator through special methods.
+A comparison operator is a public contract. If a class says that one value is “less than” another, Python tools may rely on that claim to sort values, choose minima, maintain a heap, or locate insertion points in a sorted sequence.
 
-| Expression | Special method | Meaning |
+Consider version numbers:
+
+```python
+(1, 9, 0) < (1, 10, 0)  # True: tuple comparison is lexicographic
+```
+
+Tuple comparison checks the first pair of unequal elements. It does **not** compare the tuples as sets, nor does it compare the lengths first. That makes tuples useful for ordering a sequence of fields in priority order.
+
+A class should define an ordering when that order is intrinsic and unambiguous for its values. Use `key=` when the order is specific to a task, report, or caller. For example, a `Job` may have a natural priority order, but one report might sort jobs by creation time and another by owner.
+
+## 4. The six rich comparison methods
+
+| Method | Operator | Intended meaning |
 |---|---|---|
-| `a < b` | `a.__lt__(b)` | less than |
-| `a <= b` | `a.__le__(b)` | less than or equal to |
-| `a == b` | `a.__eq__(b)` | equal |
-| `a != b` | `a.__ne__(b)` | not equal |
-| `a > b` | `a.__gt__(b)` | greater than |
-| `a >= b` | `a.__ge__(b)` | greater than or equal to |
+| `__lt__(self, other)` | `a < b` | Strictly less than |
+| `__le__(self, other)` | `a <= b` | Less than or equal |
+| `__eq__(self, other)` | `a == b` | Equal under the class's value semantics |
+| `__ne__(self, other)` | `a != b` | Not equal |
+| `__gt__(self, other)` | `a > b` | Strictly greater than |
+| `__ge__(self, other)` | `a >= b` | Greater than or equal |
 
-Python's operator syntax performs dispatch; you usually write `a < b`, not `a.__lt__(b)` directly. The methods are part of the data model, like `__repr__` and `__hash__` from the previous lesson.
+Unlike arithmetic operators, comparison special methods are not guaranteed by the language to return `bool`; a user-defined method can return another object. Ordinary value classes should return booleans for supported comparisons. `NotImplemented` is a special dispatch signal, not a false result. In annotations, a method that explicitly returns this sentinel can use `bool | NotImplementedType` (from `types`) to describe both possibilities.
 
-### Why this matters in data engineering
+### Method-by-method reference
 
-Ordering affects more than presentation. It can decide:
+- **`__lt__` (`a < b`)**: strict ordering. This is the primary operation used by Python's built-in sorting machinery when no `key=` is supplied.
+- **`__le__` (`a <= b`)**: non-strict ordering. Python does not infer it from `__lt__` and `__eq__` unless a helper such as `@total_ordering` generates it.
+- **`__eq__` (`a == b`)**: equality according to the domain. Returning `NotImplemented` lets dispatch try the other operand and, if unresolved, equality uses its documented fallback behavior.
+- **`__ne__` (`a != b`)**: inequality. If it is not explicitly supplied, `object`'s implementation delegates to `__eq__` and negates a supported result; if equality returns `NotImplemented`, that signal is preserved for dispatch. Explicit implementations should remain consistent with `__eq__`.
+- **`__gt__` (`a > b`)**: greater-than. It is not simply a direct alias for `__lt__`; reflected dispatch may let the right operand's `__lt__` handle `a > b` when appropriate.
+- **`__ge__` (`a >= b`)**: greater-than-or-equal. Implement it directly or generate it with a suitable helper.
 
-- which event is processed first in a priority queue;
-- whether a record is inserted at the correct position in a sorted batch;
-- which version is considered newer;
-- how pagination and merge operations behave;
-- whether `bisect` can find an insertion point correctly;
-- whether a scheduler or retry system consistently chooses the next job.
+Rich comparisons use reflected dispatch: for example, `a < b` can give `b.__gt__(a)` a chance if `a.__lt__(b)` returns `NotImplemented`. A strict subclass on the right may receive priority. Avoid hard-coding `False` for an operand type the method does not support, because that can prevent a meaningful reflected implementation from running.
 
-A comparator that is inconsistent may not raise an exception. It can instead produce a misleading order, so correctness must be designed and tested.
+### 4.1 Minimal `Version` implementation
 
-## 2. Start with built-in comparisons
-
-```python
-print(3 < 8)          # True
-print(3 <= 3)         # True
-print("alpha" < "beta")  # True: lexicographic string order
-print((1, 4) < (2, 0))    # True: tuple order is lexicographic
-```
-
-For sequences such as tuples, Python compares element by element. It stops at the first pair of unequal elements. If all compared elements are equal, the shorter tuple is smaller.
+This version class uses tuple comparison for ordering and equality. It accepts only other `Version` objects. The immutable tuple representation makes the ordering key stable.
 
 ```python
-print((2, 1, 9) < (2, 3, 0))  # True: 1 < 3 decides the result
-print((2, 1) < (2, 1, 0))     # True: equal prefix, shorter tuple first
-```
+from __future__ import annotations
 
-This behavior is useful for a value object's ordering key, for example `(major, minor, patch)` for a software version or `(priority, created_at, job_id)` for a job queue.
+from functools import total_ordering
+from types import NotImplementedType
 
-## 3. Basic implementation: a `Version` value object
 
-A version is naturally ordered by major, then minor, then patch. Implement `__lt__` to compare the tuple of components.
-
-```python
+@total_ordering
 class Version:
+    __slots__ = ("_parts",)
+
     def __init__(self, major: int, minor: int, patch: int) -> None:
         for name, value in (("major", major), ("minor", minor), ("patch", patch)):
             if not isinstance(value, int) or isinstance(value, bool) or value < 0:
                 raise ValueError(f"{name} must be a non-negative integer")
-        self.major = major
-        self.minor = minor
-        self.patch = patch
+        object.__setattr__(self, "_parts", (major, minor, patch))
 
-    def _key(self) -> tuple[int, int, int]:
-        return (self.major, self.minor, self.patch)
+    def __setattr__(self, name: str, value: object) -> None:
+        raise AttributeError("Version instances are immutable")
 
-    def __lt__(self, other: object) -> bool:
+    def __eq__(self, other: object) -> bool | NotImplementedType:
         if not isinstance(other, Version):
             return NotImplemented
-        return self._key() < other._key()
+        return self._parts == other._parts
+
+    def __lt__(self, other: object) -> bool | NotImplementedType:
+        if not isinstance(other, Version):
+            return NotImplemented
+        return self._parts < other._parts
 
     def __repr__(self) -> str:
-        return f"Version({self.major}, {self.minor}, {self.patch})"
+        return f"Version{self._parts!r}"
+
 
 versions = [Version(1, 2, 0), Version(1, 0, 9), Version(2, 0, 0)]
-print(sorted(versions))
-# [Version(1, 0, 9), Version(1, 2, 0), Version(2, 0, 0)]
+print([v._parts for v in sorted(versions)])
+print(Version(1, 0, 9) < Version(1, 2, 0))
+print(Version(1, 2, 0) <= Version(1, 2, 0))
+print(Version(1, 2, 0) == Version(1, 2, 0))
 ```
 
-`sorted()` creates a new list. `list.sort()` sorts a list in place and returns `None`.
+Expected output:
+
+```text
+[(1, 0, 9), (1, 2, 0), (2, 0, 0)]
+True
+True
+True
+```
+
+`@total_ordering` generates the other ordering methods from `__eq__` and `__lt__`. Without it, this class would implement only `<` and `==` directly. This example is intentionally compact; a production value object may use `@dataclass(frozen=True, order=True)` instead, discussed below.
+
+### 4.2 What happens if a method is absent?
+
+Python does not automatically define every comparison in terms of `<` and `==`. If a needed comparison is unsupported, the operation may fall back to the other operand's reflected comparison method and eventually raise `TypeError` if dispatch cannot handle it. `==` and `!=` have a special identity-based fallback when neither operand supplies a result; ordering operators do not have an equivalent general fallback.
+
+For a custom class, do not assume `a <= b` works merely because `a < b` and `a == b` work. Implement the needed methods explicitly or use `functools.total_ordering` / `dataclass(order=True)` when their semantics fit.
+
+## 5. `NotImplemented`, operand types, and reflected dispatch
+
+Return the singleton `NotImplemented` when the method does not know how to compare the other type. Python can then give the other operand a chance through its corresponding reflected method. If neither side supports the operation, Python raises `TypeError` for ordering.
 
 ```python
-versions = [Version(1, 2, 0), Version(1, 0, 9)]
+v = Version(1, 0, 0)
+
+print(v == 3)  # False: equality ultimately falls back to identity comparison
+try:
+    print(v < 3)
+except TypeError as exc:
+    print(type(exc).__name__)
+```
+
+Expected output:
+
+```text
+False
+TypeError
+```
+
+The equality result is `False` because the class returns `NotImplemented`, and neither side implements a meaningful cross-type equality; Python then applies its equality fallback. Returning `False` directly can be appropriate if the class explicitly owns the decision that values of other types are unequal, but `NotImplemented` is usually the better protocol choice for an operation that the class does not support.
+
+### 5.1 Why `isinstance` is a design choice
+
+The following snippet continues from the `Version` definition in Section 4.1; run the examples in order or copy that class into the same module.
+
+The `Version` example uses `isinstance(other, Version)`, so a subclass is accepted. Whether that is correct depends on the equality contract. A subclass may add fields that change its meaning, making base/subclass comparisons asymmetric or surprising. If values must compare only when they have exactly the same concrete type, use `type(other) is type(self)` in both equality and ordering methods. Do not casually mix an exact-type check in one method with `isinstance` in another.
+
+Python gives a strict subclass on the right a priority opportunity in rich comparison dispatch when its implementation is considered the more specific reflected operation. This is one reason to return `NotImplemented` when the current implementation cannot decide, rather than forcing a premature `False` result.
+
+## 6. How built-in sorting and selection use comparisons
+
+### 6.1 `sorted()` and `list.sort()`
+
+The examples in this section continue to use `Version` from Section 4.1. For ordinary custom objects without a `key=`, Python's sorting API relies on `<` comparisons; it does not require all six rich comparison methods. `sorted(iterable)` returns a new list. `list.sort()` mutates the list in place and returns `None`.
+
+```python
+versions = [Version(1, 2, 0), Version(1, 0, 9), Version(1, 1, 0)]
 ordered = sorted(versions)
-assert versions[0]._key() == (1, 2, 0)  # original list is unchanged
-assert ordered[0]._key() == (1, 0, 9)
+print([v._parts for v in ordered])
+print([v._parts for v in versions])
 
 versions.sort()
-assert versions[0]._key() == (1, 0, 9)  # original list is now sorted
+print([v._parts for v in versions])
 ```
 
-### Why does the type check return `NotImplemented`?
+Expected output:
 
-For a type it does not support, `__lt__` should generally return the singleton `NotImplemented`, rather than return `False` or raise an `AttributeError`. This tells Python that this implementation does not know how to compare the operands. Python can try the other operand's reflected comparison method, where applicable, and if no implementation can handle the pair, the operator normally raises `TypeError`.
-
-```python
-version = Version(1, 0, 0)
-assert version < Version(2, 0, 0)
-
-try:
-    version < 3
-except TypeError:
-    print("Unsupported ordering raises TypeError")
+```text
+[(1, 0, 9), (1, 1, 0), (1, 2, 0)]
+[(1, 2, 0), (1, 0, 9), (1, 1, 0)]
+[(1, 0, 9), (1, 1, 0), (1, 2, 0)]
 ```
 
-Do not confuse `NotImplemented` with `NotImplementedError`. The former is a special return value used by operator dispatch; the latter is an exception that a method may raise when deliberately left unimplemented.
+Sorting is stable: elements with equal sort keys retain their relative input order. This is a documented property of Python's sorting API. Stability is useful when sorting records by one field after they have already been ordered by another.
 
-## 4. What does `sorted()` actually need?
+### 6.2 `min()` and `max()`
 
-For ordinary sorting, Python's sorting algorithm relies on `<` comparisons between elements. A custom class can therefore be sortable by implementing `__lt__`, even if it does not implement `<=`, `>`, or `>=`.
+`min()` and `max()` select using rich comparisons. In the CPython implementation checked for this lesson, `min()` compares candidates using `<` and `max()` using `>`; treat that operator-level detail as implementation behavior rather than a promise that every Python implementation must invoke only that method. Reflected rich-comparison dispatch may allow a class with only `__lt__` to participate in `max()` as well, but this depends on coherent dispatch and fallback behavior. Portable code should implement a coherent ordering or supply a `key=` function, which provides comparable keys and avoids requiring ordering on the original objects.
 
 ```python
-class BuildNumber:
-    def __init__(self, value: int) -> None:
-        self.value = value
-
-    def __lt__(self, other: object) -> bool:
-        if not isinstance(other, BuildNumber):
-            return NotImplemented
-        return self.value < other.value
-
-builds = [BuildNumber(30), BuildNumber(10), BuildNumber(20)]
-print([item.value for item in sorted(builds)])  # [10, 20, 30]
+items = [Version(1, 2, 0), Version(1, 0, 9), Version(2, 0, 0)]
+print(min(items))
+print(max(items))
 ```
 
-This does **not** mean the class has a complete ordering API. An expression such as `BuildNumber(10) <= BuildNumber(20)` can still raise `TypeError`, because `__le__` is not defined and Python does not automatically derive every rich comparison from `__lt__`.
+Expected output:
 
-## 5. Sort with `key=` or define class ordering?
+```text
+Version(1, 0, 9)
+Version(2, 0, 0)
+```
 
-Use `key=` when a particular operation needs a particular order. Define ordering methods when the ordering is an intrinsic, stable meaning of the value object and callers should be able to compare instances directly.
+Do not infer that every pairwise relation is checked or validated. These functions assume the comparisons give a coherent answer; they are not order-law validators.
 
-| Situation | Usually prefer | Reason |
-|---|---|---|
-| Sort customer records by current balance for one report | `key=` | The order belongs to this report, not necessarily to the domain object |
-| Sort versions by `(major, minor, patch)` everywhere | Class ordering or a shared key function | Version order is intrinsic to the value |
-| Sort log records by timestamp, then severity | `key=` | The report defines the chosen fields and tie-breakers |
-| Sort a queue item by its explicit priority contract | Class ordering or a dedicated priority key | The order is part of the queue's semantics |
-| Sort the same objects differently in different views | Separate `key=` functions | Avoid one global order that does not fit every use case |
+## 7. Choose `key=` or class ordering
 
-Example: sorting ingestion events without defining an ordering for the event class.
+### 7.1 Prefer `key=` for task-specific orderings
 
 ```python
-events = [
-    {"event_id": "e-3", "timestamp": 30, "source": "api"},
-    {"event_id": "e-1", "timestamp": 10, "source": "batch"},
-    {"event_id": "e-2", "timestamp": 10, "source": "api"},
+from dataclasses import dataclass
+from operator import attrgetter
+
+@dataclass(frozen=True)
+class Job:
+    name: str
+    priority: int
+    created_at: int
+
+jobs = [
+    Job("batch-A", 2, 100),
+    Job("urgent", 1, 120),
+    Job("batch-B", 2, 90),
 ]
-ordered = sorted(events, key=lambda event: (event["timestamp"], event["event_id"]))
-assert [event["event_id"] for event in ordered] == ["e-1", "e-2", "e-3"]
+
+print([job.name for job in sorted(jobs, key=attrgetter("priority", "created_at"))])
 ```
 
-A key function is called once per input element during a sort, and its results are compared. This is often simpler and more efficient than repeatedly deriving values inside custom comparison methods.
+Expected output:
 
-## 6. Intermediate: `functools.total_ordering`
+```text
+['urgent', 'batch-B', 'batch-A']
+```
 
-Python's `functools.total_ordering` class decorator fills in the ordering methods you did not implement. You provide:
+The key tuple sorts first by priority ascending and then by creation timestamp ascending. It does not make `Job` globally orderable. This is often the safer choice when there are several reasonable orderings.
 
-1. `__eq__`, and
-2. one of `__lt__`, `__le__`, `__gt__`, or `__ge__`.
+### 7.2 `operator.attrgetter` and `operator.itemgetter`
 
-The decorator generates the remaining ordering methods. It does not create a meaningful ordering for you; the methods you supply must still express a coherent contract.
+```python
+from operator import attrgetter, itemgetter
+
+records = [
+    {"name": "A", "score": 8},
+    {"name": "B", "score": 10},
+    {"name": "C", "score": 8},
+]
+print([r["name"] for r in sorted(records, key=itemgetter("score", "name"))])
+
+class Row:
+    def __init__(self, group: str, index: int) -> None:
+        self.group = group
+        self.index = index
+
+rows = [Row("b", 1), Row("a", 2), Row("a", 1)]
+print([(r.group, r.index) for r in sorted(rows, key=attrgetter("group", "index"))])
+```
+
+Expected output:
+
+```text
+['A', 'C', 'B']
+[('a', 1), ('a', 2), ('b', 1)]
+```
+
+`itemgetter` retrieves mapping keys or sequence indices. `attrgetter` retrieves attributes. Both can retrieve multiple fields and return a tuple-like key. They are clear, reusable alternatives to small lambdas.
+
+### 7.3 Mixed ascending and descending directions
+
+A tuple key sorts all tuple components ascending. Negating a numeric field reverses that numeric field, but it is not a universal technique for strings, arbitrary objects, or values where negation is not defined.
+
+For mixed directions, use stable multi-pass sorting from the least significant key to the most significant key:
+
+```python
+from operator import itemgetter
+
+rows = [
+    {"team": "red", "score": 8, "name": "Mira"},
+    {"team": "blue", "score": 10, "name": "Ari"},
+    {"team": "red", "score": 10, "name": "Noah"},
+    {"team": "blue", "score": 10, "name": "Bea"},
+]
+rows.sort(key=itemgetter("name"))                 # tertiary: name ascending
+rows.sort(key=itemgetter("score"), reverse=True)  # secondary: score descending
+rows.sort(key=itemgetter("team"))                 # primary: team ascending
+print([(r["team"], r["score"], r["name"]) for r in rows])
+```
+
+Expected output:
+
+```text
+[('blue', 10, 'Ari'), ('blue', 10, 'Bea'), ('red', 10, 'Noah'), ('red', 8, 'Mira')]
+```
+
+Because sorting is stable, later passes preserve the relative order established by earlier passes among ties. Apply passes in reverse priority order: least important field first, most important field last.
+
+## 8. Multi-field ordering with tuples
+
+Tuple comparison is lexicographic and often the most maintainable implementation for a value class:
+
+```python
+from dataclasses import dataclass
+from types import NotImplementedType
+
+@dataclass(frozen=True)
+class Endpoint:
+    host: str
+    port: int
+
+    def sort_key(self) -> tuple[str, int]:
+        return (self.host, self.port)
+
+    def __lt__(self, other: object) -> bool | NotImplementedType:
+        if not isinstance(other, Endpoint):
+            return NotImplemented
+        return self.sort_key() < other.sort_key()
+```
+
+For custom equality and ordering, use the same logical fields unless the domain explicitly requires different semantics. A class where `a == b` but `a < b` or `b < a` is true is usually incoherent for sorting, binary search, and heaps.
+
+## 9. `functools.total_ordering`
+
+`@total_ordering` is a class decorator. Define `__eq__` and at least one of `__lt__`, `__le__`, `__gt__`, or `__ge__`; the decorator supplies the other ordering methods that are missing. It does not generate `__eq__`.
 
 ```python
 from functools import total_ordering
+from types import NotImplementedType
 
 @total_ordering
 class Priority:
-    _RANK = {"low": 10, "normal": 20, "high": 30, "critical": 40}
+    _RANK = {"low": 1, "medium": 2, "high": 3}
 
     def __init__(self, name: str) -> None:
         if name not in self._RANK:
-            raise ValueError(f"Unknown priority: {name!r}")
+            raise ValueError(f"unknown priority: {name}")
         self.name = name
 
     def _key(self) -> int:
         return self._RANK[self.name]
 
-    def __eq__(self, other: object) -> bool:
+    def __eq__(self, other: object) -> bool | NotImplementedType:
         if not isinstance(other, Priority):
             return NotImplemented
         return self._key() == other._key()
 
-    def __lt__(self, other: object) -> bool:
+    def __lt__(self, other: object) -> bool | NotImplementedType:
         if not isinstance(other, Priority):
             return NotImplemented
         return self._key() < other._key()
@@ -208,671 +360,652 @@ class Priority:
     def __repr__(self) -> str:
         return f"Priority({self.name!r})"
 
-assert Priority("low") < Priority("high")
-assert Priority("critical") > Priority("normal")
-assert Priority("normal") <= Priority("normal")
-assert Priority("low") != Priority("high")
+print(Priority("low") < Priority("high"))
+print(Priority("medium") >= Priority("low"))
+print(sorted([Priority("high"), Priority("low"), Priority("medium")]))
 ```
 
-### Important interaction with hashing
+Expected output:
 
-As covered in Lesson 01, defining `__eq__` on a normal class without explicitly preserving or defining a compatible `__hash__` generally makes instances unhashable (`__hash__` becomes `None`). `total_ordering` does not change that behavior. Do not add a hash simply to make the example hashable: first decide whether the value object should be hashable and ensure equality and hashing use the same immutable identity fields.
+```text
+True
+True
+[Priority('low'), Priority('medium'), Priority('high')]
+```
 
-### Trade-offs of `total_ordering`
+This class is intentionally not hashable by a custom value hash. Since it defines `__eq__` and does not define `__hash__`, Python normally sets `__hash__ = None`; that avoids accidentally hashing mutable state. If instances need to be hashable, make the equality-relevant state immutable and implement a matching hash, or use an appropriate frozen dataclass.
 
-**Advantages**
+### 9.1 Trade-offs
 
-- Less repetitive code.
-- Reduces the risk of implementing six methods inconsistently.
-- Good for ordinary domain objects where clarity matters more than tiny comparison overhead.
+- **Benefit:** fewer repetitive methods and a compact implementation.
+- **Cost:** generated comparisons can be slower than carefully written explicit methods, and tracebacks may pass through generated methods.
+- **Requirement:** the chosen primitive comparison and equality must already be coherent. The decorator cannot repair a bad ordering model.
+- **Decision:** use it for ordinary domain objects when simplicity matters. For a heavily exercised hot path, profile first; write explicit methods only when there is a measured reason or a semantic need.
 
-**Costs and limitations**
+## 10. `dataclass(order=True)` and `field(compare=False)`
 
-- Generated methods can add call overhead compared with carefully implemented explicit methods.
-- Tracebacks can be less direct because a generated method calls another comparison method.
-- It cannot repair inconsistent or semantically incorrect `__eq__` and ordering logic.
-- For a performance-critical path, benchmark the real workload before deciding whether to replace it with explicit methods.
-
-Prefer the simplest implementation that satisfies the contract. Do not optimize based on assumption alone.
-
-## 7. Returning `NotImplemented` correctly
-
-A rich comparison method has three important outcomes:
-
-- Return `True` when the comparison is true.
-- Return `False` when the method understands the comparison and it is false.
-- Return `NotImplemented` when this implementation does not support comparing these operand types.
-
-For example, `Version(1, 0, 0) < 3` is not a meaningful comparison in this class. Returning `NotImplemented` lets Python finish dispatch and produce a normal `TypeError` if the other side cannot handle it.
-
-Avoid this incorrect implementation:
+A dataclass with `order=True` generates ordering methods based on fields in declaration order. It also generates equality when `eq=True` (the default). Dataclass ordering compares instances as tuples of their comparison-enabled fields and requires the operands to be instances of the identical class, not merely compatible subclasses.
 
 ```python
-class BadVersion:
-    def __init__(self, major: int) -> None:
-        self.major = major
+from dataclasses import dataclass, field
 
-    def __lt__(self, other: object) -> bool:
-        # Incorrect: assumes every object has .major.
-        return self.major < other.major
+@dataclass(frozen=True, order=True)
+class Task:
+    priority: int
+    sequence: int
+    description: str = field(compare=False)
+
+items = [
+    Task(2, 10, "later batch"),
+    Task(1, 30, "urgent"),
+    Task(1, 20, "urgent earlier"),
+]
+print(sorted(items))
+print(Task(1, 20, "first label") == Task(1, 20, "different label"))
 ```
 
-Comparing `BadVersion(1) < 3` raises `AttributeError`, leaking an implementation detail rather than reporting unsupported comparison. A robust method checks the supported type and returns `NotImplemented` for other types.
+Expected output:
 
-### `isinstance` or exact type?
+```text
+[Task(priority=1, sequence=20, description='urgent earlier'), Task(priority=1, sequence=30, description='urgent'), Task(priority=2, sequence=10, description='later batch')]
+True
+```
 
-The example above uses `isinstance(other, Version)`, which permits subclasses. That is convenient when subclasses genuinely share the same ordering semantics. But in value-object designs, cross-class equality or ordering can violate symmetry or substitutability if a subclass adds fields or changes the meaning of a value.
+`description` is excluded from equality and ordering because `compare=False`. This means two tasks with the same priority and sequence compare equal even if their descriptions differ. Use this only when that is the intended domain contract. `frozen=True` prevents ordinary attribute reassignment and makes a generated hash possible when the dataclass settings permit it; it does not make nested mutable objects deeply immutable.
 
-A stricter implementation may use `type(other) is type(self)` or `type(other) is Version`. Choose deliberately:
+Do not use `order=True` merely because sorting is needed once. A `key=` is more explicit when the class has multiple legitimate orderings.
 
-- Use `isinstance` when subclass instances should participate in the same ordering contract.
-- Use exact type checks when the value's identity and ordering are defined only for the same concrete type.
+## 11. Comparison laws: total and partial orders
 
-Whichever policy you choose, test subclass interactions and keep equality and ordering consistent. A simple type check is not a substitute for a clear domain contract.
+A sorting relation should behave consistently. For a non-strict order `<=`, the usual total-order properties are:
 
-## 8. Dataclasses and ordering
+- **Reflexivity:** `a <= a`.
+- **Antisymmetry:** if `a <= b` and `b <= a`, then `a == b` under the ordering's equality semantics.
+- **Transitivity:** if `a <= b` and `b <= c`, then `a <= c`.
+- **Totality (comparability):** for every `a` and `b`, `a <= b` or `b <= a` (or both).
 
-For simple data models, `dataclasses` can generate comparisons for you. With `order=True`, the generated ordering methods compare instances as tuples of fields in declaration order, and only instances of the identical class are comparable under the generated comparison implementation.
+For strict `<`, the corresponding expectations are irreflexivity (`not a < a`), asymmetry (if `a < b`, then not `b < a`), and transitivity. A total order additionally makes any two values comparable. The equality operator should agree with ordering: ideally `a == b` exactly when neither `a < b` nor `b < a` is true, subject to the domain's documented semantics.
+
+### 11.1 A non-transitive comparator can mislead sorting
+
+This deliberately broken rock-paper-scissors relation has a cycle: rock beats scissors, scissors beats paper, and paper beats rock. Here “less than” means “comes before” in a cycle, not a valid total order.
+
+```python
+from types import NotImplementedType
+
+class Cyclic:
+    _NEXT = {"rock": "scissors", "scissors": "paper", "paper": "rock"}
+
+    def __init__(self, name: str) -> None:
+        self.name = name
+
+    def __lt__(self, other: object) -> bool | NotImplementedType:
+        if not isinstance(other, Cyclic):
+            return NotImplemented
+        return self._NEXT[self.name] == other.name
+
+    def __repr__(self) -> str:
+        return f"Cyclic({self.name!r})"
+
+cycle = [Cyclic("rock"), Cyclic("paper"), Cyclic("scissors")]
+print([x.name for x in sorted(cycle)])
+```
+
+On the CPython 3.13.5 environment used to check this lesson, the snippet prints:
+
+```text
+['scissors', 'paper', 'rock']
+```
+
+That output is an observation for this input and runtime, not a correctness guarantee for the relation or a portable result to rely on. The important point is that sorting is not required to detect or reject the cycle. It can return a list even though no ordering can satisfy all comparisons. The result can depend on input arrangement and the implementation's comparison sequence. Do not use a broken comparator in production and do not treat a successful return as proof of valid ordering.
+
+### 11.2 Partial orders: sets are the classic example
+
+Set `<` means proper-subset, not “sorts before.” Some sets are incomparable:
+
+```python
+print({1} < {1, 2})
+print({1} < {2})
+print({1} <= {1})
+```
+
+Expected output:
+
+```text
+True
+False
+True
+```
+
+The sets `{1}` and `{2}` are incomparable under subset ordering. Therefore, sorting sets does not produce a meaningful general ascending order, even if `sorted()` returns a list. Use a deliberate key such as `(len(s), sorted(s))` when that is the order your application needs and the elements are mutually sortable.
+
+## 12. Floating-point `NaN`
+
+IEEE floating-point NaN is unordered: comparisons such as `nan < x`, `nan > x`, and `nan == nan` are false. That breaks ordinary assumptions used by sorting and equality-based lookup. Python's sorting algorithm does not validate that all values form a total order; a list containing NaNs can therefore produce results that are surprising or not meaningful as a numeric sort. Avoid claiming a universal output for mixed NaN input unless the exact input, key, and behavior are part of a tested application contract.
+
+```python
+import math
+
+nan = float("nan")
+print(nan == nan)
+print(nan < 1.0)
+print(nan > 1.0)
+
+values = [3.0, nan, 1.0]
+print([math.isnan(x) for x in values])
+```
+
+Expected output:
+
+```text
+False
+False
+False
+[False, True, False]
+```
+
+For predictable numeric sorting, decide where NaNs belong and encode that policy in a key:
+
+```python
+import math
+
+
+def nan_last_key(value: float) -> tuple[bool, float]:
+    return (math.isnan(value), 0.0 if math.isnan(value) else value)
+
+nan = float("nan")
+values = [3.0, nan, 1.0]
+print(["nan" if math.isnan(x) else x for x in sorted(values, key=nan_last_key)])
+```
+
+Expected output:
+
+```text
+[1.0, 3.0, 'nan']
+```
+
+The boolean field puts finite numbers first (`False`) and NaNs last (`True`). The numeric second field keeps the key tuple's types consistent. This policy is explicit; it is not an intrinsic universal ordering of NaN.
+
+## 13. Heterogeneous values
+
+Python 3 does not define a general ordering between unrelated types such as integers and strings:
+
+```python
+try:
+    print(1 < "a")
+except TypeError as exc:
+    print(type(exc).__name__)
+```
+
+Expected output:
+
+```text
+TypeError
+```
+
+If heterogeneous values must be sorted, create a deliberate normalization key. For example, if the input is restricted to integers and strings:
+
+```python
+def mixed_key(value: int | str) -> tuple[int, int | str]:
+    if isinstance(value, int) and not isinstance(value, bool):
+        return (0, value)
+    if isinstance(value, str):
+        return (1, value.casefold())
+    raise TypeError(f"unsupported value: {type(value).__name__}")
+
+values: list[int | str] = ["Pear", 10, "apple", 2]
+print(sorted(values, key=mixed_key))
+```
+
+Expected output:
+
+```text
+[2, 10, 'apple', 'Pear']
+```
+
+The first tuple element groups integers before strings; the second sorts within each group. `bool` is a subclass of `int`, so this example explicitly rejects it as an integer value. Extend the policy for any additional types rather than relying on arbitrary cross-type comparisons.
+
+## 14. Legacy comparator functions and `cmp_to_key`
+
+A comparator returns a negative number when `a` should come before `b`, zero when they are equivalent for sorting, and a positive number when `a` should come after `b`. Python 3 sorting APIs use key functions, not a direct `cmp=` parameter. `functools.cmp_to_key` adapts a legacy comparator into a key object.
+
+```python
+from functools import cmp_to_key
+
+
+def compare_case_insensitive(a: str, b: str) -> int:
+    left, right = a.casefold(), b.casefold()
+    return (left > right) - (left < right)
+
+words = ["pear", "Apple", "banana"]
+print(sorted(words, key=cmp_to_key(compare_case_insensitive)))
+```
+
+Expected output:
+
+```text
+['Apple', 'banana', 'pear']
+```
+
+Prefer `key=str.casefold` for this specific case because it is simpler and avoids repeatedly expressing pairwise comparisons. `cmp_to_key` is appropriate when integrating an existing comparator, porting legacy code, or implementing a domain comparison that cannot be expressed cleanly as a normal key. The comparator still must be consistent; the adapter does not fix a non-transitive relation.
+
+## 15. Equality and ordering must agree
+
+A common defect is implementing equality on one field but ordering on a different field without a domain reason. Consider a `Record` that says two objects are equal by identifier but sorts by timestamp. It may be possible for `a == b` and also `a < b`, which violates the expected relationship between equality and ordering and can cause confusing results in bisect-based workflows.
+
+Choose and document one of these designs:
+
+1. **Same semantic fields:** equality and ordering use the same key tuple. This is the default recommendation for value objects.
+2. **Different but intentional semantics:** document exactly why the concepts differ, and do not assume generic sorting/searching tools interpret equality as ordering-equivalence.
+3. **No intrinsic ordering:** do not implement rich ordering; use caller-supplied `key=` functions.
+
+For a well-behaved total order, if both `a < b` and `b < a` are false, `a` and `b` should be equivalent under ordering. For many value objects, that equivalence should match `a == b`.
+
+## 16. `bisect` and `heapq`
+
+Both modules depend on consistent `<` behavior, but they use it for different purposes:
+
+- `bisect` finds an insertion point in a sequence that is already sorted according to the same ordering. It does not sort or validate the sequence for you. If the sequence was sorted under a different key/order, the insertion point may be wrong.
+- `heapq` maintains a heap invariant using `<` comparisons. A heap is not a fully sorted list; it guarantees access to the smallest item according to its comparison relation, assuming that relation is coherent.
+
+```python
+from bisect import bisect_left
+import heapq
+
+numbers = [1, 3, 5, 7]
+print(bisect_left(numbers, 4))
+
+heap = [5, 1, 4]
+heapq.heapify(heap)
+print(heapq.heappop(heap))
+```
+
+Expected output:
+
+```text
+2
+1
+```
+
+For custom objects, ensure their `<` method and any `key=`-derived order used to prepare the data are consistent. `bisect`'s key support has a specific API detail: when `key=` is supplied, it is applied to elements in the sequence, but the searched `x` is expected to already be in key form. Check the Python version's `bisect` documentation when using that argument in production.
+
+## 17. Practical applications in data engineering and AI systems
+
+### 17.1 Job priority queues
+
+A scheduler may need to order jobs by priority and then by enqueue sequence. A frozen dataclass is often appropriate:
 
 ```python
 from dataclasses import dataclass, field
 
 @dataclass(order=True, frozen=True)
-class SemanticVersion:
-    major: int
-    minor: int
-    patch: int
-    label: str = field(default="", compare=False)
-
-versions = [
-    SemanticVersion(1, 2, 0, "release candidate"),
-    SemanticVersion(1, 0, 9, "stable"),
-    SemanticVersion(1, 2, 0, "stable"),
-]
-ordered = sorted(versions)
-assert [(v.major, v.minor, v.patch) for v in ordered] == [
-    (1, 0, 9), (1, 2, 0), (1, 2, 0)
-]
-assert versions[0] == versions[2]  # label is excluded from equality and ordering
+class QueueItem:
+    priority_rank: int
+    sequence: int
+    payload: str = field(compare=False)
 ```
 
-`field(compare=False)` excludes the field from generated equality and ordering. That is useful for annotations or display metadata that should not affect the value's identity. It also means the field will not distinguish two instances during sorting; Python's stable sort preserves their input order when their keys compare equal.
+The payload is excluded from comparisons so arbitrary payload types do not accidentally participate in ordering. The sequence field provides deterministic tie-breaking among equal priorities. For `heapq`, lower numeric ranks are popped first; if higher priority should be served first, encode ranks accordingly or use a deliberate reverse-priority scheme.
 
-### Dataclass design cautions
+### 17.2 Data pipeline records
 
-- `order=True` also requires equality generation; the dataclass decorator rejects incompatible method definitions rather than silently overriding explicitly defined ordering methods.
-- Field declaration order becomes part of the public ordering contract. Reordering fields can change behavior.
-- Every compared field must itself be comparable with the corresponding field in another instance.
-- Do not include fields in ordering merely because they exist. Define the domain's intended order.
-- `frozen=True` prevents ordinary attribute assignment but does not recursively freeze mutable objects stored inside fields.
+Use `key=attrgetter("event_time", "partition", "offset")` to sort event records for a batch when the order is specific to that pipeline. This keeps ordering policy visible at the call site and avoids making the record class globally sortable for unrelated use cases.
 
-For one-off sorting, a `key=` function can be more explicit than setting `order=True` on a general data model.
+### 17.3 Model evaluation results
 
-## 9. Tuple comparisons as a compact ordering key
+Use a key that handles missing or invalid metrics explicitly. Do not assume NaN scores sort meaningfully. For example, place invalid scores last and then sort valid scores by a defined metric. Document tie-breaking rules so experiment reports remain reproducible.
 
-Tuple comparison is a common, readable way to express lexicographic ordering.
+### 17.4 Semantic versions
 
-```python
-class DataFile:
-    def __init__(self, partition_date: str, source_priority: int, path: str) -> None:
-        self.partition_date = partition_date
-        self.source_priority = source_priority
-        self.path = path
+Compare parsed numeric components, not raw version strings: lexical string ordering can put `"1.10"` before `"1.2"`. If the domain follows a full standard such as Semantic Versioning, implement its pre-release and build-metadata rules rather than assuming a three-integer tuple is a complete implementation.
 
-    def _key(self) -> tuple[str, int, str]:
-        return (self.partition_date, self.source_priority, self.path)
+## 18. Common mistakes and failure modes
 
-    def __lt__(self, other: object) -> bool:
-        if not isinstance(other, DataFile):
-            return NotImplemented
-        return self._key() < other._key()
+1. **Assuming sorting needs all six methods.** For ordinary `sorted()` / `list.sort()` comparisons, `<` is the key rich comparison; `key=` can bypass object ordering by comparing keys instead.
+2. **Defining `__eq__` and forgetting hash behavior.** Python normally makes the class unhashable when `__eq__` is defined and `__hash__` is not. Do not add a hash unless equality-relevant state is stable.
+3. **Returning `False` for every unsupported type.** This can suppress the other operand's opportunity to handle the operation. Prefer `NotImplemented` when the operation is unsupported.
+4. **Mixing equality and ordering keys.** This can make equal values order differently or distinct values indistinguishable to ordering-based algorithms.
+5. **Assuming tuple keys solve every mixed-direction sort.** They sort each component ascending; use stable passes or a carefully designed key for mixed directions.
+6. **Assuming sets have a total order.** Set `<` means proper subset, which is a partial order; `sorted(sets)` is not generally a meaningful ascending arrangement.
+7. **Ignoring NaN.** NaN is not equal to itself and is unordered; define a sorting policy explicitly.
+8. **Relying on Python 2-style cross-type ordering.** In Python 3, unrelated types generally cannot be ordered; normalize values with an explicit key.
+9. **Using `total_ordering` without profiling or without coherent primitives.** It improves maintainability but generated methods may add overhead and cannot repair inconsistent semantics.
+10. **Using `dataclass(order=True)` by habit.** It imposes declaration-order tuple semantics and identical-class comparisons; ensure this is truly the domain's natural order.
+11. **Assuming `bisect` checks sortedness.** It does not; the input must already be sorted under the same ordering policy.
+12. **Assuming `heapq` produces a fully sorted list.** It maintains a heap invariant, not complete sorted order.
+13. **Assuming successful `sorted()` proves the comparator is valid.** Python does not generally check reflexivity, transitivity, or totality; broken relations may return results without raising.
+14. **Using `cmp_to_key` where a key is simpler.** Prefer a direct key unless adapting a real comparator is needed.
+15. **Comparing money using binary floating-point values.** For monetary values, prefer `Decimal` with a defined quantization policy or integer minor units; float rounding and NaN complicate ordering.
 
-    def __repr__(self) -> str:
-        return f"DataFile({self.partition_date!r}, {self.source_priority}, {self.path!r})"
+## 19. Debugging checklist
 
-files = [
-    DataFile("2026-01-02", 2, "s3://bucket/b.csv"),
-    DataFile("2026-01-01", 1, "s3://bucket/a.csv"),
-    DataFile("2026-01-01", 1, "s3://bucket/z.csv"),
-]
-assert [item.path for item in sorted(files)] == [
-    "s3://bucket/a.csv", "s3://bucket/z.csv", "s3://bucket/b.csv"
-]
-```
+When ordering fails or output looks suspicious:
 
-Tuple keys are concise, but the order of fields must match the domain rule. A tuple containing mixed, non-comparable types can still raise `TypeError` when Python reaches an incompatible position.
+1. Reproduce with the smallest pair of values that fails.
+2. Inspect `a == b`, `a < b`, `b < a`, and (if implemented) `a <= b`, `b <= a`.
+3. Check unsupported operand types and whether methods return `NotImplemented`.
+4. Check that equality and ordering use compatible fields and type rules.
+5. Check that values do not mutate in ways that change their comparison result while stored in a heap or while a sequence is assumed sorted.
+6. Check NaN, `None`, mixed types, missing fields, and duplicate keys.
+7. Verify that the list passed to `bisect` is sorted using the same policy.
+8. For a comparator, test reflexivity/irreflexivity, antisymmetry/asymmetry, transitivity, and totality on representative triples.
+9. For `total_ordering`, confirm `__eq__` and the one primitive ordering method are both correct before investigating generated methods.
+10. For a performance concern, benchmark realistic data and profile before replacing `total_ordering` with handwritten methods.
 
-## 10. `operator.attrgetter`, `itemgetter`, and sorting by multiple keys
+## 20. Tests with pytest
 
-The `operator` module provides reusable key functions that can be clearer than repeated lambdas.
-
-```python
-from operator import attrgetter, itemgetter
-
-class Run:
-    def __init__(self, name: str, duration_ms: int, region: str) -> None:
-        self.name = name
-        self.duration_ms = duration_ms
-        self.region = region
-
-runs = [Run("job-c", 200, "ap-south"), Run("job-a", 100, "eu-west"), Run("job-b", 100, "ap-south")]
-by_duration_then_name = sorted(runs, key=attrgetter("duration_ms", "name"))
-assert [run.name for run in by_duration_then_name] == ["job-a", "job-b", "job-c"]
-
-rows = [("api", 40), ("batch", 10), ("api", 20)]
-assert sorted(rows, key=itemgetter(1)) == [("batch", 10), ("api", 20), ("api", 40)]
-```
-
-- `attrgetter("duration_ms", "name")` extracts multiple attributes and returns them as a tuple.
-- `itemgetter(1)` extracts the second item from each row.
-- `key=lambda x: (...)` is often best when transformation, normalization, or custom logic is required.
-
-### Stable sorting
-
-Python sorting is stable: items with equal keys keep their relative order from the input. Stability lets you perform multi-key sorting in multiple passes, sorting by the least significant key first and the most significant key last.
+Save the following as `test_rich_comparison.py`. It is a self-contained test module and deliberately checks laws and public behavior, not private implementation details alone.
 
 ```python
-records = [
-    {"team": "A", "score": 80, "name": "Mira"},
-    {"team": "B", "score": 90, "name": "Arun"},
-    {"team": "A", "score": 80, "name": "Zoya"},
-]
-# First order ties by name, then stable sort by team and score.
-records.sort(key=lambda row: row["name"])
-records.sort(key=lambda row: (row["team"], row["score"]))
-assert [(r["team"], r["score"], r["name"]) for r in records] == [
-    ("A", 80, "Mira"), ("A", 80, "Zoya"), ("B", 90, "Arun")
-]
-```
+from __future__ import annotations
 
-For mixed sort directions, multiple stable passes can be clearer than trying to reverse every field in a composite key. Another option is to encode direction explicitly in a key, when that transformation is safe and readable.
-
-```python
-records = [
-    {"team": "A", "score": 80, "name": "Mira"},
-    {"team": "A", "score": 90, "name": "Zoya"},
-    {"team": "A", "score": 90, "name": "Arun"},
-]
-records.sort(key=lambda row: row["name"])                 # ascending name
-records.sort(key=lambda row: row["score"], reverse=True) # descending score; stable ties
-assert [r["name"] for r in records] == ["Arun", "Zoya", "Mira"]
-```
-
-## 11. Advanced: ordering laws and invariants
-
-A sorting implementation should represent a coherent ordering, not just return plausible answers for one list.
-
-For a **non-strict total order** (`<=`), the usual laws are:
-
-1. **Reflexivity:** `a <= a` is true.
-2. **Antisymmetry:** if `a <= b` and `b <= a`, then `a` and `b` are equal in the ordering's sense.
-3. **Transitivity:** if `a <= b` and `b <= c`, then `a <= c`.
-4. **Totality:** for any `a` and `b`, at least one of `a <= b` or `b <= a` holds.
-
-For a **strict total order** (`<`), the corresponding formulation uses irreflexivity (`not a < a`), transitivity, and comparability of distinct values. Keep the strict and non-strict formulations separate: `a < a` should be false, so strict ordering is not reflexive.
-
-For practical class design, also test consistency between equality and ordering. If both `a <= b` and `b <= a` are true, they should normally compare equal (`a == b`) for a total value ordering. If your class intentionally models a different relation, document that rather than pretending it is a total order.
-
-### What breaks when laws fail?
-
-If a comparator is inconsistent, sorting and priority structures may produce results that do not match the business rule. The algorithm generally does not validate all mathematical laws for you. Some defects may not raise exceptions at all.
-
-```python
-class Cyclic:
-    """Intentionally broken example: 0 < 1, 1 < 2, and 2 < 0."""
-    def __init__(self, value: int) -> None:
-        self.value = value % 3
-
-    def __lt__(self, other: object) -> bool:
-        if not isinstance(other, Cyclic):
-            return NotImplemented
-        return (self.value, other.value) in {(0, 1), (1, 2), (2, 0)}
-
-items = [Cyclic(0), Cyclic(1), Cyclic(2)]
-# This comparator violates transitivity. Do not rely on sorted(items) to
-# establish a meaningful global order; it may return a list without error.
-```
-
-The lesson from this deliberately broken example is not to memorize the output of `sorted()`. The output depends on the algorithm's comparisons and input arrangement; it is not a valid ordering guarantee when the comparison contract is violated.
-
-## 12. Floating-point values and `NaN`
-
-IEEE floating-point `NaN` (not a number) is unusual:
-
-```python
-nan = float("nan")
-assert not (nan < 1)
-assert not (nan > 1)
-assert not (nan == nan)
-assert not (nan <= nan)
-```
-
-NaN does not behave like an ordinary number in an order. If NaN values appear in a list, a normal numeric sort key does not define a reliable business ordering for them. Decide what they mean in your domain: missing measurement, invalid data, or a special category. Then encode that decision explicitly.
-
-```python
+from dataclasses import dataclass, field
+from functools import total_ordering
 import math
+from types import NotImplementedType
 
-measurements = [3.5, float("nan"), 1.2, 2.0]
-# Policy: finite numeric values first in ascending order; NaN values last.
-ordered = sorted(measurements, key=lambda value: (math.isnan(value), 0.0 if math.isnan(value) else value))
-assert ordered[:3] == [1.2, 2.0, 3.5]
-assert math.isnan(ordered[-1])
-```
-
-Do not use floating-point arithmetic for exact financial amounts. Use integer minor units (such as cents) or `decimal.Decimal` with an explicit precision and rounding policy. Even with `Decimal`, define how special values and missing data should be handled if they are allowed in your domain.
-
-## 13. Partial orders: why sets are different
-
-Not every comparison relation is a total order. Python sets use `<` to mean **proper subset**, not “comes before.” Two sets can be incomparable.
-
-```python
-left = {1, 2}
-right = {2, 3}
-assert not (left < right)
-assert not (right < left)
-assert left != right
-```
-
-Because neither set is a subset of the other, neither is less than the other. This is a partial order. Sorting sets does not create a meaningful canonical ordering by subset relation. If you need a display order, provide an explicit key such as `(len(value), sorted(value))` for sets whose elements are mutually sortable.
-
-```python
-sets = [{3, 1}, {1}, {2, 4, 5}]
-ordered_sets = sorted(sets, key=lambda value: (len(value), tuple(sorted(value))))
-assert ordered_sets == [{1}, {1, 3}, {2, 4, 5}]
-```
-
-## 14. `functools.cmp_to_key` for legacy comparators
-
-Modern Python sorting expects a key function or rich comparisons. `functools.cmp_to_key` adapts a legacy two-argument comparator that returns a negative number, zero, or a positive number.
-
-```python
-from functools import cmp_to_key
-
-def compare_case_insensitive(left: str, right: str) -> int:
-    left_key = left.casefold()
-    right_key = right.casefold()
-    return (left_key > right_key) - (left_key < right_key)
-
-names = ["zoe", "Arun", "mira"]
-assert sorted(names, key=cmp_to_key(compare_case_insensitive)) == ["Arun", "mira", "zoe"]
-```
-
-Use `cmp_to_key` mainly when adapting an existing comparator or when the comparison rule cannot be expressed cleanly as a key. A normal `key=` function is generally simpler and avoids repeated pairwise comparison work to derive the key.
-
-## 15. Heterogeneous values: make the order explicit
-
-Python 3 does not define a general ordering between unrelated types such as `int` and `str`.
-
-```python
-try:
-    sorted([10, "2"])
-except TypeError:
-    print("Mixed int and str values need an explicit policy")
-```
-
-Do not depend on type names or arbitrary conversions without a domain reason. Define a deterministic policy for the values you expect. For example, to put integers before strings:
-
-```python
-values = ["10", 3, "2", 1]
-ordered = sorted(values, key=lambda value: (0, value) if isinstance(value, int) else (1, value))
-assert ordered == [1, 3, "10", "2"]
-```
-
-This policy intentionally sorts integers numerically and strings lexicographically. It does **not** treat numeric-looking strings as numbers. If that is required, parse and validate them explicitly rather than silently coercing arbitrary data.
-
-## 16. `bisect`: sorted insertion and lookup
-
-`bisect` finds insertion points in a list that is already sorted under the same ordering rule. It does not sort the list for you. If the list's ordering invariant is broken, the result is not meaningful.
-
-```python
-from bisect import bisect_left, insort
-
-scores = [10, 20, 20, 40]
-position = bisect_left(scores, 20)
-assert position == 1
-insort(scores, 30)
-assert scores == [10, 20, 20, 30, 40]
-```
-
-When using custom objects, ensure the comparison behavior used by `bisect` matches the order in which the list was built. If you sort by a key, maintain and search a parallel list of those keys or use an appropriate design for your Python version and API; do not assume a key used for sorting automatically transforms values passed to every lookup operation.
-
-## 17. `heapq`: priority queues
-
-`heapq` uses `<` comparisons to maintain a heap. It does not fully sort the data; it keeps the smallest item at the root so the next item can be popped efficiently. If two objects can have the same priority, include a deterministic tie-breaker to avoid comparing unsupported payload objects.
-
-```python
-import heapq
-
-jobs = [
-    (2, 100, {"job_id": "transform"}),
-    (1, 200, {"job_id": "extract"}),
-    (1, 100, {"job_id": "validate"}),
-]
-heapq.heapify(jobs)
-assert [heapq.heappop(jobs)[2]["job_id"] for _ in range(3)] == [
-    "validate", "extract", "transform"
-]
-```
-
-Here the tuple order is `(priority, sequence_number, payload)`. If priority and sequence number tie, Python would attempt to compare the payload dictionaries, which is not an ordering you should rely on. In production, use a unique sequence number or a stable identifier as a tie-breaker. A common pattern is `(priority, counter, task)`.
-
-## 18. Production case study: deterministic event ordering
-
-Suppose a pipeline receives events from multiple sources. The processing contract says:
-
-1. Earlier event timestamps come first.
-2. At the same timestamp, higher source priority comes first.
-3. Remaining ties are resolved by `event_id` so the order is deterministic.
-
-A one-off `key=` function is appropriate because the ordering belongs to this pipeline operation, not necessarily to every use of an event record.
-
-```python
-from dataclasses import dataclass
-
-@dataclass(frozen=True)
-class Event:
-    event_id: str
-    timestamp_ms: int
-    source_priority: int
-    payload: str
-
-
-def event_order(event: Event) -> tuple[int, int, str]:
-    # Negative priority means larger priority numbers come first.
-    return (event.timestamp_ms, -event.source_priority, event.event_id)
-
-batch = [
-    Event("e-03", 1_000, 1, "third"),
-    Event("e-02", 1_000, 5, "second"),
-    Event("e-01", 900, 1, "first"),
-    Event("e-04", 1_000, 5, "fourth"),
-]
-ordered_batch = sorted(batch, key=event_order)
-assert [event.event_id for event in ordered_batch] == ["e-01", "e-02", "e-04", "e-03"]
-```
-
-### Engineering review checklist
-
-- Is the sort rule a business requirement or merely a display preference?
-- Are all key fields present and validated before sorting?
-- Are ties resolved deterministically if reproducible output matters?
-- Can any key contain `None`, NaN, or mixed types that are not mutually comparable?
-- Does the ordering agree with equality where the domain requires it?
-- Will `bisect` or `heapq` use the same comparison rule?
-- Is the class's ordering intrinsic, or would `key=` keep the contract narrower?
-- Are tests covering equal keys, unsupported types, boundaries, and inconsistent cases?
-
-## 19. Common mistakes and fixes
-
-| Mistake | Why it is a problem | Better approach |
-|---|---|---|
-| Implement only `__lt__` and assume `<=` works | Python does not derive all comparison methods automatically | Implement the required methods or use `@total_ordering` |
-| Return `False` for every foreign type | Blocks the normal unsupported-operation dispatch path | Return `NotImplemented` when the type is unsupported |
-| Compare one field in `__eq__` and unrelated fields in `__lt__` | Can make equality and ordering contradictory | Define a shared domain key and test invariants |
-| Use `order=True` without considering field order | Field declaration order becomes observable behavior | Make ordering fields deliberate; exclude metadata with `compare=False` |
-| Assume all comparisons form a total order | NaN and subset relations are counterexamples | Model special values and partial orders explicitly |
-| Sort mixed types without a policy | Python may raise `TypeError` | Normalize or define a type-aware key |
-| Use `total_ordering` on a hot path without measurement | Generated methods can add overhead | Benchmark realistic data before optimizing |
-| Compare money as binary floats | Rounding behavior can violate business expectations | Use integer minor units or `Decimal` with explicit rules |
-| Give a heap items equal priorities with unorderable payloads | Heap comparisons may reach the payload and fail | Add a deterministic sequence or identifier tie-breaker |
-| Use `bisect` on an unsorted list | Insertion points no longer match the invariant | Keep the list sorted using the same ordering rule |
-
-## 20. Testing comparison contracts with pytest
-
-Create `test_ordering.py` and place the following code in it. It assumes the `Version`, `Priority`, and `Event` examples above are in an importable module named `ordering_lesson.py`. If your file has a different name, adjust the import accordingly.
-
-```python
 import pytest
 
-from ordering_lesson import Event, Priority, Version, event_order
+
+@total_ordering
+class Version:
+    __slots__ = ("parts",)
+
+    def __init__(self, major: int, minor: int, patch: int) -> None:
+        parts = (major, minor, patch)
+        if any(not isinstance(x, int) or isinstance(x, bool) or x < 0 for x in parts):
+            raise ValueError("version parts must be non-negative integers")
+        object.__setattr__(self, "parts", parts)
+
+    def __setattr__(self, name: str, value: object) -> None:
+        raise AttributeError("Version instances are immutable")
+
+    def __eq__(self, other: object) -> bool | NotImplementedType:
+        if not isinstance(other, Version):
+            return NotImplemented
+        return self.parts == other.parts
+
+    def __lt__(self, other: object) -> bool | NotImplementedType:
+        if not isinstance(other, Version):
+            return NotImplemented
+        return self.parts < other.parts
+
+    def __repr__(self) -> str:
+        return f"Version{self.parts!r}"
 
 
-def test_version_sorts_lexicographically() -> None:
-    values = [Version(1, 2, 0), Version(1, 0, 9), Version(2, 0, 0)]
-    assert [value._key() for value in sorted(values)] == [
-        (1, 0, 9), (1, 2, 0), (2, 0, 0)
-    ]
+@dataclass(order=True, frozen=True)
+class Task:
+    priority: int
+    sequence: int
+    description: str = field(compare=False)
 
 
-def test_version_unsupported_type_raises_type_error() -> None:
-    with pytest.raises(TypeError):
-        _ = Version(1, 0, 0) < 3
+def test_version_lexicographic_order_and_sorting() -> None:
+    versions = [Version(1, 2, 0), Version(1, 0, 9), Version(2, 0, 0)]
+    assert [v.parts for v in sorted(versions)] == [(1, 0, 9), (1, 2, 0), (2, 0, 0)]
+    assert min(versions).parts == (1, 0, 9)
+    assert max(versions).parts == (2, 0, 0)
 
 
-def test_priority_total_ordering_supplies_methods() -> None:
-    low = Priority("low")
-    normal = Priority("normal")
-    high = Priority("high")
-    assert low < normal <= high
+def test_total_ordering_generated_relations() -> None:
+    low, same_low, high = Version(1, 0, 0), Version(1, 0, 0), Version(2, 0, 0)
+    assert low == same_low
+    assert low <= same_low
+    assert low >= same_low
+    assert low < high
     assert high > low
-    assert normal == Priority("normal")
+    assert low != high
+    assert low <= high
+    assert high >= low
 
 
-def test_event_sort_is_deterministic() -> None:
-    events = [
-        Event("b", 100, 1, "payload"),
-        Event("a", 100, 1, "payload"),
-        Event("c", 90, 1, "payload"),
-    ]
-    assert [event.event_id for event in sorted(events, key=event_order)] == ["c", "a", "b"]
+def test_unsupported_operands() -> None:
+    version = Version(1, 0, 0)
+    assert (version == 5) is False
+    with pytest.raises(TypeError):
+        _ = version < 5
 
 
-def test_version_rejects_negative_components() -> None:
+def test_invalid_version_components_are_rejected() -> None:
     with pytest.raises(ValueError):
         Version(-1, 0, 0)
-```
+    with pytest.raises(ValueError):
+        Version(True, 0, 0)
 
-Run:
 
-```bash
-python -m pytest -q
-```
+def test_version_ordering_state_is_immutable() -> None:
+    version = Version(1, 2, 3)
+    with pytest.raises(AttributeError):
+        version.parts = (9, 9, 9)
 
-### Property-style invariants
 
-For a well-behaved total order, test relationships across representative values rather than only one expected sorted list.
+def test_dataclass_compare_false_excludes_description() -> None:
+    a = Task(1, 10, "first")
+    b = Task(1, 10, "different description")
+    assert a == b
+    assert not (a < b)
+    assert not (b < a)
 
-```python
-def assert_ordering_invariants(values: list[Version]) -> None:
+
+def test_order_laws_for_sample_values() -> None:
+    values = [Version(0, 9, 9), Version(1, 0, 0), Version(1, 0, 1)]
     for a in values:
-        assert not (a < a)  # strict ordering is irreflexive
+        assert not (a < a)  # strict irreflexivity
         for b in values:
             if a < b:
-                assert not (b < a)  # asymmetry of a strict order
+                assert not (b < a)  # asymmetry
             if not (a < b) and not (b < a):
-                assert a == b  # for this total value order, ties mean equality
+                assert a == b  # this class uses the same key for equality/order
             for c in values:
                 if a < b and b < c:
                     assert a < c  # transitivity
 
-assert_ordering_invariants([
-    Version(0, 0, 0), Version(1, 0, 0), Version(1, 2, 0), Version(2, 0, 0)
-])
+
+def test_nan_policy_key_puts_nan_last() -> None:
+    values = [3.0, float("nan"), 1.0]
+    ordered = sorted(values, key=lambda x: (math.isnan(x), 0.0 if math.isnan(x) else x))
+    assert ordered[0] == 1.0
+    assert ordered[1] == 3.0
+    assert math.isnan(ordered[2])
+
+
+def test_equal_items_are_stably_sorted_by_key() -> None:
+    values = [(1, "first"), (0, "zero"), (1, "second")]
+    ordered = sorted(values, key=lambda pair: pair[0])
+    assert ordered == [(0, "zero"), (1, "first"), (1, "second")]
+
+
+def test_list_sort_and_unsupported_relational_operators() -> None:
+    values = [Version(2, 0, 0), Version(1, 0, 0)]
+    result = values.sort()
+    assert result is None
+    assert [value.parts for value in values] == [(1, 0, 0), (2, 0, 0)]
+    with pytest.raises(TypeError):
+        _ = Version(1, 0, 0) >= 5
+    with pytest.raises(TypeError):
+        _ = Version(1, 0, 0) > 5
+
+
+def test_cyclic_relation_violates_transitivity_but_sort_returns() -> None:
+    class Cyclic:
+        _NEXT = {"rock": "scissors", "scissors": "paper", "paper": "rock"}
+
+        def __init__(self, name: str) -> None:
+            self.name = name
+
+        def __lt__(self, other: object) -> bool | NotImplementedType:
+            if not isinstance(other, Cyclic):
+                return NotImplemented
+            return self._NEXT[self.name] == other.name
+
+    rock, scissors, paper = Cyclic("rock"), Cyclic("scissors"), Cyclic("paper")
+    assert rock < scissors
+    assert scissors < paper
+    assert not (rock < paper)
+    assert len(sorted([rock, paper, scissors])) == 3
 ```
 
-This helper is deliberately small and cubic in the number of values; use a compact representative set for unit tests. For larger test spaces, consider property-based testing and generate valid domain values. The invariants should reflect the exact ordering contract of your class.
+Run in an environment with Python 3.12+ and pytest installed:
 
-## 21. Exercises
-
-Attempt each exercise before reading the solution. Use Python 3.12+.
-
-### Exercise 1 — Which method does sorting require?
-
-Create a class that implements only `__lt__`. Show that `sorted()` works, then show that `<=` is not automatically available.
-
-### Exercise 2 — Implement a release priority
-
-Create an immutable or effectively immutable `Release` value object with `major`, `minor`, and `patch` integers. Implement equality and less-than comparison using a tuple key. Unsupported operand types should be handled properly. Explain whether you would use `@total_ordering` or implement every method explicitly.
-
-### Exercise 3 — Sort records for a data quality report
-
-Given dictionaries with `dataset`, `failed_rows`, and `checked_at`, sort by most failed rows first, then dataset name ascending, then timestamp ascending. Do not add ordering methods to `dict` or wrap every row in a custom class.
-
-### Exercise 4 — Handle NaN
-
-Sort `[float("nan"), 3.0, 1.0, float("nan"), 2.0]` with finite values first in ascending order and NaNs last. Explain why a plain numeric key does not define a satisfactory policy for NaN.
-
-### Exercise 5 — Diagnose a broken comparator
-
-A class defines `__eq__` based on `name` but `__lt__` based on `created_at`. What kinds of inconsistent behavior can result? Propose a consistent domain rule.
-
-### Exercise 6 — Priority queue ties
-
-Design a heap entry for tasks with `priority`, `sequence`, and a task payload that may not be comparable. Explain how your tuple layout prevents Python from comparing the payload when priorities tie.
-
-## 22. Exercise solutions
-
-### Solution 1
-
-```python
-class Number:
-    def __init__(self, value: int) -> None:
-        self.value = value
-
-    def __lt__(self, other: object) -> bool:
-        if not isinstance(other, Number):
-            return NotImplemented
-        return self.value < other.value
-
-numbers = [Number(3), Number(1), Number(2)]
-assert [n.value for n in sorted(numbers)] == [1, 2, 3]
-try:
-    Number(1) <= Number(2)
-except TypeError:
-    pass
-else:
-    raise AssertionError("<= should not be assumed to exist")
+```bash
+python -m pytest -q test_rich_comparison.py
 ```
 
-### Solution 2
+Expected test result when run with a compatible environment:
 
-```python
-from functools import total_ordering
-
-@total_ordering
-class Release:
-    def __init__(self, major: int, minor: int, patch: int) -> None:
-        self._key = (major, minor, patch)
-
-    def __eq__(self, other: object) -> bool:
-        if not isinstance(other, Release):
-            return NotImplemented
-        return self._key == other._key
-
-    def __lt__(self, other: object) -> bool:
-        if not isinstance(other, Release):
-            return NotImplemented
-        return self._key < other._key
-
-assert Release(1, 2, 0) < Release(1, 10, 0)
-assert Release(2, 0, 0) >= Release(1, 9, 9)
+```text
+11 passed
 ```
 
-For a small value object, `@total_ordering` reduces boilerplate. For a very hot path or a public API requiring explicit behavior and easier tracebacks, implement the necessary methods explicitly and benchmark if performance is material. A production implementation should also validate non-negative integer components and decide whether to expose immutable fields.
+Verification note: this test module was executed in the available Python 3.13.5 environment with pytest 9.0.2 and passed all 11 tests. Python 3.12 was not available in that environment, so this is not a direct 3.12 run. A test suite cannot prove the laws for every possible object; it checks representative values and regressions. Expand generated/property-based tests when the domain has a large state space.
 
-### Solution 3
+## 21. Graduated exercises
+
+### Exercise 1 — Beginner: compare versions
+
+Implement a `Version` class that stores `(major, minor, patch)`, supports equality and `<`, and sorts correctly. Unsupported ordering against an integer must raise `TypeError`.
+
+### Exercise 2 — Beginner/intermediate: choose a key
+
+Given records with `team`, `score`, and `name`, sort by team ascending, score descending, then name ascending. Preserve stable order when all three fields tie.
+
+### Exercise 3 — Intermediate: `total_ordering`
+
+Implement a `Priority` value with `low < medium < high`. Explain which methods you implement directly and which are generated. Explain why you should not hash mutable priority state by default.
+
+### Exercise 4 — Intermediate: dataclass ordering
+
+Create a frozen `Task` dataclass ordered by `priority` then `sequence`, while excluding `payload` from comparison. Demonstrate that two tasks with equal comparison fields compare equal despite different payloads.
+
+### Exercise 5 — Advanced: audit a relation
+
+Create three values `a`, `b`, and `c` and test whether `a < b`, `b < c`, and `a < c` are consistent. Explain why sorting successfully does not prove transitivity.
+
+### Exercise 6 — Advanced: NaN policy
+
+Write a key function that puts NaN values last and finite values in ascending order. Test a list containing at least two finite values and one NaN.
+
+### Exercise 7 — Advanced: legacy comparator
+
+Write a comparator that orders strings case-insensitively, adapt it with `cmp_to_key`, and explain why `key=str.casefold` is simpler for this specific task.
+
+## 22. Worked solutions
+
+### Solution 1 — Version
+
+The complete `Version` implementation in Section 4.1 is the reference solution. It compares the tuple of numeric components lexicographically and returns `NotImplemented` for unsupported operand types. The `total_ordering` decorator supplies the missing relational methods.
+
+### Solution 2 — Mixed sort directions
 
 ```python
-rows = [
-    {"dataset": "orders", "failed_rows": 10, "checked_at": "2026-01-02"},
-    {"dataset": "customers", "failed_rows": 10, "checked_at": "2026-01-01"},
-    {"dataset": "orders", "failed_rows": 5, "checked_at": "2026-01-01"},
+from operator import itemgetter
+
+records = [
+    {"team": "red", "score": 8, "name": "Mira"},
+    {"team": "blue", "score": 10, "name": "Ari"},
+    {"team": "red", "score": 10, "name": "Noah"},
+    {"team": "blue", "score": 10, "name": "Bea"},
 ]
-ordered = sorted(rows, key=lambda row: (-row["failed_rows"], row["dataset"], row["checked_at"]))
-assert [(r["failed_rows"], r["dataset"], r["checked_at"]) for r in ordered] == [
-    (10, "customers", "2026-01-01"),
-    (10, "orders", "2026-01-02"),
-    (5, "orders", "2026-01-01"),
-]
+records.sort(key=itemgetter("name"))
+records.sort(key=itemgetter("score"), reverse=True)
+records.sort(key=itemgetter("team"))
+print([(r["team"], r["score"], r["name"]) for r in records])
 ```
 
-This assumes `failed_rows` is a validated numeric value and `checked_at` is in a consistent sortable representation. For production timestamps, use normalized timezone-aware `datetime` values or an explicitly normalized numeric timestamp.
+Expected output:
 
-### Solution 4
+```text
+[('blue', 10, 'Ari'), ('blue', 10, 'Bea'), ('red', 10, 'Noah'), ('red', 8, 'Mira')]
+```
+
+### Solution 3 — Priority
+
+Section 9 provides a working implementation. Implement `__eq__` and `__lt__`; `@total_ordering` generates the missing order methods. Since the sample's `name` is mutable and equality depends on its rank, a custom hash based on rank would be unsafe if the name changed after insertion into a set or dictionary. Either keep the object unhashable, or use an immutable representation and a matching hash.
+
+### Solution 4 — Task
+
+```python
+from dataclasses import dataclass, field
+
+@dataclass(frozen=True, order=True)
+class Task:
+    priority: int
+    sequence: int
+    payload: object = field(compare=False)
+
+print(Task(1, 2, "a") == Task(1, 2, "b"))
+```
+
+Expected output:
+
+```text
+True
+```
+
+### Solution 5 — transitivity
+
+For any valid strict ordering, if `a < b` and `b < c`, then `a < c` must hold. The `Cyclic` example in Section 11.1 intentionally violates this law. `sorted()` does not generally inspect every triple to verify transitivity, so the call may return without an exception even though the comparator is invalid.
+
+### Solution 6 — NaN last
 
 ```python
 import math
 
-values = [float("nan"), 3.0, 1.0, float("nan"), 2.0]
-ordered = sorted(values, key=lambda value: (math.isnan(value), 0.0 if math.isnan(value) else value))
-assert ordered[:3] == [1.0, 2.0, 3.0]
-assert math.isnan(ordered[3]) and math.isnan(ordered[4])
+def nan_last_key(x: float) -> tuple[bool, float]:
+    return (math.isnan(x), 0.0 if math.isnan(x) else x)
+
+values = [float("nan"), 2.0, 1.0]
+ordered = sorted(values, key=nan_last_key)
+print(["nan" if math.isnan(x) else x for x in ordered])
 ```
 
-NaN is not equal to itself and is neither less than nor greater than ordinary numbers. The key maps values into an explicit two-part order: `(False, numeric_value)` for finite values and `(True, 0.0)` for NaN values. The second component is a placeholder for NaNs and does not define their numeric meaning.
+Expected output:
 
-### Solution 5
-
-If equality says two objects are equal because their names match, but ordering distinguishes them by creation time, it is possible for `a == b` to be true while `a < b` or `b < a` is also true. That is usually a confusing contract for a value object. Choose one identity/order model: for example, both equality and ordering could use `(created_at, name)`, or equality could use a stable identifier while sorting uses `key=lambda x: x.created_at`. The second option keeps sorting policy separate from equality.
-
-### Solution 6
-
-```python
-import heapq
-from itertools import count
-
-sequence = count()
-heap: list[tuple[int, int, object]] = []
-heapq.heappush(heap, (2, next(sequence), {"task": "slow"}))
-heapq.heappush(heap, (1, next(sequence), {"task": "fast-a"}))
-heapq.heappush(heap, (1, next(sequence), {"task": "fast-b"}))
-
-first = heapq.heappop(heap)
-assert first[2] == {"task": "fast-a"}
+```text
+[1.0, 2.0, 'nan']
 ```
 
-The sequence counter is unique for each inserted item. If priorities tie, Python compares the sequence values and does not need to compare the payload. In production, consider a small named dataclass or a documented tuple alias to make the heap entry's structure clear.
+### Solution 7 — comparator adapter
 
-## 23. Self-check — answer from memory
+Section 14 contains the full `compare_case_insensitive` function and its use with `cmp_to_key`. For a simple case-insensitive ordering, `sorted(words, key=str.casefold)` is clearer and uses a direct key function rather than adapting a pairwise comparator.
 
-1. Which single comparison method does `sorted()` normally require from a custom class?
-2. Why does `total_ordering` need `__eq__` as well as one ordering method?
-3. What should a rich comparison method return when it does not support the other operand's type?
-4. Why might a class use `field(compare=False)` for a dataclass field?
-5. What does stability mean for Python sorting?
-6. Why is NaN problematic for ordinary numeric ordering?
-7. Why are sets an example of a partial order?
-8. When would `cmp_to_key` be useful instead of a regular key function?
-9. What invariant must be maintained before using `bisect`?
-10. Why should heap entries have a deterministic tie-breaker before the payload?
+## 23. Roadmap self-check answers
 
-### Answer key
+### 1. Which single method does `sorted()` require?
 
-1. `__lt__` (less-than).
-2. The generated methods need equality to distinguish equal values from strictly ordered values.
-3. `NotImplemented`, allowing Python to try other supported dispatch paths and ultimately raise `TypeError` if necessary.
-4. The field is metadata or otherwise should not affect generated equality and ordering.
-5. Items with equal sort keys retain their relative input order.
-6. NaN is not equal to itself and is neither less than nor greater than ordinary values, so a numeric key alone does not define a useful total order.
-7. Two sets can be incomparable under subset ordering.
-8. To adapt an existing two-argument comparison function that returns negative/zero/positive values.
-9. The list must already be sorted under the same order used for insertion-point search.
-10. If earlier tuple fields tie, Python compares the next field; a unique tie-breaker prevents comparison from reaching a non-orderable payload.
+For custom objects sorted without a `key=`, the sorting API relies on `<`, which dispatches to `__lt__` (with Python's rich-comparison reflected dispatch rules). If a `key=` is supplied, the sort compares the produced keys instead, so the original objects do not need to implement ordering.
 
-## 24. Completion checklist
+### 2. Why does `total_ordering` need `__eq__` as well?
 
-You are ready to continue when you can do all of the following without copying the examples:
+The decorator needs equality to derive the missing inclusive and reverse comparisons consistently from one primitive ordering method. It does not invent the domain's equality semantics; the class must supply `__eq__` itself.
 
-- [ ] Implement `__lt__` using a clear tuple key.
-- [ ] Return `NotImplemented` for unsupported types.
-- [ ] Explain the difference between a class ordering contract and a one-off `key=` function.
-- [ ] Use `@total_ordering` and explain its trade-offs.
-- [ ] Use `dataclass(order=True)` and `field(compare=False)` appropriately.
-- [ ] Sort records with multiple keys and mixed directions.
-- [ ] Explain stability, total-order laws, partial orders, and NaN handling.
-- [ ] Use `bisect` only with a maintained sorted invariant.
-- [ ] Use a deterministic tie-breaker in `heapq` entries.
-- [ ] Test comparison laws and edge cases with pytest.
+### 3. Demonstrate a comparison that breaks transitivity and show what `sorted` does.
 
-## 25. Key takeaways
+The `Cyclic` example in Section 11.1 defines a rock-paper-scissors cycle. It violates transitivity by design. `sorted()` may return a list without raising because it assumes comparisons form a coherent order and does not perform a general transitivity audit. The exact returned order is not a valid guarantee of a meaningful ordering and can depend on input arrangement and comparison sequence.
 
-- Rich comparison methods define how custom objects respond to comparison operators.
-- `sorted()` and `list.sort()` normally need `<`; they do not automatically provide every other comparison operation.
-- `key=` is often the clearest choice for report-specific or pipeline-specific ordering. Implement class ordering when it is truly part of the value's domain contract.
-- `NotImplemented` is the correct signal for an unsupported operand type.
-- `total_ordering` reduces boilerplate but does not fix an incoherent comparison design.
-- Equality and ordering should agree with the domain's identity model.
-- Sorting stability, explicit NaN policy, deterministic tie-breakers, and valid invariants are production correctness concerns—not just syntax details.
-- `bisect` and `heapq` rely on a consistent comparison rule; neither can repair a broken ordering contract.
+## 24. Final checklist
 
-**Next lesson:** `03-container-protocols-getitem-len-iter-and-contains.md`.
+- [ ] The six rich comparison methods and their operators are understood.
+- [ ] Sorting and selection behavior is understood, including the role of `<` and `key=`.
+- [ ] `NotImplemented`, unsupported types, and reflected dispatch are handled deliberately.
+- [ ] Equality and ordering use compatible semantics.
+- [ ] Tuple keys, `attrgetter`, `itemgetter`, stable sorting, and mixed directions are understood.
+- [ ] `total_ordering` and `dataclass(order=True)` are used only when their contracts fit.
+- [ ] Total-order laws and partial-order limitations are understood.
+- [ ] NaN and heterogeneous values have explicit policies.
+- [ ] `cmp_to_key` is reserved for appropriate comparator adaptation.
+- [ ] `bisect` input ordering and `heapq` comparison requirements are understood.
+- [ ] The pytest examples pass in the target Python environment before being used as a project baseline.
+- [ ] The comparator is not assumed valid merely because `sorted()` returns.
+
+## 25. References
+
+Use the documentation matching the Python version deployed by your project:
+
+- Python Language Reference — data model, rich comparison methods: <https://docs.python.org/3/reference/datamodel.html#object.__lt__>
+- Python Standard Library — `functools.total_ordering` and `cmp_to_key`: <https://docs.python.org/3/library/functools.html>
+- Python Standard Library — `dataclasses`: <https://docs.python.org/3/library/dataclasses.html>
+- Python Standard Library — sorting HOWTO: <https://docs.python.org/3/howto/sorting.html>
+- Python Standard Library — `bisect`: <https://docs.python.org/3/library/bisect.html>
+- Python Standard Library — `heapq`: <https://docs.python.org/3/library/heapq.html>

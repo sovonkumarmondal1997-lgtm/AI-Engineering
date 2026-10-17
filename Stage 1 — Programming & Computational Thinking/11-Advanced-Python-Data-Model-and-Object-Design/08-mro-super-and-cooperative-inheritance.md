@@ -1,570 +1,1230 @@
 # MRO, `super()`, and Cooperative Inheritance
 
-> **Stage:** Stage 1 — Programming & Computational Thinking  
-> **Module:** 11 — Advanced Python Data Model and Object Design  
-> **Lesson:** 08 of 11  
-> **Audience:** Beginner to advanced Python learner, with data-engineering applications  
-> **Recommended environment:** Python 3.12+; examples use language features available in modern Python 3.
+> **Level:** Beginner → advanced  
+> **Runtime:** Python 3.12+ (examples also work on CPython 3.13)  
+> **Module:** Stage 1 · Module 11 — Advanced Python Data Model and Object Design  
+> **Lesson:** 08 — `08-mro-super-and-cooperative-inheritance.md`
 
-## Learning outcomes
+## Why this lesson matters
 
-By the end of this lesson, you should be able to:
+Python method resolution order (MRO) defines the order in which Python searches a class hierarchy for an attribute or method. `super()` follows that order; it does **not** simply call “my parent.” This distinction is essential when multiple classes contribute behavior, as in framework extension points, plugin systems, `unittest` setup hooks, and mixin-based designs.
 
-1. Explain inheritance, method overriding, and the method resolution order (MRO).
-2. Inspect an MRO with `Class.__mro__`, `Class.mro()`, and `inspect.getmro()`.
-3. Use zero-argument `super()` to extend behaviour without hard-coding a parent class.
-4. Explain a diamond hierarchy and the three core properties of C3 linearization.
-5. Build cooperative methods and constructors that pass control through a multiple-inheritance chain exactly once.
-6. Use keyword-only arguments and `**kwargs` carefully in cooperative initialization.
-7. Explain the `__class__` closure cell behind zero-argument `super()` and use the two-argument forms when appropriate.
-8. Diagnose skipped methods, duplicate base initialization, inconsistent MROs, and incompatible signatures.
-9. Recognize when composition is safer than inheritance.
-10. Apply these ideas to extensible ingestion, validation, logging, and transformation components.
+A correct cooperative hierarchy has three properties:
 
----
+1. Its inheritance graph has a consistent MRO.
+2. Each participating implementation delegates with `super()` using a compatible calling convention.
+3. The chain has a deliberate endpoint that does not forward arguments to a method that cannot accept them.
 
-## 1. The big picture
+This lesson covers the mechanics and engineering practices needed to reason about those properties. The next lesson focuses more specifically on mixin design and multiple-inheritance pitfalls.
 
-Inheritance lets one class reuse or specialize behaviour from another class. In single inheritance, the lookup path is usually easy to picture: Python checks the child class, then its base class, then further ancestors.
+## Learning objectives
 
-Multiple inheritance allows a class to inherit from more than one base. It can be useful for combining small, independent behaviours, but it makes the lookup path more important. Python defines a deterministic order called the **method resolution order (MRO)**.
+By the end, you should be able to:
 
-`super()` follows that order. It does **not** simply mean “call my parent.” More precisely, it creates a proxy that continues lookup **after a specified class in the MRO of a particular object or class**.
+- Explain method lookup in single and multiple inheritance.
+- Inspect a class's MRO using `Class.__mro__`, `Class.mro()`, and `inspect.getmro()`.
+- Derive a non-trivial C3 linearization from a class graph.
+- Explain the C3 constraints: child before parents, preserve local precedence order, and monotonicity.
+- Explain what zero-argument and two-argument `super()` mean.
+- Build a cooperative method and constructor chain in which each implementation runs exactly once.
+- Diagnose a missing `super()` call, an incompatible signature, or an unlinearisable hierarchy.
+- Explain why direct calls such as `Parent.method(self)` can break cooperative behavior.
+- Use `super()` in ordinary methods, class methods, and `__init_subclass__` hooks.
+- Understand the distinction between normal attribute lookup and special-method lookup on the type.
+- Recognize the role of `functools.singledispatchmethod` when method dispatch and inheritance interact.
 
-This distinction enables cooperative inheritance: each implementation performs its part, then hands control to the next implementation in the MRO.
+## Prerequisites
 
-### A useful mental model
+You should already understand classes and instances, inheritance, method overriding, `self`, `classmethod`, `__init__`, `*args`/`**kwargs`, and exceptions. Prior familiarity with descriptors helps, but is not required.
 
-Imagine a request moving through a chain of processing stages:
+## 1. The basic mental model
 
-1. A class receives the request.
-2. It performs its own work.
-3. It calls `super()` to hand off to the next implementation.
-4. The chain eventually reaches a terminal implementation that has no more work to delegate.
+A class hierarchy is a directed graph: an arrow from a child class to a base class means “inherits from.” Python needs a deterministic linear order to search that graph. The MRO is that order.
 
-Every participant must agree on the method name, the argument contract, and the fact that it should continue the chain. If one class skips the hand-off, later classes do not run. If a class calls a named parent directly, a shared ancestor can run more than once.
+### Single inheritance
 
-### Why a data engineer should care
-
-These mechanics matter when maintaining extensible systems such as:
-
-- ingestion components with reusable retry, metrics, and validation behaviour;
-- data-quality checks composed from focused mixins;
-- framework classes that use `__init_subclass__` for registration;
-- test fixtures that extend setup behaviour;
-- third-party libraries with mixin-based APIs.
-
-Multiple inheritance is not automatically better than composition. Use it when the behaviours are genuinely designed to cooperate and the MRO remains understandable.
-
----
-
-## 2. Prerequisites and terminology
-
-| Term | Meaning |
-|---|---|
-| Class | A definition describing objects and their behaviour. |
-| Instance | An object created from a class. |
-| Base class | A class listed in another class's inheritance declaration. |
-| Subclass | A class derived from another class. |
-| Override | A subclass defines a method with the same name as an inherited method. |
-| MRO | The ordered sequence Python uses to resolve methods and attributes through a class hierarchy. |
-| `super()` | A proxy that continues lookup after a class in the relevant MRO. |
-| Cooperative method | A method that does its part and delegates with `super()` according to a shared contract. |
-| Diamond inheritance | A hierarchy in which two branches inherit from a common ancestor. |
-| C3 linearization | The algorithm Python uses to calculate a consistent MRO for new-style classes. |
-| Mix-in | A focused class intended to add one behaviour when combined with other classes. |
-
-Before continuing, be comfortable with `class`, `__init__`, instance methods, `self`, inheritance syntax, and method overriding.
-
----
-
-## 3. Basic level: single inheritance and MRO
-
-### 3.1 A simple inheritance chain
+```text
+object
+  ▲
+  │
+ Base
+  ▲
+  │
+Child
+```
 
 ```python
 class Base:
-    def greet(self):
+    def describe(self) -> str:
         return "base"
 
 
 class Child(Base):
-    def greet(self):
+    def describe(self) -> str:
         return "child"
 
 
-print(Child().greet())
+print(Child().describe())
 print(Child.__mro__)
 ```
 
-Expected output (the class representations may include a module name):
+Expected output (the class representations may include the module name):
 
 ```text
 child
 (<class '__main__.Child'>, <class '__main__.Base'>, <class 'object'>)
 ```
 
-Python looks for `greet` on `Child` first. It finds the override there, so `Base.greet` is not automatically called.
+Python checks `Child` first. Since `describe` is defined there, it uses that implementation; it does not continue to `Base.describe` unless the overriding method explicitly delegates.
 
-Every ordinary Python class ultimately inherits from `object`, directly or indirectly. Therefore, the MRO usually ends with `object`.
+### Multiple inheritance
 
-### 3.2 Inspect the MRO
+```text
+      BaseA     BaseB
+         ▲       ▲
+          \     /
+           Child
+```
 
 ```python
-import inspect
+class BaseA:
+    def identify(self) -> str:
+        return "A"
+
+
+class BaseB:
+    def identify(self) -> str:
+        return "B"
+
+
+class Child(BaseA, BaseB):
+    pass
+
+
+print(Child().identify())
+print([cls.__name__ for cls in Child.__mro__])
+```
+
+Expected output:
+
+```text
+A
+['Child', 'BaseA', 'BaseB', 'object']
+```
+
+The order of bases in the class declaration matters. `BaseA` precedes `BaseB` in this class's local precedence order, so `BaseA.identify` is found first. Reversing the base list can change the result, provided the resulting hierarchy is consistent.
+
+## 2. Inspecting the MRO
+
+Every ordinary Python class exposes two common ways to inspect its MRO:
+
+- `SomeClass.__mro__`: a tuple of classes in lookup order.
+- `SomeClass.mro()`: a list of classes in lookup order; class creation uses the metaclass's MRO machinery to calculate this list.
+
+`inspect.getmro(SomeClass)` is a convenient introspection API that returns the MRO as a tuple.
+
+```python
+from inspect import getmro
 
 
 class Record:
     pass
 
 
-class CsvRecord(Record):
+class TimestampedRecord(Record):
     pass
 
 
-print(CsvRecord.__mro__)
-print(CsvRecord.mro())
-print(inspect.getmro(CsvRecord))
+print([cls.__name__ for cls in TimestampedRecord.__mro__])
+print([cls.__name__ for cls in TimestampedRecord.mro()])
+print([cls.__name__ for cls in getmro(TimestampedRecord)])
 ```
 
-All three expressions expose the resolution order in slightly different forms:
-
-- `CsvRecord.__mro__` is a tuple.
-- `CsvRecord.mro()` returns a list.
-- `inspect.getmro(CsvRecord)` returns a tuple.
-
-For debugging, printing the MRO is often the fastest way to answer “which implementation comes next?”
-
-### 3.3 Extend versus replace inherited behaviour
-
-An override can completely replace inherited behaviour:
-
-```python
-class Parser:
-    def parse(self, raw):
-        return {"raw": raw}
-
-
-class StrictParser(Parser):
-    def parse(self, raw):
-        if not raw:
-            raise ValueError("Input must not be empty")
-        return {"value": raw.strip()}
-```
-
-Or it can extend it:
-
-```python
-class Parser:
-    def parse(self, raw):
-        return {"raw": raw}
-
-
-class AuditedParser(Parser):
-    def parse(self, raw):
-        result = super().parse(raw)
-        result["audited"] = True
-        return result
-
-
-print(AuditedParser().parse("row-17"))
-# {'raw': 'row-17', 'audited': True}
-```
-
-The second implementation reuses the next implementation selected by the MRO. This reduces duplicated logic and can make a class hierarchy easier to extend.
-
-### 3.4 Zero-argument `super()`
-
-Inside a normal instance method, this is the common form:
-
-`super().method_name(arguments)`
-
-Inside a class method, the same syntax works:
-
-`super().class_method_name(arguments)`
-
-Zero-argument `super()` uses the class where the method was defined and the first argument (`self` or `cls`) to determine where to continue lookup.
-
-**Important:** `super()` does not always call the class written immediately after the current class in the source code. With multiple inheritance, the next class depends on the actual instance's MRO.
-
-### 3.5 The first rule
-
-Use `super()` when you intend to cooperate with the class hierarchy. Avoid hard-coding a particular base implementation unless you intentionally want to bypass cooperative dispatch and understand the consequences.
-
----
-
-## 4. Intermediate level: diamond inheritance
-
-### 4.1 The diamond shape
-
-Consider this hierarchy:
+All three produce the same class order, with tuple/list container differences hidden by the list comprehensions:
 
 ```text
-        A
-       / \
-      B   C
-       \ /
-        D
+['TimestampedRecord', 'Record', 'object']
+['TimestampedRecord', 'Record', 'object']
+['TimestampedRecord', 'Record', 'object']
 ```
 
-Both `B` and `C` inherit from `A`, and `D` inherits from both `B` and `C`.
+**Debugging habit:** when behavior in a multiple-inheritance hierarchy is surprising, print the MRO before guessing which parent is “winning.”
+
+## 3. C3 linearization
+
+Python uses the C3 method resolution order algorithm for new-style classes. C3 converts the inheritance graph into a linear sequence while respecting important ordering constraints.
+
+### The three constraints
+
+1. **Children precede their parents.** A class must appear before its base classes.
+2. **Local precedence order is preserved.** If a class is declared as `class C(A, B)`, `A` must precede `B` in `C`'s MRO.
+3. **Monotonicity is preserved.** If a base class already has an ordering between two classes, a subclass must not reverse that ordering. A subclass extends a base's ordering rather than contradicting it.
+
+C3 is not simply “depth-first, left-to-right.” A naive depth-first walk can repeat a shared ancestor or violate ordering constraints. C3 merges the already-linearized base MROs with the declared base list.
+
+### The merge rule
+
+For a class `C(B1, B2, ...)`, the algorithm is:
+
+```text
+L(C) = [C] + merge(L(B1), L(B2), ..., [B1, B2, ...])
+```
+
+At each step, inspect the head (first item) of each remaining list. Select the first head that does **not** appear in the tail (everything after the head) of any remaining list. Append it to the result and remove it from the head of every list where it appears. Repeat until all lists are empty.
+
+If no head is eligible, no consistent C3 order exists, and Python raises `TypeError` while creating the class.
+
+### Step-by-step derivation with a non-trivial diamond
+
+Consider this class graph:
+
+The class declarations below define a deliberately non-trivial hierarchy. `RetryMixin` inherits from `MetricsMixin`, while `ValidatedJob` inherits from `LoggingMixin` and `MetricsMixin`. The final class combines `ValidatedJob` with `RetryMixin`, forcing C3 to preserve the ordering constraints from both branches.
 
 ```python
-class A:
-    def identify(self):
-        return ["A"]
+class PipelineBase:
+    pass
 
 
-class B(A):
-    def identify(self):
-        return ["B"] + super().identify()
+class LoggingMixin(PipelineBase):
+    pass
 
 
-class C(A):
-    def identify(self):
-        return ["C"] + super().identify()
+class MetricsMixin(PipelineBase):
+    pass
 
 
-class D(B, C):
-    def identify(self):
-        return ["D"] + super().identify()
+class RetryMixin(MetricsMixin):
+    pass
 
 
-item = D()
-print(item.identify())
-print([cls.__name__ for cls in D.__mro__])
+class ValidatedJob(LoggingMixin, MetricsMixin):
+    pass
+
+
+class DailyIngestJob(ValidatedJob, RetryMixin):
+    pass
+```
+
+Its graph is:
+
+```mermaid
+classDiagram
+    PipelineBase <|-- LoggingMixin
+    PipelineBase <|-- MetricsMixin
+    LoggingMixin <|-- ValidatedJob
+    MetricsMixin <|-- ValidatedJob
+    MetricsMixin <|-- RetryMixin
+    ValidatedJob <|-- DailyIngestJob
+    RetryMixin <|-- DailyIngestJob
+```
+
+First derive the smaller MROs:
+
+```text
+L(PipelineBase) = [PipelineBase, object]
+L(LoggingMixin) = [LoggingMixin, PipelineBase, object]
+L(MetricsMixin) = [MetricsMixin, PipelineBase, object]
+L(RetryMixin) = [RetryMixin, MetricsMixin, PipelineBase, object]
+L(ValidatedJob) = [ValidatedJob, LoggingMixin, MetricsMixin, PipelineBase, object]
+```
+
+Now derive `L(DailyIngestJob)`:
+
+```text
+[DailyIngestJob] + merge(
+    [ValidatedJob, LoggingMixin, MetricsMixin, PipelineBase, object],
+    [RetryMixin, MetricsMixin, PipelineBase, object],
+    [ValidatedJob, RetryMixin],
+)
+```
+
+1. Choose `ValidatedJob`: it is a head and is not in any list's tail. Remove it from the first and third lists.
+2. Choose `LoggingMixin`: it is an eligible head. Remove it from the first list.
+3. `MetricsMixin` is now a head in the first list, but it appears in the tail of the second list (`[RetryMixin, MetricsMixin, ...]`), so it is **not eligible yet**. Choose `RetryMixin`, which is an eligible head in the second and third lists.
+4. Now `MetricsMixin` is eligible. Choose it and remove it from every list where it is at the head.
+5. Choose `PipelineBase`, then `object`.
+
+The result is:
+
+```text
+DailyIngestJob
+ValidatedJob
+LoggingMixin
+RetryMixin
+MetricsMixin
+PipelineBase
+object
+```
+
+The inheritance graph is not itself a list; C3 creates the linearization while preserving each base's required order. Verify the derivation with Python:
+
+```python
+print([cls.__name__ for cls in DailyIngestJob.__mro__])
 ```
 
 Expected output:
 
 ```text
-['D', 'B', 'C', 'A']
-['D', 'B', 'C', 'A', 'object']
+['DailyIngestJob', 'ValidatedJob', 'LoggingMixin', 'RetryMixin', 'MetricsMixin', 'PipelineBase', 'object']
 ```
 
-Notice that `B`'s `super()` call continues to `C`, not directly to `A`, when invoked on a `D` instance. `C` then delegates to `A`. The shared ancestor runs once.
+This example is intentionally more than a simple diamond: `MetricsMixin` must wait until `RetryMixin` has appeared because the latter's MRO places `RetryMixin` before `MetricsMixin`.
 
-### 4.2 Why direct parent calls are dangerous
-
-This version is not cooperative:
-
-```python
-class A:
-    def identify(self):
-        return ["A"]
-
-
-class B(A):
-    def identify(self):
-        return ["B"] + A.identify(self)
-
-
-class C(A):
-    def identify(self):
-        return ["C"] + A.identify(self)
-
-
-class D(B, C):
-    def identify(self):
-        return ["D"] + B.identify(self) + C.identify(self)
-
-
-print(D().identify())
-```
-
-It calls branches directly, and both branches call `A.identify`. The result contains `A` twice. Direct calls such as `A.method(self)` can be appropriate in narrow, intentional cases, but they defeat the single cooperative chain.
-
-**Rule of thumb:** In a cooperative hierarchy, each implementation calls `super().method(...)` once when it needs to continue the chain.
-
----
-
-## 5. C3 linearization: how Python orders the hierarchy
-
-Python uses the **C3 linearization** algorithm to calculate a class's MRO. You do not need to implement the algorithm in everyday code, but you should understand its constraints.
-
-### 5.1 Three core properties
-
-1. **Children before parents:** a class appears before its ancestors.
-2. **Local precedence order:** the order of bases in a class declaration is respected. In `class D(B, C)`, `B` is ordered before `C` in `D`'s MRO.
-3. **Monotonicity:** subclassing should not reverse an ordering already established by a base class's MRO.
-
-These rules produce a deterministic, consistent order for method lookup.
-
-### 5.2 A valid hierarchy
-
-```python
-class A:
-    pass
-
-
-class B(A):
-    pass
-
-
-class C(A):
-    pass
-
-
-class D(B, C):
-    pass
-
-
-print([cls.__name__ for cls in D.__mro__])
-# ['D', 'B', 'C', 'A', 'object']
-```
-
-The order starts with `D`, keeps `B` before `C` as declared, and places their shared ancestor `A` after both branches.
-
-### 5.3 An inconsistent hierarchy
-
-```python
-class X:
-    pass
-
-
-class Y:
-    pass
-
-
-class A(X, Y):
-    pass
-
-
-class B(Y, X):
-    pass
-
-
-# This definition raises TypeError:
-# class Impossible(A, B):
-#     pass
-```
-
-`A` requires `X` before `Y`, while `B` requires `Y` before `X`. A subclass of both cannot preserve both orders, so Python rejects the hierarchy.
-
-The error is a design signal: the base ordering contains contradictory constraints. Do not try to silence it by adding arbitrary bases. Reconsider the hierarchy, separate behaviours into independent mixins, or use composition.
-
-### 5.4 A practical way to reason about MRO
-
-When the hierarchy is non-trivial:
-
-1. Draw the inheritance graph.
-2. Write down each class's base order.
-3. Inspect each base's own MRO.
-4. Check whether all declared local orders can be preserved.
-5. Ask Python for the actual MRO with `Class.__mro__`.
-6. Test the method call order, not just the class list.
-
-The interpreter is the authority for the actual MRO; your hand reasoning is a way to understand it.
-
----
-
-## 6. Cooperative inheritance: the contract
-
-A hierarchy is cooperative only when participating classes follow compatible conventions.
-
-### 6.1 Core rules
-
-- Each class performs only its own responsibility.
-- A class that should continue dispatch calls `super().method(...)` once.
-- Method names and argument contracts must be compatible.
-- Constructors should forward unconsumed keyword arguments.
-- The chain must have a clear endpoint that handles the remaining arguments.
-- Do not mix cooperative calls and direct base calls casually.
-- Test the actual order, including whether each implementation runs exactly once.
-
-A class that forgets `super()` cuts off the remainder of the chain. A class that calls it twice may run later implementations twice. Either mistake violates the contract.
-
-### 6.2 Cooperative method chain
-
-```python
-class Stage:
-    def run(self, events):
-        events.append("Stage")
-
-
-class ValidateMixin:
-    def run(self, events):
-        events.append("Validate")
-        return super().run(events)
-
-
-class MetricsMixin:
-    def run(self, events):
-        events.append("Metrics")
-        return super().run(events)
-
-
-class Pipeline(ValidateMixin, MetricsMixin, Stage):
-    def run(self, events):
-        events.append("Pipeline")
-        return super().run(events)
-
-
-events = []
-Pipeline().run(events)
-print(events)
-print([cls.__name__ for cls in Pipeline.__mro__])
-```
-
-Expected output:
-
-```text
-['Pipeline', 'Validate', 'Metrics', 'Stage']
-['Pipeline', 'ValidateMixin', 'MetricsMixin', 'Stage', 'object']
-```
-
-This resembles a data-processing pipeline in which the outer component, validation, metrics, and core stage each add one action. The order is intentional and inspectable.
-
-### 6.3 What happens if a class skips `super()`?
-
-```python
-class Stage:
-    def run(self, events):
-        events.append("Stage")
-
-
-class ValidateMixin:
-    def run(self, events):
-        events.append("Validate")
-        # Bug: no super().run(events)
-
-
-class MetricsMixin:
-    def run(self, events):
-        events.append("Metrics")
-        return super().run(events)
-
-
-class Pipeline(ValidateMixin, MetricsMixin, Stage):
-    def run(self, events):
-        events.append("Pipeline")
-        return super().run(events)
-
-
-events = []
-Pipeline().run(events)
-print(events)
-# ['Pipeline', 'Validate']
-```
-
-`MetricsMixin` and `Stage` never run because `ValidateMixin` stopped the chain. The code may not raise an exception; it can silently omit important behaviour.
-
-In a production pipeline, that could mean metrics or validation are not executed. This is why tests should assert the full sequence or verify observable side effects.
-
----
-
-## 7. Cooperative constructors and keyword forwarding
-
-Constructors are where cooperative inheritance most often becomes tricky because different classes need different configuration.
-
-### 7.1 Why `**kwargs` helps
-
-A class should consume the options it owns and forward the rest:
+### An inconsistent hierarchy
 
 ```python
 class Root:
-    def __init__(self, **kwargs):
-        if kwargs:
-            unexpected = ", ".join(sorted(kwargs))
-            raise TypeError(f"Unexpected arguments: {unexpected}")
-        super().__init__()
+    pass
 
 
-class SourceMixin:
-    def __init__(self, *, source_name, **kwargs):
-        self.source_name = source_name
-        super().__init__(**kwargs)
+class Left(Root):
+    pass
 
 
-class RetryMixin:
-    def __init__(self, *, max_retries=3, **kwargs):
-        if max_retries < 0:
-            raise ValueError("max_retries must be non-negative")
-        self.max_retries = max_retries
-        super().__init__(**kwargs)
+class Right(Root):
+    pass
 
 
-class IngestionJob(SourceMixin, RetryMixin, Root):
-    def __init__(self, *, job_name, **kwargs):
-        self.job_name = job_name
-        super().__init__(**kwargs)
+class LeftFirst(Left, Right):
+    pass
 
 
-job = IngestionJob(
-    job_name="daily-orders",
-    source_name="orders-api",
-    max_retries=5,
-)
-print(job.job_name, job.source_name, job.max_retries)
+class RightFirst(Right, Left):
+    pass
+
+
+# Raises TypeError: no consistent MRO exists.
+class Impossible(LeftFirst, RightFirst):
+    pass
+```
+
+`LeftFirst` requires `Left` before `Right`; `RightFirst` requires `Right` before `Left`. `Impossible` would need to preserve both incompatible orders. C3 cannot satisfy them, so Python rejects the class. A fix is not to shuffle bases blindly: redesign the hierarchy so the constraints agree, or use composition if the behaviors do not form a coherent subtype relationship.
+
+## 4. What `super()` actually means
+
+`super()` is a proxy for lookup that starts **after a specified class in the MRO of a specified object or class**. In a method defined in class `C`, zero-argument `super()` behaves conceptually like `super(C, first_argument)`:
+
+- In an instance method, the first argument is usually `self`.
+- In a class method, it is usually `cls`.
+
+The next class is determined by the actual instance's (or class's) MRO, not by looking up a single declared parent. Therefore the same method body can delegate to different next implementations when used in different valid hierarchies.
+
+```python
+class Base:
+    def greet(self) -> str:
+        return "base"
+
+
+class Child(Base):
+    def greet(self) -> str:
+        return "child + " + super().greet()
+
+
+print(Child().greet())
 ```
 
 Expected output:
 
 ```text
-daily-orders orders-api 5
+child + base
 ```
 
-Each constructor has a clear responsibility:
+### Zero-argument `super()` and the `__class__` cell
 
-- `IngestionJob` consumes `job_name`.
-- `SourceMixin` consumes `source_name`.
-- `RetryMixin` consumes `max_retries`.
-- `Root` verifies that no unrecognized options remain and terminates the chain.
+When a method uses zero-argument `super()`, the compiler arranges for the method to have access to a `__class__` closure cell. The runtime combines that defining class with the method's first argument. This is why the idiom works inside normal class methods without spelling out the class and instance.
 
-`Root` then calls `object.__init__()` with no arguments. That is why all configuration arguments must be consumed before the chain reaches `object`.
+A function defined outside a class generally has no compiler-created `__class__` cell, so calling zero-argument `super()` there raises `RuntimeError: super(): no arguments` (or another error if the function has an inappropriate context). A nested function also needs care: the compiler's `__class__` cell can exist, but the nested function's first argument is not automatically the original method's `self`.
 
-### 7.2 Why keyword-only arguments are useful
+### Two-argument `super`
 
-The `*` in `def __init__(self, *, source_name, **kwargs)` makes `source_name` keyword-only. This reduces ambiguity when several mixins contribute independent options.
-
-Prefer explicit keyword-only options for configuration. `**kwargs` should be a deliberate forwarding mechanism, not a way to hide unclear APIs.
-
-### 7.3 Common constructor failures
-
-**Failure: a class doesn't forward the remaining options**
+- `super(C, obj)` starts after `C` in `type(obj).__mro__`, provided `obj` is an instance of `C` or a suitable subtype.
+- `super(C, SomeClass)` is the class-method form: the second argument must be a subtype of `C`, and lookup uses that class's MRO.
 
 ```python
-class BrokenMixin:
-    def __init__(self, *, enabled=True, **kwargs):
-        self.enabled = enabled
-        # Bug: remaining kwargs are dropped.
+class Base:
+    @classmethod
+    def label(cls) -> str:
+        return f"Base via {cls.__name__}"
+
+
+class Child(Base):
+    @classmethod
+    def label(cls) -> str:
+        return "Child -> " + super().label()
+
+
+print(Child.label())
+print(super(Child, Child).label())
 ```
 
-A later class's constructor will never run.
+Expected output:
 
-**Failure: a constructor passes unknown options to `object`**
+```text
+Child -> Base via Child
+Base via Child
+```
 
-If the final class forwards `{"mystery": 1}` to `object.__init__`, initialization raises `TypeError`. That is often useful: it exposes a misspelled or unconsumed argument rather than silently ignoring it.
+The first call uses zero-argument `super()` in `Child.label`; the second starts after `Child` in `Child`'s MRO directly.
 
-**Failure: incompatible signatures**
+### Extending versus replacing behavior
 
-If one mixin expects a positional argument while another forwards it as a keyword, the chain can fail. Agree on keyword names and forwarding conventions across the hierarchy.
+An override can deliberately replace behavior by not delegating. When the hierarchy is designed to cooperate, however, an override should usually do its own work and then call `super()` exactly once. Delegation can happen before or after local work depending on the method's contract; for wrapper-like behavior, “before → delegate → after” is common.
 
-### 7.4 Constructor order in a diamond
+## 5. Cooperative method chaining in a realistic pipeline
+
+The following example models a data ingestion pipeline. Logging, validation, retry, and metrics behavior all wrap a terminal implementation. Each participating method has the same signature and delegates exactly once.
+
+```python
+from dataclasses import dataclass, field
+
+
+@dataclass
+class RunContext:
+    dataset: str
+    events: list[str] = field(default_factory=list)
+
+
+class PipelineBase:
+    def run(self, context: RunContext) -> None:
+        """Terminal implementation: do the actual work once."""
+        context.events.append("execute")
+
+
+class LoggingMixin(PipelineBase):
+    def run(self, context: RunContext) -> None:
+        context.events.append("log:start")
+        super().run(context)
+        context.events.append("log:end")
+
+
+class MetricsMixin(PipelineBase):
+    def run(self, context: RunContext) -> None:
+        context.events.append("metrics:start")
+        super().run(context)
+        context.events.append("metrics:end")
+
+
+class RetryMixin(MetricsMixin):
+    def run(self, context: RunContext) -> None:
+        context.events.append("retry:check")
+        super().run(context)
+
+
+class ValidatedJob(LoggingMixin, MetricsMixin):
+    def run(self, context: RunContext) -> None:
+        context.events.append("validate")
+        super().run(context)
+
+
+class DailyIngestJob(ValidatedJob, RetryMixin):
+    def run(self, context: RunContext) -> None:
+        context.events.append("daily-job")
+        super().run(context)
+
+
+if __name__ == "__main__":
+    context = RunContext(dataset="orders")
+    DailyIngestJob().run(context)
+    print([cls.__name__ for cls in DailyIngestJob.__mro__])
+    print(context.events)
+```
+
+Expected output:
+
+```text
+['DailyIngestJob', 'ValidatedJob', 'LoggingMixin', 'RetryMixin', 'MetricsMixin', 'PipelineBase', 'object']
+['daily-job', 'validate', 'log:start', 'retry:check', 'metrics:start', 'execute', 'metrics:end', 'log:end']
+```
+
+Read the call chain carefully:
+
+1. `DailyIngestJob.run` delegates to the next class, `ValidatedJob`.
+2. `ValidatedJob.run` delegates to `LoggingMixin`.
+3. `LoggingMixin.run` delegates to `RetryMixin`, because that is the next class in the actual MRO—not its only explicitly declared base.
+4. `RetryMixin.run` delegates to `MetricsMixin`.
+5. `MetricsMixin.run` delegates to `PipelineBase`, the terminal operation.
+6. Control returns through the wrappers in reverse order.
+
+`MetricsMixin` and `PipelineBase` each participate once. The diamond in the graph does not imply duplicate execution when the hierarchy uses cooperative `super()` consistently.
+
+> **Engineering note:** these methods use an event list to make call order observable. Production code should give each wrapper a clear contract for exception handling, retries, logging, and metrics. A real retry loop must distinguish retryable exceptions and enforce a bound; the example intentionally demonstrates dispatch order rather than a full retry policy.
+
+## 6. Cooperative constructors
+
+Multiple-inheritance constructors need a shared convention. A robust pattern is to use keyword-only parameters for a class's own settings and pass remaining keywords through `**kwargs`. Each class consumes what it owns, delegates once, and the endpoint rejects unexpected leftover keywords by calling `object.__init__` with no arguments.
+
+```python
+class Entity:
+    def __init__(self, **kwargs: object) -> None:
+        if kwargs:
+            unexpected = ", ".join(sorted(kwargs))
+            raise TypeError(f"unexpected constructor arguments: {unexpected}")
+        super().__init__()
+
+
+class HasName(Entity):
+    def __init__(self, *, name: str, **kwargs: object) -> None:
+        self.name = name
+        super().__init__(**kwargs)
+
+
+class HasRegion(Entity):
+    def __init__(self, *, region: str, **kwargs: object) -> None:
+        self.region = region
+        super().__init__(**kwargs)
+
+
+class DataAsset(HasName, HasRegion):
+    def __init__(self, *, asset_id: int, **kwargs: object) -> None:
+        self.asset_id = asset_id
+        super().__init__(**kwargs)
+
+
+asset = DataAsset(asset_id=17, name="orders", region="ap-south")
+print(asset.asset_id, asset.name, asset.region)
+print([cls.__name__ for cls in DataAsset.__mro__])
+```
+
+Expected output:
+
+```text
+17 orders ap-south
+['DataAsset', 'HasName', 'HasRegion', 'Entity', 'object']
+```
+
+The keyword `name` is consumed by `HasName`; `region` is consumed by `HasRegion`; the remaining empty dictionary reaches `Entity`. If an unsupported argument is passed, the endpoint reports it rather than silently discarding it.
+
+### Constructor-chain design rules
+
+- Use one shared argument convention throughout the cooperative hierarchy.
+- Prefer keyword arguments for settings owned by different classes; they make ownership explicit and avoid positional ambiguity.
+- Consume each keyword in the class that owns it, then forward the rest.
+- Every cooperating `__init__` calls `super().__init__(**kwargs)` exactly once.
+- The terminal class must consume or reject all remaining arguments and call `object.__init__()` without unexpected arguments.
+- Do not mix a cooperative chain with a class that silently skips `super()`.
+- Type annotations help document each class's public arguments, but `**kwargs: object` does not by itself provide perfect static checking of all combinations. For large APIs, consider explicit constructors, typed configuration objects, or composition.
+
+### Failure: an incompatible constructor signature
+
+```python
+class NeedsPath:
+    def __init__(self, path: str) -> None:
+        self.path = path
+        super().__init__()
+
+
+class NeedsRegion:
+    def __init__(self, region: str) -> None:
+        self.region = region
+        super().__init__()
+
+
+class BrokenAsset(NeedsPath, NeedsRegion):
+    pass
+
+
+# BrokenAsset(path="/data", region="west") raises TypeError:
+# NeedsPath.__init__ does not accept the region keyword and has no **kwargs.
+```
+
+The problem is not the MRO alone. The call protocol is incompatible. A cooperative hierarchy needs signatures designed together. One possible corrected version is:
+
+```python
+class NeedsPath:
+    def __init__(self, *, path: str, **kwargs: object) -> None:
+        self.path = path
+        super().__init__(**kwargs)
+
+
+class NeedsRegion:
+    def __init__(self, *, region: str, **kwargs: object) -> None:
+        self.region = region
+        super().__init__(**kwargs)
+
+
+class CooperativeAsset(NeedsPath, NeedsRegion):
+    def __init__(self, **kwargs: object) -> None:
+        super().__init__(**kwargs)
+
+
+# In real code, use an explicit typed signature on CooperativeAsset if it is
+# part of a public API; this minimal forwarding class is for the chain demo.
+```
+
+As written, `CooperativeAsset(path="/data", region="west")` still needs a terminal class to consume the remaining arguments before `object.__init__`. Add an endpoint for a complete runnable pattern:
+
+```python
+class ConstructorEnd:
+    def __init__(self, **kwargs: object) -> None:
+        if kwargs:
+            raise TypeError(f"unexpected arguments: {', '.join(sorted(kwargs))}")
+        super().__init__()
+
+
+class NeedsPath(ConstructorEnd):
+    def __init__(self, *, path: str, **kwargs: object) -> None:
+        self.path = path
+        super().__init__(**kwargs)
+
+
+class NeedsRegion(ConstructorEnd):
+    def __init__(self, *, region: str, **kwargs: object) -> None:
+        self.region = region
+        super().__init__(**kwargs)
+
+
+class CooperativeAsset(NeedsPath, NeedsRegion):
+    def __init__(self, *, path: str, region: str) -> None:
+        super().__init__(path=path, region=region)
+
+
+asset = CooperativeAsset(path="/data", region="west")
+print(asset.path, asset.region)
+print([cls.__name__ for cls in CooperativeAsset.__mro__])
+```
+
+Expected output:
+
+```text
+/data west
+['CooperativeAsset', 'NeedsPath', 'NeedsRegion', 'ConstructorEnd', 'object']
+```
+
+This final version is self-contained and demonstrates the complete protocol. Notice that the earlier `Entity` example already supplies its own terminal class, so no extra endpoint is needed there.
+
+## 7. Why direct parent calls break cooperation
+
+Calling a named parent explicitly is sometimes appropriate for a deliberately non-cooperative API, but it is dangerous in a cooperative diamond. It hard-codes one edge of the inheritance graph and bypasses the MRO's next implementation.
+
+```python
+class Root:
+    def __init__(self) -> None:
+        print("Root")
+
+
+class Left(Root):
+    def __init__(self) -> None:
+        print("Left")
+        Root.__init__(self)  # Wrong for a cooperative diamond.
+
+
+class Right(Root):
+    def __init__(self) -> None:
+        print("Right")
+        Root.__init__(self)  # Also calls Root directly.
+
+
+class Diamond(Left, Right):
+    def __init__(self) -> None:
+        print("Diamond")
+        Left.__init__(self)
+        Right.__init__(self)
+```
+
+`Diamond()` prints:
+
+```text
+Diamond
+Left
+Root
+Right
+Root
+```
+
+`Root.__init__` ran twice. The caller explicitly invoked both branches, and each branch invoked the shared root directly. In a real initializer this can reset state, duplicate registrations, open resources twice, or repeat expensive work.
+
+Correct cooperative version:
+
+```python
+class Root:
+    def __init__(self) -> None:
+        print("Root")
+        super().__init__()
+
+
+class Left(Root):
+    def __init__(self) -> None:
+        print("Left")
+        super().__init__()
+
+
+class Right(Root):
+    def __init__(self) -> None:
+        print("Right")
+        super().__init__()
+
+
+class Diamond(Left, Right):
+    def __init__(self) -> None:
+        print("Diamond")
+        super().__init__()
+
+
+Diamond()
+```
+
+Expected output:
+
+```text
+Diamond
+Left
+Right
+Root
+```
+
+The MRO is `Diamond → Left → Right → Root → object`. Each class calls the next implementation once, so `Root` executes once. In production, the terminal implementation normally calls `super().__init__()` with no arguments to complete the chain to `object`.
+
+## 8. `super()` beyond `__init__`
+
+`super()` is not constructor-only. Any method that is designed to extend a method from the next MRO class can use it.
+
+### Ordinary methods
+
+```python
+class Serializer:
+    def serialize(self, value: str) -> str:
+        return value
+
+
+class PrefixSerializer(Serializer):
+    def serialize(self, value: str) -> str:
+        return "v1:" + super().serialize(value)
+
+
+print(PrefixSerializer().serialize("record"))
+```
+
+Expected output: `v1:record`.
+
+### Class methods
+
+A class method's `cls` participates in the same MRO-based lookup:
+
+```python
+class Plugin:
+    @classmethod
+    def describe(cls) -> list[str]:
+        return ["Plugin"]
+
+
+class AuditedPlugin(Plugin):
+    @classmethod
+    def describe(cls) -> list[str]:
+        return ["AuditedPlugin", *super().describe()]
+
+
+print(AuditedPlugin.describe())
+```
+
+Expected output: `['AuditedPlugin', 'Plugin']`.
+
+### `__init_subclass__`
+
+`__init_subclass__` is invoked when a subclass is created. If multiple bases participate, its overrides should also cooperate and forward keywords they do not own.
+
+```python
+class RegistrationBase:
+    def __init_subclass__(cls, **kwargs: object) -> None:
+        print(f"register:{cls.__name__}")
+        super().__init_subclass__(**kwargs)
+
+
+class Tagged(RegistrationBase):
+    def __init_subclass__(cls, *, tag: str, **kwargs: object) -> None:
+        cls.tag = tag
+        super().__init_subclass__(**kwargs)
+
+
+class DailyTask(Tagged, tag="daily"):
+    pass
+
+
+print(DailyTask.tag)
+```
+
+Expected output:
+
+```text
+register:Tagged
+register:DailyTask
+daily
+```
+
+`RegistrationBase.__init_subclass__` sees `Tagged` being created and then `DailyTask`. `Tagged` consumes `tag`, then forwards the remaining keywords. In more complex hierarchies, every participating hook must follow a compatible keyword protocol.
+
+## 9. When a class forgets `super()`
+
+A missing `super()` call silently cuts off all later implementations in the MRO. This is often harder to detect than a `TypeError` because the program can still appear to work.
+
+```python
+class Root:
+    def setup(self) -> list[str]:
+        return ["root"]
+
+
+class Left(Root):
+    def setup(self) -> list[str]:
+        return ["left"]  # Does not delegate.
+
+
+class Right(Root):
+    def setup(self) -> list[str]:
+        return ["right", *super().setup()]
+
+
+class App(Left, Right):
+    pass
+
+
+print([cls.__name__ for cls in App.__mro__])
+print(App().setup())
+```
+
+Expected output:
+
+```text
+['App', 'Left', 'Right', 'Root', 'object']
+['left']
+```
+
+`Right` and `Root` are present in the MRO, but `Left.setup` prevents the chain from reaching them. If a method is meant to be a cooperative extension point, call `super()` exactly once. If replacement is intentional, document it as a non-cooperative override.
+
+## 10. Attribute lookup versus special-method lookup
+
+For ordinary attribute access such as `instance.name`, Python considers instance/class lookup rules and the class hierarchy. The MRO is central to finding attributes on classes and inherited methods. Data descriptors and instance dictionaries add details covered in the earlier descriptor lesson.
+
+Many **implicit special-method operations** look up methods on the type rather than performing ordinary instance attribute lookup. For example, assigning `obj.__len__ = ...` generally does not change what `len(obj)` invokes. The special-method lookup rules are intentionally different from a plain `obj.method` expression.
+
+```python
+class Items:
+    def __len__(self) -> int:
+        return 3
+
+
+items = Items()
+items.__len__ = lambda: 99
+print(items.__len__())
+print(len(items))
+```
+
+Expected output:
+
+```text
+99
+3
+```
+
+The instance attribute shadows the ordinary lookup expression `items.__len__`, but `len(items)` uses the special method on the type. This is a useful reminder that not every operation dispatches in exactly the same way as an ordinary attribute access.
+
+## 11. `functools.singledispatchmethod` and `super()` — awareness
+
+`functools.singledispatchmethod` provides method dispatch based on the type of the first non-`self`/`cls` argument. It is useful for type-directed behavior, but it is a separate dispatch mechanism from MRO-based `super()` lookup. The decorator's placement matters: to use `.register` on the resulting method, `@singledispatchmethod` should be the outermost decorator, above `@classmethod` if both are used.
+
+```python
+from functools import singledispatchmethod
+
+
+class Formatter:
+    @singledispatchmethod
+    def format(self, value: object) -> str:
+        return f"object:{value}"
+
+    @format.register
+    def _(self, value: int) -> str:
+        return f"int:{value}"
+
+
+print(Formatter().format(4))
+print(Formatter().format("x"))
+```
+
+Expected output:
+
+```text
+int:4
+object:x
+```
+
+Do not assume singledispatch registration replaces or duplicates the MRO. It chooses an implementation based on the argument's type; `super()` determines where attribute lookup starts in a class hierarchy. More advanced combinations should be tested explicitly, especially when a subclass overrides a dispatched method.
+
+## 12. Debugging checklist
+
+When a chain is wrong, investigate in this order:
+
+1. **Print the MRO:** `print([c.__name__ for c in type(obj).__mro__])`.
+2. **Trace delegation:** add temporary logging immediately before and after each `super().method(...)` call.
+3. **Check signatures:** every implementation must accept the arguments forwarded by the previous one. For constructors, prefer keyword-only parameters plus `**kwargs`.
+4. **Find the chain break:** search for an override that returns without calling `super()`.
+5. **Find direct parent calls:** search for `Base.method(self, ...)` or `Base.__init__(self, ...)` inside a cooperative hierarchy.
+6. **Check the endpoint:** the final implementation must terminate the operation; constructor endpoints should not pass leftover keywords into `object.__init__`.
+7. **Check the graph:** a `TypeError` at class definition time may mean the base order constraints are inconsistent, not that a method body is wrong.
+8. **Test the actual combined class:** a mixin can behave correctly alone and fail when combined with another base whose signature or MRO position differs.
+9. **Use `inspect.getmro(SomeClass)`** when you want an explicit introspection helper or are writing diagnostics.
+
+Do not fix a C3 conflict by repeatedly swapping base classes until the exception disappears. First identify which local precedence constraints conflict, then change the design deliberately.
+
+## 13. Pytest tests
+
+Save the following as `test_mro_super.py`. The examples are intentionally small enough to run in isolation. Run with `python -m pytest -q test_mro_super.py` using Python 3.12+ and pytest installed.
+
+```python
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+
+import pytest
+
+
+class Root:
+    def process(self) -> list[str]:
+        return ["root"]
+
+
+class Left(Root):
+    def process(self) -> list[str]:
+        return ["left", *super().process()]
+
+
+class Right(Root):
+    def process(self) -> list[str]:
+        return ["right", *super().process()]
+
+
+class Diamond(Left, Right):
+    def process(self) -> list[str]:
+        return ["diamond", *super().process()]
+
+
+@dataclass
+class RunContext:
+    dataset: str
+    events: list[str] = field(default_factory=list)
+
+
+class PipelineBase:
+    def run(self, context: RunContext) -> None:
+        context.events.append("execute")
+
+
+class LoggingMixin(PipelineBase):
+    def run(self, context: RunContext) -> None:
+        context.events.append("log:start")
+        super().run(context)
+        context.events.append("log:end")
+
+
+class MetricsMixin(PipelineBase):
+    def run(self, context: RunContext) -> None:
+        context.events.append("metrics:start")
+        super().run(context)
+        context.events.append("metrics:end")
+
+
+class RetryMixin(MetricsMixin):
+    def run(self, context: RunContext) -> None:
+        context.events.append("retry:check")
+        super().run(context)
+
+
+class ValidatedJob(LoggingMixin, MetricsMixin):
+    def run(self, context: RunContext) -> None:
+        context.events.append("validate")
+        super().run(context)
+
+
+class DailyIngestJob(ValidatedJob, RetryMixin):
+    def run(self, context: RunContext) -> None:
+        context.events.append("daily-job")
+        super().run(context)
+
+
+def test_mro_is_c3_cooperative_order() -> None:
+    assert [cls.__name__ for cls in Diamond.__mro__] == [
+        "Diamond", "Left", "Right", "Root", "object"
+    ]
+
+
+def test_each_cooperative_method_runs_once() -> None:
+    assert Diamond().process() == ["diamond", "left", "right", "root"]
+
+
+def test_realistic_pipeline_mro() -> None:
+    assert [cls.__name__ for cls in DailyIngestJob.__mro__] == [
+        "DailyIngestJob", "ValidatedJob", "LoggingMixin", "RetryMixin",
+        "MetricsMixin", "PipelineBase", "object",
+    ]
+
+
+def test_realistic_pipeline_call_order() -> None:
+    context = RunContext(dataset="orders")
+    DailyIngestJob().run(context)
+    assert context.events == [
+        "daily-job", "validate", "log:start", "retry:check",
+        "metrics:start", "execute", "metrics:end", "log:end",
+    ]
+
+
+def test_class_mro_and_inspect_agree() -> None:
+    from inspect import getmro
+
+    assert tuple(Diamond.mro()) == Diamond.__mro__ == getmro(Diamond)
+
+
+def test_inconsistent_c3_order_is_rejected() -> None:
+    class A:
+        pass
+
+    class B:
+        pass
+
+    class AB(A, B):
+        pass
+
+    class BA(B, A):
+        pass
+
+    with pytest.raises(TypeError, match="consistent method resolution order"):
+        class Impossible(AB, BA):
+            pass
+
+
+def test_cooperative_constructor_consumes_keywords() -> None:
+    class End:
+        def __init__(self, **kwargs: object) -> None:
+            if kwargs:
+                raise TypeError(f"unexpected: {', '.join(sorted(kwargs))}")
+            super().__init__()
+
+    class Name(End):
+        def __init__(self, *, name: str, **kwargs: object) -> None:
+            self.name = name
+            super().__init__(**kwargs)
+
+    class Region(End):
+        def __init__(self, *, region: str, **kwargs: object) -> None:
+            self.region = region
+            super().__init__(**kwargs)
+
+    class Asset(Name, Region):
+        def __init__(self, *, name: str, region: str) -> None:
+            super().__init__(name=name, region=region)
+
+    item = Asset(name="events", region="west")
+    assert (item.name, item.region) == ("events", "west")
+
+
+def test_constructor_rejects_unknown_keyword() -> None:
+    class End:
+        def __init__(self, **kwargs: object) -> None:
+            if kwargs:
+                raise TypeError(f"unexpected: {', '.join(sorted(kwargs))}")
+            super().__init__()
+
+    with pytest.raises(TypeError, match="unexpected: typo"):
+        End(typo=1)
+
+
+def test_missing_super_cuts_off_later_methods() -> None:
+    class Base:
+        def chain(self) -> list[str]:
+            return ["base"]
+
+    class Skip(Base):
+        def chain(self) -> list[str]:
+            return ["skip"]
+
+    class Later(Base):
+        def chain(self) -> list[str]:
+            return ["later", *super().chain()]
+
+    class Combined(Skip, Later):
+        pass
+
+    assert Combined().chain() == ["skip"]
+
+
+def test_explicit_parent_call_duplicates_diamond_root() -> None:
+    calls: list[str] = []
+
+    class Base:
+        def __init__(self) -> None:
+            calls.append("base")
+
+    class A(Base):
+        def __init__(self) -> None:
+            calls.append("A")
+            Base.__init__(self)
+
+    class B(Base):
+        def __init__(self) -> None:
+            calls.append("B")
+            Base.__init__(self)
+
+    class C(A, B):
+        def __init__(self) -> None:
+            calls.append("C")
+            A.__init__(self)
+            B.__init__(self)
+
+    C()
+    assert calls == ["C", "A", "base", "B", "base"]
+```
+
+Expected pytest summary on Python 3.12+ with pytest installed:
+
+```text
+10 passed
+```
+
+The suite checks both the small diamond and the realistic pipeline hierarchy, including its exact C3 order and observable cooperative call sequence.
+
+The tests assert behavior rather than relying only on visual inspection of example output. The intentionally broken examples are isolated from the corrected cooperative versions.
+
+## 14. Exercises
+
+### Exercise 1 — Predict an MRO
+
+Given:
+
+```python
+class Root: pass
+class A(Root): pass
+class B(Root): pass
+class C(A, B): pass
+class D(B): pass
+class E(C, D): pass
+```
+
+Predict `E.__mro__` before running it. Explain why `Root` appears once.
+
+### Exercise 2 — Find the chain break
+
+```python
+class Base:
+    def run(self) -> list[str]:
+        return ["base"]
+
+class First(Base):
+    def run(self) -> list[str]:
+        return ["first"]
+
+class Second(Base):
+    def run(self) -> list[str]:
+        return ["second", *super().run()]
+
+class App(First, Second):
+    pass
+```
+
+Why does `App().run()` not include `second` or `base`? Fix `First` if the intended contract is cooperative extension.
+
+### Exercise 3 — Make constructors cooperate
+
+Create a `HasOwner` class that consumes a keyword-only `owner: str`, a `HasFormat` class that consumes `format_name: str`, and an `ExportJob` that combines both. Ensure unknown keywords fail clearly and each constructor delegates exactly once.
+
+### Exercise 4 — Diagnose C3 failure
+
+Create `AB(A, B)` and `BA(B, A)`, then try to create `Conflict(AB, BA)`. Explain the incompatible ordering constraints and propose a design-level fix.
+
+### Exercise 5 — Explain `super()` precisely
+
+In a method defined in `B`, called on an instance of `D`, what does `super()` mean? Answer using the defining class and the actual instance's MRO, not “the parent.”
+
+## 15. Exercise solutions
+
+### Solution 1
+
+The MRO is:
+
+```text
+E, C, A, D, B, Root, object
+```
+
+C3 must preserve `C`'s ordering `A` before `B`, while `D` requires `D` before `B`. The merge inserts `D` after `A` but before `B`, allowing both constraints to hold. `Root` appears once because the linearization merges shared ancestors rather than repeating them.
+
+Verify in Python:
+
+```python
+print([cls.__name__ for cls in E.__mro__])
+# ['E', 'C', 'A', 'D', 'B', 'Root', 'object']
+```
+
+### Solution 2
+
+`First.run` replaces the behavior and never delegates. Correct it to:
+
+```python
+class First(Base):
+    def run(self) -> list[str]:
+        return ["first", *super().run()]
+```
+
+Then `App().run()` returns `['first', 'second', 'base']` because the MRO is `App, First, Second, Base, object`.
+
+### Solution 3
+
+One valid implementation is:
+
+```python
+class End:
+    def __init__(self, **kwargs: object) -> None:
+        if kwargs:
+            raise TypeError(f"unexpected: {', '.join(sorted(kwargs))}")
+        super().__init__()
+
+class HasOwner(End):
+    def __init__(self, *, owner: str, **kwargs: object) -> None:
+        self.owner = owner
+        super().__init__(**kwargs)
+
+class HasFormat(End):
+    def __init__(self, *, format_name: str, **kwargs: object) -> None:
+        self.format_name = format_name
+        super().__init__(**kwargs)
+
+class ExportJob(HasOwner, HasFormat):
+    def __init__(self, *, owner: str, format_name: str) -> None:
+        super().__init__(owner=owner, format_name=format_name)
+
+job = ExportJob(owner="analytics", format_name="parquet")
+assert (job.owner, job.format_name) == ("analytics", "parquet")
+```
+
+Both mixins consume their own keyword, pass the rest onward, and reach the endpoint with no unknown arguments.
+
+### Solution 4
+
+`AB` requires `A` before `B`; `BA` requires `B` before `A`. `Conflict` cannot preserve both orders, so C3 rejects it. Refactor so both branches agree on one precedence order, remove the conflicting multiple inheritance, or use composition to combine the behaviors.
+
+### Solution 5
+
+Inside a method defined in `B`, zero-argument `super()` starts lookup immediately after `B` in the MRO of the actual instance's type (for example, `D.__mro__`). It does not mean “call the base class written next to `B` in the source.” The next implementation may be in a sibling mixin that occurs after `B` in `D`'s MRO.
+
+## 16. Roadmap self-check — answers
+
+### 1. Predict the print order for `D(B, C)` when `B` forgets to call `super().__init__`.
+
+Using the roadmap's example:
 
 ```python
 class A:
-    def __init__(self, **kwargs):
+    def __init__(self, **kw):
         print("A")
-        super().__init__(**kwargs)
-
+        super().__init__(**kw)
 
 class B(A):
-    def __init__(self, **kwargs):
-        print("B")
-        super().__init__(**kwargs)
-
+    def __init__(self, **kw):
+        print("B")  # forgot super()
 
 class C(A):
-    def __init__(self, **kwargs):
+    def __init__(self, **kw):
         print("C")
-        super().__init__(**kwargs)
-
+        super().__init__(**kw)
 
 class D(B, C):
-    def __init__(self, **kwargs):
+    def __init__(self, **kw):
         print("D")
-        super().__init__(**kwargs)
+        super().__init__(**kw)
 
 
 D()
@@ -575,666 +1235,63 @@ Expected output:
 ```text
 D
 B
-C
-A
 ```
 
-`A.__init__` executes once. It delegates to `object.__init__`, which terminates the chain because there are no remaining keyword arguments.
+`B` does not delegate, so neither `C` nor `A` runs. The MRO still contains those classes; a missing delegation call prevents execution from reaching them.
 
-**Important:** The `**kwargs` pattern is appropriate when all participants are designed for cooperation. For a simple hierarchy with one base, a clear explicit signature may be simpler.
+### 2. Why does `class X(A, B)` fail if `class A(B)`? Write the C3 reasoning.
+
+**Correction to the premise:** in Python, this exact hierarchy does **not** fail:
+
+```python
+class B: pass
+class A(B): pass
+class X(A, B): pass
+
+assert [c.__name__ for c in X.__mro__] == ["X", "A", "B", "object"]
+```
+
+C3 can satisfy the order because `A` already precedes its base `B`; the explicit base list `[A, B]` agrees with that order. The reverse declaration `class X(B, A)` is rejected because the declared local precedence `B before A` conflicts with the inherited constraint `A before B`. This lesson preserves the roadmap's self-check topic while correcting the premise so learners do not memorize an incorrect Python rule.
+
+### 3. What does `super()` resolve to inside `B` when called on a `D` instance?
+
+It starts lookup after `B` in `D.__mro__`, assuming the method is defined in `B` and uses zero-argument `super()`. In the roadmap's hierarchy `class D(B, C)` where both `B` and `C` inherit from `A`, the MRO is `D, B, C, A, object`; therefore `super()` inside `B` continues at `C`. It does not automatically jump to `B`'s directly declared base `A`.
+
+## 17. Common mistakes to avoid
+
+- **Calling `Parent.method(self)` instead of `super()`:** hard-codes one class and can bypass mixins or invoke a shared ancestor multiple times.
+- **Using different constructor signatures along the MRO:** a class forwards a keyword that the next method cannot accept. Establish a consistent keyword protocol and test the combined class.
+- **Assuming `super()` always refers to the declared base:** it resolves to the next implementation after the defining class in the actual MRO.
+- **Treating C3 as depth-first traversal:** C3 is a constrained merge; use the head-not-in-any-tail rule.
+- **Assuming an MRO entry guarantees its method runs:** an earlier override that omits `super()` can terminate the chain.
+- **Mixing cooperative and non-cooperative classes without a boundary:** a single legacy class can cut off the chain or reject forwarded arguments. Adapt it deliberately or prefer composition.
+- **Dropping unrecognized `**kwargs`:** silently discarding configuration hides misspellings. Consume owned keys and validate leftovers at the endpoint.
+- **Assuming all method dispatch is ordinary instance attribute lookup:** implicit special methods such as `len(obj)` are looked up on the type.
+
+## 18. Final engineering checklist
+
+Before shipping a multiple-inheritance design, verify:
+
+- [ ] The class graph expresses a coherent “is-a” or extension relationship.
+- [ ] `Class.__mro__` matches the order you expect.
+- [ ] The C3 order respects child-before-parent, local precedence, and monotonicity.
+- [ ] Every cooperative implementation uses `super()` and delegates exactly once.
+- [ ] Method signatures accept the arguments forwarded by the previous implementation.
+- [ ] Constructors use a consistent convention and the endpoint validates leftover keywords.
+- [ ] No direct named-parent calls duplicate shared ancestor behavior in a cooperative diamond.
+- [ ] Tests cover the final combined class, not only each base in isolation.
+- [ ] Missing-super and invalid-MRO failures are understood and covered where appropriate.
+- [ ] Framework hooks such as `__init_subclass__` forward supported keywords correctly.
+- [ ] If the hierarchy is hard to explain or maintain, composition is considered instead.
+
+## Further reading
+
+- Python Language Reference — [Data model: custom classes and special method lookup](https://docs.python.org/3/reference/datamodel.html)
+- Python Library Reference — [`super`](https://docs.python.org/3/library/functions.html#super)
+- Python Library Reference — [`inspect.getmro`](https://docs.python.org/3/library/inspect.html#inspect.getmro)
+- Python Library Reference — [`functools.singledispatchmethod`](https://docs.python.org/3/library/functools.html#functools.singledispatchmethod)
+- Python HOWTO — [Multiple inheritance and method resolution order](https://www.python.org/download/releases/2.3/mro/)
 
 ---
 
-## 8. `super()` in class methods and `__init_subclass__`
-
-### 8.1 Class methods
-
-`super()` can be used inside a `classmethod`; its implicit first argument is the class (`cls`):
-
-```python
-class Base:
-    @classmethod
-    def description(cls):
-        return "base"
-
-
-class Child(Base):
-    @classmethod
-    def description(cls):
-        return "child -> " + super().description()
-
-
-print(Child.description())
-# child -> base
-```
-
-With multiple inheritance, the next class is determined by the MRO of the class on which the method was called.
-
-### 8.2 `__init_subclass__`
-
-`__init_subclass__` is a class hook called when a subclass is created. A base class can use it to validate or register subclasses without requiring every subclass to call a registration method manually.
-
-```python
-class NamedJob:
-    def __init_subclass__(cls, *, job_kind, **kwargs):
-        super().__init_subclass__(**kwargs)
-        cls.job_kind = job_kind
-
-
-class DailyJob(NamedJob, job_kind="daily"):
-    pass
-
-
-print(DailyJob.job_kind)
-# daily
-```
-
-The `super().__init_subclass__(**kwargs)` call allows other base classes in a cooperative hierarchy to participate in subclass initialization. This is especially important when more than one base defines the hook.
-
-Avoid treating `__init_subclass__` as magic registration without tests. Be explicit about required class keywords and whether duplicate names or registrations are permitted.
-
----
-
-## 9. Advanced: what zero-argument `super()` does
-
-### 9.1 The short explanation
-
-In a method defined in a class, Python provides the information needed for zero-argument `super()`:
-
-- the class where the method was defined, captured through a compiler-created `__class__` closure cell;
-- the first argument of the current method, normally `self` or `cls`.
-
-Conceptually, `super()` uses those values to create a proxy that continues lookup after the defining class in the MRO for the relevant object or class.
-
-This is not equivalent to `Base.method(self)`. A direct call names a specific implementation; `super()` follows the MRO.
-
-### 9.2 Why it can fail outside a class method
-
-This function is not defined in a class body:
-
-```python
-def helper():
-    # Calling super() here without arguments raises RuntimeError,
-    # because there is no method's __class__ context or first argument.
-    return super()
-```
-
-A standalone helper function has no implicit `self` and no class context captured for zero-argument `super()`. If a design needs to operate on a class hierarchy, pass the required object/class explicitly and choose the appropriate form carefully.
-
-### 9.3 Two-argument `super`
-
-The general form is:
-
-`super(CurrentClass, object_or_subclass)`
-
-Examples:
-
-```python
-class Base:
-    @classmethod
-    def label(cls):
-        return "base"
-
-
-class Child(Base):
-    @classmethod
-    def label(cls):
-        return "child -> " + super(Child, cls).label()
-
-
-print(Child.label())
-# child -> base
-```
-
-Inside a class method, `super()` is normally preferred because it is concise and supports cooperative inheritance. The explicit form can be useful for introspection, unusual delegation, or understanding the mechanics. It is easier to get wrong, so do not use it merely for style.
-
-The second argument must be an instance of the specified class or a subclass of it, depending on the form used. If it is incompatible, Python raises `TypeError`.
-
-### 9.4 `super()` is a proxy, not a parent instance
-
-`super()` does not instantiate a base class. It creates a lookup proxy. Attribute access on the proxy searches after the specified class in the MRO associated with the given object or class.
-
-This explains why a method can call `super().run()` and reach a sibling mixin in a diamond hierarchy.
-
----
-
-## 10. Attribute lookup versus special-method lookup
-
-For ordinary attributes, the MRO participates in locating class attributes and methods. Descriptors and instance attributes add further rules to the attribute lookup process.
-
-Special methods used by language syntax and built-in operations are often looked up on the type rather than by ordinary instance attribute lookup. For example, setting an arbitrary `obj.__len__` attribute is not a reliable way to make `len(obj)` work. Define the special method on the class.
-
-```python
-class SizedBatch:
-    def __init__(self, rows):
-        self.rows = rows
-
-    def __len__(self):
-        return len(self.rows)
-
-
-batch = SizedBatch([{"id": 1}, {"id": 2}])
-print(len(batch))
-# 2
-```
-
-For this lesson, the key point is that inheritance and MRO influence which class-level special-method implementation Python uses. Do not assume that assigning a same-named attribute to one instance changes all special-method behavior.
-
----
-
-## 11. `functools.singledispatchmethod` and `super()`: awareness
-
-`functools.singledispatchmethod` dispatches a method based on the type of its first non-`self`/`cls` argument. It is useful for type-based behavior, but it solves a different problem from MRO-based method lookup.
-
-```python
-from functools import singledispatchmethod
-
-
-class Formatter:
-    @singledispatchmethod
-    def format_value(self, value):
-        return str(value)
-
-    @format_value.register
-    def _(self, value: int):
-        return f"integer:{value}"
-
-
-class AuditedFormatter(Formatter):
-    def format_value(self, value):
-        result = super().format_value(value)
-        return f"[audit] {result}"
-
-
-formatter = AuditedFormatter()
-print(formatter.format_value(7))
-print(formatter.format_value("ready"))
-```
-
-Expected output:
-
-```text
-[audit] integer:7
-[audit] ready
-```
-
-The subclass uses `super()` to reach the inherited dispatcher. The dispatcher then chooses an implementation based on the argument type. Keep these two decisions conceptually separate: MRO chooses the inherited method implementation; singledispatch chooses a registered implementation inside the dispatcher.
-
----
-
-## 12. Common mistakes and how to diagnose them
-
-| Mistake | Symptom | Better approach |
-|---|---|---|
-| Treating `super()` as “my direct parent” | A sibling mixin unexpectedly runs | Inspect the concrete class's MRO. |
-| Calling `Parent.method(self)` in a cooperative diamond | Shared base behaviour may run twice | Use `super()` consistently across participating classes. |
-| Forgetting `super()` | Later methods or constructors are skipped | Add tests that assert the full call sequence. |
-| Calling `super()` more than once in one chain path | Later behavior may run more than once | Delegate once, normally at the appropriate point. |
-| Incompatible constructor signatures | `TypeError` during object creation | Agree on keyword-only options and forwarding conventions. |
-| Forwarding unconsumed arguments to `object` | Unexpected-keyword `TypeError` | Consume known arguments and validate leftovers at the root. |
-| Contradictory base order | Class creation raises MRO `TypeError` | Redesign the hierarchy or use composition. |
-| Adding multiple complex mixins without tests | Order-dependent behavior and fragile code | Keep mixins focused and test every supported combination. |
-| Using multiple inheritance when one object should own another | Unclear responsibilities and tight coupling | Prefer composition when behaviors are not designed to cooperate. |
-
-### Debugging checklist
-
-When a method appears to run in the wrong order:
-
-1. Print `[cls.__name__ for cls in ConcreteClass.__mro__]`.
-2. Identify which class defines the method.
-3. Follow each `super()` call to the next class in the concrete MRO.
-4. Check for a method that does not delegate.
-5. Check whether a direct base call bypasses the chain.
-6. Verify constructor argument consumption and forwarding.
-7. Add a regression test for the observed order.
-
----
-
-## 13. Data-engineering case study: extensible ingestion job
-
-This example combines a job class with validation and metrics mixins. It demonstrates a deliberate, testable cooperative chain without external dependencies.
-
-```python
-class JobRoot:
-    def execute(self, records):
-        raise NotImplementedError("Concrete job must implement execute")
-
-
-class ValidationMixin:
-    def execute(self, records):
-        records = list(records)
-        if any(record is None for record in records):
-            raise ValueError("Records must not contain None")
-        return super().execute(records)
-
-
-class MetricsMixin:
-    def execute(self, records):
-        records = list(records)
-        result = super().execute(records)
-        return {
-            "record_count": len(records),
-            "result": result,
-        }
-
-
-class CountJob(JobRoot):
-    def execute(self, records):
-        return {"count": len(records)}
-
-
-class IngestionJob(ValidationMixin, MetricsMixin, CountJob):
-    pass
-
-
-job = IngestionJob()
-print(job.execute([{"id": 1}, {"id": 2}]))
-```
-
-Expected output:
-
-```text
-{'record_count': 2, 'result': {'count': 2}}
-```
-
-Read the MRO before changing the order of the mixins. `ValidationMixin` delegates to `MetricsMixin`; `MetricsMixin` delegates to `CountJob`; the concrete job returns the count. If a mixin does not delegate, the later behavior will not execute.
-
-### Design review
-
-This is a teaching example, not a universal recommendation to implement ETL pipelines through multiple inheritance. In a larger production system, explicit composition can make dependencies and execution order clearer:
-
-```python
-class CountJob:
-    def execute(self, records):
-        records = list(records)
-        if any(record is None for record in records):
-            raise ValueError("Records must not contain None")
-        result = {"count": len(records)}
-        return {
-            "record_count": len(records),
-            "result": result,
-        }
-```
-
-The composed version is simpler if there are only a few fixed behaviors. Cooperative mixins are most appropriate when a framework or extension model intentionally supports combining independent behaviors through a shared MRO contract.
-
----
-
-## 14. Composition over inheritance
-
-Inheritance is useful when a subtype relationship and shared dispatch are meaningful. Composition is often better when a class simply needs to use another object's service.
-
-Choose **composition** when:
-
-- behavior order should be explicit rather than derived from an MRO;
-- components need independent lifecycles or configuration;
-- you want to swap validators, metrics collectors, storage clients, or retry policies at runtime;
-- the hierarchy has conflicting constraints or too many mixins;
-- a base class has methods unrelated to the concrete class's responsibility.
-
-Example:
-
-```python
-class Validator:
-    def validate(self, records):
-        if any(record is None for record in records):
-            raise ValueError("Records must not contain None")
-        return records
-
-
-class Metrics:
-    def summarize(self, records, result):
-        return {"record_count": len(records), "result": result}
-
-
-class CountJob:
-    def __init__(self, validator, metrics):
-        self.validator = validator
-        self.metrics = metrics
-
-    def execute(self, records):
-        records = list(self.validator.validate(records))
-        result = {"count": len(records)}
-        return self.metrics.summarize(records, result)
-```
-
-Composition makes dependencies visible in `__init__` and makes behavior order explicit. It can be easier to test by injecting a fake validator or metrics object.
-
----
-
-## 15. Testing cooperative behavior
-
-Do not validate a cooperative hierarchy only by reading the code. Assert the behavior you rely on.
-
-### 15.1 Test the MRO and call sequence
-
-```python
-def test_pipeline_order():
-    class Root:
-        def run(self, events):
-            events.append("Root")
-
-    class First:
-        def run(self, events):
-            events.append("First")
-            return super().run(events)
-
-    class Second:
-        def run(self, events):
-            events.append("Second")
-            return super().run(events)
-
-    class Pipeline(First, Second, Root):
-        def run(self, events):
-            events.append("Pipeline")
-            return super().run(events)
-
-    events = []
-    Pipeline().run(events)
-
-    assert events == ["Pipeline", "First", "Second", "Root"]
-    assert [cls.__name__ for cls in Pipeline.__mro__] == [
-        "Pipeline", "First", "Second", "Root", "object"
-    ]
-```
-
-### 15.2 Test the constructor contract
-
-```python
-def test_cooperative_init_consumes_options():
-    class Root:
-        def __init__(self, **kwargs):
-            if kwargs:
-                raise TypeError(f"Unexpected options: {sorted(kwargs)}")
-            super().__init__()
-
-    class NameMixin:
-        def __init__(self, *, name, **kwargs):
-            self.name = name
-            super().__init__(**kwargs)
-
-    class RetryMixin:
-        def __init__(self, *, retries=2, **kwargs):
-            self.retries = retries
-            super().__init__(**kwargs)
-
-    class Job(NameMixin, RetryMixin, Root):
-        pass
-
-    job = Job(name="orders", retries=4)
-    assert job.name == "orders"
-    assert job.retries == 4
-```
-
-Save these tests in a test module and run `pytest`. Tests should cover supported class combinations, invalid options, and the observable order of execution.
-
----
-
-## 16. Exercises
-
-Try to solve these before reading the solutions.
-
-### Exercise 1 — Read a simple MRO
-
-What is the MRO of `Child`?
-
-```python
-class Base:
-    pass
-
-class Child(Base):
-    pass
-```
-
-Write the class names in order.
-
-### Exercise 2 — Predict `super()`
-
-What does this print, and why?
-
-```python
-class Base:
-    def name(self):
-        return "Base"
-
-class Child(Base):
-    def name(self):
-        return "Child-" + super().name()
-
-print(Child().name())
-```
-
-### Exercise 3 — Diamond order
-
-For `D(B, C)`, where both `B` and `C` inherit from `A`, what order does this cooperative method follow?
-
-```python
-class A:
-    def run(self, events):
-        events.append("A")
-
-class B(A):
-    def run(self, events):
-        events.append("B")
-        super().run(events)
-
-class C(A):
-    def run(self, events):
-        events.append("C")
-        super().run(events)
-
-class D(B, C):
-    def run(self, events):
-        events.append("D")
-        super().run(events)
-```
-
-### Exercise 4 — Find the bug
-
-Why does this hierarchy fail to execute every method?
-
-```python
-class Root:
-    def run(self):
-        print("root")
-
-class First:
-    def run(self):
-        print("first")
-        # no super()
-
-class Pipeline(First, Root):
-    def run(self):
-        print("pipeline")
-        super().run()
-```
-
-Change the minimum amount of code to make the chain cooperative.
-
-### Exercise 5 — Constructor forwarding
-
-Design `NamedMixin` and `RetryMixin` so the following assertions pass (this is an incomplete target snippet, not a standalone program):
-
-```text
-job = Job(name="daily", retries=4)
-assert job.name == "daily"
-assert job.retries == 4
-```
-
-Use keyword-only arguments, `**kwargs`, and a terminal root class that rejects leftover options.
-
-### Exercise 6 — Inconsistent MRO
-
-Why can Python not create a subclass of `A(X, Y)` and `B(Y, X)`? Explain the conflicting ordering constraints.
-
-### Exercise 7 — Choose inheritance or composition
-
-You need to combine validation, metrics, and a storage client. The storage client is configured independently and may be replaced at runtime. Should the storage client be a base class or a composed dependency? Explain your choice.
-
-### Exercise 8 — Production-style test
-
-Write a test that asserts the exact call order of three cooperative classes. Include the terminal implementation and assert that it runs exactly once.
-
----
-
-## 17. Exercise solutions
-
-### Solution 1
-
-```text
-Child -> Base -> object
-```
-
-The tuple is `(Child, Base, object)`.
-
-### Solution 2
-
-```text
-Child-Base
-```
-
-`Child.name` runs first, then `super().name()` continues after `Child` in the MRO and finds `Base.name`.
-
-### Solution 3
-
-```text
-D, B, C, A
-```
-
-For `D(B, C)`, the MRO is `D -> B -> C -> A -> object`. Cooperative `super()` follows that order, so `A.run` executes once.
-
-### Solution 4
-
-`First.run` does not call `super().run()`, so it stops the chain before `Root.run`. The minimal fix is:
-
-```python
-class First:
-    def run(self):
-        print("first")
-        super().run()
-```
-
-This assumes `First` is used in a cooperative hierarchy whose next implementation defines `run`.
-
-### Solution 5
-
-One valid design:
-
-```python
-class Root:
-    def __init__(self, **kwargs):
-        if kwargs:
-            raise TypeError(f"Unexpected options: {sorted(kwargs)}")
-        super().__init__()
-
-class NamedMixin:
-    def __init__(self, *, name, **kwargs):
-        self.name = name
-        super().__init__(**kwargs)
-
-class RetryMixin:
-    def __init__(self, *, retries=2, **kwargs):
-        if retries < 0:
-            raise ValueError("retries must be non-negative")
-        self.retries = retries
-        super().__init__(**kwargs)
-
-class Job(NamedMixin, RetryMixin, Root):
-    pass
-
-job = Job(name="daily", retries=4)
-assert job.name == "daily"
-assert job.retries == 4
-```
-
-### Solution 6
-
-`A` establishes `X` before `Y`; `B` establishes `Y` before `X`. A subclass of both would need to preserve both orders, which is impossible. C3 linearization rejects the inconsistent hierarchy.
-
-### Solution 7
-
-Prefer composition for the storage client. It is independently configured and replaceable at runtime, which are strong signs that it should be an injected dependency rather than a base class. Validation or metrics might be composed too; use mixins only when their cooperative behavior and ordering are part of a deliberate extension design.
-
-### Solution 8
-
-For example:
-
-```python
-def test_cooperative_order():
-    class Root:
-        def run(self, events):
-            events.append("root")
-
-    class A:
-        def run(self, events):
-            events.append("a")
-            return super().run(events)
-
-    class B:
-        def run(self, events):
-            events.append("b")
-            return super().run(events)
-
-    class Job(A, B, Root):
-        def run(self, events):
-            events.append("job")
-            return super().run(events)
-
-    events = []
-    Job().run(events)
-    assert events == ["job", "a", "b", "root"]
-    assert events.count("root") == 1
-```
-
----
-
-## 18. Quick reference
-
-| Need | Use |
-|---|---|
-| Inspect lookup order | `Class.__mro__`, `Class.mro()`, `inspect.getmro(Class)` |
-| Extend the next implementation | `super().method(...)` |
-| Continue a cooperative constructor | `super().__init__(**kwargs)` |
-| Support independent mixin options | Keyword-only parameters plus careful `**kwargs` forwarding |
-| Diagnose skipped behavior | Find a method that omits `super()` |
-| Diagnose repeated base behavior | Find direct calls such as `Base.method(self)` |
-| Diagnose a class-creation failure | Inspect conflicting base order and C3 constraints |
-| Avoid fragile inheritance | Use composition for independent services and runtime-swappable dependencies |
-
-### The central rule
-
-**`super()` means “continue after this class in the relevant MRO,” not “call my parent.”** Cooperative inheritance works only when the participating methods share a compatible contract, delegate consistently, and terminate cleanly.
-
----
-
-## 19. Self-check and readiness checklist
-
-You are ready to move on when you can do all of the following without copying a solution:
-
-- [ ] Explain the difference between overriding a method and extending it with `super()`.
-- [ ] Inspect an MRO and predict which method implementation runs next.
-- [ ] Draw a diamond hierarchy and explain why a shared base runs once in a cooperative chain.
-- [ ] Explain C3's local precedence order, child-before-parent rule, and monotonicity.
-- [ ] Recognize an inconsistent MRO and explain the contradiction.
-- [ ] Write cooperative mixins whose methods call `super()` once.
-- [ ] Design constructors that consume keyword-only arguments and forward the rest.
-- [ ] Use a terminal root constructor to reject unconsumed options.
-- [ ] Explain why a missing `super()` call silently skips later behavior.
-- [ ] Explain why direct parent calls can execute a shared ancestor more than once.
-- [ ] Explain zero-argument `super()` and identify when its context is unavailable.
-- [ ] Use `super()` in a class method and understand the purpose of `__init_subclass__`.
-- [ ] Decide when composition is clearer than multiple inheritance.
-- [ ] Write a test that asserts a cooperative call sequence.
-
-## 20. Suggested study workflow
-
-1. Type and run every example in a Python 3.12+ environment.
-2. Predict output before running each example.
-3. Change the base order in a diamond and inspect how the MRO changes.
-4. Remove one `super()` call intentionally and observe which behavior disappears.
-5. Replace a cooperative call with a direct parent call and look for duplicate work.
-6. Run the testing examples under `pytest`.
-7. Complete the exercises without looking at the solutions, then compare your reasoning.
-8. Before using multiple inheritance in a real pipeline, document the intended MRO and add tests for supported combinations.
-
-**Connection to the next lesson:** Lesson 09, *Mixins and Multiple-Inheritance Pitfalls*, builds directly on this lesson by focusing on how to design small mixins and avoid fragile inheritance hierarchies.
+**Lesson complete:** MRO is the linear order produced from the inheritance graph; `super()` delegates to the next class in that order; cooperative inheritance works only when the hierarchy and every participating method follow a consistent protocol.

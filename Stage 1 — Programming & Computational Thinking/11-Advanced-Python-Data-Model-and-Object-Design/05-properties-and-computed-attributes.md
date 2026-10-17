@@ -1,74 +1,58 @@
 # Lesson 05 — Properties and Computed Attributes
 
-**Stage 1 — Programming & Computational Thinking**  
-**Module 11 — Advanced Python Data Model and Object Design**  
-**Target version:** Python 3.12+  
-**Level:** Beginner → intermediate → advanced  
-**Primary goal:** Design attribute-style APIs that preserve invariants, expose computed state, and make caching behavior explicit and correct.
+**Stage:** 1 — Programming & Computational Thinking  
+**Module:** 11 — Advanced Python Data Model and Object Design  
+**Baseline:** Python 3.12+ (version-specific behavior is called out)  
+**Audience:** Learners progressing from Python fundamentals toward production Data Engineering and AI Engineering
+
+## Scope and why this matters
+
+A property lets a class expose an attribute-like API while controlling how a value is read, validated, computed, cached, or deleted. It allows a simple public attribute to gain validation or computation later without forcing callers to change `obj.value` into `obj.get_value()`. In data and AI systems, properties commonly expose validated configuration, derived measurements, metadata, and already-loaded state. They should not disguise slow I/O or surprising side effects.
+
+This lesson follows the Basic → Intermediate → Advanced progression in the module roadmap. It introduces properties and computed attributes, setter/deleter behavior, private-by-convention backing fields, `cached_property`, inheritance, dataclasses and tuple-like records, descriptor mechanics, typing, performance, testing, common mistakes, and the roadmap self-check.
+
+## Learning objectives
+
+By the end, you should be able to:
+
+1. Distinguish stored attributes, computed properties, and cached properties.
+2. Use `@property`, `@name.setter`, and `@name.deleter` correctly.
+3. Validate values through a public property, including during initialization.
+4. Explain read-only property assignment and deletion errors.
+5. Use `functools.cached_property`, invalidate its cache, and understand its storage and concurrency limitations.
+6. Use properties with dataclasses, named tuples, frozen classes, inheritance, `Self`, and `Protocol`.
+7. Explain why `property` is a data descriptor and when custom descriptors or `__getattr__` are more suitable.
+8. Decide when an attribute-like property is appropriate and when a method communicates cost or side effects better.
+9. Test both successful property access and failure paths through the public API.
+
+## Prerequisite check
+
+You should know classes, instance attributes, `__init__`, exceptions, decorators at a basic level, and type annotations. If decorators are new, read `@property` as a tool that transforms a getter function into a descriptor stored on the class; the following examples make this concrete.
 
 ---
 
-## 1. Learning outcomes
+## 1. Attributes: stored versus computed
 
-By the end of this lesson, you should be able to:
-
-1. Explain why Python usually favors attribute access and `@property` over Java-style `get_x()` / `set_x()` methods.
-2. Implement read-only properties, setters, and deleters.
-3. validate values through the public property, including during `__init__`.
-4. Distinguish stored state from computed state and identify when a method is clearer than a property.
-5. Use `functools.cached_property` and explain its storage, invalidation, `__slots__`, and concurrency trade-offs.
-6. Explain that `property` is a descriptor and recognize where descriptors fit into attribute lookup.
-7. Avoid recursion, stale caches, hidden I/O, mutable-default mistakes, and dataclass/property initialization pitfalls.
-8. Test properties through the public API, including both successful and failure paths.
-9. Apply these ideas to data-engineering objects such as validated configuration, batch metadata, and report summaries.
-
----
-
-## 2. Why properties matter
-
-Imagine an API that starts with a plain attribute:
+A normal instance attribute stores a value in the instance, commonly in `obj.__dict__`:
 
 ```python
-class Temperature:
-    def __init__(self, celsius: float) -> None:
-        self.celsius = celsius
-```
-
-At first, `celsius` is just a name stored on the instance. Later, the class needs to reject impossible values, normalize input, or calculate a related value. If callers already use `temperature.celsius`, a property lets the implementation add behavior without forcing callers to switch to `temperature.get_celsius()`.
-
-A property is therefore an **API-preserving boundary** between how callers use an attribute and how the class stores or computes it.
-
-Properties are useful for:
-- enforcing an invariant whenever a value changes;
-- exposing a value derived from other state;
-- presenting a read-only view;
-- maintaining compatibility while internal representation evolves;
-- lazily computing a value when first accessed, if that behavior is clearly documented.
-
-A property is not automatically the right choice for every calculation. If access is expensive, performs I/O, changes state, or has important failure modes, a method often communicates intent better.
-
----
-
-## 3. Basic concepts: stored, computed, and validated attributes
-
-### 3.1 A normal instance attribute
-
-```python
-class Job:
+class User:
     def __init__(self, name: str) -> None:
         self.name = name
 
-job = Job("daily-orders")
-assert job.name == "daily-orders"
-job.name = "hourly-orders"
-assert job.name == "hourly-orders"
+user = User("Asha")
+print(user.name)
+print(user.__dict__)
 ```
 
-A plain attribute is simple and often best when no additional behavior is needed. Do not add a property merely because properties are available.
+Expected output:
 
-### 3.2 A computed property
+```text
+Asha
+{'name': 'Asha'}
+```
 
-A computed property derives its result from other state:
+A **computed attribute** derives a value from other state instead of storing a separate copy. A method can do this, but a property exposes it with attribute syntax:
 
 ```python
 class Rectangle:
@@ -81,18 +65,680 @@ class Rectangle:
         return self.width * self.height
 
 rectangle = Rectangle(3, 4)
-assert rectangle.area == 12
+print(rectangle.area)
 rectangle.width = 5
-assert rectangle.area == 20
+print(rectangle.area)
 ```
 
-`area` is not stored separately. It is calculated when read, so it cannot become stale merely because `width` changes. This is ideal when the calculation is cheap.
+Expected output:
 
-### 3.3 A validated property
+```text
+12
+20
+```
 
-A setter can enforce a rule at the point where the value enters the object:
+`area` is recalculated on each access. It is not stored in `rectangle.__dict__`; changing `width` changes the next result automatically.
+
+### Why `@property` instead of `get_x()` and `set_x()`?
+
+Python generally favors direct attribute syntax for ordinary state: `account.balance`, `temperature.celsius`. A property can later add validation or computation while preserving that syntax. Explicit methods remain appropriate when an operation is a command, has meaningful cost, needs arguments, or has side effects.
+
+Use a property when reading it is unsurprising, quick, and attribute-like. Do not create a property solely to imitate a getter/setter convention when a plain attribute is sufficient.
+
+## 2. `@property`, setters, and deleters
+
+The `property` built-in can be constructed explicitly as `property(fget, fset, fdel, doc)`, but decorator syntax is usually more readable. The decorated getter function becomes the property descriptor on the class. The explicit form is useful when inspecting or assembling descriptors programmatically:
 
 ```python
+def get_code(self) -> str:
+    return self._code
+
+def set_code(self, value: str) -> None:
+    if not value.strip():
+        raise ValueError("code cannot be empty")
+    self._code = value.strip()
+
+class Record:
+    code = property(get_code, set_code, doc="Validated record code")
+
+record = Record()
+record.code = "  A-17  "
+print(record.code, Record.code.__doc__)
+```
+
+Expected output:
+
+```text
+A-17 Validated record code
+```
+
+```python
+class Account:
+    def __init__(self, balance: float) -> None:
+        self._balance = balance
+
+    @property
+    def balance(self) -> float:
+        """The current account balance."""
+        return self._balance
+
+    @balance.setter
+    def balance(self, value: float) -> None:
+        if value < 0:
+            raise ValueError("balance cannot be negative")
+        self._balance = value
+
+    @balance.deleter
+    def balance(self) -> None:
+        del self._balance
+
+account = Account(100.0)
+print(account.balance)
+account.balance = 125.0
+print(account.balance)
+del account.balance
+print(hasattr(account, "_balance"))
+```
+
+Expected output:
+
+```text
+100.0
+125.0
+False
+```
+
+The setter and deleter decorators refer to the same property name. Each returns an updated property descriptor; they do not create unrelated functions exposed as public attributes.
+
+### Read-only properties and `AttributeError`
+
+If a property has no setter, assigning to it raises `AttributeError`. A property without a deleter similarly rejects `del obj.property`. The error is raised by the descriptor protocol, even if the object has a writable `__dict__`.
+
+```python
+class Circle:
+    def __init__(self, radius: float) -> None:
+        self.radius = radius
+
+    @property
+    def diameter(self) -> float:
+        return self.radius * 2
+
+circle = Circle(2)
+print(circle.diameter)
+try:
+    circle.diameter = 10
+except AttributeError as exc:
+    print(type(exc).__name__)
+```
+
+Expected output:
+
+```text
+4
+AttributeError
+```
+
+A property is read-only through that public property interface; this does not make the whole object immutable. For example, `circle.radius` remains assignable unless you validate or otherwise restrict it.
+
+## 3. Private-by-convention backing fields
+
+A common pattern is `_value` for internal storage and `value` for the public property. A leading underscore is a convention: it signals “internal use” but does not enforce access control. Avoid using the same name for the property and backing field, which would recurse or collide.
+
+```python
+class Product:
+    def __init__(self, sku: str) -> None:
+        self._sku = sku
+
+    @property
+    def sku(self) -> str:
+        return self._sku
+```
+
+The public API is `product.sku`; implementation details remain in `_sku`. Python does not have Java-style private instance fields by default. Name mangling with a double leading underscore serves a different purpose and is not a security boundary.
+
+## 4. Complete validated `Temperature` example
+
+Initialization should assign through `self.celsius`, not directly to `self._celsius`, so the same validation runs during construction and later updates. The example rejects booleans, non-numeric inputs, infinities, NaN, and temperatures below absolute zero. The annotation communicates intended use; runtime validation enforces it.
+
+```python
+from math import isfinite
+
+class Temperature:
+    """Temperature stored in Celsius with a validated public interface."""
+
+    def __init__(self, celsius: float) -> None:
+        self.celsius = celsius  # deliberately invokes the setter
+
+    @property
+    def celsius(self) -> float:
+        return self._celsius
+
+    @celsius.setter
+    def celsius(self, value: float) -> None:
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            raise TypeError("celsius must be a real int or float, not bool")
+        numeric_value = float(value)
+        if not isfinite(numeric_value):
+            raise ValueError("celsius must be finite")
+        if numeric_value < -273.15:
+            raise ValueError("below absolute zero")
+        self._celsius = numeric_value
+
+    @property
+    def fahrenheit(self) -> float:
+        """Return the Fahrenheit equivalent; calculated on every access."""
+        return self._celsius * 9 / 5 + 32
+
+    @property
+    def kelvin(self) -> float:
+        """Return the Kelvin equivalent; calculated on every access."""
+        return self._celsius + 273.15
+
+sample = Temperature(0)
+print(sample.celsius)
+print(sample.fahrenheit)
+print(sample.kelvin)
+sample.celsius = 100
+print(sample.fahrenheit)
+for invalid in (-300, float("nan"), True, "20"):
+    try:
+        sample.celsius = invalid  # type: ignore[assignment]
+    except (TypeError, ValueError) as exc:
+        print(type(exc).__name__)
+```
+
+Expected output:
+
+```text
+0.0
+32.0
+273.15
+212.0
+ValueError
+ValueError
+TypeError
+TypeError
+```
+
+`fahrenheit` and `kelvin` are computed properties: they reflect the current Celsius value without needing invalidation logic. The setter writes to `_celsius`, not `self.celsius`, which avoids infinite recursion. The `type: ignore` comment is only for static type checkers in the deliberately invalid test loop; runtime validation is still exercised.
+
+### Validation design notes
+
+- Choose exceptions deliberately: `TypeError` for an input of the wrong kind, `ValueError` for a supported kind with an unacceptable value.
+- Do not silently clamp invalid data unless clamping is part of the documented domain contract.
+- If the domain accepts `Decimal` or other numeric types, expand the type policy intentionally; converting everything to `float` can lose precision.
+- Validate at the public boundary. Do not rely on every caller to remember a separate validation method.
+
+## 5. `cached_property`: compute once per instance
+
+A normal property runs its getter each time. `functools.cached_property` computes on first access, stores the result under the same name in that instance's `__dict__`, and subsequent lookups read that stored value instead of invoking the descriptor again. This is a per-instance cache, not a global cache and not a shared mutable default.
+
+```python
+from functools import cached_property
+
+class Report:
+    def __init__(self, rows: list[dict[str, float]]) -> None:
+        self.rows = rows
+        self.computations = 0
+
+    @cached_property
+    def total(self) -> float:
+        self.computations += 1
+        return sum(row["amount"] for row in self.rows)
+
+first = Report([{"amount": 10.0}, {"amount": 2.5}])
+second = Report([{"amount": 7.0}])
+print(first.total, first.computations)
+print(first.total, first.computations)
+print(second.total, second.computations)
+print(first.__dict__["total"])
+```
+
+Expected output:
+
+```text
+12.5 1
+12.5 1
+7.0 1
+12.5
+```
+
+The two instances have independent cached values. The first `first.total` lookup executes the getter and writes `first.__dict__["total"]`; the second lookup does not execute it again.
+
+### Cache invalidation
+
+A cached value becomes stale when its dependencies change. There are two common strategies:
+
+1. Delete the cached attribute: `del obj.total`. The next access recomputes it.
+2. Encapsulate dependency changes and invalidate the cache automatically in a setter or mutation method.
+
+```python
+from functools import cached_property
+
+class Cart:
+    def __init__(self, prices: list[float]) -> None:
+        self._prices = list(prices)
+
+    @property
+    def prices(self) -> tuple[float, ...]:
+        return tuple(self._prices)
+
+    @prices.setter
+    def prices(self, values: list[float]) -> None:
+        if any(price < 0 for price in values):
+            raise ValueError("prices must be non-negative")
+        self._prices = list(values)
+        self.__dict__.pop("total", None)  # invalidates, if cached
+
+    @cached_property
+    def total(self) -> float:
+        return sum(self._prices)
+
+cart = Cart([2.0, 3.0])
+print(cart.total)
+cart.prices = [10.0, 1.5]
+print(cart.total)
+```
+
+Expected output:
+
+```text
+5.0
+11.5
+```
+
+This setter copies the incoming list and exposes a tuple, so callers cannot mutate the internal list through the returned property. If instead the class exposed a mutable list directly, `cart.prices.append(...)` could change dependencies without invoking a setter; the cached total would remain stale. Prefer immutable views, controlled mutation methods that invalidate the cache, or a normal computed property when recomputation is cheap.
+
+`del cart.total` also invalidates the cached value. Deleting it does not call a `cached_property`-specific deleter; it removes the instance entry, allowing the descriptor to compute again.
+
+### `__dict__`, `__slots__`, and thread safety
+
+- `cached_property` requires a writable instance `__dict__` because it stores the computed value there.
+- A class using `__slots__` without a `__dict__` slot cannot use `cached_property`; access raises `TypeError` because it cannot cache the result. A class can explicitly include `"__dict__"` in `__slots__`, if the memory trade-off is acceptable.
+- A normal `@property` does not itself require an instance dictionary; it can compute from slots.
+- **Python 3.12 change:** before 3.12, `cached_property` used an undocumented lock to prevent concurrent first computations for the same property descriptor. That lock was removed in Python 3.12. Concurrent first access can therefore execute the getter more than once, potentially on different threads, before one value wins in the instance dictionary. Make the computation idempotent/thread-safe or provide your own synchronization if duplicate execution is unsafe. Do not depend on the old lock.
+
+For work that must happen exactly once (for example, a non-idempotent external action), `cached_property` is the wrong synchronization primitive.
+
+## 6. Properties with dataclasses, named tuples, and frozen classes
+
+### Dataclasses: avoid a field/property name collision
+
+A common trap is declaring a dataclass field and a property with the same name. The class-level property object can become the apparent default value for the generated initializer, causing surprising behavior. Keep backing storage and public property names distinct, and be explicit about initialization.
+
+```python
+from dataclasses import dataclass
+
+@dataclass(init=False)
+class UserProfile:
+    _email: str
+
+    def __init__(self, email: str) -> None:
+        self.email = email  # validation runs through the setter
+
+    @property
+    def email(self) -> str:
+        return self._email
+
+    @email.setter
+    def email(self, value: str) -> None:
+        normalized = value.strip().lower()
+        if "@" not in normalized:
+            raise ValueError("email must contain @")
+        self._email = normalized
+
+profile = UserProfile("  USER@EXAMPLE.COM ")
+print(profile.email)
+print(profile)
+```
+
+Expected output:
+
+```text
+user@example.com
+UserProfile(_email='user@example.com')
+```
+
+The dataclass still provides a generated `repr` based on `_email`; `init=False` tells it not to generate an initializer that bypasses the public property. The custom initializer deliberately assigns through `self.email`.
+
+### `NamedTuple` / named tuple
+
+`typing.NamedTuple` is designed around declared tuple fields. Avoid trying to replace a field with a property of the same name. For a tuple-compatible record that needs a computed property, subclass `collections.namedtuple` and add a differently named property:
+
+```python
+from collections import namedtuple
+
+_PointBase = namedtuple("Point", ["x", "y"])
+
+class Point(_PointBase):
+    __slots__ = ()
+
+    @property
+    def magnitude_squared(self) -> int:
+        return self.x * self.x + self.y * self.y
+
+point = Point(3, 4)
+print(point.x, point.y, point.magnitude_squared)
+```
+
+Expected output:
+
+```text
+3 4 25
+```
+
+The tuple's fields are immutable; the additional property computes from them without storing state. The same principle applies to `typing.NamedTuple`: add new computed names, and do not collide with tuple field names. Here is the `typing.NamedTuple` form explicitly:
+
+```python
+from typing import NamedTuple
+
+class TypedPoint(NamedTuple):
+    x: int
+    y: int
+
+    @property
+    def magnitude_squared(self) -> int:
+        return self.x * self.x + self.y * self.y
+
+print(TypedPoint(5, 12).magnitude_squared)
+```
+
+Expected output: `169`.
+
+### Frozen dataclasses
+
+A frozen dataclass prevents ordinary assignment to its fields after initialization. It can still expose computed read-only properties:
+
+```python
+from dataclasses import dataclass
+
+@dataclass(frozen=True)
+class Measurement:
+    value: float
+    unit: str
+
+    @property
+    def display(self) -> str:
+        return f"{self.value:g} {self.unit}"
+
+measurement = Measurement(12.5, "ms")
+print(measurement.display)
+try:
+    measurement.value = 13.0
+except (AttributeError, TypeError) as exc:
+    print(type(exc).__name__)
+```
+
+Expected output on supported Python versions:
+
+```text
+12.5 ms
+FrozenInstanceError
+```
+
+`dataclasses.FrozenInstanceError` is a subclass of `AttributeError`, so the broad exception handler catches it. Frozen is a programming contract implemented by generated methods, not a security boundary; avoid using `object.__setattr__` to bypass it outside specialized construction code.
+
+## 7. Inheritance and property overrides
+
+A subclass can override only the getter, or it can add a setter using the base property's descriptor. When extending a base property with a setter, use `@BaseClass.property_name.setter`; this creates a new property in the subclass with the base getter retained and the new setter attached.
+
+```python
+class BaseConfig:
+    def __init__(self, name: str) -> None:
+        self._name = name
+
+    @property
+    def name(self) -> str:
+        return self._name
+
+class UppercaseConfig(BaseConfig):
+    @property
+    def name(self) -> str:
+        return super().name.upper()
+
+class MutableConfig(BaseConfig):
+    @BaseConfig.name.setter
+    def name(self, value: str) -> None:
+        cleaned = value.strip()
+        if not cleaned:
+            raise ValueError("name cannot be empty")
+        self._name = cleaned
+
+print(UppercaseConfig("alpha").name)
+mutable = MutableConfig("alpha")
+mutable.name = "  beta  "
+print(mutable.name)
+```
+
+Expected output:
+
+```text
+ALPHA
+beta
+```
+
+`UppercaseConfig` intentionally overrides the getter behavior. `MutableConfig` inherits `BaseConfig.name`'s getter and adds a setter. Note that `MutableConfig.__init__` inherits the base initializer, which assigns `_name` directly; if constructor inputs also require validation, validate in the base initializer or route construction through a validated property consistently.
+
+## 8. Properties are data descriptors
+
+A descriptor is an object whose type implements one or more of `__get__`, `__set__`, or `__delete__`. `property` is a built-in data descriptor (implemented in C in CPython). Descriptor lookup explains why a property can intercept `obj.x` even when `obj.__dict__` exists.
+
+A simplified instance attribute lookup model is:
+
+1. A data descriptor on the class takes precedence.
+2. Otherwise, an instance dictionary entry can provide the value.
+3. A non-data descriptor or ordinary class attribute may then provide it.
+4. If normal lookup fails, `__getattr__` may be called.
+
+This is a teaching model; Python's full lookup behavior includes class MRO and special cases. The next lesson examines descriptor and lookup order in depth.
+
+```python
+class Example:
+    def __init__(self) -> None:
+        self._value = 3
+        self.__dict__["value"] = 999  # deliberately creates a conflicting entry
+
+    @property
+    def value(self) -> int:
+        return self._value
+
+print(Example().value)
+```
+
+Expected output:
+
+```text
+3
+```
+
+The property is a data descriptor, so it takes precedence over the `value` entry in the instance dictionary. Do not create conflicting entries like this in normal application code; it illustrates lookup mechanics only.
+
+### Properties versus `__getattr__` versus custom descriptors
+
+- **`@property`:** best for one class's named attribute with a getter and optional setter/deleter.
+- **`__getattr__(self, name)`:** runs only after normal lookup fails. Useful for dynamic fallback behavior, proxy objects, or delegating unknown names; it is not the default tool for a single ordinary field.
+- **Custom descriptor:** best when the same reusable behavior is needed across many attributes or classes, such as reusable validation, ORM fields, or managed values. Descriptors are stored on the class and receive the instance in `__get__`/`__set__`.
+
+A property is itself a descriptor, so these are related tools rather than unrelated mechanisms. A small `__getattr__` example shows the key difference: it runs only when an attribute is otherwise missing.
+
+```python
+class SettingsProxy:
+    def __init__(self, values: dict[str, str]) -> None:
+        self._values = values
+
+    @property
+    def environment(self) -> str:
+        return self._values.get("ENV", "development")
+
+    def __getattr__(self, name: str) -> str:
+        try:
+            return self._values[name]
+        except KeyError:
+            raise AttributeError(name) from None
+
+settings = SettingsProxy({"REGION": "ap-south-1"})
+print(settings.environment)
+print(settings.REGION)
+try:
+    print(settings.MISSING)
+except AttributeError as exc:
+    print(type(exc).__name__)
+```
+
+Expected output:
+
+```text
+development
+ap-south-1
+AttributeError
+```
+
+Do not implement a generic fallback like this when a small, stable public interface would be clearer. `__getattr__` should raise `AttributeError` for unknown names so introspection and normal Python attribute semantics continue to work.
+
+## 9. Expensive properties, lazy loading, and API design
+
+A property should normally feel like reading state. A property that opens a network connection, performs a database query, downloads a model, or scans a large dataset can surprise callers because `obj.value` hides the cost.
+
+Reasonable property uses:
+
+- cheap arithmetic derived from in-memory state;
+- validation-backed state access;
+- cached metadata that is already local and whose freshness rules are clear;
+- a lazy parse or calculation when the API documents the one-time cost.
+
+Prefer a method such as `load_records()`, `fetch_remote_schema()`, or `recompute_index()` when the action performs I/O, can fail due to external conditions, has side effects, or needs parameters. In ORM/configuration systems, lazy properties can be useful, but document when the value loads, how errors surface, how stale data is refreshed, and whether concurrent access is safe.
+
+A normal property recomputes every time. A `cached_property` stores a result and can become stale. Neither is universally better: choose based on computation cost, dependency mutability, memory, freshness, and concurrency requirements.
+
+## 10. Typing properties with `Self` and `Protocol`
+
+`typing.Self` (Python 3.11+) expresses that a method returns the same concrete type as the instance; it is useful for fluent methods and factories, but is not needed for every property. A `Protocol` can specify the shape of an object by declaring a property. A protocol property without a setter describes read-only access for structural typing.
+
+```python
+from typing import Protocol, Self
+
+class HasArea(Protocol):
+    @property
+    def area(self) -> float: ...
+
+class ScaledValue:
+    def __init__(self, value: float) -> None:
+        self.value = value
+
+    @property
+    def doubled(self) -> float:
+        return self.value * 2
+
+    def scale(self, factor: float) -> Self:
+        return type(self)(self.value * factor)
+
+def describe_area(shape: HasArea) -> str:
+    return f"area={shape.area:.1f}"
+
+class Square:
+    def __init__(self, side: float) -> None:
+        self.side = side
+
+    @property
+    def area(self) -> float:
+        return self.side * self.side
+
+print(ScaledValue(3).doubled)
+print(ScaledValue(3).scale(2).value)
+print(describe_area(Square(4)))
+```
+
+Expected output:
+
+```text
+6
+6
+area=16.0
+```
+
+`Square` need not inherit from `HasArea`; it structurally satisfies the protocol because it provides a compatible read-only `area` property. `Self` is a static typing construct, not a runtime validation system. `Self` is available in `typing` from Python 3.11; for earlier Python versions, `typing_extensions.Self` is a common backport.
+
+## 11. Class-level properties and Python version history
+
+The combination of `@classmethod` above `@property` worked in Python 3.9 and 3.10. It was deprecated in Python 3.11 and removed in Python 3.13. Therefore, on the Python 3.12+ baseline, do not introduce this pattern as a new API: it emits a deprecation warning in 3.12 and no longer works as intended in 3.13.
+
+For a class-level computed value, alternatives include:
+
+- a class method such as `@classmethod def default_name(cls) -> str`, if call syntax is acceptable;
+- a custom descriptor when `SomeClass.attribute` must return a computed class-level value;
+- a metaclass property when the value genuinely belongs to class objects and metaclass behavior is justified.
+
+Example of a custom descriptor that returns a value based on the class accessed:
+
+```python
+class ClassLabel:
+    def __get__(self, instance: object, owner: type | None = None) -> str:
+        target = owner if owner is not None else type(instance)
+        return target.__name__.lower()
+
+class DataJob:
+    label = ClassLabel()
+
+print(DataJob.label)
+print(DataJob().label)
+```
+
+Expected output:
+
+```text
+datajob
+datajob
+```
+
+The descriptor is a non-data descriptor because it defines `__get__` only. The example is intentionally simple; add `__set__` or `__delete__` only if the intended contract needs them. A metaclass property is another option, but it should be introduced only when the class-level semantics warrant the additional complexity.
+
+## 12. Common mistakes and safer alternatives
+
+### Mistake 1: recursive setter
+
+Incorrect:
+
+```python
+@value.setter
+def value(self, value: int) -> None:
+    self.value = value  # recursively calls this setter
+```
+
+Correct: store into a distinct backing field such as `self._value = value` after validation.
+
+### Mistake 2: bypassing validation in `__init__`
+
+Assigning `self._celsius = value` directly in the initializer skips the public setter. Use `self.celsius = value` when constructor and later assignments must follow the same rules.
+
+### Mistake 3: stale `cached_property`
+
+If a cached value depends on mutable state, every supported mutation path must invalidate it. If you cannot reliably manage invalidation, use a regular property or immutable dependencies.
+
+### Mistake 4: assuming cached mutable defaults are shared correctly
+
+`cached_property` stores a separate result per instance, but if its getter returns a module-level list or a shared mutable object, the instances may still share that returned object. Construct mutable values per instance; never use a cached property as a disguised shared mutable default.
+
+### Mistake 5: hidden network calls
+
+A property that performs remote I/O makes ordinary attribute access slow and failure-prone. Prefer a clearly named method or explicitly document the lazy-loading behavior.
+
+### Mistake 6: dataclass field and property share a name
+
+Use `_field` for backing storage and a distinct public property name. Decide whether the generated initializer is appropriate; use `init=False` and a custom initializer when it must validate through the property.
+
+### Mistake 7: expecting a property to make the object immutable
+
+A read-only property only blocks assignment through that property name. Other mutable fields may still change. Use a frozen dataclass or another deliberate immutability design when the whole value object should be immutable.
+
+## 13. Testing properties with pytest
+
+Tests should use the public API, not only inspect private storage. Include successful reads, successful writes, invalid writes, computed values, read-only behavior, and cache invalidation. The following test module is self-contained; save it as `test_properties_lesson.py` and run `python -m pytest -q test_properties_lesson.py` after installing pytest.
+
+```python
+from functools import cached_property
+from math import isfinite
+import pytest
+
 class Temperature:
     def __init__(self, celsius: float) -> None:
         self.celsius = celsius
@@ -104,958 +750,228 @@ class Temperature:
     @celsius.setter
     def celsius(self, value: float) -> None:
         if isinstance(value, bool) or not isinstance(value, (int, float)):
-            raise TypeError("celsius must be a real numeric value")
+            raise TypeError("celsius must be an int or float, not bool")
+        value = float(value)
+        if not isfinite(value):
+            raise ValueError("celsius must be finite")
         if value < -273.15:
-            raise ValueError("temperature cannot be below absolute zero")
-        self._celsius = float(value)
+            raise ValueError("below absolute zero")
+        self._celsius = value
 
     @property
     def fahrenheit(self) -> float:
         return self._celsius * 9 / 5 + 32
 
-temperature = Temperature(20)
-assert temperature.fahrenheit == 68
-temperature.celsius = 0
-assert temperature.fahrenheit == 32
-```
+class Report:
+    def __init__(self, rows: list[dict[str, float]]) -> None:
+        self.rows = rows
+        self.calls = 0
 
-The public property name is `celsius`; `_celsius` is the internal storage convention. The leading underscore communicates “internal implementation detail,” not a security boundary.
+    @cached_property
+    def total(self) -> float:
+        self.calls += 1
+        return sum(row["amount"] for row in self.rows)
 
-**Important:** `__init__` assigns through `self.celsius`, not `self._celsius`, so construction uses the same validation rule as later updates.
+class SlotsWithoutDict:
+    __slots__ = ("value",)
 
----
+    @cached_property
+    def doubled(self) -> int:
+        return self.value * 2
 
-## 4. `@property`, setters, and deleters
-
-### 4.1 The getter
-
-`@property` turns a method into attribute-style access:
-
-```python
-class Circle:
-    def __init__(self, radius: float) -> None:
-        self._radius = radius
+class BaseConfig:
+    def __init__(self, name: str) -> None:
+        self._name = name
 
     @property
-    def radius(self) -> float:
-        return self._radius
+    def name(self) -> str:
+        return self._name
+
+class UppercaseConfig(BaseConfig):
+    @property
+    def name(self) -> str:
+        return super().name.upper()
+
+class MutableConfig(BaseConfig):
+    @BaseConfig.name.setter
+    def name(self, value: str) -> None:
+        cleaned = value.strip()
+        if not cleaned:
+            raise ValueError("name cannot be empty")
+        self._name = cleaned
+
+def test_temperature_reads_and_computation() -> None:
+    temperature = Temperature(0)
+    assert temperature.celsius == 0.0
+    assert temperature.fahrenheit == 32.0
+
+def test_temperature_setter_updates_computed_property() -> None:
+    temperature = Temperature(0)
+    temperature.celsius = 100
+    assert temperature.fahrenheit == 212.0
+
+def test_temperature_rejects_below_absolute_zero() -> None:
+    with pytest.raises(ValueError, match="below absolute zero"):
+        Temperature(-300)
+
+def test_temperature_rejects_nonfinite_values() -> None:
+    with pytest.raises(ValueError, match="finite"):
+        Temperature(float("nan"))
+
+def test_failed_setter_does_not_replace_previous_value() -> None:
+    temperature = Temperature(20)
+    with pytest.raises(ValueError):
+        temperature.celsius = -500
+    assert temperature.celsius == 20.0
+
+def test_temperature_rejects_wrong_types_and_bool() -> None:
+    for value in (True, "10"):
+        with pytest.raises(TypeError):
+            Temperature(value)  # type: ignore[arg-type]
+
+def test_read_only_property_rejects_assignment() -> None:
+    temperature = Temperature(10)
+    with pytest.raises(AttributeError):
+        temperature.fahrenheit = 50  # type: ignore[misc]
+
+def test_cached_property_computes_once_per_instance() -> None:
+    report = Report([{"amount": 2.0}, {"amount": 3.0}])
+    assert report.total == 5.0
+    assert report.total == 5.0
+    assert report.calls == 1
+
+def test_cached_property_can_be_invalidated() -> None:
+    report = Report([{"amount": 2.0}])
+    assert report.total == 2.0
+    report.rows.append({"amount": 8.0})
+    del report.total
+    assert report.total == 10.0
+    assert report.calls == 2
+
+def test_cached_property_requires_instance_dict() -> None:
+    instance = SlotsWithoutDict()
+    instance.value = 4
+    with pytest.raises(TypeError):
+        _ = instance.doubled
+
+def test_property_getter_can_be_overridden() -> None:
+    assert UppercaseConfig("alpha").name == "ALPHA"
+
+def test_subclass_can_extend_base_property_with_validating_setter() -> None:
+    config = MutableConfig("alpha")
+    config.name = "  beta  "
+    assert config.name == "beta"
+    with pytest.raises(ValueError, match="name cannot be empty"):
+        config.name = "   "
+    assert config.name == "beta"
 ```
 
-Callers write `circle.radius`, not `circle.radius()`. The method body executes during attribute access.
+Expected test result on a compatible environment:
 
-### 4.2 The setter
+```text
+12 passed
+```
 
-The setter is declared by decorating a method with the property object:
+The final line is an expected result, not a claim that your machine has run the tests. Run the command to verify in your environment. A local execution record for this generated lesson is maintained separately in the private verification report, not in this learning file.
+
+## 14. Graduated exercises
+
+Attempt each exercise before reading its solution. Each solution is independently runnable.
+
+### Exercise 1 — a validated `Person.age`
+
+Create a class with a public `age` property. Accept non-negative integers, reject booleans and other types with `TypeError`, and reject negative values with `ValueError`. Ensure constructor validation uses the setter.
+
+**Solution:**
 
 ```python
-class Account:
-    def __init__(self, balance: int) -> None:
-        self.balance = balance
+class Person:
+    def __init__(self, age: int) -> None:
+        self.age = age
 
     @property
-    def balance(self) -> int:
-        return self._balance
+    def age(self) -> int:
+        return self._age
 
-    @balance.setter
-    def balance(self, value: int) -> None:
-        if not isinstance(value, int) or isinstance(value, bool):
-            raise TypeError("balance must be an integer")
+    @age.setter
+    def age(self, value: int) -> None:
+        if isinstance(value, bool) or not isinstance(value, int):
+            raise TypeError("age must be an integer")
         if value < 0:
-            raise ValueError("balance cannot be negative")
-        self._balance = value
+            raise ValueError("age cannot be negative")
+        self._age = value
 
-account = Account(100)
-account.balance = 125
-assert account.balance == 125
+person = Person(21)
+print(person.age)
 ```
 
-The setter protects the invariant regardless of whether the caller is `__init__`, another method, or external code.
+Output: `21`.
 
-### 4.3 The deleter
+### Exercise 2 — cached report total
 
-A deleter controls `del obj.attribute`:
+Implement a cached total for a report, then show that changing source rows does not change the cached value until the cache is invalidated.
 
-```python
-class OptionalLabel:
-    def __init__(self, label: str | None) -> None:
-        self.label = label
-
-    @property
-    def label(self) -> str | None:
-        return self._label
-
-    @label.setter
-    def label(self, value: str | None) -> None:
-        if value is not None and not isinstance(value, str):
-            raise TypeError("label must be a string or None")
-        self._label = value
-
-    @label.deleter
-    def label(self) -> None:
-        self._label = None
-
-item = OptionalLabel("priority")
-del item.label
-assert item.label is None
-```
-
-Deletion does not have to remove the backing attribute. Here, it resets the state. Choose semantics that are clear and document them. If deletion would violate an invariant, omit the deleter or raise an appropriate exception.
-
-### 4.4 Read-only properties and `AttributeError`
-
-A property with no setter is read-only through normal assignment:
-
-```python
-class Batch:
-    def __init__(self, rows: list[dict[str, object]]) -> None:
-        self._rows = list(rows)
-
-    @property
-    def row_count(self) -> int:
-        return len(self._rows)
-
-batch = Batch([{"id": 1}, {"id": 2}])
-assert batch.row_count == 2
-
-try:
-    batch.row_count = 10
-except AttributeError:
-    pass
-else:
-    raise AssertionError("assignment should fail")
-```
-
-The caller cannot normally assign to `row_count`; Python raises `AttributeError`. This does not make the entire object immutable, and it does not prevent a caller from mutating `_rows` if that internal field is deliberately exposed.
-
----
-
-## 5. Naming and API design: properties versus methods
-
-Use conventional names:
-- `value` — public property;
-- `_value` — internal backing state;
-- `value` in the setter — incoming value;
-- `compute_value()` or `refresh()` — explicit action.
-
-Python usually does not need Java-style `get_value()` and `set_value()` wrappers for ordinary attributes. A property supports a natural interface and can later add validation without changing call sites.
-
-### Prefer a property when
-
-- access is cheap and predictable;
-- the result represents a current attribute of the object;
-- the operation has no surprising external side effects;
-- a read-only or validated attribute is useful.
-
-### Prefer a method when
-
-- computation is expensive or may block;
-- the operation performs network, filesystem, database, or other I/O;
-- the caller should know an action is happening;
-- parameters are needed;
-- the operation may change state or require explicit refresh behavior.
-
-For example, `report.total` can be reasonable if it is a cheap in-memory calculation. `report.load_from_warehouse()` is clearer than hiding a database query inside `report.total`.
-
----
-
-## 6. Validation and invariants
-
-An **invariant** is a condition that must remain true for every valid object state. Examples:
-- a temperature cannot be below absolute zero;
-- a retry count cannot be negative;
-- a batch identifier must be non-empty;
-- a date range must have `start <= end`.
-
-Put validation at the boundary that owns the invariant. A setter is useful when callers are allowed to update the value after construction.
-
-```python
-class RetryPolicy:
-    def __init__(self, max_attempts: int) -> None:
-        self.max_attempts = max_attempts
-
-    @property
-    def max_attempts(self) -> int:
-        return self._max_attempts
-
-    @max_attempts.setter
-    def max_attempts(self, value: int) -> None:
-        if not isinstance(value, int) or isinstance(value, bool):
-            raise TypeError("max_attempts must be an integer")
-        if value < 1:
-            raise ValueError("max_attempts must be at least 1")
-        self._max_attempts = value
-
-policy = RetryPolicy(3)
-policy.max_attempts = 5
-assert policy.max_attempts == 5
-```
-
-### Why not validate only in `__init__`?
-
-Because later assignment can bypass the rule if the public attribute is unguarded. The property centralizes the rule and makes it apply consistently.
-
-### Validation should be specific
-
-Prefer clear exceptions:
-- `TypeError` when the kind of value is inappropriate;
-- `ValueError` when the value has the right general kind but is outside the allowed domain.
-
-Do not silently coerce values unless coercion is part of the documented contract. For example, silently converting `"10"` to `10` can conceal upstream schema problems in a data pipeline.
-
----
-
-## 7. Common property bugs
-
-### 7.1 Infinite recursion in a setter
-
-**Incorrect:**
-
-```python
-class Broken:
-    @property
-    def value(self) -> int:
-        return self.value
-
-    @value.setter
-    def value(self, new_value: int) -> None:
-        self.value = new_value
-```
-
-Both methods access the public property again, so the getter or setter calls itself recursively until Python raises `RecursionError`.
-
-**Correct:** store in a separate backing attribute:
-
-```python
-class Correct:
-    def __init__(self, value: int) -> None:
-        self.value = value
-
-    @property
-    def value(self) -> int:
-        return self._value
-
-    @value.setter
-    def value(self, new_value: int) -> None:
-        self._value = new_value
-
-obj = Correct(7)
-assert obj.value == 7
-obj.value = 8
-assert obj.value == 8
-```
-
-### 7.2 Bypassing the setter during initialization
-
-This skips validation:
-
-```python
-class UnsafeTemperature:
-    def __init__(self, celsius: float) -> None:
-        self._celsius = celsius  # direct write bypasses property validation
-```
-
-Use `self.celsius = celsius` when the setter is responsible for enforcing the invariant.
-
-### 7.3 Exposing mutable internal state
-
-A read-only property does not make the returned object read-only:
-
-```python
-class Tags:
-    def __init__(self, tags: list[str]) -> None:
-        self._tags = list(tags)
-
-    @property
-    def tags(self) -> list[str]:
-        return self._tags
-
-tags = Tags(["bronze"])
-tags.tags.append("unvalidated")
-assert tags.tags == ["bronze", "unvalidated"]
-```
-
-If callers must not mutate the internal collection, return an immutable view or copy, such as a tuple:
-
-```python
-class SafeTags:
-    def __init__(self, tags: list[str]) -> None:
-        self._tags = list(tags)
-
-    @property
-    def tags(self) -> tuple[str, ...]:
-        return tuple(self._tags)
-
-safe_tags = SafeTags(["bronze"])
-assert safe_tags.tags == ("bronze",)
-```
-
-The tuple protects the container structure, though it would not make mutable objects inside that tuple immutable.
-
----
-
-## 8. `functools.cached_property`
-
-A normal property recomputes on every access. `functools.cached_property` computes on first access and stores the result on the instance. It is useful when a calculation is expensive, depends on stable instance state, and is read repeatedly.
+**Solution:**
 
 ```python
 from functools import cached_property
 
 class Report:
-    def __init__(self, rows: list[dict[str, int]]) -> None:
+    def __init__(self, rows: list[float]) -> None:
         self.rows = list(rows)
-        self.computation_count = 0
 
     @cached_property
-    def total(self) -> int:
-        self.computation_count += 1
-        return sum(row["amount"] for row in self.rows)
+    def total(self) -> float:
+        return sum(self.rows)
 
-report = Report([{"amount": 10}, {"amount": 20}])
-assert report.total == 30
-assert report.total == 30
-assert report.computation_count == 1
+report = Report([1.0, 2.0])
+print(report.total)
+report.rows.append(5.0)
+print(report.total)  # stale cache by design
+del report.total
+print(report.total)  # recomputed after invalidation
 ```
 
-The value is calculated once on first access, then the result is stored in the instance dictionary under the property name. In this example, `report.total` is later resolved from the instance dictionary rather than recomputing the descriptor.
+Expected output:
 
-### 8.1 The `__dict__` requirement
-
-`cached_property` requires an instance `__dict__` that it can write into. A class using `__slots__` without a `__dict__` slot cannot use it normally.
-
-```python
-from functools import cached_property
-
-class Slotted:
-    __slots__ = ("x",)
-
-    def __init__(self, x: int) -> None:
-        self.x = x
-
-    @cached_property
-    def doubled(self) -> int:
-        return self.x * 2
-
-# Accessing Slotted(3).doubled raises TypeError because there is no instance __dict__.
+```text
+3.0
+3.0
+8.0
 ```
 
-A class can include `"__dict__"` in `__slots__`, but that allows an instance dictionary and reduces some of the memory benefit of slots. Alternatively, use a regular `@property`, a dedicated cache field, or another cache design.
+The cache is intentionally stale after mutating `rows`; `del report.total` invalidates it, so the next access returns `8.0`. In production, prefer encapsulating mutation and invalidation rather than asking callers to remember it.
 
-### 8.2 Cache invalidation
+### Exercise 3 — override a getter and extend a setter
 
-A cached value is correct only while its dependencies remain unchanged. If the underlying rows change, `total` may become stale.
+Use a base `name` property, a subclass that displays the name in uppercase, and a different subclass that adds a validating setter while retaining the base getter. Refer to Section 7 and add tests for empty input.
 
-One option is to make source data immutable. Another is to invalidate the cached attribute whenever dependencies are changed:
+### Exercise 4 — choose property or method
 
-```python
-from functools import cached_property
+For each case, choose a property or method and explain why: (a) rectangle area from in-memory dimensions, (b) downloading a remote schema, (c) a cached count of local rows, (d) refreshing a remote token. Prefer properties for (a); (b) and (d) should normally be methods; (c) depends on cost, freshness, and whether cache invalidation is reliable.
 
-class MutableReport:
-    def __init__(self, amounts: list[int]) -> None:
-        self._amounts = list(amounts)
+## 15. Roadmap self-check — answers
 
-    @property
-    def amounts(self) -> tuple[int, ...]:
-        return tuple(self._amounts)
+1. **Why must `__init__` assign through the property rather than `_celsius`?** So constructor input follows the same validation and normalization rules as subsequent assignments. Directly writing `_celsius` bypasses the setter and can create invalid instances.
+2. **What does `cached_property` store and where?** It computes the getter's result on first access and stores it as an entry under the property name in the instance's writable `__dict__`. Later accesses use that entry until it is deleted or otherwise changed.
+3. **When is a method better than a property?** When access performs I/O, has side effects, is expensive or failure-prone, needs parameters, or represents an explicit action such as refreshing, fetching, or recomputing. Attribute syntax should not conceal a surprising operation.
 
-    def add_amount(self, amount: int) -> None:
-        self._amounts.append(amount)
-        self.__dict__.pop("total", None)
+## 16. Final engineering checklist
 
-    @cached_property
-    def total(self) -> int:
-        return sum(self._amounts)
+- [ ] Public attribute names and private-by-convention backing fields are distinct.
+- [ ] Setter validation uses deliberate `TypeError` and `ValueError` semantics.
+- [ ] `__init__` routes values through the public property when validation is required.
+- [ ] Read-only properties reject assignment and deletion as intended.
+- [ ] Computed properties remain correct when dependencies change.
+- [ ] Cached properties have documented dependencies, invalidation, memory, and concurrency behavior.
+- [ ] `cached_property` is used only when instances have a writable `__dict__` (or an explicit `__dict__` slot).
+- [ ] No code depends on the pre-3.12 `cached_property` lock.
+- [ ] Dataclass fields do not collide with property names; frozen semantics are understood.
+- [ ] Inheritance preserves the intended getter and setter behavior, and both are covered by tests.
+- [ ] A property is chosen over a method only when attribute syntax communicates cost and side effects honestly.
+- [ ] Tests cover valid access, writes, invalid values, computed results, read-only behavior, cache invalidation, getter overriding, and inherited-property setter extension.
+- [ ] Python 3.11+ `Self` usage and the Python 3.13 class-level-property compatibility change are understood.
 
-report = MutableReport([4, 6])
-assert report.total == 10
-report.add_amount(5)
-assert report.total == 15
-```
+## Summary
 
-All mutation paths must invalidate the cache. If callers can mutate a list directly, or if the cached result depends on external state that changes independently, invalidation becomes harder. Consider an explicit refresh method, immutable input, a versioned cache, or no cache.
-
-### 8.3 Concurrency and Python 3.12+
-
-Do not assume `cached_property` guarantees exactly-once computation under concurrent access. In Python 3.12, the undocumented per-property lock that existed in earlier versions was removed. Concurrent first access can therefore cause the getter to run more than once; the eventual stored value is one of the computed results.
-
-If duplicate computation is harmless, this can be acceptable. If the calculation has side effects or must run exactly once, add explicit synchronization or redesign it. A property getter should generally be free of side effects.
-
-### 8.4 Cache mutable results carefully
-
-A cached list or dictionary is shared by every caller accessing that same instance property. If one caller mutates it, future callers see the mutation. Prefer immutable cached values or return a copy when callers should not alter the cached result.
-
----
-
-## 9. `property` is a descriptor
-
-A descriptor is an object that customizes attribute access by implementing methods such as `__get__`, `__set__`, or `__delete__`. The `property` built-in is a data descriptor.
-
-You do not need to implement a descriptor to use properties, but understanding the relationship explains why a property can intercept reads and writes even though it is declared on the class.
-
-```python
-class Example:
-    @property
-    def value(self) -> int:
-        return 42
-
-assert isinstance(vars(Example)["value"], property)
-assert Example().value == 42
-```
-
-Conceptually:
-- the property object is stored on the class;
-- accessing `instance.value` invokes the property's getter;
-- assigning `instance.value = x` invokes the setter if one exists;
-- without a setter, ordinary assignment raises `AttributeError`.
-
-A property is a data descriptor even when no setter is defined, so an instance attribute with the same name does not simply override its getter through normal attribute lookup.
-
-### 9.1 Explicit construction
-
-The decorator form is syntax for building a property object. The explicit constructor is:
-
-```python
-property(fget=None, fset=None, fdel=None, doc=None)
-```
-
-In everyday code, prefer `@property`, `@name.setter`, and `@name.deleter` because they are easier to read. The explicit constructor is useful for understanding the model or constructing properties dynamically.
-
-### 9.2 Properties versus `__getattr__` and custom descriptors
-
-Use:
-- `@property` for behavior tied to a specific named attribute;
-- `__getattr__` when providing fallback behavior for attributes that were not found;
-- a custom descriptor when reusable attribute behavior is needed across many fields or classes, such as a reusable validation field.
-
-Custom descriptors are covered more deeply in the next lesson, **06 — Descriptors and Attribute Lookup Order**.
-
----
-
-## 10. Inheritance and property overrides
-
-A subclass can override a property getter. To extend or replace a setter while retaining the base property's behavior, use `@BaseClass.property_name.setter`.
-
-```python
-class BaseConfig:
-    def __init__(self, name: str) -> None:
-        self.name = name
-
-    @property
-    def name(self) -> str:
-        return self._name
-
-    @name.setter
-    def name(self, value: str) -> None:
-        value = value.strip()
-        if not value:
-            raise ValueError("name cannot be empty")
-        self._name = value
-
-
-class UppercaseConfig(BaseConfig):
-    @BaseConfig.name.setter
-    def name(self, value: str) -> None:
-        BaseConfig.name.fset(self, value.upper())
-
-
-config = UppercaseConfig("  orders  ")
-assert config.name == "ORDERS"
-```
-
-This example deliberately reuses the base setter's validation and storage behavior. Another design is to override the getter only, but be careful: defining a new property in a subclass can replace the inherited property object, including its setter. Use an explicit pattern and test both reads and writes.
-
----
-
-## 11. Dataclasses and properties
-
-Dataclasses generate an initializer that assigns to fields. That is convenient, but combining a dataclass field and a property with the same name can create surprising initialization behavior.
-
-### Safer pattern: separate storage field and public property
-
-```python
-from dataclasses import dataclass
-
-@dataclass
-class PortConfig:
-    _port: int
-
-    def __post_init__(self) -> None:
-        self.port = self._port
-
-    @property
-    def port(self) -> int:
-        return self._port
-
-    @port.setter
-    def port(self, value: int) -> None:
-        if not isinstance(value, int) or isinstance(value, bool):
-            raise TypeError("port must be an integer")
-        if not 1 <= value <= 65535:
-            raise ValueError("port must be between 1 and 65535")
-        self._port = value
-
-config = PortConfig(5432)
-assert config.port == 5432
-```
-
-This works, but note that the generated constructor parameter is `_port`, not `port`. For a public constructor argument named `port`, consider a regular class, a custom `__init__`, or a deliberate dataclass design with `InitVar`. Do not use a same-name field/property pattern without verifying how the generated initializer behaves.
-
-### Frozen dataclasses
-
-A frozen dataclass is useful for immutable value objects. A property can expose a derived value from frozen fields without caching it:
-
-```python
-from dataclasses import dataclass
-
-@dataclass(frozen=True)
-class Dimensions:
-    width: float
-    height: float
-
-    @property
-    def area(self) -> float:
-        return self.width * self.height
-
-dimensions = Dimensions(3.0, 5.0)
-assert dimensions.area == 15.0
-```
-
-Frozen dataclasses prevent normal field reassignment but do not recursively freeze mutable objects stored in fields. Prefer immutable field values when immutability is important.
-
-### `NamedTuple` and frozen classes
-
-Named tuples are immutable tuple-like records. They can expose properties for derived values, but cannot normally cache by assigning to an instance dictionary. For immutable records, ordinary computed properties are often the simplest option.
-
----
-
-## 12. Typing properties
-
-Type annotations communicate the getter's result and setter's accepted value. Keep the public API consistent with actual runtime behavior.
-
-```python
-from typing import Protocol
-
-class HasRowCount(Protocol):
-    @property
-    def row_count(self) -> int:
-        ...
-
-class InMemoryBatch:
-    def __init__(self, rows: list[object]) -> None:
-        self._rows = list(rows)
-
-    @property
-    def row_count(self) -> int:
-        return len(self._rows)
-
-def summarize(batch: HasRowCount) -> str:
-    return f"{batch.row_count} rows"
-
-assert summarize(InMemoryBatch([1, 2, 3])) == "3 rows"
-```
-
-A protocol can specify a read-only property, allowing different implementations to satisfy the interface without inheriting from a shared base class.
-
-`Self` from `typing` is useful in fluent APIs and methods that return the current instance, but is not usually needed for a basic property. Avoid overcomplicating types when a straightforward return annotation is sufficient.
-
----
-
-## 13. Class-level properties: version caution
-
-Do not use the `@classmethod` + `@property` combination as a portable class-level-property pattern. This combination was deprecated in Python 3.11 and removed in Python 3.13. For class-level computed attributes, use a dedicated descriptor or metaclass when the use case genuinely requires one; otherwise, a class method such as `Config.default_region()` may be clearer.
-
-This lesson targets Python 3.12+, so code that must run on both 3.12 and 3.13 should avoid relying on the deprecated combination.
-
----
-
-## 14. Lazy loading and external resources
-
-A property can defer work, but hiding external I/O behind attribute access can surprise users:
-
-```python
-class WarehouseReport:
-    @property
-    def total(self) -> int:
-        # Avoid this design if the body silently executes a slow database query.
-        raise NotImplementedError
-```
-
-The example is intentionally incomplete: it illustrates a design warning, not a runnable implementation. Prefer an explicit method such as `load_total()` or `refresh()` when database/network access is involved. A method tells the caller that work may happen and gives a natural place for parameters, retries, timeouts, and errors.
-
-For lazy-loaded ORM attributes, be aware that access may trigger a database query. Document that behavior and consider whether the caller can predict the cost.
-
----
-
-## 15. Performance and design trade-offs
-
-- A normal property runs its getter on each access. Keep cheap computed properties simple.
-- `cached_property` stores data in the instance dictionary and can increase per-instance memory use.
-- Cache invalidation creates complexity; a stale answer can be worse than a slower calculation.
-- A getter with side effects makes attribute reads surprising and difficult to reason about.
-- Returning a copy from a property can protect internal state but costs time and memory.
-- If a property performs a database query, file read, network call, or heavy computation, consider a method with an explicit name.
-- Profile real workloads before optimizing. Do not add caching just because a calculation might be expensive.
-
----
-
-## 16. Production example: validated data-pipeline configuration
-
-The following example combines validation, a computed property, and a clear API boundary:
-
-```python
-class PipelineConfig:
-    def __init__(self, batch_size: int, max_retries: int) -> None:
-        self.batch_size = batch_size
-        self.max_retries = max_retries
-
-    @property
-    def batch_size(self) -> int:
-        return self._batch_size
-
-    @batch_size.setter
-    def batch_size(self, value: int) -> None:
-        if not isinstance(value, int) or isinstance(value, bool):
-            raise TypeError("batch_size must be an integer")
-        if value < 1:
-            raise ValueError("batch_size must be at least 1")
-        self._batch_size = value
-
-    @property
-    def max_retries(self) -> int:
-        return self._max_retries
-
-    @max_retries.setter
-    def max_retries(self, value: int) -> None:
-        if not isinstance(value, int) or isinstance(value, bool):
-            raise TypeError("max_retries must be an integer")
-        if value < 0:
-            raise ValueError("max_retries cannot be negative")
-        self._max_retries = value
-
-    @property
-    def max_attempts(self) -> int:
-        return self.max_retries + 1
-
-config = PipelineConfig(batch_size=500, max_retries=3)
-assert config.max_attempts == 4
-config.max_retries = 5
-assert config.max_attempts == 6
-```
-
-The `max_attempts` property is derived from `max_retries`; it cannot become stale because it is recomputed. The setters enforce the same rules during initialization and later updates.
-
-For production systems, consider whether configuration should be immutable after construction. An immutable configuration object can reduce accidental runtime changes and simplify concurrency reasoning.
-
----
-
-## 17. Testing properties correctly
-
-Test through the public interface. A caller should not need to know the backing attribute name.
-
-A useful test suite includes:
-- valid initialization;
-- valid reassignment;
-- invalid type;
-- invalid domain value;
-- read-only assignment;
-- computed value after dependency changes;
-- cache reuse and invalidation, if caching is part of the contract.
-
-Example pytest tests:
-
-```python
-import pytest
-
-def test_temperature_validation_and_computed_value():
-    temperature = Temperature(0)
-    assert temperature.fahrenheit == 32
-    temperature.celsius = 100
-    assert temperature.fahrenheit == 212
-
-def test_temperature_rejects_below_absolute_zero():
-    with pytest.raises(ValueError):
-        Temperature(-300)
-
-def test_temperature_rejects_wrong_type():
-    with pytest.raises(TypeError):
-        Temperature("warm")  # type: ignore[arg-type]
-
-def test_read_only_property_rejects_assignment():
-    batch = Batch([{"id": 1}])
-    with pytest.raises(AttributeError):
-        batch.row_count = 10  # type: ignore[misc]
-
-def test_cached_total_is_computed_once():
-    report = Report([{"amount": 2}, {"amount": 3}])
-    assert report.total == 5
-    assert report.total == 5
-    assert report.computation_count == 1
-
-def test_cached_total_is_invalidated_after_mutation():
-    report = MutableReport([2, 3])
-    assert report.total == 5
-    report.add_amount(4)
-    assert report.total == 9
-```
-
-Place these tests in a test file that imports the corresponding classes from the lesson's module. If the lesson is copied as a standalone Markdown file, first extract the relevant class definitions into a Python module or adapt the tests to the code layout in your project.
-
----
-
-## 18. Exercises
-
-Try these before reading the solutions.
-
-### Exercise 1 — validated percentage
-
-Create a `Percentage` class with a writable `value` property. Accept numbers from 0 through 100 and reject values outside the range. Decide how booleans should be treated.
-
-### Exercise 2 — computed duration
-
-Create a `JobRun` class that stores `started_at_seconds` and `finished_at_seconds`. Expose a read-only `duration_seconds` property. Validate that the finish time is not before the start time.
-
-### Exercise 3 — cache invalidation
-
-Extend `MutableReport` so a method can replace all amounts. Ensure `total` is correct after replacement.
-
-### Exercise 4 — read-only collection
-
-Create a class that stores a list of column names but exposes them as a tuple through a property. Explain why returning the internal list would weaken encapsulation.
-
-### Exercise 5 — property or method?
-
-For each operation, choose a property or method and explain why:
-1. Return a stored job identifier.
-2. Compute the number of rows in an in-memory list.
-3. Query a remote warehouse for the latest row count.
-4. Rebuild a materialized report.
-
-### Exercise 6 — inheritance
-
-Create a base `Config` with a property that strips whitespace and rejects an empty string. Create a subclass that stores the accepted name in uppercase while retaining the base validation.
-
-### Exercise 7 — stale cache analysis
-
-A `cached_property` sums values in `self.rows`, where `rows` is a public list. Identify two ways the cached result could become stale and propose a safer design.
-
-### Exercise 8 — dataclass design
-
-Create a frozen dataclass `Rectangle` with `width` and `height` and a computed `area` property. Explain why no cache is needed for this inexpensive calculation.
-
----
-
-## 19. Exercise solutions
-
-### Solution 1
-
-```python
-class Percentage:
-    def __init__(self, value: int | float) -> None:
-        self.value = value
-
-    @property
-    def value(self) -> float:
-        return self._value
-
-    @value.setter
-    def value(self, value: int | float) -> None:
-        if isinstance(value, bool) or not isinstance(value, (int, float)):
-            raise TypeError("value must be a number, not bool")
-        if not 0 <= value <= 100:
-            raise ValueError("value must be between 0 and 100")
-        self._value = float(value)
-
-percentage = Percentage(75)
-assert percentage.value == 75.0
-```
-
-### Solution 2
-
-```python
-class JobRun:
-    def __init__(self, started_at_seconds: float, finished_at_seconds: float) -> None:
-        if finished_at_seconds < started_at_seconds:
-            raise ValueError("finish time cannot precede start time")
-        self._started = started_at_seconds
-        self._finished = finished_at_seconds
-
-    @property
-    def duration_seconds(self) -> float:
-        return self._finished - self._started
-
-run = JobRun(10.0, 17.5)
-assert run.duration_seconds == 7.5
-```
-
-### Solution 3
-
-```python
-from functools import cached_property
-
-class ReplaceableReport:
-    def __init__(self, amounts: list[int]) -> None:
-        self._amounts = list(amounts)
-
-    def replace_amounts(self, amounts: list[int]) -> None:
-        self._amounts = list(amounts)
-        self.__dict__.pop("total", None)
-
-    @cached_property
-    def total(self) -> int:
-        return sum(self._amounts)
-
-report = ReplaceableReport([1, 2])
-assert report.total == 3
-report.replace_amounts([10, 20])
-assert report.total == 30
-```
-
-### Solution 4
-
-```python
-class Schema:
-    def __init__(self, columns: list[str]) -> None:
-        self._columns = list(columns)
-
-    @property
-    def columns(self) -> tuple[str, ...]:
-        return tuple(self._columns)
-
-schema = Schema(["id", "created_at"])
-assert schema.columns == ("id", "created_at")
-```
-
-Returning the internal list would let callers append, remove, or replace names without going through the class's intended validation or cache invalidation.
-
-### Solution 5
-
-1. **Property:** a stored identifier is a simple attribute.
-2. **Property:** counting an in-memory list is cheap and predictable.
-3. **Method:** the remote query may block, fail, incur cost, and need timeout/retry behavior.
-4. **Method:** rebuilding is an explicit action with side effects and likely nontrivial cost.
-
-### Solution 6
-
-```python
-class Config:
-    def __init__(self, name: str) -> None:
-        self.name = name
-
-    @property
-    def name(self) -> str:
-        return self._name
-
-    @name.setter
-    def name(self, value: str) -> None:
-        value = value.strip()
-        if not value:
-            raise ValueError("name cannot be empty")
-        self._name = value
-
-class UpperConfig(Config):
-    @Config.name.setter
-    def name(self, value: str) -> None:
-        Config.name.fset(self, value.upper())
-
-config = UpperConfig("  analytics ")
-assert config.name == "ANALYTICS"
-```
-
-### Solution 7
-
-The cached total can become stale if a caller appends directly to `self.rows`, or if another method replaces or mutates the list without invalidating the cache. Safer designs include immutable input (such as a tuple), encapsulating all mutations behind methods that invalidate the cache, or computing the total with a normal property if the calculation is cheap enough.
-
-### Solution 8
-
-```python
-from dataclasses import dataclass
-
-@dataclass(frozen=True)
-class Rectangle:
-    width: float
-    height: float
-
-    @property
-    def area(self) -> float:
-        return self.width * self.height
-
-rectangle = Rectangle(4, 6)
-assert rectangle.area == 24
-```
-
-The calculation is inexpensive, and the fields are immutable under normal assignment. A cache would add complexity and memory overhead without a meaningful benefit.
-
----
-
-## 20. Self-check
-
-Answer these without looking back, then compare with the key.
-
-1. Why should `__init__` assign through `self.celsius` rather than directly to `self._celsius`?
-2. What does `cached_property` store, and where?
-3. Why does `cached_property` not work normally on a slotted class without `__dict__`?
-4. When is a method better than a property?
-5. What error does assignment to a read-only property normally raise?
-6. Why can a cached result become stale?
-7. What does it mean that `property` is a data descriptor?
-8. Why can a same-name dataclass field/property combination be surprising?
-9. What changed for `cached_property` concurrency in Python 3.12?
-10. Why is `@classmethod` + `@property` not a portable class-level-property pattern on Python 3.12+?
-
-### Answer key
-
-1. To route initialization through the setter and enforce the invariant consistently.
-2. It computes the value once on first access and stores it in the instance dictionary under the property name.
-3. It needs a writable instance dictionary to store the cached result.
-4. When the operation is expensive, performs I/O, has side effects, needs parameters, or should be explicit to the caller.
-5. `AttributeError`.
-6. A dependency may change after the first calculation while the cached result remains stored.
-7. It participates in attribute access through descriptor methods and takes precedence over a same-name instance attribute for normal lookup.
-8. The generated initializer assigns fields; the property can intercept or change the expected initialization semantics.
-9. The undocumented per-property lock was removed; concurrent first access may compute more than once.
-10. It was deprecated in Python 3.11 and removed in Python 3.13; use a dedicated descriptor, metaclass, or clearer class method.
-
----
-
-## 21. Common mistakes checklist
-
-- [ ] Writing `self.value = value` inside the `value` setter, causing recursion.
-- [ ] Bypassing the setter in `__init__` and skipping validation.
-- [ ] Returning a mutable internal list while assuming a read-only property makes it immutable.
-- [ ] Caching a result without identifying all of its dependencies.
-- [ ] Forgetting to invalidate cached values after mutation.
-- [ ] Using `cached_property` on a class with no instance dictionary.
-- [ ] Assuming concurrent access guarantees exactly-once computation.
-- [ ] Hiding network/database I/O in an innocent-looking property.
-- [ ] Using a dataclass field and same-name property without checking generated initialization.
-- [ ] Using deprecated or removed class-level-property patterns.
-- [ ] Adding properties where a plain attribute would be simpler.
-
----
-
-## 22. Readiness checklist
-
-You are ready to move on when you can do all of the following without copying the examples:
-
-- [ ] Explain when a plain attribute is preferable to a property.
-- [ ] Write a property with a getter, setter, and optional deleter.
-- [ ] Validate values in one place and preserve invariants during initialization and later assignment.
-- [ ] Implement a read-only computed attribute.
-- [ ] Explain why property setters can recurse and how backing attributes avoid that.
-- [ ] Explain how `cached_property` stores results and why invalidation matters.
-- [ ] Describe the `__dict__` and `__slots__` interaction.
-- [ ] Explain why properties are descriptors and distinguish them from `__getattr__`.
-- [ ] Choose a method over a property when work is expensive or has side effects.
-- [ ] Test public property behavior for both success and failure cases.
-
----
-
-## 23. Key takeaways
-
-1. A property gives an attribute a controlled interface without changing how callers access it.
-2. Put validation in the setter when the class owns the invariant, and assign through that setter during initialization.
-3. A read-only property prevents normal reassignment of the attribute; it does not automatically make returned mutable objects immutable.
-4. `cached_property` is a trade-off: faster repeated access at the cost of memory, invalidation complexity, and possible duplicate computation under concurrency.
-5. Properties are descriptors. Reusable attribute behavior may call for a custom descriptor, covered in the next lesson.
-6. Keep properties cheap and predictable. Use methods for explicit actions, expensive work, and I/O.
-
-**Next lesson:** `06-descriptors-and-attribute-lookup-order.md`.
+Properties preserve an attribute-style API while adding validation, computation, or controlled mutation. Use a distinct backing field and avoid recursive setters. Use `cached_property` only when caching is worth the memory and freshness complexity; invalidate it whenever dependencies change, and remember that Python 3.12 removed its former per-property lock. Keep properties predictable, test public behavior, and use methods when an operation is expensive or has side effects.

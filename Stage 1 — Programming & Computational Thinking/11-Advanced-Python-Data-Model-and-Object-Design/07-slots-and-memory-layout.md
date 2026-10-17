@@ -1,154 +1,249 @@
-# Lesson 07 — `__slots__` and Memory Layout
+# Lesson 07 — Slots and Memory Layout
 
-**Stage 1 — Programming & Computational Thinking**  
-**Module 11 — Advanced Python Data Model and Object Design**  
-**Target version:** Python 3.12+  
-**Level:** Beginner → intermediate → advanced
+> **Module 11 — Advanced Python Data Model and Object Design**  
+> **Target:** Python 3.12+ (CPython implementation details are labelled explicitly)  
+> **Primary use case:** deciding whether `__slots__` is justified for large populations of small objects.
 
-> **Roadmap alignment:** This lesson follows Lesson 07 in `roadmap-Advanced-Python-Data-Model-and-Object-Design.md`. It covers ordinary instance dictionaries and weak-reference support; `__slots__`; memory measurement with `sys.getsizeof` and `tracemalloc`; inheritance and multiple-inheritance layout constraints; opting back into `__dict__` and `__weakref__`; slot defaults; `dataclass(slots=True)`; `cached_property`; pickling; CPython object layout, key-sharing dictionaries and inline values; slot member descriptors; when not to use slots; and compact data alternatives. Supplemental explanations are identified where helpful.
+## Learning objectives
 
----
+After this lesson, you should be able to:
 
-## 1. Learning outcomes
+- Explain the conventional instance dictionary model and what `__slots__` changes.
+- Declare, initialize, read, and assign slot attributes correctly.
+- Distinguish shallow object size from the retained memory of an object graph.
+- Compare ordinary and slotted instances using `sys.getsizeof` and `tracemalloc` without inventing universal savings.
+- Explain dynamic-attribute restrictions, the `__dict__` and `__weakref__` opt-ins, and slot member descriptors.
+- Predict how slots interact with inheritance, unslotted bases, duplicate names, and multiple inheritance.
+- Recognize implications for `cached_property`, properties, pickling, weak references, and dataclasses.
+- Decide when ordinary classes, slotted classes, `dataclass(slots=True)`, `NamedTuple`, arrays, or columnar storage fit the workload.
+- Avoid common slot mistakes and answer the roadmap self-check questions.
 
-By the end of this lesson, you should be able to:
+## Prerequisites
 
-1. Explain how normal Python instances store attributes and why `__slots__` changes that model.
-2. Declare slots and predict which assignments are allowed.
-3. Measure memory responsibly, distinguishing shallow object size from total traced allocations.
-4. Explain slot inheritance behavior and common layout conflicts.
-5. Add `__dict__` or `__weakref__` support when a class needs it.
-6. Avoid slot defaults that conflict with the slot descriptor.
-7. Use `dataclass(slots=True)` and understand that it creates a new class.
-8. Recognize compatibility issues with `cached_property`, weak references, and pickling.
-9. Explain the broad CPython memory model without assuming implementation details are universal.
-10. Decide when slots are appropriate and when arrays or columnar storage are better for data workloads.
+You should know classes and instances, `__init__`, instance and class attributes, inheritance, properties and descriptors, exceptions, and basic profiling. You do not need to know CPython C internals; those details are introduced only to explain why measurement varies.
 
----
-
-## 2. The normal instance model
+## 1. Mental model: an instance is not just its fields
 
 Consider a typical class:
 
 ```python
-class Job:
-    def __init__(self, job_id: str, state: str) -> None:
-        self.job_id = job_id
-        self.state = state
+class Event:
+    def __init__(self, event_id: int, kind: str) -> None:
+        self.event_id = event_id
+        self.kind = kind
 
 
-job = Job("job-42", "queued")
-assert job.__dict__ == {"job_id": "job-42", "state": "queued"}
-job.priority = 3
-assert job.priority == 3
+event = Event(101, "created")
+print(event.event_id, event.kind)
+print(event.__dict__)
 ```
 
-For an ordinary user-defined class, instance attributes are usually stored in an instance dictionary, accessible as `obj.__dict__`. That dictionary supports flexible, dynamic attributes: code can add new names after construction.
+Expected output:
 
-Depending on the class and implementation, an ordinary instance may also support weak references. Weak references allow another object to refer to an instance without keeping that instance alive solely through the reference.
+```text
+101 created
+{'event_id': 101, 'kind': 'created'}
+```
 
-The flexibility has a cost: attribute names and values need storage, and each instance's dictionary has overhead. The exact overhead depends on Python implementation and version.
+For a typical user-defined class with no slots, each instance can carry an instance dictionary, accessible through `obj.__dict__`. That dictionary maps attribute names to values. The values themselves are references to Python objects; the dictionary does not inline the integer or string payloads.
 
----
+The usual mental model is:
 
-## 3. What `__slots__` changes
+```text
+Event class
+  ├── methods and class attributes
+  └── instance layout policy
+          |
+          v
+event instance
+  ├── object/runtime bookkeeping
+  ├── instance dictionary ──> "event_id" ──> integer object
+  │                         └─ "kind" ─────> string object
+  └── possibly weak-reference support
+```
 
-`__slots__` declares a fixed set of instance attributes at class creation:
+This diagram is conceptual, not a byte-accurate CPython memory map. Exact layout depends on Python implementation, version, class shape, and allocator behavior.
+
+### Why instance dictionaries are useful
+
+They support flexible object shapes:
 
 ```python
-class SlottedJob:
-    __slots__ = ("job_id", "state")
-
-    def __init__(self, job_id: str, state: str) -> None:
-        self.job_id = job_id
-        self.state = state
+class Event:
+    def __init__(self, event_id: int, kind: str) -> None:
+        self.event_id = event_id
+        self.kind = kind
 
 
-job = SlottedJob("job-42", "queued")
-assert job.job_id == "job-42"
-assert job.state == "queued"
+event = Event(101, "created")
+event.source = "api"
+event.debug_note = "replayed"
+print(event.__dict__)
+```
 
+Expected output:
+
+```text
+{'event_id': 101, 'kind': 'created', 'source': 'api', 'debug_note': 'replayed'}
+```
+
+Dynamic attributes are convenient for debugging, monkeypatching, plugin systems, and evolving object models. The cost is that an instance dictionary has overhead beyond the object itself. For millions of objects with only a few stable fields, that overhead may become material.
+
+## 2. What `__slots__` changes
+
+Declaring `__slots__` tells Python to create descriptors for named attributes and reserve storage for them in the instance layout. For a class that has no instance dictionary through itself or its bases, this prevents arbitrary new instance attributes and usually avoids a per-instance dictionary.
+
+```python
+class EventSlot:
+    __slots__ = ("event_id", "kind")
+
+    def __init__(self, event_id: int, kind: str) -> None:
+        self.event_id = event_id
+        self.kind = kind
+
+
+event = EventSlot(101, "created")
+print(event.event_id, event.kind)
+print(hasattr(event, "__dict__"))
+```
+
+Expected output:
+
+```text
+101 created
+False
+```
+
+The slot names must be declared in `__slots__` before instances are created. A string is accepted as one slot name—even when it contains multiple characters; Python does not split it into one slot per character. A tuple is clearer and makes the intended collection of names explicit.
+
+```python
+class OneSlot:
+    __slots__ = ("value",)  # The trailing comma makes this a one-item tuple.
+```
+
+### Attribute restrictions
+
+```python
+class Point:
+    __slots__ = ("x", "y")
+
+    def __init__(self, x: float, y: float) -> None:
+        self.x = x
+        self.y = y
+
+
+point = Point(2.0, 4.0)
 try:
-    job.priority = 3
-except AttributeError:
-    pass
-else:
-    raise AssertionError("undeclared dynamic attributes should be rejected")
+    point.label = "origin"
+except AttributeError as exc:
+    print(type(exc).__name__)
 ```
 
-For a class that does not inherit an instance dictionary from a base class and does not include `"__dict__"` in its slots:
+Expected output:
 
-- the declared attributes have fixed slot storage;
-- arbitrary additional instance attributes are not allowed;
-- an ordinary instance `__dict__` is not provided;
-- a weak-reference slot is not provided unless `"__weakref__"` is included or inherited.
+```text
+AttributeError
+```
 
-Slots do **not** make Python a statically typed language. They constrain which instance attribute names can be stored; they do not automatically validate the values assigned to those names.
+This restriction is not a security boundary. Code can still mutate declared slots, and class-level behavior can be changed where Python permits it. Slots are a storage/layout choice, not access control.
 
-### 3.1 Slots do not validate types
+## 3. The descriptor mechanics behind slots
+
+A slot name is represented on the class by a built-in member descriptor. That descriptor maps normal attribute syntax such as `point.x` to the instance's reserved slot storage.
 
 ```python
-class SlottedCounter:
-    __slots__ = ("count",)
+class Coordinate:
+    __slots__ = ("x",)
 
-    def __init__(self, count) -> None:
-        self.count = count
+coordinate = Coordinate()
+coordinate.x = 7
 
-
-counter = SlottedCounter("not an integer")
-assert counter.count == "not an integer"
+print(coordinate.x)
+print(type(Coordinate.x).__name__)
+print(Coordinate.x)
 ```
 
-If type or value validation is required, implement it separately, for example with a property or descriptor.
+Expected output:
 
-### 3.2 Why memory may improve
+```text
+7
+member_descriptor
+<member 'x' of 'Coordinate' objects>
+```
 
-A conventional instance typically has an object header and attribute storage machinery. A slotted instance can avoid a separate per-instance dictionary and store declared attributes in fixed positions. This can reduce memory, particularly when many instances each have a small number of attributes.
+The last line is a representative CPython display of the member descriptor; descriptor representations are implementation-specific. The important invariant is that `Coordinate.x` is a descriptor, while `coordinate.x` is the value stored in that instance's slot.
 
-The benefit is not guaranteed to be large. Modern CPython has optimizations for ordinary instance dictionaries, and object sizes depend on the Python version, class shape, allocator behavior, and measurement method. Measure your workload rather than relying on a fixed percentage.
+This connects slots to the descriptor protocol covered in Lesson 06: attribute reads and writes are mediated by a class-level descriptor. A slot descriptor is not the same as a normal entry in `coordinate.__dict__`.
 
----
+Uninitialized slots raise `AttributeError` on read:
 
-## 4. First comparison: `sys.getsizeof`
+```python
+class Pair:
+    __slots__ = ("left", "right")
 
-The roadmap introduces a simple comparison:
+pair = Pair()
+try:
+    print(pair.left)
+except AttributeError as exc:
+    print(type(exc).__name__)
+```
+
+Expected output:
+
+```text
+AttributeError
+```
+
+## 4. Memory measurement: know what you are measuring
+
+There is no universal statement such as “slots save exactly N bytes per instance.” The result depends on interpreter version, number of fields, whether dictionaries are key-shared, object graph shape, allocator behavior, and the way the experiment is run.
+
+Use two tools for different questions:
+
+- `sys.getsizeof(obj)` reports the shallow size attributed to that object by the current implementation. It does **not** recursively count referenced values or the full object graph.
+- `tracemalloc` records Python memory allocations made after tracing starts. It can compare aggregate allocation deltas for a controlled experiment, but it is not a complete measurement of process RSS or every native allocation.
+
+### 4.1 Shallow size: ordinary versus slotted
 
 ```python
 import sys
 
 
 class PointDict:
-    def __init__(self, x, y):
-        self.x, self.y = x, y
+    def __init__(self, x: int, y: int) -> None:
+        self.x = x
+        self.y = y
 
 
 class PointSlots:
     __slots__ = ("x", "y")
 
-    def __init__(self, x, y):
-        self.x, self.y = x, y
+    def __init__(self, x: int, y: int) -> None:
+        self.x = x
+        self.y = y
 
 
-p = PointDict(1, 2)
-q = PointSlots(1, 2)
+ordinary = PointDict(1, 2)
+slotted = PointSlots(1, 2)
 
-print("normal instance plus its dict:", sys.getsizeof(p) + sys.getsizeof(p.__dict__))
-print("slotted instance:", sys.getsizeof(q))
+print("ordinary instance:", sys.getsizeof(ordinary))
+print("ordinary dictionary:", sys.getsizeof(ordinary.__dict__))
+print("slotted instance:", sys.getsizeof(slotted))
 ```
 
-### What does `sys.getsizeof` actually measure?
+Expected behavior: the program prints three integer sizes for the current interpreter. Do not copy numbers from another machine into documentation as universal constants. The ordinary instance's dictionary size is reported separately, while the slotted object's shallow size includes its slot storage as accounted for by that implementation. The integer values `1` and `2` are separate referenced objects and are not recursively included by these calls.
 
-`sys.getsizeof(obj)` reports the object's **shallow** size as reported by the Python implementation. It does not recursively count every object referenced by that object.
+The sum `sys.getsizeof(ordinary) + sys.getsizeof(ordinary.__dict__)` is a useful limited comparison for this small example, but still is not the total memory of the graph. It omits the sizes of referenced field values and any other objects the instance refers to.
 
-In the first expression, the size of the instance and the size of its dictionary are added explicitly. That still does not include the integer objects referenced by the dictionary, class objects, allocator fragmentation, or every other process-level cost.
+### 4.2 Why dictionary sharing complicates comparisons
 
-Use this comparison as an illustration, not a universal benchmark.
+CPython has used key-sharing dictionaries for instances of many classes (PEP 412), allowing instances of the same class to share dictionary key metadata. CPython 3.11 also introduced inline values for many instance dictionaries, changing how instance attribute values are stored. These optimizations reduce the overhead of ordinary objects compared with simplistic “a full independent hash table per instance” mental models.
 
----
+These are CPython implementation details, not guarantees for every Python implementation. They also mean `sys.getsizeof(obj.__dict__)` can vary with access patterns and runtime version. Measure on the interpreter and workload you actually deploy.
 
-## 5. Measure allocations with `tracemalloc`
+### 4.3 Aggregate experiment with `tracemalloc`
 
-The roadmap recommends measuring a large population—up to one million instances—with `tracemalloc`. This records Python memory allocations during the traced period. A million objects can require substantial memory, so run the experiment in a controlled environment and start with a smaller number if necessary.
+The following script measures allocations after tracing starts and reports observed values instead of embedding a fabricated benchmark result. It uses the same number of objects and the same payload values in each run. The integer key objects are created before tracing and reused in both comparisons; the literal status string is also shared. The measured delta therefore emphasizes the row instances, their per-instance storage, and the retained list, rather than a complete independently allocated payload graph.
 
 ```python
 import gc
@@ -156,635 +251,743 @@ import tracemalloc
 
 
 class RowDict:
-    def __init__(self, row_id: int, value: int) -> None:
-        self.row_id = row_id
-        self.value = value
+    def __init__(self, key: int, status: str) -> None:
+        self.key = key
+        self.status = status
 
 
 class RowSlots:
-    __slots__ = ("row_id", "value")
+    __slots__ = ("key", "status")
 
-    def __init__(self, row_id: int, value: int) -> None:
-        self.row_id = row_id
-        self.value = value
+    def __init__(self, key: int, status: str) -> None:
+        self.key = key
+        self.status = status
 
 
-def measure(factory, count: int) -> int:
+def measure_allocated_bytes(factory, keys: list[int]) -> int:
+    """Measure retained rows and their list, reusing pre-created key objects."""
     gc.collect()
     tracemalloc.start()
     before, _ = tracemalloc.get_traced_memory()
-    rows = [factory(i, i * 2) for i in range(count)]
-    current, peak = tracemalloc.get_traced_memory()
+    rows = [factory(key, "ok") for key in keys]
+    current, _ = tracemalloc.get_traced_memory()
     delta = current - before
-    # Keep rows alive until after the measurement so their allocations count.
-    assert len(rows) == count
-    tracemalloc.stop()
+    # Keep rows alive until after the measurement; release them before stopping.
+    assert len(rows) == len(keys)
     del rows
+    tracemalloc.stop()
     return delta
 
 
 if __name__ == "__main__":
-    count = 100_000  # Increase to 1_000_000 when resources allow.
-    normal_bytes = measure(RowDict, count)
-    slots_bytes = measure(RowSlots, count)
-    print(f"normal: {normal_bytes:,} bytes")
-    print(f"slots:  {slots_bytes:,} bytes")
-    print(f"ratio (normal / slots): {normal_bytes / slots_bytes:.2f}x")
+    count = 100_000  # Increase to 1_000_000 when time and memory permit.
+    keys = list(range(count))  # Created before tracing in both comparisons.
+    dict_bytes = measure_allocated_bytes(RowDict, keys)
+    slots_bytes = measure_allocated_bytes(RowSlots, keys)
+
+    print(f"count: {count:,}")
+    print(f"ordinary traced delta: {dict_bytes:,} bytes")
+    print(f"slotted traced delta:  {slots_bytes:,} bytes")
+    if slots_bytes:
+        print(f"observed ratio (ordinary / slotted): {dict_bytes / slots_bytes:.3f}x")
 ```
 
-### How to interpret the result
+Expected behavior: the script prints the measured byte deltas and a ratio for the current runtime. The exact numbers and ratio are environment-dependent; no fixed result is promised here.
 
-- The ratio is specific to the current interpreter, class design, and test environment.
-- The `value` and `row_id` integers are created by the same pattern in both versions; their allocation behavior can influence the measurement.
-- `tracemalloc` traces Python memory allocations, not every native allocation in the process.
-- Run several trials and compare the same Python version and workload.
-- If the class has many attributes or uses other object structures, results may differ.
+**Methodology notes:**
 
-**Do not memorize a promised percentage of savings.** The professional habit is to measure representative data and report the environment, sample size, and methodology.
+1. Run both classes in the same interpreter build, with the same count and construction pattern.
+2. Start tracing before the objects are created and retain the list until after reading the current traced allocation.
+3. Collect garbage before each run; avoid measuring unrelated work in the same process.
+4. Repeat runs, compare medians, and report the Python implementation/version, OS, count, field count, and whether payload objects are included.
+5. For the roadmap's one-million-instance check, set `count = 1_000_000` only when sufficient memory is available. Do not assume the experiment is safe on every development machine.
+6. This measurement captures traced Python allocations, not complete process resident memory. For process-level memory use, use an OS-aware measurement tool as a separate experiment.
+7. This particular benchmark intentionally creates `"ok"` and integer values through repeated references/construction patterns that may be optimized or shared by the runtime. It is primarily a comparison of instance representation overhead, not a realistic end-to-end event pipeline.
 
----
+### 4.4 A fairer object-graph experiment
 
-## 6. Inheritance and slots
+If the production question is “how much memory does a million complete event records retain?”, include the payload graph deliberately and identically for both designs. For example, create distinct strings or nested values in both cases, retain all objects, and measure the whole construction interval. State whether payloads are shared or unique. Never compare one case with pre-created payloads against another case that allocates payloads inside the measured interval.
 
-Inheritance is one of the most important sources of surprises.
+`tracemalloc` is a diagnostic, not a perfect census. It traces Python memory allocations; native buffers in third-party extensions and total process overhead may need additional tools. Use it to answer a clearly defined comparison question, not as a synonym for RSS.
 
-### 6.1 A subclass without `__slots__` can regain `__dict__`
+## 5. Opting back into an instance dictionary or weak references
+
+Slots remove features only if neither the class nor its bases provides them. You can opt back in:
 
 ```python
-class BaseRecord:
-    __slots__ = ("record_id",)
+class FlexibleSlots:
+    __slots__ = ("value", "__dict__")
 
-    def __init__(self, record_id: str) -> None:
-        self.record_id = record_id
-
-
-class FlexibleRecord(BaseRecord):
-    pass
+    def __init__(self, value: int) -> None:
+        self.value = value
 
 
-record = FlexibleRecord("r-1")
-record.extra = "allowed because subclass has a dictionary"
-assert record.extra.startswith("allowed")
-assert hasattr(record, "__dict__")
+item = FlexibleSlots(3)
+item.extra = "allowed"
+print(item.value, item.extra)
+print(item.__dict__)
 ```
 
-If a subclass does not declare `__slots__`, it normally gains an instance dictionary even if its base class is slotted. The base class's fixed storage remains, but dynamic attributes are possible again.
+Expected output:
 
-To keep the subclass slotted, declare slots for its new fields.
-
-### 6.2 Declare only new names in a subclass
-
-```python
-class BasePoint:
-    __slots__ = ("x",)
-
-    def __init__(self, x: float) -> None:
-        self.x = x
-
-
-class ColoredPoint(BasePoint):
-    __slots__ = ("color",)
-
-    def __init__(self, x: float, color: str) -> None:
-        super().__init__(x)
-        self.color = color
-
-
-point = ColoredPoint(2.5, "blue")
-assert point.x == 2.5
-assert point.color == "blue"
-assert not hasattr(point, "__dict__")
+```text
+3 allowed
+{'extra': 'allowed'}
 ```
 
-Do not repeat `"x"` in the subclass slots. Re-declaring a slot name already defined by a base class can hide the base slot and create confusing behavior. Declare only the additional slot names.
+The declared `value` slot remains slot-backed; arbitrary attributes such as `extra` are held in the dictionary. Adding `__dict__` reduces the benefit of slots and should be justified by the required dynamic behavior.
 
-### 6.3 Multiple inheritance layout conflicts
-
-Multiple inheritance can fail when more than one base contributes incompatible non-empty slot layouts.
-
-```python
-class Left:
-    __slots__ = ("left_value",)
-
-
-class Right:
-    __slots__ = ("right_value",)
-
-
-# Intentionally invalid: CPython cannot combine these independent
-# non-empty instance layouts in this simple multiple-inheritance shape.
-try:
-    class Combined(Left, Right):
-        __slots__ = ()
-except TypeError:
-    pass
-else:
-    raise AssertionError("expected a slot layout conflict")
-```
-
-This example intentionally demonstrates a class-creation error. Do not use this pattern as a design template. When a hierarchy needs multiple inheritance, consider whether only one base should own the physical layout, whether other bases can be slotless mixins, or whether composition is simpler.
-
----
-
-## 7. Opt back into `__dict__` or weak references
-
-Slots can include special names that restore capabilities.
-
-### 7.1 Allow dynamic attributes with `"__dict__"`
-
-```python
-class PartlySlotted:
-    __slots__ = ("name", "__dict__")
-
-    def __init__(self, name: str) -> None:
-        self.name = name
-
-
-obj = PartlySlotted("extractor")
-obj.runtime_metric = 12
-assert obj.name == "extractor"
-assert obj.__dict__["runtime_metric"] == 12
-```
-
-This retains a declared slot for `name` while allowing arbitrary additional attributes. It also reduces the memory advantage compared with a class that has no instance dictionary.
-
-### 7.2 Allow weak references with `"__weakref__"`
+Weak references are separate:
 
 ```python
 import weakref
 
 
 class Weakable:
-    __slots__ = ("name", "__weakref__")
+    __slots__ = ("value", "__weakref__")
 
-    def __init__(self, name: str) -> None:
-        self.name = name
+    def __init__(self, value: int) -> None:
+        self.value = value
 
 
-obj = Weakable("worker")
+obj = Weakable(8)
 reference = weakref.ref(obj)
-assert reference() is obj
+print(reference() is obj)
 ```
 
-A slotted class without weak-reference support cannot normally be the target of a weak reference. Include `"__weakref__"` when that capability is required and is not inherited from a base class.
-
-### 7.3 A weak-reference limitation
-
-Weak references are useful for caches, observers, and registries that should not keep objects alive. But a weak-reference-based design should be tested with the actual class hierarchy and equality/hash behavior. `WeakKeyDictionary` in particular relies on keys being weak-referenceable and hashable.
-
----
-
-## 8. Slot defaults and initialization
-
-A slot name creates a descriptor in the class namespace. Defining a class attribute with the same name can conflict with the slot declaration.
-
-**Avoid this pattern:**
+Expected output:
 
 ```text
-class BadDefaults:
-    __slots__ = ("state",)
-    state = "queued"  # conflicts with the slot descriptor
+True
 ```
 
-Instead, set the default in `__init__`:
+Without `__weakref__`, a pure-slotted instance generally cannot be the target of a weak reference unless a base class already supplies weak-reference support. Weak references are used by weak mappings, caches, observer registries, and lifecycle-aware infrastructure.
+
+## 6. Inheritance: slots are a class-hierarchy decision
+
+### 6.1 A subclass without `__slots__` gets a dictionary
+
+```python
+class SlottedBase:
+    __slots__ = ("base_value",)
+
+    def __init__(self, base_value: int) -> None:
+        self.base_value = base_value
+
+
+class UnslottedChild(SlottedBase):
+    pass
+
+
+child = UnslottedChild(10)
+child.extra = "works"
+print(child.base_value, child.extra)
+print(hasattr(child, "__dict__"))
+```
+
+Expected output:
+
+```text
+10 works
+True
+```
+
+A subclass that omits `__slots__` receives the normal instance dictionary even when its base is slotted. The inherited `base_value` remains slot-backed, but new attributes can be stored in the subclass dictionary. To keep the subclass dictionary-free, explicitly declare empty slots:
+
+```python
+class SlottedBase:
+    __slots__ = ("base_value",)
+
+    def __init__(self, base_value: int) -> None:
+        self.base_value = base_value
+
+
+class SlottedChild(SlottedBase):
+    __slots__ = ()
+```
+
+An empty tuple means the subclass adds no new slots and does not introduce an instance dictionary of its own. The base's slots remain available.
+
+### 6.2 Declare only new names
+
+```python
+class BaseRecord:
+    __slots__ = ("record_id",)
+
+
+class GoodRecord(BaseRecord):
+    __slots__ = ("status",)
+
+
+record = GoodRecord()
+record.record_id = 12
+record.status = "ready"
+print(record.record_id, record.status)
+```
+
+Expected output:
+
+```text
+12 ready
+```
+
+Avoid repeating `record_id` in the subclass's `__slots__`. Redeclaring an inherited slot name can shadow the base descriptor and lead to confusing behavior; the Python documentation warns that the meaning of duplicate slot names is undefined. Declare only genuinely new slot names.
+
+### 6.3 Unslotted bases and mixins
+
+If a base class has an instance dictionary, a subclass cannot remove that inherited dictionary merely by declaring slots. The instance still supports dynamic attributes because the base layout allows them.
+
+```python
+class DynamicMixin:
+    pass
+
+
+class SlottedButDynamic(DynamicMixin):
+    __slots__ = ("value",)
+
+
+instance = SlottedButDynamic()
+instance.value = 1
+instance.extra = 2
+print(instance.value, instance.extra)
+print(hasattr(instance, "__dict__"))
+```
+
+Expected output:
+
+```text
+1 2
+True
+```
+
+This is why slots require hierarchy-wide design awareness. A mixin intended to cooperate with slotted classes can use `__slots__ = ()` if it does not need per-instance storage.
+
+### 6.4 Multiple inheritance and layout conflicts
+
+Python can combine multiple bases when their instance layouts are compatible. However, **multiple inheritance from two unrelated bases that both define non-empty slot layouts commonly raises `TypeError` due to layout conflicts**.
+
+```python
+class Left:
+    __slots__ = ("left",)
+
+
+class Right:
+    __slots__ = ("right",)
+
+
+try:
+    class Combined(Left, Right):
+        __slots__ = ()
+except TypeError as exc:
+    print(type(exc).__name__)
+```
+
+Expected output:
+
+```text
+TypeError
+```
+
+Do not treat every combination of slot-bearing bases as invalid: compatibility depends on the actual base layouts. The safe design rule is to avoid multiple independent non-empty slotted layouts unless the hierarchy has been deliberately designed and tested. Prefer one storage-bearing base plus stateless mixins (often `__slots__ = ()`) when appropriate.
+
+## 7. Slot name collisions and class-level defaults
+
+This is incorrect:
+
+```python
+class Incorrect:
+    __slots__ = ("status",)
+    status = "new"  # Incorrect: conflicts with the slot descriptor.
+```
+
+A slot is represented by a descriptor at the class level, so a class attribute with the same name would overwrite/conflict with that descriptor. Define defaults in `__init__` instead:
 
 ```python
 class Job:
-    __slots__ = ("job_id", "state")
+    __slots__ = ("status",)
 
-    def __init__(self, job_id: str, state: str = "queued") -> None:
-        self.job_id = job_id
-        self.state = state
+    def __init__(self, status: str = "new") -> None:
+        self.status = status
 
 
-job = Job("job-42")
-assert job.state == "queued"
+print(Job().status)
+print(Job("done").status)
 ```
 
-This makes the default an instance value stored in the slot, rather than a class attribute that masks the slot descriptor.
+Expected output:
 
-For dataclasses, use a field default as shown in the next section.
+```text
+new
+done
+```
 
----
+For immutable defaults, constructor defaults are straightforward. For mutable per-instance defaults, create a fresh object inside `__init__` or use a `default_factory` in a dataclass; do not share a mutable class-level object by accident.
 
-## 9. `dataclass(slots=True)`
+## 8. Slots, properties, and cached properties
 
-Python 3.10+ supports `slots=True` in `dataclasses.dataclass`:
+### 8.1 Properties can use a slot as backing storage
 
 ```python
-from dataclasses import dataclass, fields
+class Celsius:
+    __slots__ = ("_value",)
+
+    def __init__(self, value: float) -> None:
+        self.value = value
+
+    @property
+    def value(self) -> float:
+        return self._value
+
+    @value.setter
+    def value(self, new_value: float) -> None:
+        if new_value < -273.15:
+            raise ValueError("temperature is below absolute zero")
+        self._value = new_value
 
 
-@dataclass(slots=True)
-class Batch:
-    batch_id: str
-    row_count: int = 0
-
-
-batch = Batch("batch-10", 250)
-assert batch.batch_id == "batch-10"
-assert batch.row_count == 250
-assert not hasattr(batch, "__dict__")
-assert [field.name for field in fields(batch)] == ["batch_id", "row_count"]
+temperature = Celsius(20.0)
+print(temperature.value)
+try:
+    temperature.value = -300.0
+except ValueError as exc:
+    print(type(exc).__name__)
 ```
 
-This is often a convenient way to declare compact record-like objects while retaining generated initialization, representation, equality, and other dataclass behavior.
+Expected output:
 
-### 9.1 Important: `dataclass(slots=True)` creates a new class
-
-Unlike the ordinary dataclass transformation, `slots=True` returns a newly created class rather than simply modifying the original class object in place. This matters for decorators, class identity, inheritance, and hooks such as `__init_subclass__`. Test interactions with custom metaclasses and class-creation hooks rather than assuming all class-transforming patterns behave identically.
-
-### 9.2 Mutable defaults still need care
-
-Slots do not solve mutable-default bugs. Use a `default_factory` for lists or dictionaries:
-
-```python
-from dataclasses import dataclass, field
-
-
-@dataclass(slots=True)
-class TableSchema:
-    columns: list[str] = field(default_factory=list)
-
-
-a = TableSchema()
-b = TableSchema()
-a.columns.append("order_id")
-assert a.columns == ["order_id"]
-assert b.columns == []
+```text
+20.0
+ValueError
 ```
 
-Each instance gets its own list.
+The property is a descriptor; `_value` is the declared slot. The class must not declare a slot named `value` while also defining a property named `value`, because those class attributes would conflict.
 
----
+### 8.2 `cached_property` requires a mutable instance dictionary
 
-## 10. `__slots__` and `cached_property`
-
-`functools.cached_property` stores its computed value in the instance dictionary under the property name. Therefore, a class needs a mutable instance `__dict__` for the standard `cached_property` to work.
-
-```python
-from functools import cached_property
-
-
-class Report:
-    def __init__(self, amounts: list[int]) -> None:
-        self.amounts = list(amounts)
-        self.calls = 0
-
-    @cached_property
-    def total(self) -> int:
-        self.calls += 1
-        return sum(self.amounts)
-
-
-report = Report([4, 6])
-assert report.total == 10
-assert report.total == 10
-assert report.calls == 1
-```
-
-This slotted class has no `__dict__`, so standard `cached_property` cannot cache the result:
+`functools.cached_property` writes its computed value into the instance dictionary under the property's name. It therefore does not work on a pure-slotted instance that has no `__dict__`.
 
 ```python
 from functools import cached_property
 
 
 class SlottedReport:
-    __slots__ = ("amounts",)
+    __slots__ = ("rows",)
 
-    def __init__(self, amounts: list[int]) -> None:
-        self.amounts = amounts
+    def __init__(self, rows: tuple[int, ...]) -> None:
+        self.rows = rows
 
     @cached_property
     def total(self) -> int:
-        return sum(self.amounts)
+        return sum(self.rows)
 
 
-slotted = SlottedReport([4, 6])
+report = SlottedReport((1, 2, 3))
 try:
-    slotted.total
-except TypeError:
-    pass
-else:
-    raise AssertionError("cached_property requires an instance __dict__ here")
+    print(report.total)
+except TypeError as exc:
+    print(type(exc).__name__)
 ```
 
-Possible alternatives:
-- include `"__dict__"` in `__slots__` if the flexibility and memory trade-off is acceptable;
-- use a normal property that computes each time;
-- use an explicit slot for the cached value and an appropriate sentinel;
-- use a dedicated external cache if its lifecycle and concurrency behavior are well designed.
+Expected output on CPython 3.12+:
 
-If a computed value depends on mutable input, also decide how the cache is invalidated.
+```text
+TypeError
+```
 
----
+If caching is required, alternatives include adding `"__dict__"` to the slots, storing a dedicated cache slot with a sentinel and explicit invalidation, or using a custom descriptor with an external store. Adding a dictionary partly defeats the memory objective; a dedicated cache slot is more explicit but needs careful invalidation semantics.
 
-## 11. Pickling slotted objects
+## 9. Pickling and object protocols
 
-Pickling serializes an object for later reconstruction. Slot-only classes have historically had more constraints than ordinary classes, but modern Python supports many common slotted-class pickling cases. The roadmap notes that pickling works in Python 3.x for protocol 2 and later in common cases; custom `__getstate__`, `__setstate__`, or `__reduce__` behavior can still require care.
-
-Test the actual class and protocol you intend to use:
+Slotted classes can be pickled in Python 3.x when the class and its state are supported by the pickle protocol; the roadmap specifies protocol 2+ for the relevant built-in slot support. Actual success still depends on the object's state, the class being importable by pickle, custom `__getstate__`/`__setstate__` logic, and any inherited dictionary or slots. Do not generalize this to every object graph or every custom class.
 
 ```python
 import pickle
 
 
-class SlottedEvent:
-    __slots__ = ("event_id", "status")
-
-    def __init__(self, event_id: str, status: str) -> None:
-        self.event_id = event_id
-        self.status = status
-
-
-def round_trip() -> SlottedEvent:
-    event = SlottedEvent("evt-1", "processed")
-    restored = pickle.loads(pickle.dumps(event, protocol=pickle.HIGHEST_PROTOCOL))
-    assert restored.event_id == "evt-1"
-    assert restored.status == "processed"
-    return restored
-
-
-# Run this in a normal .py module so the class is importable by pickle.
-restored_event = round_trip()
-```
-
-**Operational caution:** pickle is Python-specific and unsafe for untrusted input. Do not unpickle data from untrusted sources. For durable cross-language data interchange, use a documented format such as JSON, Avro, or Protocol Buffers when suitable.
-
----
-
-## 12. Slots are descriptors
-
-Each declared slot is represented in the class namespace by a member descriptor. That descriptor manages the fixed storage associated with the slot.
-
-```python
-class Coordinate:
+class SlottedPoint:
     __slots__ = ("x", "y")
 
+    def __init__(self, x: int, y: int) -> None:
+        self.x = x
+        self.y = y
 
-x_descriptor = vars(Coordinate)["x"]
-assert type(x_descriptor).__name__ == "member_descriptor"
+
+point = SlottedPoint(3, 4)
+restored = pickle.loads(pickle.dumps(point, protocol=pickle.HIGHEST_PROTOCOL))
+print(restored.x, restored.y)
 ```
 
-The precise internal type names are implementation details, but on CPython the slot entries are `member_descriptor` objects. This connects Lesson 07 directly to Lesson 06: slots are not a separate attribute-access system; they use the descriptor protocol to expose fixed storage.
+Expected output:
 
----
+```text
+3 4
+```
 
-## 13. A high-level view of CPython object layout
+Test pickling with the actual Python versions, protocols, and data your application supports. Classes with custom `__new__`, custom state methods, extension-backed values, or complex inheritance may need explicit state handling. Do not use pickle with untrusted input.
 
-This section is explanatory rather than a portable binary-layout specification.
+Other protocols are affected indirectly by storage layout. For example, serializers that assume `obj.__dict__` exists will fail on pure-slotted objects. Prefer documented serialization methods or explicit field enumeration rather than assuming every object has a dictionary.
 
-A CPython object generally has an object header that supports reference counting and type identification. Garbage-collected objects may also have garbage-collector bookkeeping. The object's instance attributes then need storage.
+## 10. Dataclasses and compact record alternatives
 
-Broadly:
+### 10.1 `dataclass(slots=True)`
 
-- A normal class instance has the object header plus instance attribute storage, commonly represented by a dictionary.
-- A slotted instance uses fixed slot positions for the declared attributes and can avoid a per-instance dictionary.
-- References stored in slots point to Python objects; slots do not automatically pack arbitrary Python integers or strings into C-style inline values.
+Python 3.10+ supports `slots=True` in `dataclasses.dataclass`. It creates and returns a new class with slots, rather than merely toggling a flag on the original class. This detail matters for decorators, class identity, inheritance, and code that captures the original class object.
 
-### 13.1 Key-sharing dictionaries (PEP 412)
+```python
+from dataclasses import dataclass
 
-CPython can share dictionary *keys* across instances of the same class when their attribute layouts are compatible, while keeping values per instance. This reduces the cost of ordinary instance dictionaries compared with a simplistic model where every instance owns a completely independent copy of every key.
 
-### 13.2 CPython 3.11+ inline values
+@dataclass(slots=True)
+class EventRecord:
+    event_id: int
+    kind: str
 
-CPython 3.11 introduced implementation changes that can keep instance values in a more compact inline arrangement for eligible instances, with dictionary materialization behavior depending on access and layout. These optimizations further narrow the memory difference in some workloads. Exact details are version-dependent and should be confirmed against the CPython version being measured.
 
-### 13.3 What this means in practice
+event = EventRecord(7, "updated")
+print(event)
+print(hasattr(event, "__dict__"))
+```
 
-Do not make universal claims such as “slots always save X percent” or “slots always make attribute access faster.” Memory and speed depend on the Python version, attribute count, object lifetime, access patterns, subclass layout, and measurement method.
+Expected output:
 
-The engineering rule is simple: **measure before adopting slots**.
+```text
+EventRecord(event_id=7, kind='updated')
+False
+```
 
----
+`dataclass(slots=True)` is often a convenient choice for stable data-transfer objects. Check the Python version and inheritance rules in the deployment target. Dataclass slot generation omits slots already present in base classes in modern Python; do not rely on `__slots__` as the source of dataclass field metadata—use `dataclasses.fields()`.
 
-## 14. When slots are a good fit
+### 10.2 Empty-slot mixins with slotted dataclasses
 
-Consider slots when:
-- a class has a small, stable set of attributes;
-- the application creates a very large number of instances;
-- dynamic attributes are not part of the API;
-- you have measured meaningful memory savings in the real workload;
-- the class's inheritance, serialization, weak-reference, and testing needs are compatible.
+A mixin that does not store per-instance data can declare `__slots__ = ()` so it does not add an instance dictionary:
 
-Examples may include compact internal records, parsed tokens, lightweight graph nodes, or transient event objects—provided they are genuinely object-oriented workloads and not better represented in a bulk data structure.
+```python
+class ReprMixin:
+    __slots__ = ()
 
-## 15. When not to use slots
+    def label(self) -> str:
+        return type(self).__name__
 
-Be cautious or avoid slots when:
-- consumers need dynamic attributes or monkeypatching;
-- tests attach ad hoc state to instances;
-- mixins and complex multiple inheritance make storage layout difficult;
-- subclasses are expected to add arbitrary fields;
-- a library promises broad subclassing compatibility;
-- the class relies on standard `cached_property` but has no instance dictionary;
-- memory savings are small or unmeasured.
 
-Slots are a design trade-off, not a universal optimization switch.
+from dataclasses import dataclass
 
----
 
-## 16. Alternatives for compact or large-scale data
+@dataclass(slots=True)
+class BatchRecord(ReprMixin):
+    batch_id: int
 
-For data engineering, choosing the right data representation often matters more than optimizing each Python object.
 
-| Tool or representation | Appropriate use | Important trade-off |
+record = BatchRecord(42)
+print(record.label(), record.batch_id, hasattr(record, "__dict__"))
+```
+
+Expected output:
+
+```text
+BatchRecord 42 False
+```
+
+A mixin with no slots of its own can otherwise introduce a dictionary depending on its class definition and hierarchy. Test the complete MRO, not only the leaf class.
+
+### 10.3 Alternatives for large data
+
+Slots are not always the best representation for millions of records:
+
+| Representation | Best fit | Trade-offs |
 |---|---|---|
-| `typing.NamedTuple` / `collections.namedtuple` | Small immutable record-like values | Fixed tuple-oriented structure; different mutability and extension behavior |
-| `array.array` | Homogeneous primitive numeric values | Restricted type codes and narrower capabilities than a general Python list |
-| `struct` | Packing/unpacking fixed binary layouts | Low-level format handling; explicit layout and byte-order choices |
-| NumPy structured arrays | Typed records in contiguous numerical memory | Requires NumPy and its data model; not a general replacement for Python objects |
-| `memoryview` | Zero-copy views over buffer-protocol objects | Works only with compatible buffer exporters and formats |
-| pandas / Apache Arrow | Columnar analytics and tabular data processing | Columnar operations and conversion costs; best for bulk operations, not arbitrary per-row object behavior |
+| Ordinary class | Flexible application objects, dynamic fields, monkeypatching | Instance dictionaries add overhead; shape is flexible |
+| Slotted class | Stable small objects with known fields | No arbitrary attributes unless opted in; inheritance constraints |
+| `dataclass(slots=True)` | Typed record-like domain/DTO objects | Same slot constraints; class transformation/inheritance details |
+| `NamedTuple` / `typing.NamedTuple` | Immutable tuple-like records with named fields | Tuple semantics and immutability; not a drop-in mutable object |
+| `array` / `struct` / `memoryview` | Compact homogeneous numeric or binary layouts | Lower-level layout and conversion complexity |
+| NumPy structured arrays | Large numerical datasets with structured records | Adds dependency and dtype/layout considerations |
+| pandas / Arrow / columnar storage | Analytical workloads and column-oriented processing | Different access model; conversion and memory behavior depend on data types |
 
-A million Python row objects may be the wrong representation if the actual task is columnar filtering, aggregation, joins, or vectorized numerical work. In those cases, pandas or Arrow can offer a better memory and throughput profile than any per-object slot optimization.
+For data engineering workloads, millions of Python row objects may be the wrong abstraction. Columnar formats and vectorized operations can outperform row-oriented object collections in both memory and throughput. Choose the representation that fits the workload, not just the smallest individual object.
 
----
+## 11. Trade-offs and engineering decision criteria
 
-## 17. Common mistakes
+Use slots when all of the following are true:
 
-1. **Expecting slots to speed up everything.** Their clearest benefit is often memory reduction; performance must be measured.
-2. **Assuming `sys.getsizeof(instance)` includes all referenced objects.** It is shallow.
-3. **Forgetting that a subclass without `__slots__` can regain `__dict__`.**
-4. **Repeating a base-class slot name in a subclass.** Declare only new names.
-5. **Assuming any multiple-inheritance combination of slotted classes is valid.** Layout conflicts can raise `TypeError`.
-6. **Assigning a class-level default with the same name as a slot.** Initialize the value in `__init__` or use dataclass field defaults.
-7. **Expecting `cached_property` to work without an instance dictionary.**
-8. **Forgetting `"__weakref__"` when a slotted class must support weak references.**
-9. **Treating implementation-specific memory measurements as language guarantees.**
-10. **Optimizing millions of Python row objects when columnar storage is the better solution.**
+- The class has a stable, known set of attributes.
+- There are enough live instances for per-instance overhead to matter.
+- A representative measurement shows a useful reduction for the deployed interpreter and data.
+- The team can accept the effects on dynamic attributes, inheritance, weak references, serialization, and tooling.
 
----
+Prefer ordinary classes when you need:
 
-## 18. Exercises
+- Dynamic attributes or ad hoc instrumentation.
+- Flexible mixins and multiple inheritance.
+- Tests that intentionally monkeypatch instance attributes.
+- Libraries that expect `__dict__` or use `cached_property`.
+- A simple object population where memory is not a measured bottleneck.
 
-Try each exercise before reading the solutions.
+Slots may improve attribute access in some cases, but do not expect them to speed up everything. Attribute performance depends on the interpreter and workload; memory reduction is the primary reason to consider them. Benchmark real end-to-end work rather than relying on a microbenchmark alone.
 
-### Exercise 1 — basic slots
+## 12. Common mistakes
 
-Create a `Task` class with slots for `task_id`, `state`, and `attempts`. Confirm that declared fields work and assigning `task.debug_note` raises `AttributeError`.
+All three common mistakes listed in the authoritative Lesson 07 roadmap are covered here:
 
-### Exercise 2 — inheritance
+1. **Expecting `__slots__` to speed up everything.** Slots mainly target memory overhead; any speed change is workload- and version-dependent.
+2. **Declaring slots in every level of a hierarchy and duplicating names.** Declare only new names in subclasses. Duplicate inherited names can shadow descriptors and have undefined/unsupported consequences.
+3. **Using slots and then trying `obj.new_attr = 1` in tests.** That assignment correctly raises `AttributeError` when no instance dictionary is available. Add a dictionary only if dynamic attributes are part of the design.
 
-Create a slotted base class with `id`. Make one subclass without `__slots__` and another with only a new slot called `priority`. Confirm which subclass has an instance dictionary.
+Additional mistakes to avoid:
 
-### Exercise 3 — memory experiment
+- Treating `sys.getsizeof(obj)` as the complete object graph size.
+- Comparing measurements taken with different object counts or payload allocation patterns.
+- Claiming a fixed memory saving without recording the Python implementation and version.
+- Forgetting that an unslotted base or subclass can reintroduce `__dict__`.
+- Assuming `__slots__` automatically provides weak-reference support.
+- Declaring a class attribute with the same name as a slot.
+- Assuming `cached_property` works without `__dict__`.
+- Assuming pickle works for every custom slotted class without testing its state protocol.
+- Using a slotted design in a mixin-heavy hierarchy without checking layout compatibility.
+- Believing slots enforce privacy or prevent deliberate mutation of declared fields.
 
-Use `tracemalloc` to compare 100,000 instances of a normal class and a slotted class with the same two attributes. Record Python version, sample size, and ratio. Repeat with one million instances if resources permit.
+## 13. Pytest tests
 
-### Exercise 4 — weak references
+Save the examples below in `test_slots_and_memory_layout.py` and run `python -m pytest -q`. The tests check semantics, not fixed byte savings; tests must not assert machine-specific `sys.getsizeof` values.
 
-Create a slotted class that supports weak references. Verify that `weakref.ref(instance)()` returns the same object while the strong reference exists.
+```python
+import pickle
+import weakref
+from dataclasses import dataclass
 
-### Exercise 5 — cached computation
+import pytest
 
-Explain why `cached_property` fails on a slot-only class with no `__dict__`. Implement a cache using a dedicated slot and a sentinel.
 
-### Exercise 6 — pickling
+class Plain:
+    def __init__(self, value: int) -> None:
+        self.value = value
 
-Round-trip a slotted object through `pickle.dumps` and `pickle.loads`. Verify the relevant field values after reconstruction.
 
-### Exercise 7 — choose a representation
+class Slotted:
+    __slots__ = ("value",)
 
-A pipeline processes 15 million records and performs column filters, group-by aggregations, and joins. Compare using one Python object per row with using Arrow or pandas. State which you would test first and why.
+    def __init__(self, value: int) -> None:
+        self.value = value
 
-### Exercise 8 — explain the memory result
 
-Your experiment shows that slots save much less memory on Python 3.12 than a colleague's older benchmark. Give at least three reasons this may happen without either benchmark necessarily being wrong.
+def test_plain_instances_have_dict() -> None:
+    item = Plain(1)
+    assert item.__dict__ == {"value": 1}
 
----
 
-## 19. Exercise solutions
+def test_pure_slotted_instance_has_no_dict() -> None:
+    item = Slotted(1)
+    assert not hasattr(item, "__dict__")
+
+
+def test_dynamic_attribute_is_rejected() -> None:
+    item = Slotted(1)
+    with pytest.raises(AttributeError):
+        item.extra = 2
+
+
+def test_slots_store_independent_values() -> None:
+    first = Slotted(10)
+    second = Slotted(20)
+    first.value = 99
+    assert first.value == 99
+    assert second.value == 20
+
+
+def test_slot_descriptor_is_a_member_descriptor() -> None:
+    assert type(Slotted.value).__name__ == "member_descriptor"
+
+
+def test_unslotted_subclass_reintroduces_dict() -> None:
+    class Child(Slotted):
+        pass
+
+    child = Child(1)
+    child.extra = "allowed"
+    assert child.extra == "allowed"
+    assert hasattr(child, "__dict__")
+
+
+def test_empty_slots_keep_subclass_dictionary_free() -> None:
+    class Child(Slotted):
+        __slots__ = ()
+
+    child = Child(1)
+    assert not hasattr(child, "__dict__")
+    with pytest.raises(AttributeError):
+        child.extra = "not allowed"
+
+
+def test_weakref_requires_support() -> None:
+    class Weakable:
+        __slots__ = ("value", "__weakref__")
+
+        def __init__(self, value: int) -> None:
+            self.value = value
+
+    item = Weakable(1)
+    assert weakref.ref(item)() is item
+
+
+def test_slotted_object_round_trips_through_pickle() -> None:
+    item = Slotted(7)
+    restored = pickle.loads(pickle.dumps(item, protocol=pickle.HIGHEST_PROTOCOL))
+    assert restored.value == 7
+
+
+def test_slotted_dataclass() -> None:
+    @dataclass(slots=True)
+    class Record:
+        key: int
+
+    record = Record(3)
+    assert record.key == 3
+    assert not hasattr(record, "__dict__")
+
+
+def test_slot_class_attribute_collision_is_rejected() -> None:
+    with pytest.raises(ValueError):
+        class Invalid:
+            __slots__ = ("status",)
+            status = "new"
+```
+
+Expected test outcome on a compatible Python 3.12+ environment is that all tests pass. Run the suite in the target interpreter; the test intentionally avoids asserting specific memory sizes or ratios because those vary by environment.
+
+## 14. Graduated exercises
+
+### Exercise 1 — predict the result
+
+Explain which assignments work and which raise `AttributeError`:
+
+```python
+class Packet:
+    __slots__ = ("sequence",)
+
+packet = Packet()
+packet.sequence = 10
+packet.topic = "events"
+```
+
+### Exercise 2 — preserve slots through inheritance
+
+Create `BaseEvent` with a `timestamp` slot and `Event` with a `name` slot. Confirm that `Event` instances have no `__dict__`, and demonstrate that both attributes work.
+
+### Exercise 3 — support weak references
+
+Modify a slotted class so a `weakref.ref(instance)` succeeds. Explain the role of `__weakref__`.
+
+### Exercise 4 — measure a workload
+
+Adapt Section 4's script to one million instances. Record the Python implementation/version, object count, number of fields, measured traced deltas, and observed ratio. Run several times and report a median. Do not reuse a result from another machine.
+
+### Exercise 5 — choose a representation
+
+For each workload, justify ordinary classes, slotted classes, `dataclass(slots=True)`, `NamedTuple`, or columnar storage:
+
+- 100 long-lived service objects that need dynamic debugging fields.
+- 2 million immutable event records consumed by a batch analytics job.
+- A domain entity with validated properties and several inheritance-based plugins.
+- Millions of numeric values used for vectorized aggregation.
+
+## 15. Worked solutions
 
 ### Solution 1
 
-```python
-class Task:
-    __slots__ = ("task_id", "state", "attempts")
-
-    def __init__(self, task_id: str, state: str, attempts: int = 0) -> None:
-        self.task_id = task_id
-        self.state = state
-        self.attempts = attempts
-
-
-task = Task("t-7", "ready")
-assert task.attempts == 0
-try:
-    task.debug_note = "temporary"
-except AttributeError:
-    pass
-else:
-    raise AssertionError("unexpected dynamic attribute")
-```
+`packet.sequence = 10` works because `sequence` is declared as a slot. `packet.topic = "events"` raises `AttributeError` because the class has no instance dictionary and `topic` is not a declared slot.
 
 ### Solution 2
 
 ```python
-class Base:
-    __slots__ = ("id",)
+class BaseEvent:
+    __slots__ = ("timestamp",)
+
+    def __init__(self, timestamp: int) -> None:
+        self.timestamp = timestamp
 
 
-class Flexible(Base):
-    pass
+class Event(BaseEvent):
+    __slots__ = ("name",)
+
+    def __init__(self, timestamp: int, name: str) -> None:
+        super().__init__(timestamp)
+        self.name = name
 
 
-class Compact(Base):
-    __slots__ = ("priority",)
-
-
-assert hasattr(Flexible(), "__dict__")
-assert not hasattr(Compact(), "__dict__")
+event = Event(1_700_000_000, "ingested")
+assert event.timestamp == 1_700_000_000
+assert event.name == "ingested"
+assert not hasattr(event, "__dict__")
 ```
 
+The subclass declares only its new field, `name`. Neither class introduces a dictionary.
+
 ### Solution 3
-
-Use the `tracemalloc` experiment in Section 5. Report the environment and methodology, not only the ratio. Ensure the measured objects remain alive until after reading traced memory.
-
-### Solution 4
 
 ```python
 import weakref
 
 
-class CacheEntry:
-    __slots__ = ("key", "__weakref__")
+class WeakEvent:
+    __slots__ = ("event_id", "__weakref__")
 
-    def __init__(self, key: str) -> None:
-        self.key = key
+    def __init__(self, event_id: int) -> None:
+        self.event_id = event_id
 
 
-entry = CacheEntry("customer:42")
-ref = weakref.ref(entry)
-assert ref() is entry
+event = WeakEvent(5)
+assert weakref.ref(event)() is event
 ```
+
+The `__weakref__` slot provides storage needed for weak-reference support when no base class already provides it.
+
+### Solution 4
+
+Set `count = 1_000_000` in the measurement script and run it on a machine with sufficient memory. Record actual output and environment. The correct answer is the measured ratio from those runs, not a universal expected ratio. Include whether strings and integer payloads are shared or allocated inside the measured region.
 
 ### Solution 5
 
-The standard `cached_property` writes the result into the instance dictionary. A slot-only class with no dictionary has nowhere for that cached value to be stored under the property name. Use a dedicated cache slot, a property that computes on every access, or include `__dict__` if the trade-off is acceptable.
+- **100 dynamic service objects:** ordinary classes are likely simplest; the population is small and dynamic debugging attributes are useful.
+- **2 million immutable event records:** benchmark slotted dataclasses or `NamedTuple`; if processing is primarily analytical, consider a columnar representation instead of millions of Python objects.
+- **Validated domain entity with plugin inheritance:** ordinary classes may be preferable if dynamic behavior and multiple inheritance dominate; slots are viable only after auditing the full hierarchy and tooling.
+- **Millions of numeric values for vectorized aggregation:** arrays or NumPy/Arrow/pandas columnar storage are often a better fit than individual Python objects.
 
-### Solution 6
+These are initial design hypotheses, not substitutes for measurement.
 
-Use the `SlottedEvent` example in Section 11 and assert the restored object's `event_id` and `status`.
+## 16. Roadmap self-check — questions and answers
 
-### Solution 7
+### 1. What two things does a normal instance carry that a slotted instance does not?
 
-Start by testing a columnar representation such as Arrow or pandas because filtering, grouping, and joining are bulk data operations. Benchmark the actual workload, including conversion cost, memory peak, and output requirements. A row-object design may still be appropriate when each record has rich behavior, but that is not the workload described.
+In the roadmap's conventional mental model, a normal instance has an instance `__dict__` and weak-reference support (`__weakref__`) that a pure-slotted instance does not have by default. Actual inherited layout matters: a base class may supply either capability.
 
-### Solution 8
+### 2. Why does a subclass without `__slots__` lose the benefit?
 
-Possible reasons include:
-- newer CPython versions improved ordinary instance dictionary storage;
-- the number of attributes or shape of the class differs;
-- the old benchmark included instance dictionary size differently;
-- object values and their allocations affect the measured totals;
-- allocator, platform, and interpreter version differ;
-- measurement method and object lifetime differ.
+A subclass that omits `__slots__` gets a normal instance dictionary for its own dynamic attributes. It still inherits the base's slot descriptors, but arbitrary attributes can be stored in the new dictionary. Declare `__slots__ = ()` when the subclass adds no storage and should remain dictionary-free.
 
----
+### 3. Measure 1,000,000 instances with and without slots using `tracemalloc` and report the ratio.
 
-## 20. Roadmap self-check
+Run the Section 4 script with `count = 1_000_000`, repeat it under controlled conditions, and calculate:
 
-1. **What two things does a normal instance carry that a slotted instance does not?**  
-   In the basic comparison, the normal instance typically has an instance `__dict__` and weak-reference support, while a slot-only instance without those special slots does not. Strictly, these are capabilities provided by the class layout, not universal guarantees about every class.
+\[
+\text{observed ratio} =
+\frac{\text{ordinary traced allocation delta}}
+{\text{slotted traced allocation delta}}
+\]
 
-2. **Why does a subclass without `__slots__` lose the benefit?**  
-   Such a subclass normally gains an instance dictionary, so arbitrary attributes become possible and the object no longer has the same dictionary-free layout.
+Record the actual values from your runtime. The ratio is not supplied as a fixed number because the roadmap requires measurement and the result depends on Python version, object shape, allocator/runtime behavior, and measurement methodology.
 
-3. **Measure 1,000,000 instances with and without slots using `tracemalloc` and report the ratio.**  
-   Run the experiment in Section 5 with `count = 1_000_000` on your environment. The ratio is intentionally not pre-filled because it is a measurement result, not a portable constant.
+## 17. Final engineering checklist
 
----
-
-## 21. Readiness checklist
-
-Before moving to Lesson 08, make sure you can:
-
-- [ ] Explain the difference between ordinary instance dictionaries and slot storage.
-- [ ] Declare slots and demonstrate the restriction on arbitrary attributes.
-- [ ] Explain why `sys.getsizeof` is shallow.
-- [ ] Run a repeatable `tracemalloc` comparison and report the ratio honestly.
-- [ ] Explain what happens when a subclass omits `__slots__`.
-- [ ] Avoid duplicate slot names in subclasses.
-- [ ] Recognize multiple-inheritance layout conflicts.
-- [ ] Add `__dict__` or `__weakref__` only when the capability is needed.
-- [ ] Set slot defaults correctly.
-- [ ] Explain `dataclass(slots=True)` and its class-creation behavior.
-- [ ] Explain why `cached_property` needs an instance dictionary.
-- [ ] Test pickling for the actual slotted class.
-- [ ] Explain that slots are implemented through member descriptors.
-- [ ] Choose between slots and columnar representations based on workload measurements.
-
----
-
-## 22. Key takeaways
-
-1. `__slots__` declares fixed instance attribute storage and can eliminate the per-instance dictionary.
-2. Slots can save memory, but the amount depends on Python version, class design, and measurement method.
-3. A subclass without `__slots__` normally regains a dictionary; inheritance and multiple inheritance need deliberate design.
-4. `"__dict__"` and `"__weakref__"` can be included when dynamic attributes or weak references are required.
-5. Avoid slot-name class defaults; initialize instance values in `__init__` or use dataclass field defaults.
-6. Standard `cached_property` needs a mutable instance dictionary; verify pickling and weak-reference behavior for real classes.
-7. For millions of records, compare per-object optimizations against array and columnar data structures before committing to a representation.
-
-**Next lesson:** `08-mro-super-and-cooperative-inheritance.md`.
+- [ ] I can explain the ordinary instance dictionary model and how slots reserve named storage.
+- [ ] I know that slots are class-level member descriptors and instance reads return stored values.
+- [ ] I understand the `AttributeError` behavior for undeclared attributes.
+- [ ] I know how `__dict__` and `__weakref__` can be opted back in.
+- [ ] I understand slot behavior through slotted and unslotted inheritance.
+- [ ] I avoid duplicate inherited slot names and test multiple-inheritance layout compatibility.
+- [ ] I understand why class-level defaults cannot reuse slot names.
+- [ ] I know why `cached_property` needs a mutable instance dictionary.
+- [ ] I test pickling and serializers against actual object state and target protocols.
+- [ ] I know how `dataclass(slots=True)` affects class creation and inherited fields.
+- [ ] I can explain why `sys.getsizeof` is shallow and why `tracemalloc` is not process RSS.
+- [ ] I have measured representative workloads on the target Python version instead of assuming fixed savings.
+- [ ] I considered `NamedTuple`, arrays, `memoryview`, NumPy structured arrays, pandas, or Arrow for large data.
+- [ ] I have covered all three roadmap common mistakes and answered all three self-check questions.

@@ -1,168 +1,103 @@
-# Lesson 01 — Dunder Methods: `__repr__`, `__str__`, `__eq__`, and `__hash__`
+# Dunder Methods: `__repr__`, `__str__`, `__eq__`, and `__hash__`
 
-> **Stage:** Stage 1 — Programming & Computational Thinking  
+> **Stage:** 1 — Programming & Computational Thinking  
 > **Module:** 11 — Advanced Python Data Model and Object Design  
+> **Lesson:** 01  
 > **Target runtime:** Python 3.12+  
-> **Level:** Beginner → Intermediate → Advanced  
-> **Estimated time:** 4–6 hours, including implementation, tests, and exercises
+> **Level:** Beginner → intermediate → advanced  
+> **Scope:** Python special methods for representation, equality, hashability, truth-value testing, and formatting.
 
-## Learning outcomes
+## 1. Scope, prerequisites, and learning objectives
 
-By the end of this lesson, you should be able to:
+This lesson follows Lesson 01 of `roadmap-Advanced-Python-Data-Model-and-Object-Design.md`. It is the first lesson in Phase A, *Making Objects Behave*. Later lessons cover rich ordering, container protocols, and operator overloading; this lesson introduces the data-model mechanisms needed to reason about those topics.
 
-- Explain what special (dunder) methods are and how Python's data model invokes them.
-- Design useful, safe developer-facing representations with `__repr__` and readable output with `__str__`.
-- Implement value equality with `__eq__`, including correct behavior for unsupported operand types and subclasses.
-- Explain and enforce Python's equality/hash contract; choose when a class should be hashable.
-- Recognize why mutable hash keys are dangerous and why `hash()` is not a persistent identifier.
-- Use `__bool__`, `__len__`, and `__format__` appropriately, as scoped by the module roadmap.
-- Test these behaviors with `pytest` and diagnose common production failures.
+### Prerequisites
 
-## 1. Prerequisites and mental model
+You should be comfortable with:
 
-You should already understand classes, instances, attributes, `__init__`, basic inheritance, mutability, tuples, dictionaries, sets, type hints, and assertions. If any of those are unfamiliar, review the earlier Stage 1 lessons on Python core types, OOP, and testing first.
+- Defining classes, creating instances, and using `self`.
+- Instance attributes, inheritance, and `isinstance`.
+- `None`, booleans, conditionals, tuples, and exceptions.
+- Lists, tuples, sets, and dictionaries.
+- Basic type annotations and running Python files.
+- Basic pytest assertions.
 
-### What is a dunder method?
+If any prerequisite is unfamiliar, pause and review it before trying the advanced exercises.
 
-A **dunder** method has a double underscore at the beginning and end of its name, such as `__repr__`. It is part of Python's data model: Python calls it to give an object a standard language behavior.
+### Learning objectives
 
-```python
-items = [10, 20, 30]
-len(items)       # Python dispatches to the object's length protocol
-repr(items)      # developer-oriented representation
-str(items)       # readable string form
-```
+By the end, you should be able to:
 
-Prefer the public operation (`len(value)`, `repr(value)`, `value == other`) instead of manually calling `value.__len__()` or `value.__eq__(other)`. Special-method lookup often happens on the type rather than through ordinary instance attribute lookup, so direct calls are not a reliable substitute for using the language operation.
+1. Explain how Python's data model connects language operations to special methods.
+2. Design useful `repr()` and `str()` output, including output inside containers.
+3. Implement equality without unsafe assumptions about the other operand's type.
+4. Explain and preserve the equality/hash contract.
+5. Decide whether a class should be hashable and keep hashes stable while objects are dictionary keys or set members.
+6. Implement truth-value and formatting behavior deliberately.
+7. Reason about `NotImplemented`, subclass equality, exact-type checks, `NaN`, hash randomization, and dataclasses.
+8. Test these contracts with pytest and identify common production failure modes.
 
-### Why data engineers should care
+---
 
-Custom classes frequently represent money, source records, pipeline configuration, schema fields, event identities, database entities, and validation results. Their representations appear in logs and test failures; equality affects deduplication and assertions; hashing affects dictionaries and sets. A broken equality/hash design can make records disappear from a set or become effectively unreachable in a dictionary.
+## 2. The mental model: Python's data model
 
-## 2. The four core methods at a glance
+Python objects are not just bundles of attributes. A class can participate in language operations by defining **special methods**, often called **dunder methods** because their names begin and end with double underscores.
 
-| Method | Main question | Common caller | Design goal |
-|---|---|---|---|
-| `__repr__(self)` | “What object is this?” | `repr(x)`, REPL, containers, debugging | Useful, unambiguous developer representation |
-| `__str__(self)` | “How should this read to a person?” | `str(x)`, `print(x)`, `f"{x}"` | Readable display |
-| `__eq__(self, other)` | “Do these values represent the same thing?” | `x == y`, membership operations in some contexts | Consistent value equality |
-| `__hash__(self)` | “Which hash bucket should this value use?” | `hash(x)`, sets, dictionary keys | Stable hash compatible with equality |
+Examples:
 
-They serve different purposes. A representation is not a serialization format, equality is not identity, and a hash is not a unique ID.
+| Operation you write | Special-method mechanism |
+|---|---|
+| `repr(obj)` | `type(obj).__repr__(obj)` |
+| `str(obj)` / `print(obj)` | `__str__`, with a fallback to `__repr__` |
+| `a == b` | equality dispatch involving `__eq__` |
+| `hash(obj)` | `type(obj).__hash__(obj)` |
+| `if obj:` | `__bool__`, or `__len__` if no `__bool__` exists |
+| `format(obj, spec)` / `f"{obj:spec}"` | `__format__` (including the empty spec in `f"{obj}"`) |
+| `len(obj)` | `__len__` |
 
-## 3. Beginner level — `__repr__` and `__str__`
-
-### 3.1 `__repr__`: developer-facing representation
-
-`repr(x)` asks Python for a representation intended primarily for debugging and development. A good representation helps someone identify the object's meaningful state without inspecting it manually.
-
-For simple value objects, aim for a representation that looks like a constructor call and could recreate the object when practical. This is a useful goal, not a universal guarantee: some objects depend on external resources, secrets, or state that cannot safely or accurately be reconstructed.
+These are conceptual descriptions of Python's special-method dispatch, not a promise that every operation is implemented as a literal Python-level method call. In CPython, many operations use interpreter-level slots. One important practical rule is that special-method lookup generally happens on the object's **type**, not by looking for an ordinary same-named attribute on the instance.
 
 ```python
-class Money:
-    """Money stored as integer minor units, such as cents."""
+class Box:
+    def __init__(self, value: int) -> None:
+        self.value = value
 
-    def __init__(self, amount_minor: int, currency: str) -> None:
-        self.amount_minor = amount_minor
-        self.currency = currency
+    def __len__(self) -> int:
+        return self.value
 
-    def __repr__(self) -> str:
-        return f"Money({self.amount_minor!r}, {self.currency!r})"
-
-money = Money(1250, "EUR")
-assert repr(money) == "Money(1250, 'EUR')"
+box = Box(3)
+print(len(box))
+# 3
 ```
 
-The `!r` conversion in the f-string applies `repr()` to each field. It preserves quotes around strings and helps distinguish values such as `None`, strings, and integers.
+Python's built-in `len(box)` invokes the length protocol. You almost never need to write `box.__len__()` yourself. Prefer `len(box)`: it expresses intent and uses the language protocol correctly.
 
-### 3.2 `__str__`: readable, user-facing display
+### Why this matters in engineering
 
-`str(x)` is intended to be convenient for people reading the output. `print(x)` uses `str(x)`. When a class defines `__str__`, `f"{x}"` normally uses it too.
+Libraries become composable when their objects follow familiar protocols. A data model that has reliable representations is easier to debug; a value object with correct equality behaves predictably in tests and deduplication; a hashable immutable key can be used in dictionaries and sets. The same principles apply to configuration objects, data-quality results, feature descriptors, cache keys, and model metadata.
 
-```python
-class Money:
-    def __init__(self, amount_minor: int, currency: str) -> None:
-        self.amount_minor = amount_minor
-        self.currency = currency
+---
 
-    def __repr__(self) -> str:
-        return f"Money({self.amount_minor!r}, {self.currency!r})"
+## 3. Core terminology
 
-    def __str__(self) -> str:
-        amount = self.amount_minor / 100
-        return f"{amount:.2f} {self.currency}"
+- **Identity:** whether two references point to the same object; test with `is`.
+- **Equality:** whether two objects should count as equivalent according to `==`.
+- **Value object:** an object whose meaning is primarily its values, rather than its identity. Two separate `Money(500, "USD")` instances may represent the same amount.
+- **Hash:** an integer returned by `hash(obj)`, used by hash tables to narrow down candidate matches.
+- **Hashable:** an object whose hash remains stable during its lifetime and whose equality behavior meets Python's requirements. In practice, hashable objects can be dictionary keys and set members.
+- **Mutable:** an object's observable state can change after construction.
+- **Immutable:** the object's equality-relevant state cannot be changed after construction.
+- **Contract:** a rule that an implementation must preserve for callers and built-in data structures to behave correctly.
+- **Fallback:** behavior Python uses when a preferred protocol method is absent.
+- **`NotImplemented`:** a special singleton value that tells binary-operation dispatch that this implementation does not handle the operand combination. It is not an exception and is not the same as `False`.
 
-money = Money(1250, "EUR")
-assert str(money) == "12.50 EUR"
-assert repr(money) == "Money(1250, 'EUR')"
-```
+---
 
-For financial software, integer minor units or `Decimal` are generally safer than binary floating-point for representing currency. The example's division is for display only and is not a recommendation to use floats for financial calculations.
+## 4. `__repr__` and `__str__`: two audiences, two jobs
 
-### 3.3 What if only one method exists?
+### 4.1 `__repr__`: developer-facing representation
 
-If `__str__` is not defined, `str(x)` falls back to `__repr__`. For that reason, when you only implement one representation method, implement a useful `__repr__` first.
-
-```python
-class Batch:
-    def __init__(self, batch_id: str, row_count: int) -> None:
-        self.batch_id = batch_id
-        self.row_count = row_count
-
-    def __repr__(self) -> str:
-        return f"Batch(batch_id={self.batch_id!r}, row_count={self.row_count})"
-
-batch = Batch("daily-2026-10-16", 1250)
-assert str(batch) == repr(batch)
-```
-
-### 3.4 Containers usually show contained objects with `repr`
-
-```python
-money = Money(1250, "EUR")
-print(money)       # 12.50 EUR
-print([money])     # [Money(1250, 'EUR')]
-```
-
-A list uses the representation of its elements, rather than each element's user-facing `str`. This makes nested structures more useful when debugging.
-
-### 3.5 Rules for a production-quality representation
-
-A good `__repr__` should:
-
-1. Return a `str` (not bytes, `None`, or an arbitrary object).
-2. Include enough state to distinguish important instances.
-3. Avoid performing I/O, database queries, network calls, or expensive computations.
-4. Avoid exposing passwords, access tokens, connection strings, personally identifying data, or other secrets.
-5. Remain bounded in size when fields may contain huge payloads.
-6. Handle recursive object graphs safely when recursion is possible.
-
-Do not make a representation the canonical wire format for an API, a database record, or a long-term archive. Use explicit serialization such as JSON with a defined schema instead.
-
-#### Recursive representations
-
-If objects can reference themselves, naïve representations can recurse indefinitely. Python's `reprlib.recursive_repr` can protect a representation method.
-
-```python
-from reprlib import recursive_repr
-
-class Node:
-    def __init__(self, name: str) -> None:
-        self.name = name
-        self.parent: Node | None = None
-
-    @recursive_repr(fillvalue="...")
-    def __repr__(self) -> str:
-        return f"Node(name={self.name!r}, parent={self.parent!r})"
-
-root = Node("root")
-root.parent = root
-assert "..." in repr(root)
-```
-
-### 3.6 Round-tripping a representation: useful, but conditional
-
-For simple objects whose constructor arguments fully describe their state, `repr()` can be designed to be evaluable in a context where the class name is available. Never call `eval()` on an untrusted string: evaluating untrusted Python expressions can execute arbitrary code.
+`repr(obj)` should produce a useful, unambiguous representation that helps a developer inspect the object. When practical, it should resemble a valid constructor expression that could recreate an equivalent object in the current namespace.
 
 ```python
 class Point:
@@ -171,649 +106,932 @@ class Point:
         self.y = y
 
     def __repr__(self) -> str:
-        return f"Point({self.x!r}, {self.y!r})"
+        return f"Point(x={self.x!r}, y={self.y!r})"
 
-original = Point(3, 4)
-namespace = {"Point": Point}
-rebuilt = eval(repr(original), {"__builtins__": {}}, namespace)
-assert (rebuilt.x, rebuilt.y) == (original.x, original.y)
+point = Point(2, 5)
+print(repr(point))
+# Point(x=2, y=5)
 ```
 
-This tightly controlled demonstration is for learning only. In real applications, prefer an explicit safe parser or serializer. Do not use `eval()` as a general-purpose deserialization mechanism.
+Use `!r` or `repr()` for fields inside `__repr__`. That preserves useful quoting for strings and recursively uses the field's representation.
 
-## 4. Beginner level — equality and identity
+A constructor-like representation is a goal, not an unconditional requirement. It may be impractical when an object contains secrets, huge data, open file handles, external resources, or state that cannot be reconstructed. Never expose passwords, API tokens, personal data, or confidential payloads merely to make a representation detailed.
 
-### 4.1 `==` is not the same as `is`
+### 4.2 `__str__`: user-facing representation
 
-- `a == b` asks whether two objects are equal according to their equality behavior.
-- `a is b` asks whether both names refer to the very same object.
-
-```python
-left = [1, 2]
-right = [1, 2]
-assert left == right
-assert left is not right
-```
-
-A user-defined class that does not implement `__eq__` normally inherits identity-based equality from `object`. Two separately created instances with identical attributes are therefore not automatically equal.
-
-### 4.2 Define value equality with `__eq__`
-
-For a value object, identify the fields that define its meaning and compare those fields. Avoid comparing incidental details such as cached values, log messages, or timestamps unless they are part of the value's identity by design.
+`str(obj)` should be readable and suitable for user-facing output; `print(obj)` uses string conversion. An f-string always goes through `__format__` with the supplied format specifier (the empty string for `f"{obj}"`). The default `object.__format__` delegates an empty spec to `str(obj)`, but a custom `__format__` can choose different behavior.
 
 ```python
-class Money:
-    def __init__(self, amount_minor: int, currency: str) -> None:
-        self.amount_minor = amount_minor
-        self.currency = currency
-
-    def __eq__(self, other: object) -> bool:
-        if not isinstance(other, Money):
-            return NotImplemented
-        return (self.amount_minor, self.currency) == (
-            other.amount_minor,
-            other.currency,
-        )
-
-one = Money(100, "USD")
-another_one = Money(100, "USD")
-different = Money(100, "EUR")
-assert one == another_one
-assert one != different
-```
-
-The return annotation is `bool` because supported comparisons return booleans. Returning the singleton `NotImplemented` for an unsupported type is also valid and tells Python to continue its comparison-dispatch process.
-
-### 4.3 Why return `NotImplemented` instead of `False`?
-
-`NotImplemented` is a special singleton recognized by Python's operator machinery. It does **not** mean “the answer is false.” It means “this method does not implement this comparison for this operand combination.” Python can then try the other operand's reflected comparison method and apply its fallback rules.
-
-```python
-class RecordId:
-    def __init__(self, value: str) -> None:
-        self.value = value
-
-    def __eq__(self, other: object) -> bool:
-        if not isinstance(other, RecordId):
-            return NotImplemented
-        return self.value == other.value
-
-assert RecordId("r-1") == RecordId("r-1")
-assert RecordId("r-1") != 42
-```
-
-For `==`, if both sides return `NotImplemented`, Python falls back to identity comparison. Thus `RecordId("r-1") == 42` evaluates to `False`; it does not raise merely because the types differ. Ordering comparisons can instead raise `TypeError` when no implementation supports the operands.
-
-Do not use `NotImplementedError` here. `NotImplementedError` is an exception; `NotImplemented` is the special return value used for operator dispatch.
-
-### 4.4 Equality design principles
-
-A well-designed value equality relation should generally be:
-
-- **Reflexive:** `x == x` is true for ordinary well-behaved values.
-- **Symmetric:** if `x == y`, then `y == x`.
-- **Transitive:** if `x == y` and `y == z`, then `x == z`.
-- **Consistent:** repeated comparisons give the same result while relevant state remains unchanged.
-
-These principles can be complicated by floating-point `NaN`, custom cross-type comparisons, mutable objects, and badly designed inheritance hierarchies. Decide what “same value” means before writing code.
-
-## 5. Intermediate level — `__hash__` and the equality/hash contract
-
-### 5.1 What is a hash?
-
-`hash(x)` returns an integer hash value. Python uses hashes to organize hash-based collections such as `set` and `dict`, allowing efficient average-case lookup. Hashes can collide: different objects are allowed to have the same hash. Equality is still used to distinguish colliding keys.
-
-A hash is **not**:
-
-- a unique identifier;
-- a cryptographic digest;
-- a stable cross-process ID;
-- a replacement for equality.
-
-### 5.2 The non-negotiable contract
-
-If two objects compare equal, they **must** have equal hashes:
-
-\[
-x == y \implies hash(x) == hash(y)
-\]
-
-The reverse implication is not required. Equal hashes do not prove that objects are equal.
-
-A safe implementation for an immutable value object is to hash the same logical fields used by equality:
-
-```python
-class Money:
-    __slots__ = ("amount_minor", "currency")
-
-    def __init__(self, amount_minor: int, currency: str) -> None:
-        self.amount_minor = amount_minor
-        self.currency = currency
+class Temperature:
+    def __init__(self, celsius: float) -> None:
+        self.celsius = celsius
 
     def __repr__(self) -> str:
-        return f"Money({self.amount_minor!r}, {self.currency!r})"
+        return f"Temperature(celsius={self.celsius!r})"
 
     def __str__(self) -> str:
-        return f"{self.amount_minor / 100:.2f} {self.currency}"
+        return f"{self.celsius:.1f} °C"
 
-    def __eq__(self, other: object) -> bool:
-        if not isinstance(other, Money):
+temperature = Temperature(21.25)
+print(repr(temperature))
+print(str(temperature))
+print(f"Current temperature: {temperature}")
+```
+
+Expected output:
+
+```text
+Temperature(celsius=21.25)
+21.2 °C
+Current temperature: 21.2 °C
+```
+
+The `.1f` formatting rounds the value to one decimal place. The underlying value remains `21.25`.
+
+### 4.3 Fallback and container behavior
+
+If a class defines `__repr__` but not `__str__`, `str(obj)` falls back to `__repr__`. Therefore, if you implement only one representation method, implement `__repr__`.
+
+Containers normally display their elements using `repr()`, not `str()`:
+
+```python
+class Label:
+    def __repr__(self) -> str:
+        return "Label(code='A7')"
+
+    def __str__(self) -> str:
+        return "A7"
+
+label = Label()
+print(label)
+print([label])
+print({"label": label})
+```
+
+Expected output:
+
+```text
+A7
+[Label(code='A7')]
+{'label': Label(code='A7')}
+```
+
+This is intentional: the container's representation should help identify the contained objects.
+
+### 4.4 Representation safety and recursive objects
+
+A `__repr__` should be dependable during debugging and logging. It should not normally perform network I/O, mutate the object, or raise an exception. Avoid printing entire multi-gigabyte arrays or full records in every log line.
+
+For bounded representations, use `reprlib`:
+
+```python
+import reprlib
+
+large = list(range(100))
+print(reprlib.repr(large))
+```
+
+The exact abbreviated output can depend on `reprlib`'s configured limits, but it will abbreviate the large list rather than print every element.
+
+For recursive structures, `reprlib.recursive_repr` prevents infinite recursion:
+
+```python
+from reprlib import recursive_repr
+
+class Node:
+    def __init__(self, name: str) -> None:
+        self.name = name
+        self.child: Node | None = None
+
+    @recursive_repr()
+    def __repr__(self) -> str:
+        return f"Node(name={self.name!r}, child={self.child!r})"
+
+root = Node("root")
+root.child = root
+print(root)
+# Node(name='root', child=...)
+```
+
+The decorator uses a recursion sentinel (`...`) when the same object's representation is encountered recursively.
+
+### 4.5 `repr()` is not serialization
+
+A representation that looks evaluable can be convenient for local debugging:
+
+```python
+class Coordinate:
+    def __init__(self, x: int, y: int) -> None:
+        self.x, self.y = x, y
+
+    def __repr__(self) -> str:
+        return f"Coordinate({self.x!r}, {self.y!r})"
+
+original = Coordinate(4, 9)
+namespace = {"Coordinate": Coordinate}
+restored = eval(repr(original), {"__builtins__": {}}, namespace)
+assert (restored.x, restored.y) == (4, 9)
+```
+
+Expected output: no output; the assertion passes.
+
+This example is only for a controlled demonstration. `eval()` executes expressions. Restricting built-ins is not a general security boundary, and a representation may contain names or expressions that cannot be resolved. **Never evaluate arbitrary representations from logs, users, external systems, or untrusted files.** Use an explicit serialization format such as JSON with validation, or a deliberately designed schema, when data must cross process or trust boundaries.
+
+---
+
+## 5. `__eq__`: value equality, identity, and type handling
+
+### 5.1 Identity is not equality
+
+By default, ordinary user-defined objects inherit identity-based equality from `object`: two distinct instances compare unequal unless the class defines otherwise.
+
+```python
+class Empty:
+    pass
+
+a = Empty()
+b = Empty()
+c = a
+
+print(a == b)
+print(a is b)
+print(a == c)
+print(a is c)
+```
+
+Expected output:
+
+```text
+False
+False
+True
+True
+```
+
+`is` asks whether references identify the same object. `==` asks the objects' equality protocol. Built-in types and value-object classes often define value equality.
+
+### 5.2 A safe equality method
+
+A robust `__eq__` should handle unsupported operand types without blindly reading attributes that may not exist.
+
+```python
+from types import NotImplementedType
+class Pixel:
+    def __init__(self, red: int, green: int, blue: int) -> None:
+        self.red, self.green, self.blue = red, green, blue
+
+    def __eq__(self, other: object) -> bool | NotImplementedType:
+        if not isinstance(other, Pixel):
             return NotImplemented
-        return (self.amount_minor, self.currency) == (
-            other.amount_minor,
-            other.currency,
+        return (self.red, self.green, self.blue) == (
+            other.red, other.green, other.blue
         )
 
-    def __hash__(self) -> int:
-        return hash((self.amount_minor, self.currency))
-
-first = Money(100, "USD")
-second = Money(100, "USD")
-assert first == second
-assert hash(first) == hash(second)
-assert len({first, second}) == 1
-assert {first: "settled"}[second] == "settled"
+print(Pixel(1, 2, 3) == Pixel(1, 2, 3))
+print(Pixel(1, 2, 3) == (1, 2, 3))
 ```
 
-The tuple is hashable because both fields are hashable. This implementation is safe only if the fields that participate in equality do not change while the object is used as a key. The class above does not enforce immutability; the later frozen-dataclass example demonstrates a stronger default for a simple value object.
+Expected output:
 
-### 5.3 Why defining `__eq__` can make a class unhashable
+```text
+True
+False
+```
 
-When a class defines `__eq__` but does not define `__hash__`, Python normally sets its `__hash__` to `None`. This is deliberate: value equality plus identity-based hashing would violate the contract, and Python cannot assume which fields should be hashed.
+Because these methods can return either a boolean or the `NotImplemented` singleton, the examples below use the explicit Python 3.12+ annotation `bool | NotImplementedType` and import `NotImplementedType` from `types`. Some codebases keep `-> bool` as a conventional shorthand for `__eq__`, but strict static checking may flag `return NotImplemented`; prefer the union annotation when your type checker supports it. `NotImplemented` remains a runtime singleton value, not a boolean result.
+
+### 5.3 Why `NotImplemented` is not `False`
+
+When an equality implementation returns `NotImplemented`, it declines to decide the comparison. Python can try the other operand's equality implementation. If the right operand's type is a proper subclass of the left operand's type and supplies an override, that subclass implementation can receive priority. Otherwise, Python tries the left operand and then the right operand as applicable. If neither side handles equality, it ultimately falls back to identity behavior; inequality follows corresponding fallback behavior.
+
+Returning `False` means “I handled this comparison and the values are not equal.” That can prematurely reject an operand pair that the other object's implementation knows how to compare.
+
+`NotImplemented` is a special return value, **not** an exception. Do not write `raise NotImplemented`; do not confuse it with `NotImplementedError`, which is an exception sometimes used in abstract or unfinished methods.
+
+### 5.4 `isinstance` versus exact-type equality
+
+Two common policies are:
 
 ```python
-class UnhashableMoney:
-    def __init__(self, amount_minor: int) -> None:
-        self.amount_minor = amount_minor
+from types import NotImplementedType
+class Money:
+    def __init__(self, minor_units: int, currency: str) -> None:
+        self.minor_units = minor_units
+        self.currency = currency
 
-    def __eq__(self, other: object) -> bool:
-        if not isinstance(other, UnhashableMoney):
+    def __eq__(self, other: object) -> bool | NotImplementedType:
+        if not isinstance(other, Money):
             return NotImplemented
-        return self.amount_minor == other.amount_minor
+        return (self.minor_units, self.currency) == (
+            other.minor_units, other.currency
+        )
 
-value = UnhashableMoney(100)
-assert UnhashableMoney.__hash__ is None
-# hash(value) raises TypeError: unhashable type: 'UnhashableMoney'
+print(Money(100, "USD") == 100)
+# False, with no AttributeError
 ```
 
-This is usually the correct default for mutable value objects. If the type should be hashable, explicitly design its equality and hash semantics. Assigning `__hash__ = object.__hash__` while defining value equality is almost always wrong because equal instances could have different identity hashes.
-
-### 5.4 Mutable fields and dictionary/set corruption
-
-A dictionary or set stores an object's hash when inserting it. If you later mutate a field that changes the object's hash, the object may remain in the bucket chosen by the old hash while future lookups compute a new hash. It can then appear to be missing, and removal can fail.
+and:
 
 ```python
-class MutableKey:
-    def __init__(self, key: int) -> None:
+from types import NotImplementedType
+class BasePoint:
+    def __init__(self, x: int, y: int) -> None:
+        self.x, self.y = x, y
+
+    def __eq__(self, other: object) -> bool | NotImplementedType:
+        if type(other) is not type(self):
+            return NotImplemented
+        return (self.x, self.y) == (other.x, other.y)
+
+class ColoredPoint(BasePoint):
+    def __init__(self, x: int, y: int, color: str) -> None:
+        super().__init__(x, y)
+        self.color = color
+
+print(BasePoint(1, 2) == ColoredPoint(1, 2, "red"))
+# False: exact-type policy declines the comparison
+```
+
+They encode different design choices:
+
+- `isinstance` allows subclass instances to participate in the base class's equality logic.
+- Exact-type checks restrict equality to instances of the same concrete class.
+
+Neither policy is universally correct. The danger is allowing subclasses to add equality-relevant state while the base class ignores it. For example, if `BasePoint(x, y)` compares equal to `ColoredPoint(x, y, color)` by ignoring `color`, the classes may disagree about equality or produce surprising transitivity results. If subclasses add semantic state, define a deliberate equality policy; exact-type checks are often a safe default for independent value-object types.
+
+For a class intended to be extended polymorphically, `isinstance` may be appropriate if all participating subclasses preserve the same equality semantics. Follow the Liskov substitution principle: subtype behavior should remain consistent with the promises callers rely on.
+
+### 5.5 Equality laws
+
+A well-designed value equality relation should normally satisfy:
+
+- **Reflexivity:** `a == a` is true.
+- **Symmetry:** if `a == b`, then `b == a`.
+- **Transitivity:** if `a == b` and `b == c`, then `a == c`.
+- **Consistency:** repeated comparisons return the same result while relevant state is unchanged.
+- **Compatibility with hashing:** equal objects have equal hashes.
+
+Floating-point `NaN` is a notable exception to ordinary reflexivity: `nan != nan`. This is a property of floating-point semantics, not a model to imitate casually in domain objects.
+
+---
+
+## 6. `__hash__`: hashability and the equality/hash contract
+
+### 6.1 What a hash does
+
+A hash table such as `dict` or `set` uses a hash to find a likely storage location, then uses equality to distinguish keys that share a hash. A hash is not a unique identifier: collisions are permitted.
+
+The central contract is:
+
+> If `a == b` is true, then `hash(a) == hash(b)` must be true.
+
+The reverse is not required. Two unequal objects can have the same hash.
+
+### 6.2 Why defining `__eq__` usually makes a class unhashable
+
+When a class defines `__eq__` but does not explicitly define `__hash__`, Python sets `__hash__ = None` for that class. This conservative default prevents instances from accidentally remaining hashable when value equality is introduced but no compatible hash policy is supplied.
+
+```python
+from types import NotImplementedType
+class Record:
+    def __init__(self, key: str) -> None:
         self.key = key
 
-    def __eq__(self, other: object) -> bool:
-        if not isinstance(other, MutableKey):
+    def __eq__(self, other: object) -> bool | NotImplementedType:
+        if not isinstance(other, Record):
             return NotImplemented
         return self.key == other.key
 
-    def __hash__(self) -> int:
-        return hash(self.key)
-
-# Do not do this in production:
-key = MutableKey(1)
-# mapping = {key: "value"}
-# key.key = 2  # changes the hash-relevant state after insertion
+record = Record("r-17")
+print(Record.__hash__)
+print(Record.__eq__(record, record))
+# hash(record)  # TypeError: unhashable type: 'Record'
 ```
 
-The lesson is not that Python's dictionary is broken; the key violated the hashability contract by changing its hash-relevant state. A hashable object's hash and equality behavior must remain stable while it is in a set or used as a dictionary key.
+Expected output (the exact function representation is implementation-dependent):
 
-**Preferred options:**
+```text
+None
+True
+```
 
-- Use immutable value objects for keys.
-- Use a stable immutable identifier as the key.
-- If the object must be mutable, do not hash it; use an unhashable class or index it externally by a stable key.
+Uncommenting `hash(record)` raises `TypeError`.
 
-### 5.5 What makes a good hash implementation?
+### 6.3 Implementing a compatible hash
 
-- Hash the same logical components that equality compares.
-- Use `hash((field_a, field_b, ...))` when the component values are hashable.
-- Do not hash a mutable list directly; convert to a tuple only if the represented contents are themselves intended to be immutable for the key's lifetime.
-- Do not hand-roll a complex hash unless there is a measured reason and a clear correctness argument.
-- Do not store `hash(x)` in a database as a durable identifier.
-
-### 5.6 Hash randomization and process boundaries
-
-Python randomizes hashes for some built-in types, including strings, to help defend against collision-based denial-of-service attacks. Therefore, `hash("pipeline")` may differ between Python processes; `PYTHONHASHSEED` can control the seed for reproducibility or testing, but a fixed seed does not turn built-in hashes into a durable identifier. The exact integer returned by `hash()` is an implementation-level collection aid, not a persistence format.
-
-For durable fingerprints, choose a deliberate canonical encoding and a stable digest such as `hashlib.sha256`, with clear decisions about normalization, field ordering, encoding, and versioning. A cryptographic digest has a different purpose and security profile from Python's built-in `hash()`.
-
-## 6. `__bool__` and `__len__`: truthiness behavior
-
-The roadmap includes truthiness because it is another data-model behavior that can surprise callers. In a Boolean context (`if value:`, `bool(value)`), Python checks `__bool__` first if it exists. If `__bool__` is absent, Python can use `__len__`; a zero length is false and a nonzero length is true. If neither is defined, instances are normally truthy.
+If a class is intended to be hashable, hash the same immutable values that determine equality:
 
 ```python
-class QueueView:
-    def __init__(self, items: list[str]) -> None:
+from dataclasses import dataclass
+from types import NotImplementedType
+
+@dataclass(frozen=True, eq=False)
+class Tag:
+    namespace: str
+    name: str
+
+    def __eq__(self, other: object) -> bool | NotImplementedType:
+        if not isinstance(other, Tag):
+            return NotImplemented
+        return (self.namespace, self.name) == (other.namespace, other.name)
+
+    def __hash__(self) -> int:
+        return hash((self.namespace, self.name))
+
+a = Tag("event", "created")
+b = Tag("event", "created")
+print(a == b)
+print(hash(a) == hash(b))
+print(len({a, b}))
+```
+
+Expected output:
+
+```text
+True
+True
+1
+```
+
+The example uses `@dataclass(frozen=True, eq=False)` to prevent ordinary reassignment while keeping the hand-written equality and hash methods. The tuple is hashable because both components are hashable strings. If any equality-relevant component is unhashable, such as a list, the tuple hash will fail. Frozen dataclasses are not deeply immutable if a field itself refers to mutable state, so choose immutable field types.
+
+### 6.4 Mutable state and hash stability
+
+A hash must remain stable while an object is stored as a dictionary key or set member. This is unsafe:
+
+```python
+from types import NotImplementedType
+# INTENTIONALLY INCORRECT — do not use in production.
+class MutableKey:
+    def __init__(self, code: str) -> None:
+        self.code = code
+
+    def __eq__(self, other: object) -> bool | NotImplementedType:
+        if not isinstance(other, MutableKey):
+            return NotImplemented
+        return self.code == other.code
+
+    def __hash__(self) -> int:
+        return hash(self.code)
+```
+
+If `code` changes after insertion, the object's hash may change. The table placed the object based on its old hash, so lookups and membership tests can fail unexpectedly. This can look like silent data loss.
+
+Safer options:
+
+1. Make equality-relevant state immutable.
+2. Make the class unhashable (`__hash__ = None`) if its state is mutable.
+3. Use an immutable key derived from the object, such as a tuple of stable fields.
+4. Keep mutable operational state separate from immutable identity/value fields.
+
+Do not “fix” this by hashing only a mutable object's identity if equality is value-based. Equal objects must still have equal hashes.
+
+### 6.5 Hash randomization: never persist `hash()` values
+
+Python salts hashes for types such as strings and bytes to mitigate certain denial-of-service attacks. As a result, hash values can differ between interpreter processes. The exact hash algorithm and values are not a persistent data format.
+
+Do not use `hash(value)` as:
+
+- A database primary key.
+- A cross-process cache key.
+- A durable event identifier.
+- A checksum or cryptographic digest.
+- A stable partition key across independent runs.
+
+For stable identifiers, choose an explicit canonical representation and a suitable digest such as `hashlib.sha256`, or use a UUID/identifier strategy appropriate to the application. Canonicalization matters: equivalent data must be encoded identically before hashing. A cryptographic digest has different goals and properties from Python's in-memory `hash()`.
+
+---
+
+## 7. Truth-value testing: `__bool__` and `__len__`
+
+Python decides whether an object is true in a boolean context such as `if obj`, `while obj`, `bool(obj)`, and boolean operators.
+
+The precedence is:
+
+1. If `__bool__` exists, use it. It must return `True` or `False`.
+2. Otherwise, if `__len__` exists, zero means false and nonzero means true.
+3. Otherwise, the object is true by default.
+
+```python
+class Batch:
+    def __init__(self, items: list[int]) -> None:
         self.items = items
 
     def __len__(self) -> int:
         return len(self.items)
 
-empty = QueueView([])
-nonempty = QueueView(["job-1"])
-assert bool(empty) is False
-assert bool(nonempty) is True
-```
-
-If both are defined, `__bool__` takes precedence:
-
-```python
-class AlwaysReady:
-    def __len__(self) -> int:
-        return 0
-
+class ExplicitBatch(Batch):
     def __bool__(self) -> bool:
-        return True
+        return True  # Example only: even an empty batch is considered active.
 
-assert bool(AlwaysReady()) is True
+print(bool(Batch([])))
+print(bool(Batch([1])))
+print(bool(ExplicitBatch([])))
 ```
 
-`__bool__` must return an actual `bool`; returning an integer such as `1` is an error. `__len__` must return a non-negative integer. Do not give a collection a surprising truthiness meaning unless it is clearly documented. For example, “no records loaded” and “the operation failed” are different states and should not be conflated by an arbitrary Boolean conversion.
+Expected output:
 
-## 7. `__format__` and formatting specifications
+```text
+False
+True
+True
+```
 
-`format(value, spec)` and f-strings with a format specifier such as `f"{value:>12}"` use the object's formatting protocol. If a class does not define `__format__`, the inherited behavior generally delegates an empty format spec to `str(value)` and rejects unsupported non-empty specs.
+The third result proves that `__bool__` takes precedence over `__len__`. In production, an always-true `__bool__` should only be used if it reflects meaningful domain semantics. Avoid making an object false merely because an identifier or numeric field happens to be zero unless that is the intended contract.
 
-For a custom type, define a small, documented format mini-language only when it materially improves the API. Do not create an obscure formatting syntax just to avoid a normal method.
+`__len__` should return a non-negative integer. A negative length or an invalid return type causes errors when Python evaluates the protocol.
+
+---
+
+## 8. `__format__`: explicit formatting behavior
+
+`format(value, spec)` and `f"{value:spec}"` call `value.__format__(spec)`. `object.__format__` supports an empty format specification by delegating to string conversion, but a non-empty unsupported specification normally raises `TypeError`. Built-in numbers implement rich format specifications such as alignment, width, precision, and type.
+
+A domain object can define a small, documented format mini-language:
 
 ```python
-class DataVolume:
+class DataSize:
     def __init__(self, bytes_count: int) -> None:
         if bytes_count < 0:
             raise ValueError("bytes_count must be non-negative")
         self.bytes_count = bytes_count
 
     def __repr__(self) -> str:
-        return f"DataVolume({self.bytes_count})"
+        return f"DataSize({self.bytes_count})"
 
     def __str__(self) -> str:
         return f"{self.bytes_count} bytes"
 
     def __format__(self, spec: str) -> str:
-        if spec == "bytes" or spec == "":
+        if spec == "" or spec == "human":
             return str(self)
-        if spec == "kb":
-            return f"{self.bytes_count / 1_000:.2f} kB"
-        if spec == "kib":
-            return f"{self.bytes_count / 1_024:.2f} KiB"
-        raise ValueError(f"unsupported DataVolume format specifier: {spec!r}")
+        if spec == "commas":
+            return f"{self.bytes_count:,} bytes"
+        if spec == "KiB":
+            return f"{self.bytes_count / 1024:.2f} KiB"
+        raise ValueError(f"unsupported DataSize format specifier: {spec!r}")
 
-volume = DataVolume(2048)
-assert format(volume) == "2048 bytes"
-assert format(volume, "kib") == "2.00 KiB"
+size = DataSize(4096)
+print(f"{size}")
+print(f"{size:commas}")
+print(f"{size:KiB}")
 ```
 
-Here `kB` uses decimal units (1,000 bytes), while `KiB` uses binary units (1,024 bytes). The class intentionally rejects unknown specs so mistakes do not silently produce misleading output.
+Expected output:
 
-## 8. Advanced level — subclass equality and type policy
-
-### 8.1 `isinstance` versus exact type checks
-
-The roadmap asks you to understand the trade-off between `isinstance(self, SomeType)` and `type(self) is type(other)`.
-
-- `isinstance(other, Base)` accepts instances of subclasses. This can be useful when subclasses preserve the same equality meaning.
-- `type(other) is type(self)` only compares instances of the exact same runtime class. This avoids some cross-subclass asymmetry, but may make a base instance and a behaviorally compatible subclass unequal.
-
-There is no universally correct choice. Equality should remain symmetric and transitive across the inheritance hierarchy. If a subclass adds state that changes the meaning of a value, inherited equality based only on base fields can be misleading.
-
-```python
-class EntityKey:
-    def __init__(self, key: str) -> None:
-        self.key = key
-
-    def __eq__(self, other: object) -> bool:
-        if type(other) is not type(self):
-            return NotImplemented
-        return self.key == other.key
-
-    def __hash__(self) -> int:
-        return hash((type(self), self.key))
-
-class CustomerKey(EntityKey):
-    pass
-
-assert EntityKey("42") == EntityKey("42")
-assert EntityKey("42") != CustomerKey("42")
+```text
+4096 bytes
+4,096 bytes
+4.00 KiB
 ```
 
-This policy deliberately treats the type as part of the value. If your domain instead treats a `CustomerKey` as interchangeable with an `EntityKey`, define and test that policy explicitly. Do not casually combine subclass-friendly equality with hashing that omits fields or type information when that would violate the equality/hash contract.
+A custom mini-language should be small, predictable, and documented. This example raises `ValueError` for an unsupported custom spec; `TypeError` is also common for unsupported format operations, especially when relying on default behavior. The important design requirement is to fail clearly rather than silently misformat data.
 
-### 8.2 `NotImplemented` and subclass dispatch
+---
 
-For rich comparison operators, Python has a dispatch protocol: it tries the appropriate method, can give a strict subclass's reflected implementation priority in relevant cases, and can try the other operand's method when the first returns `NotImplemented`. The exact rules differ by operator category, so do not assume every operator follows an identical path.
+## 9. Floating-point `NaN`: equality and set behavior
 
-For equality, the safe practical pattern for value types is to return `NotImplemented` when the other operand is outside the type domain you support. This leaves Python free to consult the other operand and apply the documented fallback. Returning `False` is appropriate when the comparison is supported and the values are simply unequal.
-
-### 8.3 Floating-point `NaN`
-
-IEEE floating-point `NaN` is not equal to itself:
+IEEE 754 `NaN` (“not a number”) compares unequal to itself:
 
 ```python
 nan = float("nan")
-assert nan != nan
+print(nan == nan)
+print(nan != nan)
 ```
 
-This means naïve equality and deduplication policies involving `NaN` can surprise you. Do not rely on `x == x` as a universal test for “valid value.” Decide how missing or non-finite values should be handled in your domain: reject them, normalize them, or represent them explicitly. `NaN` behavior inside containers can have identity-related subtleties, so tests should assert the business rule you need rather than assume every container behaves like a simple repeated `==` expression.
+Expected output:
 
-### 8.4 Dataclasses: generated equality and hashing
+```text
+False
+True
+```
 
-For straightforward value objects, `dataclasses` can generate these methods. The defaults matter:
-
-- `@dataclass` normally generates `__eq__` and does not make a mutable class hashable by default.
-- `@dataclass(frozen=True)` with equality enabled normally generates a hash, assuming the selected fields are themselves hashable.
-- `unsafe_hash=True` can force hash generation, but it is unsafe when equality-relevant state can mutate; avoid it unless you can justify the invariant.
-- `field(compare=False)` excludes a field from generated equality and hash behavior associated with that equality policy.
+This has subtle implications for equality and hash collections. In Python, container membership can use identity shortcuts in addition to equality checks. Thus, the same `nan` object can be found in a set that contains it, while a separately created `NaN` value may not compare equal to it. Do not assume that `NaN` behaves like an ordinary reflexive value.
 
 ```python
-from dataclasses import dataclass, field
-
-@dataclass(frozen=True)
-class ImmutableMoney:
-    amount_minor: int
-    currency: str
-    source_note: str = field(default="", compare=False)
-
-usd_a = ImmutableMoney(100, "USD", "imported from A")
-usd_b = ImmutableMoney(100, "USD", "imported from B")
-assert usd_a == usd_b
-assert hash(usd_a) == hash(usd_b)
-assert len({usd_a, usd_b}) == 1
+nan1 = float("nan")
+nan2 = float("nan")
+values = {nan1}
+print(nan1 in values)
+print(nan2 in values)
 ```
 
-Because `source_note` has `compare=False`, it does not distinguish values for equality. That is correct only if source provenance is intentionally not part of the value's identity. If provenance should distinguish records, remove `compare=False` or define the domain policy another way.
+Expected output on CPython 3.12+ (the exact hash-table details are implementation-dependent):
 
-### 8.5 Repr safety and operational logging
-
-Representations often end up in logs, error reports, monitoring systems, notebook outputs, and CI traces. Treat them as potentially exported data. Do not include raw credentials or sensitive payloads. A good representation can include a record ID, state, and a bounded summary while omitting secret or high-volume fields.
-
-```python
-class DatabaseConfig:
-    def __init__(self, host: str, username: str, password: str) -> None:
-        self.host = host
-        self.username = username
-        self.password = password
-
-    def __repr__(self) -> str:
-        return (
-            f"DatabaseConfig(host={self.host!r}, "
-            f"username={self.username!r}, password=<redacted>)"
-        )
-
-config = DatabaseConfig("db.internal", "pipeline_user", "do-not-log-this")
-assert "do-not-log-this" not in repr(config)
-assert "<redacted>" in repr(config)
+```text
+True
+False
 ```
 
-In production, consider whether the username is also sensitive under your threat model. Redaction is not a substitute for controlling access to logs.
+The first succeeds because the set contains that same object; the second normally fails because the distinct NaN does not compare equal and has a different hash in CPython. Do not use this example as a cross-implementation guarantee about distinct NaN hashes. This is a useful illustration of why identity, equality, and container implementation details must not be conflated.
 
-## 9. A complete production-oriented value object
+For data pipelines, explicitly define how missing or invalid numeric values should be treated. If domain equality needs a “missing equals missing” rule, represent missingness explicitly or normalize values before comparison rather than casually overriding global floating-point semantics.
 
-The following example brings together the core ideas. It models an immutable identifier for a source record. It is deliberately small so that its invariants can be understood and tested.
+---
+
+## 10. Dataclasses: `eq=True` and `frozen=True`
+
+Dataclasses generate common methods from declared fields. With `@dataclass(eq=True)` (the default), Python generates equality that compares participating fields as tuples, and the instances must have the same concrete type for the generated comparison to return true. With `frozen=True`, assignment to fields is blocked through normal attribute assignment and, when `eq=True` and `frozen=True`, dataclasses normally generate a hash based on the equality fields.
 
 ```python
 from dataclasses import dataclass
 
-@dataclass(frozen=True, slots=True)
-class SourceRecordKey:
-    source: str
-    record_id: str
+@dataclass(frozen=True)
+class ModelVersion:
+    name: str
+    major: int
+    minor: int
 
-    def __post_init__(self) -> None:
-        if not self.source.strip():
-            raise ValueError("source must not be empty")
-        if not self.record_id.strip():
-            raise ValueError("record_id must not be empty")
-
-key_a = SourceRecordKey("crm", "C-100")
-key_b = SourceRecordKey("crm", "C-100")
-key_c = SourceRecordKey("billing", "C-100")
-
-assert key_a == key_b
-assert hash(key_a) == hash(key_b)
-assert key_a != key_c
-assert len({key_a, key_b, key_c}) == 2
-assert {key_a: "processed"}[key_b] == "processed"
+v1 = ModelVersion("encoder", 2, 1)
+v2 = ModelVersion("encoder", 2, 1)
+print(v1)
+print(v1 == v2)
+print(hash(v1) == hash(v2))
+print(len({v1, v2}))
 ```
 
-The dataclass generates a useful representation, equality, and a hash because it is frozen and uses the default equality policy. `slots=True` is included as an example of a feature covered more deeply in the next lesson; it is not required for correct equality or hashing. `frozen=True` prevents ordinary field reassignment, though Python's frozen dataclasses are not a security boundary and do not recursively freeze mutable objects stored in fields. Here the fields are strings, so the key components themselves are immutable.
+Expected output:
 
-### When should a class be hashable?
+```text
+ModelVersion(name='encoder', major=2, minor=1)
+True
+True
+1
+```
 
-Make a class hashable when it has a clear, stable value identity and can keep all equality/hash-relevant state stable during its lifetime as a key. Examples include immutable record keys, normalized schema identifiers, and immutable configuration value objects. Avoid hashability for mutable entities whose equality-relevant fields change over time.
+Important qualifications:
 
-## 10. Testing strategy with `pytest`
+- `frozen=True` emulates immutability; it is not deep immutability. A frozen dataclass containing a mutable list still contains a mutable list.
+- If a participating field is unhashable, the generated hash can fail when called.
+- `eq=False` disables generated equality.
+- A mutable dataclass with generated equality is normally unhashable by default.
+- `unsafe_hash=True` asks dataclasses to generate a hash despite the usual safety default; it does not make mutable state safe.
+- `field(compare=False)` excludes a field from generated equality and hash participation where applicable. Make sure that matches the domain's semantics.
 
-Tests should check behavior through public operations (`repr`, `str`, `==`, `hash`, set membership, dictionary lookup), not only call the dunder methods directly.
+Use frozen dataclasses for small, value-oriented objects when their equality and hashing behavior matches the domain. Do not rely on decorators without understanding which fields participate.
 
-Save this as `test_value_objects.py` in a small project with the classes under test imported from your module. The test examples below assume the `Money` implementation in Section 5.2 is available as `Money`.
+---
+
+## 11. A cohesive value-object example: immutable `Money`
+
+This example uses integer minor units (for example, cents) to avoid binary floating-point rounding in monetary equality. It intentionally treats currency as part of identity: `Money(100, "USD")` is not equal to `Money(100, "EUR")`.
+
+```python
+from __future__ import annotations
+
+from dataclasses import dataclass
+from decimal import Decimal
+
+@dataclass(frozen=True, slots=True)
+class Money:
+    """A monetary value represented by integer minor units and a currency code."""
+    minor_units: int
+    currency: str
+
+    def __post_init__(self) -> None:
+        if isinstance(self.minor_units, bool) or not isinstance(self.minor_units, int):
+            raise TypeError("minor_units must be an int, not bool or another type")
+        if len(self.currency) != 3 or not self.currency.isalpha():
+            raise ValueError("currency must be a three-letter code")
+        object.__setattr__(self, "currency", self.currency.upper())
+
+    def __str__(self) -> str:
+        # Assumes a two-decimal minor-unit convention for this teaching example.
+        amount = Decimal(self.minor_units) / Decimal(100)
+        return f"{amount:.2f} {self.currency}"
+
+    def __format__(self, spec: str) -> str:
+        if spec == "" or spec == "display":
+            return str(self)
+        if spec == "code":
+            return f"{self.currency} {self.minor_units}"
+        raise ValueError(f"unsupported Money format specifier: {spec!r}")
+
+money = Money(1250, "eur")
+same_money = Money(1250, "EUR")
+different_currency = Money(1250, "USD")
+
+print(repr(money))
+print(str(money))
+print(money == same_money)
+print(money == different_currency)
+print(len({money, same_money, different_currency}))
+print(f"{money:code}")
+```
+
+Expected output:
+
+```text
+Money(minor_units=1250, currency='EUR')
+12.50 EUR
+True
+False
+2
+EUR 1250
+```
+
+Why this design works:
+
+- Dataclass-generated `__repr__`, `__eq__`, and `__hash__` use the declared fields.
+- `frozen=True` prevents ordinary reassignment of fields; `slots=True` reduces per-instance storage overhead and prevents an instance dictionary by default.
+- Currency normalization occurs during initialization. `object.__setattr__` is used because a frozen dataclass blocks ordinary assignment in `__post_init__`.
+- The hash is derived from immutable equality fields.
+- `Decimal` is used for display calculation, while the stored amount remains an integer.
+- The example assumes two minor-unit digits for every currency. Real financial systems must model currency-specific scales and rounding policies explicitly; not every currency uses two decimal places.
+
+For a hand-written implementation, the same design rules apply: validate inputs, normalize before equality/hash use, compare exactly the fields that define value, and never mutate those fields after the object becomes a key.
+
+---
+
+## 12. Production applications: data engineering and AI engineering
+
+### Data engineering
+
+- **Deduplication:** a stable value object can be compared and placed in a set when its fields define a record's logical identity.
+- **Pipeline cache keys:** immutable tuples or frozen value objects can make safe in-process keys. For cross-run caches, use a canonical encoding and stable digest rather than Python's `hash()`.
+- **Data-quality findings:** representations should expose useful fields such as rule name, severity, and row count without dumping an entire dataset or leaking source records.
+- **Schema and configuration models:** equality helps tests detect semantic changes; explicit formatting improves logs and command-line reports.
+- **Dictionary indexing:** hashability supports in-memory grouping and lookup, but only if equality/hash semantics are correct.
+
+### AI engineering
+
+- **Feature/configuration keys:** immutable configuration objects can safely key memoization or local caches when all equality-relevant fields are immutable.
+- **Experiment metadata:** concise `repr()` output helps compare run configurations; avoid embedding credentials or large prompts in logs.
+- **Evaluation results:** value equality can make tests deterministic, provided floating-point tolerances and missing values are handled intentionally.
+- **Model artifact identity:** do not use `hash(model_config)` as a durable artifact ID. Use canonical serialized configuration plus a stable digest and include versioning where appropriate.
+- **Tensor and array objects:** library objects may have domain-specific equality semantics (for example, elementwise comparisons). Do not assume every `==` result is a single boolean or that every object should be hashable. Follow the library's documented contract.
+
+---
+
+## 13. Common mistakes and corrected designs
+
+| Mistake | Why it fails | Better approach |
+|---|---|---|
+| `__eq__` blindly accesses `other.value` | Comparing to an unrelated type can raise `AttributeError` | Check supported types and return `NotImplemented` |
+| Return `False` for every foreign type | Prevents the other type's equality method from deciding | Return `NotImplemented` when unsupported |
+| Define `__eq__` but assume instances remain hashable | Python normally sets `__hash__ = None` | Deliberately implement a compatible hash or stay unhashable |
+| Hash a list directly | Lists are unhashable | Use immutable normalized data, or make the object unhashable |
+| Hash mutable equality fields | Mutating a key can break set/dict lookup | Freeze state or hash an immutable key |
+| Equal values produce different hashes | Hash table behavior violates the contract | Hash the same equality-relevant immutable fields |
+| Use `hash()` as a persistent ID | Hashes may vary across processes and are not collision-free | Use canonical serialization and an appropriate stable identifier/digest |
+| Put secrets in `__repr__` | Logs and tracebacks can leak credentials | Redact or omit sensitive fields |
+| Make `__repr__` perform I/O | Logging/debugging can become slow or fail | Keep representations local, bounded, and side-effect-free |
+| Treat `repr()` as safe serialization | `eval` can execute code and representations may not round-trip | Use validated, explicit serialization |
+| Assume frozen means deeply immutable | Nested mutable objects can still change | Use immutable field types or defensive copies |
+| Use float equality for financial values | Binary floating-point can surprise | Store integer minor units or use `Decimal` with explicit rules |
+| Assume `NaN == NaN` | IEEE 754 specifies otherwise | Normalize or represent missingness explicitly |
+| Add a custom `__bool__` casually | Truth tests may contradict object contents | Document domain semantics and test both empty/non-empty cases |
+
+### Failure scenario: mutable dictionary key
+
+Suppose an object is inserted into a dictionary, then a field used by `__hash__` changes. A later lookup may fail because the object is searched for in a bucket determined by its new hash, while it remains stored in the old bucket. Never mutate equality/hash fields of stored keys.
+
+### Failure scenario: equality that violates symmetry
+
+If a base class compares equal to a subclass while the subclass compares unequal to the base class, `a == b` and `b == a` may disagree. This can make deduplication, testing, and collections hard to reason about. Choose and test a coherent subclass policy rather than mixing incompatible equality definitions.
+
+---
+
+## 14. Testing and debugging strategies
+
+Use tests to verify contracts, not just individual example outputs. The following checks are especially valuable:
+
+1. **Representation:** readable output, useful field names, no secrets, no exceptions for recursive structures.
+2. **Equality laws:** reflexivity for ordinary values, symmetry, transitivity, and sensible cross-type behavior.
+3. **Hash contract:** equal objects have equal hashes; a set deduplicates equal values.
+4. **Hashability policy:** mutable value objects intentionally raise `TypeError` from `hash()`.
+5. **Stability:** fields participating in equality/hash cannot be reassigned or mutated.
+6. **Truthiness:** test both empty and non-empty states and verify `__bool__` precedence when used.
+7. **Formatting:** test supported specs and clear errors for unsupported specs.
+8. **Process behavior:** never assert a specific string hash across processes.
+
+### Example pytest test module
+
+Save the `Money` implementation from Section 11 in `money.py`, then save this as `test_money.py`:
 
 ```python
 import pytest
 
+from money import Money
 
-def test_money_representation_and_display() -> None:
-    value = Money(1250, "EUR")
-    assert repr(value) == "Money(1250, 'EUR')"
-    assert str(value) == "12.50 EUR"
+def test_equal_money_has_equal_hash_and_deduplicates() -> None:
+    left = Money(1250, "eur")
+    right = Money(1250, "EUR")
 
-
-def test_money_value_equality() -> None:
-    assert Money(100, "USD") == Money(100, "USD")
-    assert Money(100, "USD") != Money(200, "USD")
-    assert Money(100, "USD") != Money(100, "EUR")
-
-
-def test_money_unsupported_type_is_safe() -> None:
-    assert Money(100, "USD") != 100
-
-
-def test_equal_money_values_have_equal_hashes() -> None:
-    left = Money(100, "USD")
-    right = Money(100, "USD")
     assert left == right
     assert hash(left) == hash(right)
+    assert len({left, right}) == 1
 
+def test_currency_is_part_of_value() -> None:
+    assert Money(100, "USD") != Money(100, "EUR")
 
-def test_equal_money_values_deduplicate_in_set() -> None:
-    assert len({Money(100, "USD"), Money(100, "USD")}) == 1
+def test_foreign_type_comparison_is_safe() -> None:
+    assert Money(100, "USD") != 100
 
+def test_frozen_fields_cannot_be_reassigned() -> None:
+    value = Money(100, "USD")
+    with pytest.raises((AttributeError, TypeError)):
+        value.minor_units = 200  # type: ignore[misc]
 
-def test_equal_money_values_are_interchangeable_dict_keys() -> None:
-    mapping = {Money(100, "USD"): "settled"}
-    assert mapping[Money(100, "USD")] == "settled"
+def test_currency_validation() -> None:
+    with pytest.raises(ValueError):
+        Money(100, "US")
 
+def test_minor_units_reject_bool() -> None:
+    with pytest.raises(TypeError):
+        Money(True, "USD")
 
-def test_repr_does_not_leak_password() -> None:
-    config = DatabaseConfig("db.internal", "pipeline_user", "secret-value")
-    assert "secret-value" not in repr(config)
+def test_format_specs() -> None:
+    value = Money(1250, "USD")
+    assert str(value) == "12.50 USD"
+    assert format(value, "code") == "USD 1250"
+
+def test_unknown_format_spec_fails_clearly() -> None:
+    with pytest.raises(ValueError, match="unsupported Money format"):
+        format(Money(100, "USD"), "scientific")
+
+def test_repr_is_informative_and_container_uses_repr() -> None:
+    value = Money(1250, "USD")
+    assert repr(value) == "Money(minor_units=1250, currency='USD')"
+    assert repr([value]) == "[Money(minor_units=1250, currency='USD')]"
+
+def test_dataclass_equality_is_same_concrete_type() -> None:
+    from dataclasses import dataclass
+
+    @dataclass(frozen=True)
+    class Base:
+        value: int
+
+    @dataclass(frozen=True)
+    class Child(Base):
+        extra: str = "x"
+
+    assert Base(1) != Child(1, "x")
+
+def test_money_is_hashable_but_frozen() -> None:
+    value = Money(100, "USD")
+    assert isinstance(hash(value), int)
+    with pytest.raises((AttributeError, TypeError)):
+        value.currency = "EUR"  # type: ignore[misc]
 ```
 
-Run the tests with:
+Run:
 
 ```bash
 python -m pytest -q
 ```
 
-### Additional invariants worth testing
+Expected result: all eleven tests pass when the `Money` class from Section 11 is saved in `money.py` and pytest is installed. This expected result must be checked by running the command; do not assume a test suite passed merely because the code looks plausible.
 
-For any pair of supported values `a` and `b`:
-
-- If `a == b`, assert `hash(a) == hash(b)` whenever the type is hashable.
-- Check equality symmetry: `a == b` and `b == a` should agree.
-- Check equality transitivity across representative values.
-- Check that changing irrelevant metadata does not affect equality if that is the stated policy.
-- Check that invalid values fail at construction with clear errors.
-- Check that representations do not contain secrets and remain reasonably small.
-
-Property-based testing can generate many value pairs and is especially useful for equality and hash invariants, but start with explicit unit tests that communicate the intended domain semantics.
-
-## 11. Common mistakes and how to correct them
-
-| Mistake | Why it is wrong | Better approach |
-|---|---|---|
-| Defining `__str__` but no useful `__repr__` | Debuggers and containers still need a developer representation | Implement `__repr__` first; add `__str__` when a distinct display helps |
-| Returning a non-string from `__repr__` or `__str__` | Python expects a string and raises `TypeError` | Return a valid `str` on every path |
-| Performing I/O inside `__repr__` | Logging can unexpectedly block or fail | Display already available state only |
-| Logging secrets in `__repr__` | Logs often leave the process boundary | Redact secrets and bound output |
-| Accessing `other.some_field` before checking the type | Can raise `AttributeError` during unrelated comparisons | Check the supported type and return `NotImplemented` if unsupported |
-| Returning `False` for every foreign type | Prevents Python from trying the other operand's equality implementation | Return `NotImplemented` when this implementation does not support the pair |
-| Defining `__eq__` but assuming the class remains hashable | Python normally sets `__hash__ = None` | Decide explicitly whether instances should be hashable |
-| Hashing mutable fields | Mutating them can break dictionary/set lookup | Use immutable keys or leave mutable objects unhashable |
-| Hashing a field not used by equality | Equal objects could have different hashes | Hash the same logical components as equality |
-| Persisting `hash(x)` | Built-in hashes can vary between processes and are not unique | Use a stable ID or explicitly specified digest |
-| Assuming `repr()` is a serialization format | It may omit state, expose secrets, or depend on code context | Use a versioned explicit serialization format |
-| Assuming `NaN == NaN` | IEEE NaN compares unequal to itself | Define explicit policy for non-finite values |
-
-## 12. Hands-on lab — deduplicating ingestion records
-
-### Scenario
-
-A data ingestion job receives repeated source events. You need a key that treats events from the same source with the same external ID as the same record. The key will be used in a `set` to deduplicate the batch and in a `dict` to attach processing status.
-
-### Requirements
-
-1. Create an immutable `EventKey` value object with `source` and `external_id` string fields.
-2. Reject blank fields after trimming whitespace.
-3. Give the object a useful representation that shows both fields.
-4. Ensure equality compares both fields and does not claim equality with unrelated types.
-5. Ensure equal keys have equal hashes.
-6. Demonstrate set deduplication and dictionary lookup using a separately constructed but equal key.
-7. Write `pytest` tests for the valid and invalid cases.
-8. Explain why a mutable event payload should not be included in the hash if it changes during processing.
-
-### Reference solution
+### Additional contract tests for a hand-written class
 
 ```python
-from dataclasses import dataclass
-
-@dataclass(frozen=True, slots=True)
-class EventKey:
-    source: str
-    external_id: str
-
-    def __post_init__(self) -> None:
-        if not self.source.strip():
-            raise ValueError("source must not be blank")
-        if not self.external_id.strip():
-            raise ValueError("external_id must not be blank")
-
-keys = [
-    EventKey("crm", "100"),
-    EventKey("crm", "100"),
-    EventKey("billing", "100"),
-]
-unique_keys = set(keys)
-status_by_key = {keys[0]: "processed"}
-
-assert len(unique_keys) == 2
-assert status_by_key[EventKey("crm", "100")] == "processed"
-assert "external_id='100'" in repr(keys[0])
+def assert_equality_laws(a: object, b: object, c: object) -> None:
+    assert a == a
+    assert (a == b) == (b == a)
+    if a == b and b == c:
+        assert a == c
 ```
 
-### Lab test file
+This helper is intentionally simple. In real tests, only apply reflexivity expectations to types whose equality semantics promise it; `NaN` is an exception. Avoid calling the helper with arbitrary unrelated types if the domain does not promise cross-type equality.
 
-```python
-import pytest
+Useful debugging tools:
 
-
-def test_event_key_equality_and_hash() -> None:
-    first = EventKey("crm", "100")
-    second = EventKey("crm", "100")
-    assert first == second
-    assert hash(first) == hash(second)
-    assert len({first, second}) == 1
-
-
-def test_event_key_source_is_part_of_identity() -> None:
-    assert EventKey("crm", "100") != EventKey("billing", "100")
-
-
-@pytest.mark.parametrize(
-    ("source", "external_id"),
-    [("", "100"), ("   ", "100"), ("crm", ""), ("crm", "   ")],
-)
-def test_event_key_rejects_blank_fields(source: str, external_id: str) -> None:
-    with pytest.raises(ValueError):
-        EventKey(source, external_id)
-```
-
-## 13. Practice questions
-
-Try these before reading the answer key.
-
-### Beginner
-
-1. What is a dunder method, and why should you usually use `repr(x)` instead of calling `x.__repr__()` directly?
-2. What is the difference between `str(x)` and `repr(x)`?
-3. Why does `print([money])` generally show the element's `repr` rather than its `str`?
-4. What is the difference between `==` and `is`?
-5. If a class defines `__repr__` but not `__str__`, what does `str(instance)` do?
-
-### Intermediate
-
-6. Why should `__eq__` return `NotImplemented` for unsupported operand types?
-7. State the equality/hash contract. Is the reverse implication required?
-8. Why does defining `__eq__` without `__hash__` usually make instances unhashable?
-9. Why is a mutable object with a hash based on mutable fields unsafe as a dictionary key?
-10. If `__bool__` and `__len__` both exist, which controls truthiness?
-11. Why should you not save Python's built-in `hash()` result as a durable ID?
-
-### Advanced
-
-12. What can go wrong if a base class uses `isinstance` equality while a subclass adds equality-relevant state?
-13. When is `@dataclass(frozen=True)` a useful choice for a key object, and what does it not guarantee?
-14. How should a `__repr__` handle credentials or very large payloads?
-15. Why can `float("nan")` complicate equality-based deduplication?
-16. Design a test that verifies the hash contract without asserting a particular hash integer.
-
-## 14. Answer key
-
-1. A dunder method is a Python data-model hook. Use the public operation because special-method dispatch is controlled by Python and may not match ordinary instance attribute lookup.
-2. `str` aims for readable display; `repr` aims for useful developer inspection and ideally an unambiguous representation.
-3. Built-in containers use `repr` for their elements so nested values remain diagnostically useful.
-4. `==` checks equality semantics; `is` checks object identity.
-5. `str(instance)` falls back to `__repr__`.
-6. It tells Python this implementation does not support the operand pair, allowing the other operand's comparison method and Python's fallback behavior to run.
-7. If `a == b`, then `hash(a) == hash(b)`. Equal hashes do not imply equality.
-8. Python cannot infer which fields define value equality or a stable hash; defaulting to unhashable prevents a common contract violation.
-9. The hash can change after insertion, while the collection placed the key using its previous hash, so later lookup/removal may fail.
-10. `__bool__` takes precedence. If it is absent, Python can use `__len__`; zero means false.
-11. Hashes for types such as strings are randomized across processes and are not unique or designed for persistence.
-12. A base instance and subclass instance might compare equal based on base fields while the subclass's extra state makes the values semantically different, potentially breaking symmetry or transitivity if the two classes implement equality differently. Define a consistent type policy and test it.
-13. It is useful when the key is a value object whose equality-relevant fields should not be reassigned. It does not recursively freeze arbitrary mutable fields and is not a security boundary.
-14. Redact secrets, avoid I/O, summarize or truncate large fields, and ensure representation code is robust enough for logs and debuggers.
-15. NaN is unequal to itself, so ordinary equality may not identify repeated NaN values as duplicates. Define an explicit domain policy for non-finite values.
-16. For two equal instances, assert both `a == b` and `hash(a) == hash(b)`; never assert a specific numeric hash value.
-
-## 15. Readiness checklist
-
-You are ready to continue to Lesson 02 when you can do all of the following without copying an example:
-
-- [ ] Explain `repr` versus `str` and implement both for a small value object.
-- [ ] Write a safe `__eq__` that returns `NotImplemented` for unsupported types.
-- [ ] Explain why equal values must have equal hashes, while equal hashes need not mean equal values.
-- [ ] Explain why mutable hash keys are unsafe and why Python's `hash()` is not a persistent ID.
-- [ ] Describe `__bool__`/`__len__` precedence and implement a small `__format__` protocol.
-- [ ] Test equality, hash invariants, set deduplication, dictionary lookup, validation, and representation safety.
-- [ ] Complete the EventKey lab and explain every design choice.
-
-## 16. Further reading
-
-Use the official Python documentation as the source of truth for exact runtime behavior:
-
-- [Python data model — special method names](https://docs.python.org/3/reference/datamodel.html#special-method-names)
-- [Python built-in functions — `repr`, `str`, `hash`, `format`, and `bool`](https://docs.python.org/3/library/functions.html)
-- [Python glossary — hashable](https://docs.python.org/3/glossary.html#term-hashable)
-- [Dataclasses documentation](https://docs.python.org/3/library/dataclasses.html)
-- [The `reprlib` module](https://docs.python.org/3/library/reprlib.html)
-- [The `pytest` documentation](https://docs.pytest.org/)
+- `repr(obj)` at a breakpoint to inspect state.
+- `type(obj)` and `type(obj).__hash__` to inspect type/hash policy.
+- `hash(obj)` inside a controlled test to check hashability, not to record a stable identifier.
+- `obj == other` in both operand orders when testing custom equality.
+- `pytest.mark.parametrize` for multiple currencies, values, and unsupported operand types.
+- A minimal reproduction when collection membership behaves unexpectedly.
 
 ---
 
-**Lesson summary:** `__repr__` supports debugging, `__str__` supports readable display, `__eq__` defines value equality, and `__hash__` enables hash-based collections when equality and state stability make that safe. Treat these methods as public contracts: define the semantics first, implement the methods consistently, and prove the behavior with tests.
+## 15. Exercises
+
+Try each exercise before reading the answer key.
+
+### Beginner
+
+1. Create a `Job` class with `name` and `attempts`. Implement a constructor-like `__repr__`. What should `print([job])` display?
+2. Explain the difference between `a == b` and `a is b` using two separate objects with the same fields.
+3. Create a class with `__len__` returning zero. Predict `bool(instance)`, then add `__bool__` returning `True` and explain the changed result.
+
+### Intermediate
+
+4. Implement a `DatasetKey` value object with immutable `source` and `version` fields, value equality, and a compatible hash. Prove two equal keys deduplicate in a set.
+5. Explain why a class that defines `__eq__` but not `__hash__` is normally unhashable.
+6. Extend a class with `__format__` to support one documented format specifier and reject unknown ones.
+7. Write a pytest test proving that a class's equality works safely against an integer.
+
+### Advanced
+
+8. A subclass adds `tenant_id` to a base class that compares only `name`. Explain how the chosen `isinstance` policy could violate the intended equality semantics. Propose a coherent policy.
+9. Explain why using `hash(configuration)` as a persistent cache key is incorrect. Outline a safer strategy.
+10. Create a recursive linked object and protect its `__repr__` using `reprlib.recursive_repr`.
+11. Explain the surprising difference between `nan1 in {nan1}` and `nan2 in {nan1}` for two separately created NaNs.
+12. Review a proposed `__hash__` that returns `hash(self.tags)` where `self.tags` is a list. Explain the immediate failure and a safe redesign.
+
+---
+
+## 16. Answer key
+
+1. A useful implementation is `return f"Job(name={self.name!r}, attempts={self.attempts!r})"`. A list displays each element with `repr()`, so output is similar to `[Job(name='load', attempts=0)]`.
+2. `==` invokes equality semantics and may compare values. `is` tests whether both names refer to the exact same object. Separate instances can be equal without being identical.
+3. If `__bool__` is absent, a zero length makes the instance false. If `__bool__` returns `True`, it takes precedence and the instance is true even when `__len__` returns zero.
+4. Store only immutable fields (for example, a frozen dataclass). Compare `(source, version)` and return `hash((source, version))`. Equal instances then have equal hashes; a set keeps one representative.
+5. Python disables inherited object hashing when a class defines equality but does not define a matching hash. This avoids accidentally using identity hashing for objects that now compare equal by value.
+6. Parse only documented specs and raise a clear exception for unknown specs. Keep the format grammar narrow; do not silently ignore unsupported formatting instructions.
+7. Implement `__eq__(self, other: object)` with a type check and `return NotImplemented` for unsupported types. Assert `value != 7` and ensure no `AttributeError` is raised.
+8. If the base accepts all subclasses but ignores `tenant_id`, objects from different tenants might compare equal despite being distinct domain values. Use exact-type equality for independent value types, or design a shared equality contract that includes all relevant fields across the hierarchy.
+9. `hash()` can vary between processes and is not collision-free. Canonicalize the configuration (with stable field ordering and normalized values), serialize it in a documented format, and use a stable digest such as SHA-256; version the schema if its meaning can change.
+10. Decorate `__repr__` with `@recursive_repr()` from `reprlib`, and build the string from fields using `!r`.
+11. A set may recognize the identical object through identity shortcuts, while a distinct NaN compares unequal to the stored NaN. NaN is not reflexive under equality.
+12. Lists are unhashable, so `hash(self.tags)` raises `TypeError`. If tags define value identity, normalize them into an immutable tuple at construction and prevent mutation; otherwise make the containing object unhashable.
+
+---
+
+## 17. Roadmap coverage checklist
+
+Use this checklist to verify that the lesson's required syllabus has been studied.
+
+- [ ] Dunder terminology and Python data-model dispatch.
+- [ ] `__repr__`, `__str__`, their audiences, fallback, REPL and container behavior.
+- [ ] Default identity equality versus value equality.
+- [ ] Type checks and safe `__eq__` handling.
+- [ ] `NotImplemented` as a special return value; reflected equality dispatch and identity fallback.
+- [ ] `isinstance` versus exact-type equality and subclass implications.
+- [ ] Equality laws: reflexivity, symmetry, transitivity, and consistency.
+- [ ] `__hash__`, hashability, collisions, and the equality/hash contract.
+- [ ] Why defining `__eq__` without `__hash__` normally makes instances unhashable.
+- [ ] Immutable equality fields, mutable state, dictionary keys, sets, and hash stability.
+- [ ] Hash randomization and why `hash()` is not a persistent identifier.
+- [ ] `__bool__`, `__len__`, truth-value testing, and precedence.
+- [ ] `__format__` and custom format specifications.
+- [ ] Safe and bounded representations, recursive representations, and `reprlib`.
+- [ ] Limits and security risks of `eval`-compatible representations.
+- [ ] Dataclass behavior with `eq=True` and `frozen=True`.
+- [ ] Floating-point `NaN` equality and set-membership implications.
+- [ ] Common implementation mistakes, failure scenarios, pytest tests, and corrected designs.
+- [ ] All three authoritative roadmap self-check questions answered below.
+
+---
+
+## 18. Roadmap self-assessment: the three self-check questions
+
+### 1. Why does `{Money(1, "USD")}` raise `TypeError` if you define only `__eq__`?
+
+Defining `__eq__` without defining a compatible `__hash__` causes Python to set the class's `__hash__` to `None`. A set requires hashable elements, so adding an instance raises `TypeError`. The correct design is either to make the object intentionally unhashable or to implement a compatible hash over immutable equality-relevant state.
+
+### 2. What does `Money(1, "USD") == 5` return, and why is that better than `False` from `__eq__`?
+
+For a well-designed `Money.__eq__`, comparing to an unsupported type returns `NotImplemented`. Python then gives the other operand a chance to handle the comparison. If neither side supports it, equality falls back to identity semantics, so this expression evaluates to `False` without an attribute error. This is more composable than claiming that every foreign type has been handled by returning `False` immediately.
+
+### 3. Write a `__repr__` whose output, passed to `eval`, rebuilds the object.
+
+For a simple class:
+
+```python
+class MoneyExample:
+    def __init__(self, minor_units: int, currency: str) -> None:
+        self.minor_units = minor_units
+        self.currency = currency
+
+    def __repr__(self) -> str:
+        return (
+            f"MoneyExample({self.minor_units!r}, "
+            f"{self.currency!r})"
+        )
+
+original = MoneyExample(100, "USD")
+namespace = {"MoneyExample": MoneyExample}
+copy = eval(repr(original), {"__builtins__": {}}, namespace)
+assert copy.minor_units == original.minor_units
+assert copy.currency == original.currency
+```
+
+This works only because the class name is available in the evaluation namespace and the representation is deliberately written as a valid constructor expression. It is a controlled demonstration, not a safe serialization pattern. Never evaluate representations from untrusted sources.
+
+---
+
+## 19. Final engineering checklist
+
+Before shipping a class that customizes these methods, confirm:
+
+- [ ] `__repr__` is informative, bounded, side-effect-free, and does not expose secrets.
+- [ ] `__str__` is appropriate for user-facing output; containers still have a useful `repr`.
+- [ ] Representation output is not mistaken for a guaranteed serialization format.
+- [ ] `__eq__` handles unsupported types without raising accidental `AttributeError`.
+- [ ] The subclass equality policy is explicit and preserves symmetry/transitivity.
+- [ ] Equality is consistent with the domain's definition of value.
+- [ ] The class is deliberately hashable or unhashable.
+- [ ] If hashable, equal objects always have equal hashes.
+- [ ] Every equality/hash field is immutable for as long as the object is used as a key.
+- [ ] No Python `hash()` value is persisted as a durable identifier.
+- [ ] Truthiness has documented semantics and respects `__bool__` precedence.
+- [ ] Custom formatting is documented and rejects unsupported specifications clearly.
+- [ ] `NaN` and missing numeric values are handled intentionally.
+- [ ] Dataclass-generated methods and field participation have been reviewed rather than assumed.
+- [ ] Tests cover equality laws, hash compatibility, foreign types, mutation attempts, formatting, and edge cases.
+- [ ] Examples and tests are run in the project's supported Python version before release.
+
+**Lesson complete.** The next lesson in the roadmap is `02-rich-comparison-and-total-ordering.md`; do not start it until you can explain and test the contracts in this lesson.

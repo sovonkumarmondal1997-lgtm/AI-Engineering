@@ -1,151 +1,75 @@
 # Mixins and Multiple-Inheritance Pitfalls
 
-> **Stage:** Stage 1 — Programming & Computational Thinking  
-> **Module:** 11 — Advanced Python Data Model and Object Design  
-> **Lesson:** 09 of 11  
-> **Audience:** Beginner to advanced Python learner, with data-engineering applications  
-> **Recommended environment:** Python 3.12+; examples use modern Python 3 syntax
+> **Stage 1 · Module 11 — Advanced Python Data Model and Object Design**  
+> **Target:** Python 3.12+  
+> **Focus:** Practical mixin design, cooperative behavior, and failure prevention—not a replacement for the preceding lesson on C3/MRO mechanics.
 
-## Learning outcomes
+## 1. Learning objectives
 
 By the end of this lesson, you should be able to:
 
-1. Explain what a mixin is and distinguish it from a concrete base class, an abstract base class, a protocol, a helper function, and a composed object.
-2. Design small, focused mixins with clear names, documented host requirements, and minimal state.
-3. Explain why mixins normally appear before a concrete base class in the inheritance list.
-4. Predict method lookup using `Class.__mro__`, `Class.mro()`, and `inspect.getmro()`.
-5. Design cooperative methods and constructors that use `super()` correctly across a multiple-inheritance chain.
-6. Identify collisions, hidden attribute coupling, incompatible constructors, fragile base classes, metaclass conflicts, and instance-layout conflicts.
-7. Use `__slots__ = ()` where appropriate to keep a mixin from introducing an instance dictionary.
-8. Use `__init_subclass__` in a mixin to validate or register subclasses without breaking the cooperative chain.
-9. Test a mixin through a minimal host class and test combinations of mixins, not just each mixin independently.
-10. Decide when composition, strategy objects, or protocols are safer than multiple inheritance.
-11. Apply these design principles to data-ingestion, validation, metrics, logging, and transformation components.
+- Explain what a mixin contributes and when it is a better fit than a normal base class.
+- Distinguish stateless mixins from mixins that rely on documented host attributes or state.
+- Design mixins with narrow responsibilities, predictable names, and explicit contracts.
+- Use cooperative `super()` calls in methods and constructors without duplicating shared-base work.
+- Predict how base order affects method lookup and why mixins are usually listed before the concrete base.
+- Diagnose method/attribute collisions, incompatible signatures, missing `super()` calls, fragile base classes, and initialization-order dependencies.
+- Recognize diamond inheritance, metaclass conflicts, and instance-layout conflicts.
+- Choose composition, delegation, a plain function, or a protocol when inheritance adds more coupling than value.
+- Test the combined class, not just isolated mixin behavior, and reason about MRO-related special cases.
 
----
+## 2. Prerequisites and scope
 
-## 1. The big picture
+You should already understand classes, inheritance, instance attributes, `super()`, and the basics of `Class.__mro__`/C3 linearization from Lesson 08. This lesson uses those mechanics to make design decisions. It does not repeat a full C3 derivation; instead, it asks whether a proposed mixin hierarchy is understandable, cooperative, and safe to maintain.
 
-A **mixin** is a small class intended to add one focused capability to another class through inheritance. It is usually not a complete, standalone domain object. Instead, it contributes behaviour such as JSON serialization, a readable representation, timestamping, validation, or metrics.
+**Key distinction:** MRO is Python's method-lookup order. A mixin is a design technique that uses multiple inheritance to add a focused capability. A valid MRO does not automatically make the design good.
 
-Multiple inheritance allows a class to inherit from more than one base class:
+## 3. Mental model: a capability that can be mixed in
 
-```python
-class ExportableMixin:
-    def export(self):
-        return "exported"
-
-
-class AuditableMixin:
-    def audit(self):
-        return "audited"
-
-
-class DataJob(ExportableMixin, AuditableMixin):
-    pass
-
-
-job = DataJob()
-print(job.export())
-print(job.audit())
-print([cls.__name__ for cls in DataJob.__mro__])
-```
-
-Expected output:
+A mixin is a small class intended primarily to be combined with another class. It contributes a capability—such as formatting, logging, timestamp access, or a reusable method implementation—rather than representing a complete domain entity by itself.
 
 ```text
-exported
-audited
-['DataJob', 'ExportableMixin', 'AuditableMixin', 'object']
+                 ┌────────────────┐
+                 │    User model  │  domain state: name, email
+                 └────────┬───────┘
+                          │ combined with
+             ┌────────────┴────────────┐
+             │                         │
+      ┌──────▼──────┐          ┌───────▼──────┐
+      │ ReprMixin   │          │ JsonMixin    │
+      │ __repr__    │          │ to_json()    │
+      └─────────────┘          └──────────────┘
 ```
 
-This is useful when the two behaviours are independent and their interaction is well-defined. It becomes dangerous when mixins assume undocumented attributes, override each other's methods, or initialize shared state inconsistently.
+The diagram shows capabilities, not a runtime call sequence. Actual lookup follows the combined class's MRO. A mixin should have a small, documented surface and should avoid making unrelated assumptions about the host class.
 
-### A practical mental model
+### Ordinary base class versus mixin
 
-Think of a class as a data-processing component and mixins as optional capabilities that can be combined:
+| Design question | Ordinary/domain base class | Mixin |
+|---|---|---|
+| Primary purpose | Model an “is-a” relationship or shared domain contract | Add one reusable capability to otherwise different classes |
+| Instantiated alone? | Often yes | Usually not; it is primarily composed into a concrete class |
+| State | May own substantial state and lifecycle | Prefer none or minimal, explicit state |
+| Constructor | May define its own required initialization | Usually avoids `__init__`; if it participates, it must cooperate |
+| Contract | Domain semantics and invariants | Narrow capability requirements and method-chain rules |
 
-- `JsonMixin`: serializes an object's public data.
-- `ReprMixin`: supplies a useful developer-facing representation.
-- `ValidationMixin`: runs validation before a pipeline stage.
-- `MetricsMixin`: records simple execution metrics.
-- `TimestampMixin`: exposes creation or update timestamps.
+The suffix `Mixin` is a convention, not a language feature. `JsonMixin`, `TimestampMixin`, and `AuditMixin` signal intent to readers.
 
-Each mixin should have a clear responsibility. A mixin should not secretly become a second domain model or require a large undocumented collection of attributes.
+## 4. A first working example
 
-### Why a data engineer should care
-
-In data-engineering code, reusable behaviours may appear in ingestion jobs, file readers, API clients, data-quality checks, transformation stages, and framework extension points. Good mixins can reduce duplication. Poorly designed mixins can make a pipeline difficult to debug because behaviour depends on base-class order, undocumented instance attributes, or a skipped `super()` call.
-
-**Key principle:** multiple inheritance is a mechanism, not a goal. Use it only when the classes are designed to cooperate and the method resolution order (MRO) remains understandable.
-
----
-
-## 2. Prerequisites and terminology
-
-| Term | Meaning |
-|---|---|
-| Class | A definition that describes behaviour and, often, the data held by instances. |
-| Instance | An object created from a class. |
-| Base class | A class listed in another class's inheritance declaration. |
-| Subclass | A class derived from another class. |
-| Mixin | A small class intended to add a capability to another class. |
-| MRO | Method resolution order: the sequence Python uses to search classes for an attribute or method. |
-| Cooperative method | A method that participates in the MRO chain by calling `super()` according to a shared contract. |
-| Host class | The class that combines or uses a mixin. |
-| Composition | A design where an object holds or delegates to another object instead of inheriting its implementation. |
-| Protocol | A description of required operations, often expressed structurally with `typing.Protocol`. |
-| Fragile base class | A base class whose changes can unexpectedly break subclasses. |
-
-You should already understand classes, inheritance, overriding, `super()`, and the basic MRO from Lesson 08, `08-mro-super-and-cooperative-inheritance.md`.
-
----
-
-## 3. Beginner: understand the purpose of a mixin
-
-### 3.1 A mixin adds a capability
-
-A mixin typically provides one or a small group of related methods. It is often named with the `Mixin` suffix so readers recognize its intended role.
+This example uses stateless mixins. They provide methods but do not initialize state of their own.
 
 ```python
+from __future__ import annotations
+
 import json
+from typing import Any
 
 
 class JsonMixin:
     def to_json(self) -> str:
-        """Serialize the instance dictionary as JSON."""
-        return json.dumps(vars(self), default=str)
-
-
-class User(JsonMixin):
-    def __init__(self, user_id: int, name: str) -> None:
-        self.user_id = user_id
-        self.name = name
-
-
-user = User(42, "Asha")
-print(user.to_json())
-```
-
-Expected output:
-
-```text
-{"user_id": 42, "name": "Asha"}
-```
-
-`JsonMixin` does not define the identity or lifecycle of a user. It contributes a serialization convenience. The `User` class supplies the data.
-
-**Important limitation:** serializing `vars(self)` is a teaching example, not a universal production serialization policy. It may expose internal fields, fail for non-JSON values, or serialize data that should be excluded. Production systems should define an explicit schema and data-exposure policy.
-
-### 3.2 Combine more than one capability
-
-```python
-import json
-
-
-class JsonMixin:
-    def to_json(self) -> str:
-        return json.dumps(vars(self), default=str)
+        """Serialize the host object's instance attributes."""
+        return json.dumps(vars(self), default=str, sort_keys=True)
 
 
 class ReprMixin:
@@ -157,1279 +81,799 @@ class ReprMixin:
 
 
 class User(ReprMixin, JsonMixin):
-    def __init__(self, name: str) -> None:
+    def __init__(self, name: str, active: bool = True) -> None:
         self.name = name
+        self.active = active
 
 
-user = User("Asha")
+user = User("Ada")
 print(repr(user))
 print(user.to_json())
+print(User.__mro__)
+```
+
+Expected output (the JSON keys are sorted):
+
+```text
+User(name='Ada', active=True)
+{"active": true, "name": "Ada"}
+(<class '__main__.User'>, <class '__main__.ReprMixin'>, <class '__main__.JsonMixin'>, <class 'object'>)
+```
+
+**Contract and limits:** these mixins assume the host has a normal instance dictionary. `vars(self)` raises `TypeError` for some objects without `__dict__`, such as a class using only slots. JSON serialization of arbitrary instance attributes is not automatically a stable public data format: values may be non-serializable, sensitive, or unsuitable for API output. In production, prefer explicit serialization fields and test the supported data model.
+
+## 5. Design boundaries for a good mixin
+
+A mixin should answer a simple question: “What one capability does this add, and what does it require from the host?”
+
+### Good design rules
+
+1. **One responsibility.** `TimestampMixin` should not also open database connections or validate unrelated business rules.
+2. **Small public surface.** Prefer a few focused methods over a second framework hidden in the class hierarchy.
+3. **Document host requirements.** If `to_label()` reads `self.display_name`, say so and validate that assumption where possible.
+4. **Prefer statelessness.** Stateless mixins are easier to combine and less sensitive to initialization order.
+5. **Avoid `__init__` when possible.** If state is essential, either use a carefully designed cooperative constructor contract or use composition.
+6. **Use distinctive names.** Generic attributes such as `status`, `name`, and `data` are collision risks.
+7. **Cooperate consistently.** If a method is intended to continue a chain, call `super()` exactly as the contract requires.
+8. **Do not swallow behavior silently.** Document whether a method wraps, extends, or intentionally replaces the next implementation.
+9. **Keep ordering understandable.** List mixins before the concrete base so their methods can participate before the base implementation.
+10. **Test the final composition.** The combined class's MRO and interactions are part of the behavior.
+
+### Stateless versus state-requiring mixins
+
+**Stateless:** computes a value from arguments or documented host attributes; no own initialization is needed. Examples include a formatting helper or a method that adds a derived display label.
+
+**Host-dependent:** reads attributes the host promises to provide. This can be reasonable if the contract is explicit and typed. Python does not enforce that contract merely because a mixin is in the MRO.
+
+**Stateful:** stores data or needs initialization. This is not forbidden, but it increases coupling. If it defines `__init__`, it should normally accept `**kwargs`, consume only its own named arguments, and call `super().__init__(**kwargs)`. The terminal base must accept the remaining arguments, and every class in the chain must follow the same convention.
+
+## 6. Cooperative methods: extend the chain instead of bypassing it
+
+A cooperative mixin uses `super()` to delegate to the next implementation in the MRO. “Next” is determined by the runtime class's MRO, not by the textual parent named in the mixin declaration.
+
+```text
+class Request(AuditMixin, RetryMixin, BaseRequest):
+
+MRO: Request → AuditMixin → RetryMixin → BaseRequest → object
+
+call handle()
+   │
+   ▼
+AuditMixin.handle() ──super()──▶ RetryMixin.handle()
+                                     │
+                                  super()
+                                     ▼
+                              BaseRequest.handle()
+```
+
+Every method in a cooperative chain must agree on the contract: whether it expects a next implementation, what arguments it forwards, and what return value it preserves or transforms.
+
+### Correct wrapping behavior
+
+```python
+class BasePipeline:
+    def run(self, value: str) -> str:
+        return value
+
+
+class PrefixMixin:
+    def run(self, value: str) -> str:
+        return super().run(f"prefix:{value}")
+
+
+class SuffixMixin:
+    def run(self, value: str) -> str:
+        return f"{super().run(value)}:suffix"
+
+
+class Pipeline(PrefixMixin, SuffixMixin, BasePipeline):
+    pass
+
+print(Pipeline().run("job"))
+print([cls.__name__ for cls in Pipeline.__mro__])
 ```
 
 Expected output:
 
 ```text
-User(name='Asha')
-{"name": "Asha"}
+prefix:job:suffix
+['Pipeline', 'PrefixMixin', 'SuffixMixin', 'BasePipeline', 'object']
 ```
 
-The class declaration says `ReprMixin` comes before `JsonMixin`. That order matters if both classes define the same method name. In this example they provide different methods, so their order does not change those calls.
+`PrefixMixin` delegates a transformed argument; `SuffixMixin` transforms the result from the next method. Both cooperate. The exact transformation order is determined by the MRO.
 
-### 3.3 Mixins versus ordinary base classes
-
-A concrete base class usually represents a meaningful “is-a” relationship or owns core state and lifecycle. A mixin usually adds a secondary capability.
-
-| Question | Likely concrete base class | Likely mixin |
-|---|---|---|
-| Does it represent the core domain type? | Often yes | Usually no |
-| Does it own essential state and invariants? | Often yes | Preferably little or none |
-| Is it useful as a complete instance on its own? | Often yes | Usually not the intended use |
-| Does it add one reusable capability? | Sometimes | Usually yes |
-| Must the host provide specific attributes or methods? | May be part of the base contract | If so, document the contract explicitly |
-
-These are design heuristics, not rigid language rules.
-
----
-
-## 4. Naming and base-class ordering
-
-### 4.1 Use names that communicate intent
-
-Names such as `JsonMixin`, `TimestampMixin`, and `MetricsMixin` communicate that the class contributes behaviour. Avoid vague names such as `Common`, `Utilities`, or `HelperBase` when a precise capability name is possible.
-
-A good mixin name should answer: **what behaviour does this class add?**
-
-### 4.2 Put mixins before the concrete base
-
-The usual pattern is:
+### The non-cooperative version is fragile
 
 ```python
-class ConcreteBase:
-    def describe(self) -> str:
-        return "concrete base"
+class BadPrefixMixin:
+    def run(self, value: str) -> str:
+        # Bypasses any run() implementation between this class and BasePipeline.
+        return BasePipeline.run(self, f"prefix:{value}")
+```
+
+This direct call may appear to work in a simple hierarchy, but it hard-codes a particular base and skips other mixins. In a diamond, explicitly calling `Parent.__init__(self)` can also initialize a shared ancestor more than once. Use `super()` for cooperative chains; call a named base explicitly only when intentionally bypassing dynamic dispatch and when the design documents that choice.
+
+## 7. A complete cooperative mixin example
+
+This example demonstrates multiple mixins contributing one ordered processing pipeline. All methods share a stable `process(record, *, trace)` contract. Each layer records its participation and calls `super()` once. The terminal base returns the processed value.
+
+```python
+from __future__ import annotations
+
+from typing import Protocol, cast
 
 
-class DescribeMixin:
-    def describe(self) -> str:
-        return "mixin description"
+class RecordProcessor(Protocol):
+    def process(self, record: str, *, trace: list[str]) -> str: ...
 
 
-class Record(DescribeMixin, ConcreteBase):
+class NormalizeMixin:
+    def process(self, record: str, *, trace: list[str]) -> str:
+        trace.append("normalize")
+        normalized = record.strip().lower()
+        return cast(RecordProcessor, super()).process(normalized, trace=trace)
+
+
+class AuditMixin:
+    def process(self, record: str, *, trace: list[str]) -> str:
+        trace.append("audit")
+        return cast(RecordProcessor, super()).process(record, trace=trace)
+
+
+class EnrichMixin:
+    def process(self, record: str, *, trace: list[str]) -> str:
+        trace.append("enrich")
+        enriched = f"{record}|source=etl"
+        return cast(RecordProcessor, super()).process(enriched, trace=trace)
+
+
+class TerminalProcessor:
+    def process(self, record: str, *, trace: list[str]) -> str:
+        trace.append("terminal")
+        return record
+
+
+class CustomerRecordProcessor(NormalizeMixin, AuditMixin, EnrichMixin, TerminalProcessor):
     pass
 
 
-print(Record().describe())
-print([cls.__name__ for cls in Record.__mro__])
+trace: list[str] = []
+result = CustomerRecordProcessor().process("  CUSTOMER-42  ", trace=trace)
+print(result)
+print(trace)
+print([cls.__name__ for cls in CustomerRecordProcessor.__mro__])
 ```
 
 Expected output:
 
 ```text
-mixin description
-['Record', 'DescribeMixin', 'ConcreteBase', 'object']
+customer-42|source=etl
+['normalize', 'audit', 'enrich', 'terminal']
+['CustomerRecordProcessor', 'NormalizeMixin', 'AuditMixin', 'EnrichMixin', 'TerminalProcessor', 'object']
 ```
 
-Now reverse the bases:
+**Why it works:** the combined class determines one linear order. Each method has the same parameters and forwards `trace` consistently. Each layer delegates once; the terminal implementation ends the chain. No mixin directly names another mixin or assumes which class follows it.
 
-```python
-class ConcreteBase:
-    def describe(self) -> str:
-        return "concrete base"
+`Protocol` documents the expected public method shape for static typing; it does not implement or enforce the cooperative chain. `cast(RecordProcessor, super())` tells the type checker to treat the next-MRO proxy as providing that protocol. `cast` performs no runtime validation and does not change dispatch: the method call still resolves dynamically through the concrete class MRO. This is an explicit typing trade-off, so the combined class must be tested and every participating implementation must honor the protocol.
 
+## 8. Constructor chaining and initialization contracts
 
-class DescribeMixin:
-    def describe(self) -> str:
-        return "mixin description"
+Constructor cooperation is harder than method cooperation because each layer may need its own argument and state. A robust pattern is:
 
-
-class Record(ConcreteBase, DescribeMixin):
-    pass
-
-
-print(Record().describe())
-print([cls.__name__ for cls in Record.__mro__])
-```
-
-Expected output:
-
-```text
-concrete base
-['Record', 'ConcreteBase', 'DescribeMixin', 'object']
-```
-
-The first matching implementation in the MRO wins. Therefore, if the mixin is supposed to override or extend a method supplied by the concrete base, the mixin normally goes first.
-
-**Do not apply this as a blind formatting rule.** Read the MRO and test the behaviour. Some frameworks document a specific base order, and that contract takes precedence.
-
-### 4.3 Inspect the MRO instead of guessing
-
-```python
-from inspect import getmro
-
-
-class JsonMixin:
-    pass
-
-
-class MetricsMixin:
-    pass
-
-
-class JobBase:
-    pass
-
-
-class DailyJob(JsonMixin, MetricsMixin, JobBase):
-    pass
-
-
-print([cls.__name__ for cls in DailyJob.__mro__])
-print([cls.__name__ for cls in DailyJob.mro()])
-print([cls.__name__ for cls in getmro(DailyJob)])
-```
-
-All three inspection techniques report the same class ordering for this example. Use `Class.__mro__` or `inspect.getmro()` when debugging; do not infer the order from indentation or class names.
-
----
-
-## 5. Rules for a well-designed mixin
-
-### Rule 1: Keep the responsibility narrow
-
-A mixin that handles serialization, database connections, retries, configuration parsing, and alerting is not a focused mixin. Split unrelated capabilities or use composed helper objects.
-
-### Rule 2: Prefer no state of its own, or minimal state
-
-Stateless behaviour is easier to combine. A mixin that requires state should clearly document who creates it, who owns it, and when it is valid.
-
-### Rule 3: Avoid a required `__init__` when possible
-
-A mixin with a custom constructor can conflict with the constructor signatures of other bases. If initialization is unavoidable, design it cooperatively and test the combined hierarchy.
-
-### Rule 4: Document host requirements
-
-If a mixin expects `self.schema`, `self.logger`, or `self.validate_record()`, state that requirement in documentation and ideally make it explicit in types or an abstract contract. Do not let an undocumented attribute dependency become a runtime surprise.
-
-### Rule 5: Use `super()` only with a cooperative contract
-
-Calling `super()` is not magic. Every class participating in the chain must agree on method names, argument flow, and whether the chain continues. Do not mix direct base calls and cooperative calls casually.
-
-### Rule 6: Test the mixin with a tiny host
-
-A mixin should have tests for its own behaviour and for its documented host contract. A minimal host class makes hidden assumptions easier to reveal.
-
-### Rule 7: Keep method names specific enough to avoid collisions
-
-Generic methods such as `process`, `save`, or `validate` may collide with methods from unrelated bases. If the behaviour is narrow, use names such as `validate_payload` or document the method contract carefully.
-
-### Rule 8: Avoid accidental public API growth
-
-Every method inherited by a host becomes part of the host's visible interface. Consider whether the method name and semantics are appropriate for every class that may use the mixin.
-
----
-
-## 6. Intermediate: host requirements and hidden coupling
-
-### 6.1 A fragile mixin with an undocumented dependency
-
-```python
-class RetryMixin:
-    def run(self):
-        for attempt in range(self.max_attempts):
-            try:
-                return self.execute()
-            except RuntimeError:
-                if attempt == self.max_attempts - 1:
-                    raise
-
-
-class IngestionJob(RetryMixin):
-    max_attempts = 3
-
-    def execute(self):
-        return "batch loaded"
-
-
-print(IngestionJob().run())
-```
-
-This works because `IngestionJob` happens to define `max_attempts` and `execute`. But `RetryMixin` has a hidden contract. Another host may omit one of those members and fail with `AttributeError`.
-
-A better mixin documents the required methods and attributes, and can fail early with a useful message when the contract is not met.
-
-```python
-class RetryMixin:
-    """Requires a positive max_attempts and an execute() method."""
-
-    max_attempts: int
-
-    def run_with_retries(self):
-        if not isinstance(self.max_attempts, int) or self.max_attempts < 1:
-            raise ValueError("max_attempts must be a positive integer")
-
-        execute = getattr(self, "execute", None)
-        if not callable(execute):
-            raise TypeError("host class must provide a callable execute()")
-
-        for attempt in range(self.max_attempts):
-            try:
-                return execute()
-            except RuntimeError:
-                if attempt == self.max_attempts - 1:
-                    raise
-
-
-class IngestionJob(RetryMixin):
-    max_attempts = 3
-
-    def execute(self):
-        return "batch loaded"
-
-
-print(IngestionJob().run_with_retries())
-```
-
-This is still a simplified illustration. For production code, consider whether retrying every `RuntimeError` is safe; retries should normally be restricted to known transient failures and designed around idempotency.
-
-### 6.2 Use an abstract contract when appropriate
-
-If a mixin genuinely requires a method, an abstract base class can make that requirement explicit. Be cautious: combining unrelated metaclasses can introduce metaclass conflicts, and not every mixin needs to inherit from `ABC`.
-
-```python
-from abc import ABC, abstractmethod
-
-
-class Executable(ABC):
-    @abstractmethod
-    def execute(self) -> str:
-        raise NotImplementedError
-
-
-class RunMixin:
-    def run(self) -> str:
-        return self.execute()
-
-
-class IngestionJob(RunMixin, Executable):
-    def execute(self) -> str:
-        return "loaded"
-
-
-print(IngestionJob().run())
-```
-
-Expected output:
-
-```text
-loaded
-```
-
-This example separates the behavioural mixin (`RunMixin`) from the explicit interface contract (`Executable`). In other designs, a `typing.Protocol` or ordinary duck typing may be more appropriate.
-
-### 6.3 Test a mixin with a minimal host
-
-```python
-class TimestampMixin:
-    def timestamp_label(self) -> str:
-        return f"created_at={self.created_at}"
-
-
-class TestHost(TimestampMixin):
-    def __init__(self, created_at: str) -> None:
-        self.created_at = created_at
-
-
-def test_timestamp_mixin() -> None:
-    assert TestHost("2026-01-01T00:00:00Z").timestamp_label() == (
-        "created_at=2026-01-01T00:00:00Z"
-    )
-
-
-test_timestamp_mixin()
-print("test passed")
-```
-
-Expected output:
-
-```text
-test passed
-```
-
-A production test suite should also test invalid or missing host state, and test the mixin in the actual combinations in which it will be used.
-
----
-
-## 7. Cooperative methods and `super()`
-
-This topic builds directly on Lesson 08. In cooperative multiple inheritance, `super()` continues lookup after the current class in the actual instance's MRO. It does not simply call a fixed parent.
-
-### 7.1 A cooperative method chain
-
-```python
-class PipelineBase:
-    def run(self, events: list[str]) -> list[str]:
-        events.append("base")
-        return events
-
-
-class ValidationMixin:
-    def run(self, events: list[str]) -> list[str]:
-        events.append("validate")
-        return super().run(events)
-
-
-class MetricsMixin:
-    def run(self, events: list[str]) -> list[str]:
-        events.append("metrics")
-        return super().run(events)
-
-
-class IngestionPipeline(ValidationMixin, MetricsMixin, PipelineBase):
-    def run(self, events: list[str] | None = None) -> list[str]:
-        events = [] if events is None else events
-        events.append("ingestion")
-        return super().run(events)
-
-
-pipeline = IngestionPipeline()
-print(pipeline.run())
-print([cls.__name__ for cls in IngestionPipeline.__mro__])
-```
-
-Expected output:
-
-```text
-['ingestion', 'validate', 'metrics', 'base']
-['IngestionPipeline', 'ValidationMixin', 'MetricsMixin', 'PipelineBase', 'object']
-```
-
-Each implementation performs one part and passes control to the next. If a mixin omits `super().run(...)`, every implementation after it in the MRO is skipped.
-
-### 7.2 Do not call a named parent directly in a cooperative chain
-
-A common mistake is to write `PipelineBase.run(self, events)` inside a mixin. That hard-codes one parent and can bypass another mixin or invoke a shared ancestor more than once in a diamond hierarchy.
-
-Use direct base calls only when you intentionally want to bypass cooperative dispatch and can explain why. In a cooperative hierarchy, consistently use `super()` and test the actual MRO.
-
-### 7.3 Cooperative initialization with keyword arguments
-
-Constructors are especially easy to break because each class may need different configuration. A common pattern is for each mixin to consume its own keyword argument, then forward remaining arguments with `super().__init__(**kwargs)`.
+- each mixin consumes only the keyword argument it owns;
+- each mixin forwards the rest with `super().__init__(**kwargs)`;
+- all mixins accept `**kwargs` and use compatible signatures;
+- the terminal base accepts only the remaining documented arguments and rejects unexpected ones rather than silently ignoring typos.
 
 ```python
 class Root:
-    def __init__(self, **kwargs):
+    def __init__(self, **kwargs: object) -> None:
         if kwargs:
-            unknown = ", ".join(sorted(kwargs))
-            raise TypeError(f"unexpected arguments: {unknown}")
+            unexpected = ", ".join(sorted(kwargs))
+            raise TypeError(f"unexpected constructor arguments: {unexpected}")
         super().__init__()
 
 
-class RegionMixin:
-    def __init__(self, *, region: str, **kwargs):
-        self.region = region
+class TenantMixin:
+    def __init__(self, *, tenant_id: str, **kwargs: object) -> None:
+        self.tenant_id = tenant_id
         super().__init__(**kwargs)
 
 
-class BatchSizeMixin:
-    def __init__(self, *, batch_size: int, **kwargs):
-        if batch_size < 1:
-            raise ValueError("batch_size must be positive")
-        self.batch_size = batch_size
+class RetryMixin:
+    def __init__(self, *, retries: int = 3, **kwargs: object) -> None:
+        if retries < 0:
+            raise ValueError("retries must be non-negative")
+        self.retries = retries
         super().__init__(**kwargs)
 
 
-class DailyIngestionJob(RegionMixin, BatchSizeMixin, Root):
-    def __init__(self, *, job_name: str, **kwargs):
-        self.job_name = job_name
-        super().__init__(**kwargs)
-
-
-job = DailyIngestionJob(
-    job_name="orders",
-    region="ap-south-1",
-    batch_size=500,
-)
-print(job.job_name, job.region, job.batch_size)
-print([cls.__name__ for cls in DailyIngestionJob.__mro__])
-```
-
-Expected output:
-
-```text
-orders ap-south-1 500
-['DailyIngestionJob', 'RegionMixin', 'BatchSizeMixin', 'Root', 'object']
-```
-
-The `Root` class checks that no unknown keywords remain and terminates the argument chain. This catches misspelled or unconsumed options rather than silently discarding them.
-
-**Constructor contract:**
-
-1. Each class consumes only the arguments it owns.
-2. Arguments are explicit and preferably keyword-only.
-3. Each class forwards unconsumed arguments.
-4. The terminal class validates that no arguments remain.
-5. Every initializer in the cooperative chain calls `super()` exactly once.
-
-Do not use `**kwargs` to hide an unclear public API. Keep the accepted parameters documented and validate them.
-
----
-
-## 8. Common multiple-inheritance pitfalls
-
-### 8.1 Method-name collisions
-
-Two mixins may define the same method name but intend different semantics. The MRO silently chooses the first matching implementation unless the methods deliberately cooperate.
-
-```python
-class CsvMixin:
-    def format(self) -> str:
-        return "csv"
-
-
-class JsonMixin:
-    def format(self) -> str:
-        return "json"
-
-
-class Exporter(CsvMixin, JsonMixin):
+class Job(TenantMixin, RetryMixin, Root):
     pass
 
 
-print(Exporter().format())
-print([cls.__name__ for cls in Exporter.__mro__])
+job = Job(tenant_id="tenant-7", retries=2)
+print(job.tenant_id, job.retries)
+print([cls.__name__ for cls in Job.__mro__])
 ```
 
 Expected output:
 
 ```text
-csv
-['Exporter', 'CsvMixin', 'JsonMixin', 'object']
+tenant-7 2
+['Job', 'TenantMixin', 'RetryMixin', 'Root', 'object']
 ```
 
-The call succeeds, but it may not be the intended behaviour. Rename the methods (`format_csv`, `format_json`), make the selection explicit, or use a strategy object when the choice is a runtime decision.
+`TenantMixin` removes `tenant_id` from the argument stream by binding it explicitly; `RetryMixin` does the same for `retries`; `Root` verifies that no unknown keywords remain. This catches misspellings such as `retry=2` instead of quietly ignoring them.
 
-### 8.2 Hidden attribute coupling
-
-A mixin that reads `self.config`, `self.client`, or `self.logger` assumes the host defines those names with compatible meanings. Two mixins can each work alone but fail when combined because they use the same attribute name for different purposes.
-
-Mitigations:
-
-- Document required attributes and methods.
-- Prefer specific private names for mixin-owned state.
-- Use explicit constructor arguments or typed contracts.
-- Test all supported combinations of mixins.
-- Prefer composition when a behaviour needs a large collaborator object.
-
-### 8.3 A mixin after the concrete base
-
-If the concrete base implements a method with the same name, placing it before the mixin may make the mixin's method unreachable through ordinary lookup.
+### Failure: incompatible signatures
 
 ```python
-class BaseJob:
-    def status(self) -> str:
-        return "base"
+class NeedsModeMixin:
+    def __init__(self, *, mode: str, **kwargs: object) -> None:
+        self.mode = mode
+        super().__init__(**kwargs)
 
 
-class StatusMixin:
-    def status(self) -> str:
-        return "mixin"
+class StrictBase:
+    def __init__(self, *, required: str) -> None:
+        self.required = required
 
 
-class Job(BaseJob, StatusMixin):
+class Broken(NeedsModeMixin, StrictBase):
     pass
 
 
-print(Job().status())
+try:
+    Broken(mode="fast")  # `required` is never supplied.
+except TypeError as error:
+    print(type(error).__name__, error)
 ```
 
 Expected output:
 
 ```text
-base
+TypeError StrictBase.__init__() missing 1 required keyword-only argument: 'required'
 ```
 
-Fix the base order when the mixin is intended to take precedence, or make the design explicit if the base must take precedence.
+The chain is brittle because each layer's argument contract must be satisfied together. The right repair is not always to add `**kwargs` everywhere blindly: define a clear constructor contract, consume owned arguments, forward the remainder, and validate at the terminal boundary. For simple data classes, composition or a single explicit constructor may be clearer than a cooperative `__init__` chain.
 
-### 8.4 A class forgets to call `super()`
+### Initialization-order traps
 
-A class that returns or finishes without forwarding the call cuts off the rest of the cooperative chain. This can silently skip validation, metrics, cleanup, or registration.
+Avoid calling overridable methods from a base constructor before all state required by those methods is initialized. In a cooperative hierarchy, `self.some_method()` may resolve to a mixin override that expects attributes not yet assigned. Prefer explicit, non-overridable initialization helpers or establish and document a strict initialization order. Constructor order follows the MRO, not a separate “parent-first” rule.
 
-When reviewing a cooperative method, ask: **is this implementation supposed to continue the chain?** If yes, call `super()` once with the correct arguments and return or handle its result appropriately.
+## 9. Base ordering, collisions, and accidental overrides
 
-### 8.5 Incompatible method signatures
+### Put behavior mixins before the concrete base
 
-A mixin may expect `run(context)` while another expects `run()`; a combined class cannot satisfy both contracts automatically. Agree on a shared signature or use distinct method names and explicit orchestration.
+```python
+class ExportMixin:
+    def export(self) -> str:
+        return "mixin export"
 
-Do not solve every signature conflict with `*args, **kwargs`. Unstructured argument forwarding can make type checking and error messages worse. Use keyword-only parameters and document the cooperative contract.
 
-### 8.6 Stateful mixins with conflicting constructors
+class BaseModel:
+    def export(self) -> str:
+        return "base export"
 
-If several mixins each define an incompatible `__init__`, the combined class can fail or skip initialization. Prefer stateless mixins. If state is necessary, use the cooperative keyword-forwarding pattern and test the full chain.
 
-### 8.7 The fragile base class problem
+class GoodModel(ExportMixin, BaseModel):
+    pass
 
-A change to a base class can alter method lookup or call order for every subclass. Adding a method with a name already used by a mixin can change behaviour without modifying the subclass itself.
 
-Mitigations include:
+class SurprisingModel(BaseModel, ExportMixin):
+    pass
 
-- keep base-class APIs narrow;
-- use specific method names;
-- write tests for public subclass behaviour;
-- inspect MRO changes during refactors;
-- avoid relying on undocumented implementation details of third-party bases.
+print(GoodModel().export())
+print(SurprisingModel().export())
+```
 
-### 8.8 Metaclass conflicts
+Expected output:
 
-Every class has a metaclass, usually `type`. Frameworks and abstract base classes may use custom metaclasses. If unrelated bases require incompatible metaclasses, Python can reject the combined class with a `TypeError`.
+```text
+mixin export
+base export
+```
 
-Do not add custom metaclasses casually. Prefer ordinary mixins, class decorators, `__init_subclass__`, or composition when those mechanisms solve the problem. If a metaclass is genuinely required, understand and deliberately reconcile the metaclass hierarchy.
+For `SurprisingModel`, the base class's method is found first, so the mixin implementation is never reached through ordinary lookup. This is why `class A(Mixin, Base)` is the common ordering when the mixin should contribute or override behavior.
 
-### 8.9 Instance-layout conflicts and `__slots__`
+### Method-name collision
 
-Multiple inheritance can fail when more than one base contributes incompatible non-empty instance layouts, including certain combinations of `__slots__` or C-implemented built-in types. Python may raise:
+If two mixins define `save()`, the leftmost applicable implementation wins unless it delegates cooperatively. Python will not warn that the two methods may have incompatible meanings. Use distinct names, an explicit composition layer, or a documented cooperative wrapper chain.
 
-`TypeError: multiple bases have instance lay-out conflict`
+### Attribute collision
 
-A stateless mixin can declare `__slots__ = ()` to avoid introducing its own instance dictionary or slot layout:
+Two mixins may both read or assign `self.status`, but mean different things by it. This hidden coupling can cause subtle defects even when method lookup is valid. Prefer specific names such as `retry_status` and `audit_status`, or store helper state in a clearly owned object. Do not rely on base order to resolve ambiguous state semantics.
+
+### Silent behavior replacement
+
+A mixin that defines `close()`, `save()`, `validate()`, or `__repr__()` can replace a method on the concrete base. Ask whether it should wrap the next method, deliberately replace it, or expose a differently named capability. Document that choice and test the composed class.
+
+## 10. Diamond inheritance and duplicate work
+
+A diamond occurs when two branches share a common ancestor:
+
+```text
+        Root
+       /    \
+      Left  Right
+       \    /
+        Final
+```
+
+A non-cooperative implementation may call `Root` twice. Python's MRO does not automatically make manually named base calls cooperative; `super()` is what lets each class pass control to the next class in the linearization.
+
+```python
+class Root:
+    def __init__(self) -> None:
+        print("Root")
+        super().__init__()
+
+
+class Left(Root):
+    def __init__(self) -> None:
+        print("Left")
+        super().__init__()
+
+
+class Right(Root):
+    def __init__(self) -> None:
+        print("Right")
+        super().__init__()
+
+
+class Final(Left, Right):
+    def __init__(self) -> None:
+        print("Final")
+        super().__init__()
+
+
+Final()
+print([cls.__name__ for cls in Final.__mro__])
+```
+
+Expected output:
+
+```text
+Final
+Left
+Right
+Root
+['Final', 'Left', 'Right', 'Root', 'object']
+```
+
+Every constructor appears once. `Left`'s `super()` continues to `Right`, because `Right` is next after `Left` in `Final`'s MRO; it does not jump straight to `Root`.
+
+### Failure: named parent calls duplicate the root
+
+```python
+class BadLeft(Root):
+    def __init__(self) -> None:
+        print("BadLeft")
+        Root.__init__(self)
+
+
+class BadRight(Root):
+    def __init__(self) -> None:
+        print("BadRight")
+        Root.__init__(self)
+
+
+class BadFinal(BadLeft, BadRight):
+    def __init__(self) -> None:
+        print("BadFinal")
+        BadLeft.__init__(self)
+        BadRight.__init__(self)
+```
+
+Calling `BadFinal()` prints `BadFinal`, `BadLeft`, `Root`, `BadRight`, `Root`: the shared root is initialized twice. In real code this can duplicate resource acquisition, register callbacks twice, overwrite state, or repeat side effects.
+
+## 11. Other multiple-inheritance failure modes
+
+### 11.1 Inconsistent hierarchy
+
+Python rejects an inheritance graph when it cannot produce a consistent MRO. Do not try to “fix” such a graph by relying on an arbitrary lookup order. Reconsider the declared relationships or use composition. Lesson 08 explains C3 constraints; for this lesson, the design rule is to keep the graph small and semantically consistent.
+
+### 11.2 Metaclass conflict
+
+A class's metaclass must be compatible with the metaclasses of its bases. Combining unrelated frameworks or extension types can produce a `TypeError` about metaclass conflict. This is not the same problem as two methods having the same name. Prefer a common supported metaclass only when you understand both frameworks' requirements; otherwise use adapters or composition.
+
+### 11.3 Instance layout conflict
+
+Some bases contribute incompatible instance layouts, particularly when multiple bases define non-empty `__slots__` or involve certain C-implemented built-in types. Python can raise `TypeError: multiple bases have instance lay-out conflict`. Do not assume adding mixins is layout-neutral. A stateless mixin with `__slots__ = ()` can avoid introducing its own instance dictionary, but it does not magically resolve every layout conflict.
 
 ```python
 class LoggingMixin:
     __slots__ = ()
 
-    def log_label(self) -> str:
-        return type(self).__name__
-
-
-class Record:
-    __slots__ = ("record_id",)
-
-    def __init__(self, record_id: int) -> None:
-        self.record_id = record_id
-
-
-class LoggedRecord(LoggingMixin, Record):
-    __slots__ = ()
-
-
-record = LoggedRecord(7)
-print(record.log_label(), record.record_id)
+    def log(self, message: str) -> None:
+        print(message)
 ```
 
-Expected output:
+### 11.4 Fragile base class
 
-```text
-LoggedRecord 7
-```
+A base class becomes fragile when a subclass or mixin depends on undocumented internal methods, attribute names, or call order. For example, calling `self._prepare()` in `Base.__init__` allows a mixin override to run before the host is fully initialized. Reduce this risk by narrowing extension points, documenting contracts, avoiding overridable calls during construction, and testing representative combinations.
 
-`__slots__ = ()` does not magically fix every layout conflict. It only states that this mixin introduces no additional instance slots. Test the exact hierarchy, especially when extension types or third-party classes are involved.
+### 11.5 Missing `super()` breaks the chain
 
----
+If one class in the cooperative chain forgets `super()`, all later classes in the MRO are skipped for that method call. The MRO remains valid, but the behavior chain is incomplete. Test the full trace, not merely the final return value.
 
-## 9. Diamond inheritance and duplicate initialization
+## 12. Host attributes, dataclasses, and `__slots__`
 
-A diamond occurs when two classes inherit from a common base and another class inherits from both branches:
+A mixin that requires `self.created_at` should state that requirement. A type-checking `Protocol` can document the expected interface, while a runtime check can validate it when needed. Neither mechanism makes an undocumented assumption safe by itself.
 
-```text
-        Root
-       /    \
-    Left    Right
-       \    /
-       Final
-```
+For stateless mixins combined with slotted classes, declaring `__slots__ = ()` avoids the mixin itself adding an instance dictionary. It does not grant the mixin permission to assign new attributes to the host. A mixin that writes `self.audit_events = []` needs that storage declared by the concrete host (or another suitable base), or it will fail for a slotted host without such a slot.
 
-Python's MRO and cooperative `super()` allow the shared ancestor to be visited once when the hierarchy is designed cooperatively.
+Dataclasses can use mixins for behavior, but do not assume a mixin's constructor will be called automatically by a generated dataclass `__init__`. Dataclass-generated constructors initialize dataclass fields according to dataclass rules; a non-dataclass base initializer is not automatically chained just because it appears in the MRO. If base initialization is required, implement and test an explicit initialization strategy. Avoid combining several stateful constructor mixins with a generated dataclass constructor unless the lifecycle is carefully designed.
 
-### 9.1 Cooperative diamond
-
-```python
-class Root:
-    def __init__(self, **kwargs):
-        self.initialized_by = ["Root"]
-        super().__init__(**kwargs)
-
-
-class Left(Root):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.initialized_by.append("Left")
-
-
-class Right(Root):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.initialized_by.append("Right")
-
-
-class Final(Left, Right):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.initialized_by.append("Final")
-
-
-item = Final()
-print([cls.__name__ for cls in Final.__mro__])
-print(item.initialized_by)
-```
-
-Expected output:
-
-```text
-['Final', 'Left', 'Right', 'Root', 'object']
-['Root', 'Right', 'Left', 'Final']
-```
-
-The initialization list reflects the order in which the methods append after their `super()` calls return. The MRO order is `Final → Left → Right → Root → object`; the post-`super()` actions unwind in reverse order.
-
-### 9.2 Why direct base calls are risky
-
-If `Left.__init__` calls `Root.__init__(self)` and `Right.__init__` also calls `Root.__init__(self)`, then a `Final` instance may initialize `Root` twice. That can duplicate resource acquisition, counters, event registration, or state resets.
-
-In cooperative multiple inheritance, each class should call `super()` according to the common contract rather than explicitly invoking a named ancestor. In a diamond, this is how a shared ancestor can run once.
-
----
-
-## 10. `__slots__`, dataclasses, and mixins
-
-### 10.1 A stateless mixin can use empty slots
-
-A mixin with `__slots__ = ()` does not add a per-instance `__dict__` by itself. This is useful when combining it with slotted record classes.
+A stateless mixin can work well with a slotted dataclass when it adds behavior without requiring undeclared storage:
 
 ```python
 from dataclasses import dataclass
 
 
-class DisplayMixin:
+class UppercaseLabelMixin:
     __slots__ = ()
 
-    def display_key(self) -> str:
-        return f"{self.key}:{self.value}"
+    def label(self) -> str:
+        return self.name.upper()
 
 
 @dataclass(slots=True)
-class Metric:
-    key: str
-    value: float
+class Product(UppercaseLabelMixin):
+    name: str
 
 
-class DisplayMetric(DisplayMixin, Metric):
-    __slots__ = ()
-
-
-metric = DisplayMetric("orders_processed", 125.0)
-print(metric.display_key())
+print(Product("widget").label())
+print([cls.__name__ for cls in Product.__mro__])
 ```
 
 Expected output:
 
 ```text
-orders_processed:125.0
+WIDGET
+['Product', 'UppercaseLabelMixin', 'object']
 ```
 
-The class uses the `dataclass(slots=True)` feature available in Python 3.10 and later. Real layouts should be tested with the exact base classes being used.
+Here `name` is declared by the dataclass, while the mixin contributes only a method. The empty slots declaration prevents the mixin from introducing an instance dictionary; it does not create a `name` slot itself.
 
-### 10.2 Stateful mixins need deliberate storage
 
-If a mixin needs its own attributes, decide how those attributes are stored and initialized. Avoid declaring overlapping slot names in different bases. Be especially cautious when combining dataclasses, slots, and third-party classes because their class-creation and storage rules may differ.
+## 12.1 `__init_subclass__` and registration/validation mixins
 
-### 10.3 Measure instead of assuming
-
-Do not add `__slots__` merely because a class is a mixin. Measure memory and understand the trade-offs. The most important goal for this lesson is correct composition and predictable behaviour, not premature memory optimization.
-
----
-
-## 11. `__init_subclass__` in mixins
-
-`__init_subclass__` is called when a subclass is created. A mixin can use it to validate class definitions or register subclasses. In a multiple-inheritance hierarchy, the hook should cooperate with other hooks by calling `super().__init_subclass__(**kwargs)`.
-
-### 11.1 Validate a subclass declaration
+A mixin can use `__init_subclass__` to validate or register subclasses at class-creation time. This hook itself participates in cooperative class initialization: a mixin should normally call `super().__init_subclass__(**kwargs)` so other bases can process the class too.
 
 ```python
-class NamedJobMixin:
-    def __init_subclass__(cls, *, job_kind: str | None = None, **kwargs):
+class SlugMixin:
+    def __init_subclass__(cls, **kwargs: object) -> None:
         super().__init_subclass__(**kwargs)
-        if job_kind is not None and not job_kind.strip():
-            raise ValueError("job_kind must not be empty")
-        cls.job_kind = job_kind
+        if not getattr(cls, "slug_prefix", ""):
+            raise TypeError(f"{cls.__name__} must define a non-empty slug_prefix")
 
 
-class OrdersJob(NamedJobMixin, job_kind="batch"):
-    pass
+class Article(SlugMixin):
+    slug_prefix = "article"
 
 
-print(OrdersJob.job_kind)
+print(Article.slug_prefix)
 ```
 
 Expected output:
 
 ```text
+article
+```
+
+Do not use this hook casually as hidden global registration machinery. Make the contract discoverable, avoid mutating unrelated classes, and test class creation failures. If multiple mixins define `__init_subclass__`, each must cooperate with `super()` and accept/forward compatible keyword arguments.
+
+## 12.2 Default methods from an interface: `collections.abc.Mapping`
+
+`collections.abc.Mapping` illustrates a related but distinct pattern: implement a small required interface and inherit useful derived operations. It is an abstract base class/interface with mixin-like provided behavior, not merely a generic “add any feature” mixin. For example, a mapping implementation supplies `__getitem__`, `__iter__`, and `__len__`; the ABC provides other mapping operations. Read the ABC contract and test inherited behavior instead of assuming every method is supplied automatically.
+
+```python
+from collections.abc import Iterator, Mapping
+
+
+class Settings(Mapping[str, str]):
+    def __init__(self, values: dict[str, str]) -> None:
+        self._values = dict(values)
+
+    def __getitem__(self, key: str) -> str:
+        return self._values[key]
+
+    def __iter__(self) -> Iterator[str]:
+        return iter(self._values)
+
+    def __len__(self) -> int:
+        return len(self._values)
+
+
+settings = Settings({"region": "ap-south-1", "mode": "batch"})
+print(settings["region"])
+print(settings.get("mode"))  # supplied by Mapping's inherited behavior
+print(len(settings))
+```
+
+Expected output:
+
+```text
+ap-south-1
 batch
+2
 ```
 
-The keyword `job_kind` is consumed by this mixin; any other class-creation keywords are passed along. The cooperative `super()` call is essential if another base also defines `__init_subclass__`.
+This works because the implementation satisfies the ABC's required mapping operations. Do not confuse this defined interface and its documented derived methods with arbitrary mixins that happen to provide methods.
 
-### 11.2 Registration should be intentional
+## 13. Attribute lookup versus special-method lookup
 
-A registry in `__init_subclass__` can support plugin discovery, but it creates global or class-level state and can complicate import order, tests, and subclass reloading. Use it only when registration is part of the design. For larger plugin systems, explicit registries or package entry points may be easier to inspect and test.
+For ordinary attributes such as `obj.label`, Python searches the instance and its class hierarchy according to the attribute access rules. Many special methods used by syntax and built-in operations—such as `len(obj)`, iteration, arithmetic, and context-manager operations—are generally looked up on the type, not by ordinary instance-attribute lookup. Assigning `obj.__len__ = ...` is not a reliable way to change `len(obj)`.
 
----
+When a mixin adds a special method, test the actual operation (`len(x)`, `iter(x)`, `x + y`, `with x`, etc.), not only `getattr(x, "__len__")`. This complements the preceding data-model lessons; it is not a reason to create a mixin for every special method.
 
-## 12. Real-world reading exercise: framework mixins
+### Awareness: `singledispatchmethod` and `super()`
 
-Frameworks often use mixins to compose independent capabilities. The point of this exercise is not to memorize a framework's implementation, but to practice reading the MRO and identifying each class's responsibility.
+`functools.singledispatchmethod` dispatches based on the type of the first non-`self`/`cls` argument. When combining it with inheritance, decorators, and `super()`, test the actual dispatch path and decorator order. Do not assume a dispatched implementation or a `super()` call behaves like an ordinary un-decorated method without checking the documented API. This is an awareness topic here, not a full tutorial on generic dispatch.
 
-### 12.1 `socketserver.ThreadingMixIn`
+## 14. Production-oriented use cases
 
-The standard library's `socketserver.ThreadingMixIn` is a well-known example of a mixin that adds threaded request handling to a server class. When studying it:
+Mixins are useful when a focused capability needs to be reused across otherwise different classes and inheritance is an intentional extension mechanism. Examples include:
 
-1. Find the class declaration and its documented purpose.
-2. Read the order of bases in the example server class.
-3. Inspect the MRO in a small local experiment.
-4. Identify methods the mixin overrides and whether it delegates to `super()`.
-5. Note any configuration attributes and their defaults.
-6. Summarize the capability added by the mixin and the contract the host class must satisfy.
+- **Web frameworks:** request/response behavior and generic view capabilities are often assembled from mixins. Read the concrete class's MRO and each mixin's contract rather than inferring behavior from names alone.
+- **`socketserver.ThreadingMixIn`:** the standard library provides a mixin that changes server request-handling behavior. Its documented ordering and lifecycle expectations matter; consult the Python version's standard-library documentation before overriding related methods.
+- **`unittest` test cases:** reusable assertion or setup helpers can be factored into a focused mixin, provided names and setup contracts are explicit.
+- **Serialization/representation:** a small helper can be useful when the serialized schema is stable and intentionally defined. Avoid dumping every attribute for public APIs.
+- **Audit or metrics wrappers:** a cooperative method can record an event before/after delegating, but exceptions, return values, and exactly-once semantics must be tested.
 
-Do not assume that every method in a framework mixin is cooperative; inspect the actual implementation and documentation for the version you use.
+Do not add a mixin solely to avoid writing one short helper function. The hierarchy itself becomes a dependency that future maintainers must understand.
 
-### 12.2 Django class-based views
+### Real-world MRO reading exercise
 
-Django class-based views commonly combine mixins with a base view. For a `ListView`, trace the actual MRO for your installed Django version, including the relevant mixins such as `MultipleObjectTemplateResponseMixin` and `BaseListView`. Explain what each layer contributes and which method wins when names overlap.
-
-Framework internals can change between versions. Treat the installed version's source and documentation as authoritative rather than relying on a remembered MRO.
-
----
-
-## 13. Mixin, composition, strategy, or protocol?
-
-Inheritance is not always the best reuse mechanism.
-
-| Choose | When it fits best | Example |
-|---|---|---|
-| Mixin | A small, stable capability is naturally inherited and can cooperate with the host's methods. | A reusable `ReprMixin`. |
-| Composition | Behaviour has its own state, dependencies, lifecycle, or independently testable responsibility. | A pipeline holds a `MetricsRecorder`. |
-| Strategy object | The behaviour should be selected or replaced at runtime. | A pipeline accepts a `RetryPolicy`. |
-| Plain function | The operation is stateless and does not need access to host internals. | `normalize_column_name(name)`. |
-| `typing.Protocol` | Code should accept any object that satisfies a structural interface without requiring inheritance. | Any reader implementing `read_records()`. |
-| Abstract base class | A nominal contract and shared implementation or instantiation-time enforcement are required. | An exporter base with an abstract `serialize()` method. |
-
-### 13.1 Refactor a mixin into composition
-
-A mixin is questionable when it owns a large collaborator or requires a complicated configuration. In that case, pass the collaborator to the object that needs it.
+Inspect a concrete standard-library server class in your Python 3.12+ interpreter:
 
 ```python
-from collections.abc import Callable
-from typing import Any
+import socketserver
+
+class ThreadedTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
+    daemon_threads = True
+
+print([cls.__name__ for cls in ThreadedTCPServer.__mro__])
+```
+
+Expected class-name order on a standard CPython installation is:
+
+```text
+['ThreadedTCPServer', 'ThreadingMixIn', 'TCPServer', 'BaseServer', 'object']
+```
+
+Read the current `socketserver` documentation before overriding `process_request`, `process_request_thread`, or shutdown behavior: the mixin is deliberately placed before `TCPServer`, and ordering affects which methods are found first. For a web-framework analogue, inspect a concrete Django generic `ListView` and trace contributions from `MultipleObjectTemplateResponseMixin` and `BaseListView`; the exact MRO and implementation details should be checked against the installed Django version rather than memorized from an unrelated release.
+
+## 15. When composition, delegation, or a protocol is safer
+
+Use composition when the capability is a separate collaborator with its own state, dependencies, lifecycle, or configuration. Use a plain function when the behavior is a stateless transformation that does not need access to host internals. Use a protocol when the goal is to describe a required interface without prescribing inheritance.
+
+```python
+from dataclasses import dataclass
 
 
-class MetricsRecorder:
-    def __init__(self) -> None:
-        self.events: list[str] = []
+@dataclass
+class TimestampFormatter:
+    format_string: str = "%Y-%m-%dT%H:%M:%S"
 
-    def record(self, event: str) -> None:
-        self.events.append(event)
-
-
-class IngestionPipeline:
-    def __init__(self, recorder: MetricsRecorder) -> None:
-        self.recorder = recorder
-
-    def run(self, load: Callable[[], Any]) -> Any:
-        self.recorder.record("started")
-        try:
-            result = load()
-        except Exception:
-            self.recorder.record("failed")
-            raise
-        self.recorder.record("completed")
-        return result
+    def format(self, value: object) -> str:
+        # A real implementation would accept datetime explicitly.
+        return f"{value!s} ({self.format_string})"
 
 
-recorder = MetricsRecorder()
-pipeline = IngestionPipeline(recorder)
-result = pipeline.run(lambda: 3)
-print(result)
-print(recorder.events)
+class Event:
+    def __init__(self, timestamp: object, formatter: TimestampFormatter) -> None:
+        self.timestamp = timestamp
+        self._formatter = formatter
+
+    def formatted_timestamp(self) -> str:
+        return self._formatter.format(self.timestamp)
+```
+
+Here the formatter is an explicit dependency. It can be configured, replaced, and tested independently without changing the Event class's inheritance graph.
+
+A useful decision question is: **Does the behavior need to be part of the host's method-resolution chain, or does the host simply need to use another object?** If the latter, composition is often clearer.
+
+## 16. Testing mixins and the combined class
+
+Test at three levels:
+
+1. **Focused behavior:** a tiny host proves a mixin's documented requirement and output.
+2. **Composition:** the real combined class verifies method order, signatures, and return values.
+3. **Failure contracts:** tests demonstrate that missing host attributes, unknown constructor arguments, and incompatible combinations fail clearly.
+
+Do not stop after testing each mixin in isolation. Many defects only appear when methods collide or a `super()` chain crosses the concrete class and several mixins.
+
+### Pytest test suite
+
+Save the relevant examples in a module, for example `mixins_example.py`, then place this test file beside it. The tests below target the `Pipeline`, `CustomerRecordProcessor`, `Job`, and diamond `Final` examples from this lesson. If you keep examples in the same test module, remove the import and leave the tests unchanged.
+
+```python
+from datetime import datetime, timezone
+
+import pytest
+
+from mixins_example import CustomerRecordProcessor, Final, Job, Pipeline
+
+
+def test_pipeline_composes_both_mixins_in_mro_order() -> None:
+    assert Pipeline().run("job") == "prefix:job:suffix"
+    assert [cls.__name__ for cls in Pipeline.__mro__] == [
+        "Pipeline", "PrefixMixin", "SuffixMixin", "BasePipeline", "object"
+    ]
+
+
+def test_processor_runs_every_layer_once_in_order() -> None:
+    trace: list[str] = []
+    result = CustomerRecordProcessor().process("  CUSTOMER-42  ", trace=trace)
+    assert result == "customer-42|source=etl"
+    assert trace == ["normalize", "audit", "enrich", "terminal"]
+
+
+def test_constructor_mixins_consume_their_own_keywords() -> None:
+    job = Job(tenant_id="tenant-7", retries=2)
+    assert job.tenant_id == "tenant-7"
+    assert job.retries == 2
+
+
+def test_constructor_rejects_unknown_keyword() -> None:
+    with pytest.raises(TypeError, match="unexpected constructor arguments: retry"):
+        Job(tenant_id="tenant-7", retry=2)  # type: ignore[call-arg]
+
+
+def test_diamond_initializes_root_once(capsys) -> None:
+    Final()
+    assert capsys.readouterr().out.splitlines() == ["Final", "Left", "Right", "Root"]
+
+
+def test_timestamp_mixin_contract_and_host_mro() -> None:
+    class TimestampMixin:
+        def created_at_iso(self) -> str:
+            value = self.created_at
+            if not isinstance(value, datetime):
+                raise TypeError("created_at must be a datetime")
+            if value.tzinfo is None or value.utcoffset() is None:
+                raise ValueError("created_at must be timezone-aware")
+            return value.astimezone(timezone.utc).isoformat()
+
+    class Event(TimestampMixin):
+        def __init__(self, created_at: datetime) -> None:
+            self.created_at = created_at
+
+    event = Event(datetime(2025, 1, 1, tzinfo=timezone.utc))
+    assert event.created_at_iso() == "2025-01-01T00:00:00+00:00"
+    assert [cls.__name__ for cls in Event.__mro__] == ["Event", "TimestampMixin", "object"]
+
+
+def test_timestamp_mixin_rejects_naive_datetime() -> None:
+    class TimestampMixin:
+        def created_at_iso(self) -> str:
+            value = self.created_at
+            if not isinstance(value, datetime):
+                raise TypeError("created_at must be a datetime")
+            if value.tzinfo is None or value.utcoffset() is None:
+                raise ValueError("created_at must be timezone-aware")
+            return value.astimezone(timezone.utc).isoformat()
+
+    class Event(TimestampMixin):
+        def __init__(self, created_at: datetime) -> None:
+            self.created_at = created_at
+
+    with pytest.raises(ValueError, match="timezone-aware"):
+        Event(datetime(2025, 1, 1)).created_at_iso()
+```
+
+**Test note:** `capsys` is a built-in pytest fixture. The diamond test checks observed constructor order, not just the MRO list. The timestamp tests use a minimal host to test the mixin's explicit attribute contract and its timezone failure mode. Keep the example classes in a module named `mixins_example.py` if using the import as written; put demonstration `print()` calls under `if __name__ == "__main__":` so importing that module for tests has no side effects.
+
+## 17. Debugging checklist for a surprising mixin hierarchy
+
+1. Print the actual MRO: `print([cls.__name__ for cls in type(obj).__mro__])`.
+2. Identify the first class defining the surprising method: inspect each class in order, for example `cls.__dict__.get("method_name")`.
+3. Trace each cooperative call: add temporary logging immediately before and after `super().method(...)`.
+4. Compare signatures and keyword forwarding across every method in the chain.
+5. Confirm each mixin's host attributes are documented and initialized before use.
+6. Search for explicit calls such as `Parent.method(self, ...)` that bypass the MRO chain.
+7. Check for a method that omits `super()` or calls it more than once.
+8. Check class attribute/instance attribute name collisions and accidental overrides.
+9. If class creation fails, distinguish inconsistent MRO, metaclass conflict, and instance-layout conflict.
+10. Reproduce the issue with a minimal hierarchy and a test that asserts the complete call trace.
+
+## 18. Exercises with worked solutions
+
+### Exercise 1 — Why does the mixin lose?
+
+Given `class Report(BaseReport, JsonMixin): ...`, `BaseReport` and `JsonMixin` both define `to_json()`. Which implementation is found first, and how would you fix the order if the mixin is intended to supply the behavior?
+
+**Solution:** `BaseReport` comes before `JsonMixin` in the MRO, so its `to_json()` is found first. Prefer `class Report(JsonMixin, BaseReport)` if the mixin is intended to override or wrap the base behavior. If it should extend the base implementation, implement the mixin method cooperatively with `super()` and test the actual order.
+
+### Exercise 2 — Write a `TimestampMixin`
+
+Implement a mixin that formats a host-provided `created_at` value. Include a tiny host and show the MRO. Avoid pretending that every arbitrary object has a timestamp.
+
+**Solution:**
+
+```python
+from datetime import datetime, timezone
+
+
+class TimestampMixin:
+    def created_at_iso(self) -> str:
+        value = self.created_at  # documented host contract
+        if not isinstance(value, datetime):
+            raise TypeError("created_at must be a datetime")
+        if value.tzinfo is None or value.utcoffset() is None:
+            raise ValueError("created_at must be timezone-aware")
+        return value.astimezone(timezone.utc).isoformat()
+
+
+class Event(TimestampMixin):
+    def __init__(self, created_at: datetime) -> None:
+        self.created_at = created_at
+
+
+item = Event(datetime(2025, 1, 1, tzinfo=timezone.utc))
+print(item.created_at_iso())
+print([cls.__name__ for cls in Event.__mro__])
 ```
 
 Expected output:
 
 ```text
-3
-['started', 'completed']
+2025-01-01T00:00:00+00:00
+['Event', 'TimestampMixin', 'object']
 ```
 
-The pipeline depends on a recorder object rather than inheriting its implementation. That makes the collaborator explicit and easy to replace in tests. In production, consider whether catching `Exception` is appropriate for the specific observability and error-handling policy.
+### Exercise 3 — Find the broken cooperative chain
 
-### 13.2 A decision checklist
+A mixin's `process()` method transforms the input and returns without calling `super().process()`. What happens when another mixin follows it in the MRO?
 
-Before adding a mixin, ask:
+**Solution:** the later mixin and terminal implementation are skipped. If the method is designed as a cooperative wrapper, delegate once to `super()` and transform the input/output around that call. If it is intentionally terminal, document that it stops the chain and do not present it as cooperative.
 
-- Is this a coherent capability that many host classes genuinely share?
-- Does it need the host's internal state? If yes, is that contract small and documented?
-- Can it avoid its own constructor and mutable state?
-- Could a plain function or composition express the relationship more clearly?
-- Are all method names and signatures compatible with the other bases?
-- Is the MRO short enough that a teammate can reason about it?
-- Can we test both the mixin alone and the intended combinations?
-- Would changing the base class later silently alter behaviour?
+### Exercise 4 — Choose mixin or composition
 
-If several answers raise concerns, prefer composition or a protocol.
+A reusable formatter has configurable locale, timezone, and external dependencies. Should it be a mixin?
 
----
+**Solution:** composition is usually clearer. The formatter has its own configuration and lifecycle and does not need to alter host method lookup. Inject it into the class and delegate formatting to it.
 
-## 14. Testing strategy for production-quality mixins
+### Exercise 5 — Constructor contract
 
-A mixin should not be considered tested merely because one example runs.
+A cooperative mixin consumes `timeout`, another consumes `retries`, and the terminal base rejects unknown keywords. Describe the contract needed to avoid dropping arguments or raising a false error.
 
-### 14.1 Test the capability in a minimal host
+**Solution:** each mixin explicitly binds and validates its own keyword, forwards all remaining keywords through `super().__init__(**kwargs)`, and the terminal base checks that no unexpected keywords remain. All participants must use compatible keyword-based signatures and call `super()` exactly once.
 
-Use a small class that supplies only the documented requirements. This exposes accidental dependencies.
+## 19. Roadmap self-check answers
 
-### 14.2 Test MRO and dispatch
+1. **Why is `class A(Mixin, Base)` the usual order?** Because the mixin appears earlier in the MRO, so its method can contribute behavior before the concrete base's implementation. If it delegates with `super()`, the base implementation can still run later in the chain.
+2. **Write a `TimestampMixin` and a test host; show an MRO listing.** Exercise 2 supplies a timezone-aware implementation, host class, expected output, and MRO: `Event → TimestampMixin → object`.
+3. **Name two situations where composition beats a mixin.** (a) The behavior has substantial independent state/configuration or a lifecycle, such as a locale-aware formatter. (b) The host only needs to call a helper/service and does not need the helper to participate in method resolution. Other valid examples include external dependencies or avoiding collisions in a large hierarchy.
 
-Assert the expected MRO where order is part of the design, and test the actual method output or call sequence. Avoid testing only implementation details if a stable public behaviour can be tested instead.
+## 20. Common mistakes from the roadmap
 
-### 14.3 Test combinations
+- **Mixin reads an attribute the host never defines.** Document the host contract, use clear types/protocols where useful, and test a realistic host. Avoid hidden assumptions such as `self.some_attr` with no declaration.
+- **Concrete base listed before the mixin.** `class A(Base, Mixin)` often means `Base`'s method wins before the mixin is consulted. Use `class A(Mixin, Base)` when the mixin is intended to contribute the behavior, and verify the MRO.
+- **Stateful mixin adds its own `__init__` without cooperation.** This can skip later initialization or duplicate work. Prefer stateless mixins; otherwise use a documented keyword-only cooperative contract or composition.
 
-Mixins that pass isolated tests may fail when combined due to collisions, argument forwarding, or initialization order. Include the real combinations used by production classes.
+Related pitfalls covered by the lesson: explicitly calling a named parent rather than `super()`, inconsistent constructor signatures, missing `super()` calls, generic name collisions, assumptions about initialization order, and treating a valid MRO as proof of a sound design.
 
-### 14.4 Test failure paths
+## 21. Final review checklist
 
-Test missing host requirements, invalid constructor arguments, and exceptions raised by the delegated method. Verify that errors are not silently swallowed.
+Before merging a mixin-based design, verify:
 
-### 14.5 Example `pytest` tests
+- [ ] Each mixin has one focused responsibility and a clear name.
+- [ ] Its host attributes and methods are documented; no hidden assumptions remain.
+- [ ] It is stateless unless state is justified and explicitly initialized.
+- [ ] Base order matches intended lookup behavior; the actual MRO has been inspected.
+- [ ] Cooperative methods use `super()` consistently and have compatible signatures.
+- [ ] Each constructor consumes only its own arguments, forwards the rest, and validates leftovers at the terminal boundary.
+- [ ] Every intended layer runs exactly once; no method silently truncates the chain.
+- [ ] Method and attribute collisions have been ruled out or intentionally documented.
+- [ ] The design does not call overridable methods before required state exists.
+- [ ] Diamond behavior is tested for duplicate initialization and side effects.
+- [ ] Special methods are tested through the relevant built-in operation.
+- [ ] Dataclass, `__slots__`, metaclass, and layout implications have been considered where applicable.
+- [ ] Composition, delegation, or a protocol was considered and rejected for a clear reason.
+- [ ] Tests cover the combined class, call order, result, constructor contract, and failure modes.
 
-Save the implementation in an importable module and put tests in a separate test file. This small test module demonstrates the style; the class definitions below are included so the example is self-contained.
-
-```python
-class Base:
-    def label(self) -> str:
-        return "base"
-
-
-class PrefixMixin:
-    def label(self) -> str:
-        return "prefix-" + super().label()
-
-
-class SuffixMixin:
-    def label(self) -> str:
-        return super().label() + "-suffix"
-
-
-class Labelled(PrefixMixin, SuffixMixin, Base):
-    pass
-
-
-def test_mixin_chain_order() -> None:
-    assert Labelled().label() == "prefix-base-suffix"
-
-
-def test_mro_contains_mixins_in_declared_order() -> None:
-    names = [cls.__name__ for cls in Labelled.__mro__]
-    assert names[:4] == ["Labelled", "PrefixMixin", "SuffixMixin", "Base"]
-
-
-test_mixin_chain_order()
-test_mro_contains_mixins_in_declared_order()
-print("tests passed")
-```
-
-Expected output:
-
-```text
-tests passed
-```
-
-For a real project, run these tests through `pytest`, add type checking with `mypy` or `pyright`, and use `ruff` for linting. Keep tests in the repository's normal test layout rather than executing test functions manually.
-
----
-
-## 15. Data-engineering case study: composing a pipeline
-
-Suppose a team has multiple ingestion pipelines. They want validation and metrics to be reusable, but they also need a clear execution order and reliable error propagation.
-
-A cooperative design might look like this:
-
-```python
-class PipelineBase:
-    def run(self, record: dict, events: list[str]) -> dict:
-        events.append("load")
-        return record
-
-
-class ValidationMixin:
-    def run(self, record: dict, events: list[str]) -> dict:
-        if "id" not in record:
-            raise ValueError("record must contain id")
-        events.append("validate")
-        return super().run(record, events)
-
-
-class MetricsMixin:
-    def run(self, record: dict, events: list[str]) -> dict:
-        events.append("metrics")
-        return super().run(record, events)
-
-
-class OrdersPipeline(ValidationMixin, MetricsMixin, PipelineBase):
-    pass
-
-
-events: list[str] = []
-output = OrdersPipeline().run({"id": 1001, "amount": 25.0}, events)
-print(output)
-print(events)
-print([cls.__name__ for cls in OrdersPipeline.__mro__])
-```
-
-Expected output:
-
-```text
-{'id': 1001, 'amount': 25.0}
-['validate', 'metrics', 'load']
-['OrdersPipeline', 'ValidationMixin', 'MetricsMixin', 'PipelineBase', 'object']
-```
-
-This example illustrates the mechanics, not a complete production pipeline. A real system would need a documented contract for record types, error semantics, metrics emission, retries, idempotency, logging, and transaction boundaries. Also decide whether metrics should run before or after validation and how failed records should be counted. The MRO is part of that behaviour when the mixins are cooperative.
-
-### Design review questions
-
-1. Does each mixin perform one responsibility?
-2. Does each participating method call `super()` exactly once?
-3. Is the order intentional and covered by tests?
-4. Is a failure in validation supposed to prevent metrics and loading, or should failure metrics still be emitted?
-5. Could an explicit pipeline of steps make the order easier to read than inheritance?
-
-For a pipeline with complex conditional branching, runtime-configurable steps, or asynchronous orchestration, explicit composition is often clearer than a long inheritance chain.
-
----
-
-## 16. Advanced: diagnose inconsistent hierarchies and metaclass issues
-
-### 16.1 Inconsistent MRO
-
-Python rejects a class whose base ordering constraints cannot be satisfied. This is not a random interpreter limitation; it means the hierarchy expresses incompatible ordering requirements.
-
-```python
-class X:
-    pass
-
-
-class Y:
-    pass
-
-
-class A(X, Y):
-    pass
-
-
-class B(Y, X):
-    pass
-
-
-try:
-    class Impossible(A, B):
-        pass
-except TypeError as exc:
-    print(type(exc).__name__)
-    print("Cannot create the class because the base ordering conflicts.")
-```
-
-Expected output begins with:
-
-```text
-TypeError
-Cannot create the class because the base ordering conflicts.
-```
-
-Do not build application logic around the exact full error string; wording can vary by Python version. The important fact is that the class definition is rejected.
-
-### 16.2 Metaclass conflict illustration
-
-```python
-class MetaOne(type):
-    pass
-
-
-class MetaTwo(type):
-    pass
-
-
-class First(metaclass=MetaOne):
-    pass
-
-
-class Second(metaclass=MetaTwo):
-    pass
-
-
-try:
-    class Combined(First, Second):
-        pass
-except TypeError:
-    print("Incompatible metaclasses")
-```
-
-Expected output:
-
-```text
-Incompatible metaclasses
-```
-
-A compatible metaclass must be a subtype of the metaclasses required by all bases. Do not attempt to resolve every conflict by creating a custom combined metaclass without understanding the consequences; composition may be the simpler design.
-
-### 16.3 Fragile layout illustration
-
-A layout conflict depends on the exact bases and runtime. It is better taught as a diagnostic than by promising that every pair of slotted classes fails. The practical rule is:
-
-- inspect each base's `__slots__` and whether it has an instance dictionary;
-- check whether bases use C-level instance layouts;
-- avoid independent non-empty slot layouts in multiple bases unless the combination is known to be supported;
-- use `__slots__ = ()` for a stateless mixin when appropriate;
-- run a minimal test on the exact Python version and dependency versions.
-
----
-
-## 17. Common mistakes: quick review
-
-| Mistake | Why it fails | Better approach |
-|---|---|---|
-| Putting a mixin after a concrete base without checking the MRO | The base may win method lookup | Put the intended override earlier and inspect the MRO |
-| Defining a mixin with a required, incompatible `__init__` | Other initializers may be skipped or reject arguments | Prefer no constructor; otherwise use cooperative keyword forwarding |
-| Calling `Parent.method(self)` in a cooperative chain | Can bypass other mixins or duplicate shared-base work | Use `super()` consistently under a shared contract |
-| Omitting `super()` | Cuts off later implementations | Forward once when the method is designed to cooperate |
-| Using broad names like `process()` in unrelated mixins | Accidental collisions become likely | Use specific names or explicit orchestration |
-| Depending on undocumented host attributes | The mixin fails on a different host | Document, type, and test the host contract |
-| Adding too many mixins | MRO becomes difficult to reason about | Group behaviour or use composition |
-| Assuming `__slots__ = ()` solves all layout conflicts | Other bases can still be incompatible | Test the full hierarchy |
-| Using a mixin for runtime-selectable behaviour | Inheritance fixes the combination at class definition | Use composition or a strategy object |
-| Relying on a framework's remembered MRO | Framework versions can change | Inspect the installed version and its documentation |
-
----
-
-## 18. Exercises
-
-Try each exercise before reading the solution. Run the code in a fresh Python session where possible.
-
-### Exercise 1 — Create a JSON mixin
-
-Create a `JsonMixin` with `to_json()` and a `Customer` host class. Explain what fields are exposed by `vars(self)` and why production serialization often needs an explicit allowlist.
-
-### Exercise 2 — Predict the MRO
-
-Given:
-
-```python
-class A:
-    pass
-
-
-class B:
-    pass
-
-
-class C(A, B):
-    pass
-
-
-class D(B):
-    pass
-
-
-class E(C, D):
-    pass
-```
-
-Will `E` be created successfully? Run it, inspect `E.__mro__` if it succeeds, and explain the ordering constraints if it fails.
-
-### Exercise 3 — Fix a skipped cooperative call
-
-A mixin overrides `run()` but never calls `super().run()`. Build a test that demonstrates which later implementation is skipped, then fix the mixin.
-
-### Exercise 4 — Fix incompatible constructors
-
-Build two mixins that each need one keyword-only argument. Combine them with a terminal base that rejects leftover keywords. Verify both values are initialized and unknown keywords fail clearly.
-
-### Exercise 5 — Identify a collision
-
-Create `CsvMixin` and `JsonMixin`, both with a `format()` method. Demonstrate which one wins, then refactor the design to use specific method names or a strategy object.
-
-### Exercise 6 — Document a host contract
-
-Write a `ValidationMixin` that requires `validate_record(record)`. Document the contract and create a minimal host class. Decide whether duck typing, a protocol, or an ABC is the best fit and justify your choice.
-
-### Exercise 7 — Use `__init_subclass__`
-
-Write a mixin that requires each subclass to define a non-empty `job_name`. Ensure the hook calls `super().__init_subclass__(**kwargs)` and test both valid and invalid subclasses.
-
-### Exercise 8 — Choose composition over a mixin
-
-Design a pipeline with a `MetricsRecorder` collaborator. Explain why composition is clearer if the recorder has state, configuration, and a separate lifecycle.
-
-### Exercise 9 — Debug a layout issue
-
-Create a slotted data class and a stateless mixin with `__slots__ = ()`. Confirm the resulting class works. Then research why some combinations of multiple non-empty slot layouts fail, using the Python version you run.
-
-### Exercise 10 — Framework source reading
-
-Inspect `socketserver.ThreadingMixIn` or a Django class-based view from the version installed in your environment. Record the MRO, summarize each class's responsibility, and identify the cooperative method calls.
-
----
-
-## 19. Selected exercise solutions and reasoning
-
-### Solution 2 — Predict the MRO
-
-The hierarchy is valid: `C` has MRO `C, A, B, object`, and `D` has MRO `D, B, object`. The class `E(C, D)` can preserve `C` before `D`, `A` before `B` as required by `C`, and `B` before `object`. The exact MRO can be verified by the interpreter:
-
-```python
-class A:
-    pass
-
-
-class B:
-    pass
-
-
-class C(A, B):
-    pass
-
-
-class D(B):
-    pass
-
-
-class E(C, D):
-    pass
-
-
-print([cls.__name__ for cls in E.__mro__])
-```
-
-Expected output:
-
-```text
-['E', 'C', 'A', 'D', 'B', 'object']
-```
-
-### Solution 3 — Fix a skipped call
-
-A broken implementation cuts off the chain:
-
-```python
-class Base:
-    def run(self, events: list[str]) -> list[str]:
-        events.append("base")
-        return events
-
-
-class BrokenMixin:
-    def run(self, events: list[str]) -> list[str]:
-        events.append("broken")
-        return events
-
-
-class BrokenPipeline(BrokenMixin, Base):
-    pass
-
-
-events: list[str] = []
-BrokenPipeline().run(events)
-print(events)
-```
-
-Output:
-
-```text
-['broken']
-```
-
-The corrected implementation cooperates:
-
-```python
-class Base:
-    def run(self, events: list[str]) -> list[str]:
-        events.append("base")
-        return events
-
-
-class FixedMixin:
-    def run(self, events: list[str]) -> list[str]:
-        events.append("fixed")
-        return super().run(events)
-
-
-class FixedPipeline(FixedMixin, Base):
-    pass
-
-
-events: list[str] = []
-FixedPipeline().run(events)
-print(events)
-```
-
-Output:
-
-```text
-['fixed', 'base']
-```
-
-### Solution 4 — Cooperative constructor pattern
-
-The pattern in Section 7.3 is the solution: each mixin consumes its own keyword-only parameter, forwards the remaining keywords, and the terminal class raises for leftovers. This keeps constructor responsibilities explicit and catches misspellings.
-
-### Solution 5 — Resolve a collision
-
-If the two behaviours are distinct, use names such as `format_csv()` and `format_json()`. If exactly one formatter should be selected per instance or per run, inject a formatter strategy rather than relying on base-class order.
-
-### Solution 6 — Choose a contract
-
-Use duck typing when the contract is small and internal. Use `typing.Protocol` when static type checking should accept structurally compatible implementations without requiring inheritance. Use an ABC when nominal inheritance, shared implementation, or instantiation-time abstract-method enforcement is valuable. The choice should follow the system's needs, not a rule that every mixin must inherit from an ABC.
-
----
-
-## 20. Quick reference
-
-- **Mixin:** a small class that contributes a focused capability to a host class.
-- **Naming:** the `...Mixin` suffix is a useful convention.
-- **Ordering:** mixins usually appear before the concrete base when their methods should take precedence.
-- **MRO:** inspect `Class.__mro__`, `Class.mro()`, or `inspect.getmro(Class)`.
-- **Cooperation:** every participating method follows a documented method and argument contract and calls `super()` once when continuing the chain.
-- **Constructors:** prefer minimal or no mixin initialization; otherwise use explicit keyword-only arguments and `**kwargs` forwarding.
-- **Host contract:** document required attributes and methods; do not rely on hidden state.
-- **Collisions:** avoid ambiguous method names and test combinations.
-- **Slots:** `__slots__ = ()` can keep a stateless mixin from adding instance storage, but it does not eliminate every layout conflict.
-- **Subclass hooks:** use cooperative `__init_subclass__` for validation or registration only when the design warrants it.
-- **Composition:** prefer it when behaviour owns state, has a lifecycle, changes at runtime, or makes the MRO hard to understand.
-- **Production rule:** inspect, test, and document the actual combination rather than assuming every mixin composes safely.
-
----
-
-## 21. Readiness checklist
-
-You are ready to move on when you can check every item below:
-
-- [ ] I can explain the difference between a mixin and a concrete base class.
-- [ ] I can write a small, focused mixin and a minimal host class.
-- [ ] I can explain why base-class order affects method lookup.
-- [ ] I can inspect and explain a class's MRO.
-- [ ] I can write cooperative methods using `super()`.
-- [ ] I can initialize several mixins using keyword-only arguments and `**kwargs`.
-- [ ] I can identify method collisions and undocumented host requirements.
-- [ ] I can explain why direct parent calls are risky in a diamond hierarchy.
-- [ ] I can recognize metaclass and instance-layout conflicts.
-- [ ] I know when composition, a strategy object, a protocol, or an ABC is more appropriate.
-- [ ] I have tests for a mixin alone and for the combinations that matter.
-
-## 22. Recommended study workflow
-
-1. Read Sections 1–5 and type the beginner examples.
-2. Predict each example's output before running it.
-3. Read Sections 6–12 and implement a minimal host for each mixin.
-4. Deliberately break a cooperative `super()` call and observe which methods stop running.
-5. Read Sections 13–17 and refactor one inheritance example into composition.
-6. Complete the exercises without copying the solutions first.
-7. Add tests for the MRO, argument forwarding, failure behaviour, and mixin combinations.
-8. Review the actual MRO of one framework mixin from the version installed in your environment.
-
-**Final principle:** a good mixin is small, explicit about its contract, cooperative when needed, and tested in the combinations where it will run. If the inheritance graph becomes difficult to explain, simplify it—often by moving the behaviour into a composed object.
+**Engineering principle:** multiple inheritance is a mechanism, not a goal. A mixin is successful when it adds one predictable capability with an explicit contract and makes the resulting class easier—not harder—to understand.

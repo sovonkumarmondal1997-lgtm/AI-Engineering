@@ -1,446 +1,643 @@
-# Lesson 04 — Operator Overloading and Numeric Protocols
+# Operator Overloading and Numeric Protocols
 
-**Stage:** 1 — Programming & Computational Thinking  
-**Module:** 11 — Advanced Python Data Model and Object Design  
-**Target:** Python 3.12+  
-**Audience:** Learners moving from Python fundamentals toward production Data Engineering and AI Engineering
+> **Stage 1 — Programming & Computational Thinking**  
+> **Module 11 — Advanced Python Data Model and Object Design**  
+> **Lesson 04** · Python 3.12+
 
-> **Roadmap alignment:** This lesson follows `roadmap-Advanced-Python-Data-Model-and-Object-Design.md`, Lesson 04. It covers operator-to-dunder mappings, unary operators, non-mutating arithmetic, reflected and in-place operations, `NotImplemented`, conversion methods, bitwise operators and flags, matrix multiplication, numeric interoperability, `__divmod__`, modular `__pow__`, operator-based DSLs, NumPy interoperability awareness, immutable value objects, and performance trade-offs.
+## 1. Purpose and position in the roadmap
+
+This lesson follows container protocols in Module 11 and develops the Python data model further: custom objects can participate in arithmetic, unary operations, comparisons, bitwise operations, and numeric conversion by implementing the relevant special methods.
+
+The project tree places this material under `Stage 1 — Programming & Computational Thinking/11-Advanced-Python-Data-Model-and-Object-Design/`. The module roadmap's Lesson 04 is the specification for the scope below. The examples use small, explicit value objects so that dispatch and type contracts remain visible.
+
+## 2. Prerequisites
+
+You should understand:
+
+- classes, methods, and immutable versus mutable state;
+- Python's special methods and `NotImplemented`;
+- equality and container protocols;
+- basic arithmetic, integer division, modulo, powers, and bitwise operations;
+- type annotations and `pytest`.
+
+## 3. Learning objectives
+
+After this lesson, you should be able to:
+
+1. Map operators to the corresponding special methods.
+2. Explain binary dispatch, reflected methods, subclass priority, and `NotImplemented`.
+3. Implement arithmetic and unary methods for a small immutable value object.
+4. Distinguish normal binary operations from in-place operations and their fallback.
+5. Implement conversion and numeric protocol methods with clear contracts.
+6. Explain how built-in numeric types interoperate—and where they deliberately do not.
+7. Use bitwise operators for bit masks and `enum.Flag`.
+8. Recognize when operator overloading improves a domain model and when it creates an opaque DSL.
+9. Test supported operations, unsupported operands, aliases, edge cases, and immutability.
+10. Reason about allocation, vectorization, and NumPy interoperability at a high level.
 
 ---
 
-## 1. Learning outcomes
+## 4. Conceptual model: operators are protocol dispatch
 
-By the end of this lesson, you should be able to:
+An expression such as `left + right` is not simply “call `left.__add__(right)` no matter what.” Python's binary operator machinery considers the operand types and their implementations, including a reflected method on the right operand. A method can return a value, return `NotImplemented` to decline the operation, or raise an exception for a genuine error.
 
-1. Explain how expressions such as `left + right`, `-value`, and `value @ matrix` dispatch to special methods.
-2. Implement readable arithmetic for a small value object without unexpectedly mutating operands.
-3. Distinguish direct methods (`__add__`), reflected methods (`__radd__`), and in-place methods (`__iadd__`).
-4. Return `NotImplemented` for unsupported operand types and explain how Python resolves the operation.
-5. Implement scalar multiplication and support useful mixed operand orders.
-6. Explain why `sum()` commonly requires a suitable `__radd__` or an explicit `start` value.
-7. Use conversion methods such as `__int__`, `__float__`, `__complex__`, `__round__`, `__index__`, and `__bool__` appropriately.
-8. Use bitwise operations and `enum.Flag` for flags rather than inventing unclear meanings for operators.
-9. Recognize the numeric tower and the practical differences among `int`, `float`, `Fraction`, and `Decimal`.
-10. Explain why `Decimal + float` raises `TypeError`, and choose a deliberate numeric policy.
-11. Implement `__divmod__` and understand the three-argument form of `pow()`.
-12. Decide when an operator-based API is clear, and when a named method is safer.
-13. Recognize NumPy's `__array__` and `__array_ufunc__` as advanced interoperability hooks.
-14. Identify temporary-object and per-element Python overhead, and know when to measure or vectorize.
+Three rules are central:
 
-## 2. Prerequisites and setup
+1. **Implement only meaningful operations.** A `Money` object may add compatible money values but should not silently add a string.
+2. **Return `NotImplemented` for an unsupported operand type.** It lets Python try the other operand's reflected method where applicable, and ultimately produce a normal `TypeError` if no implementation accepts the operation.
+3. **Keep operator semantics intuitive.** `a + b` should mean a recognizable combination, not trigger unrelated I/O or hidden mutation.
 
-You should already understand classes, instance attributes, type annotations, exceptions, and the basics of special methods from the previous lessons. The earlier lessons on `__repr__`, equality, hashing, and comparisons are useful context, but you do not need to have memorized every special method.
-
-Use Python 3.12 or newer. Examples that use `pytest` require it to be installed in your development environment:
-
-```bash
-python --version
-python -m pip install pytest
-```
-
-Save the examples in a `.py` file or run each self-contained code block in a Python interpreter. The code blocks in this lesson are designed to be runnable independently unless explicitly labelled as a shell command.
-
-## 3. The central idea: make objects work naturally with Python syntax
-
-Operator overloading lets a class define what familiar syntax means for its instances. For example:
-
-- `Vector(1, 2) + Vector(3, 4)` can mean component-wise vector addition.
-- `Money(10) * 3` can mean scaling a monetary amount by a count.
-- `Path("data") / "events.csv"` means path composition.
-- `matrix_a @ matrix_b` means matrix multiplication.
-- `permission_a | permission_b` can combine permission flags.
-
-Python does not infer these meanings. It uses special methods implemented by the operand types. The important design rule is **semantic restraint**: use an operator only when its meaning will be obvious to another Python developer.
-
-A custom `+` should act like addition in the domain. Do not use `+` to send an email, execute a database query, or trigger an unrelated side effect. Named methods are usually clearer for operations that are not naturally arithmetic or algebraic.
-
-## 4. Operator-to-method reference
-
-### 4.1 Common binary operators
-
-| Expression | Primary special method | Reflected counterpart | Typical meaning |
-|---|---|---|---|
-| `a + b` | `a.__add__(b)` | `b.__radd__(a)` | Addition / combination |
-| `a - b` | `a.__sub__(b)` | `b.__rsub__(a)` | Subtraction |
-| `a * b` | `a.__mul__(b)` | `b.__rmul__(a)` | Multiplication / scaling |
-| `a / b` | `a.__truediv__(b)` | `b.__rtruediv__(a)` | True division |
-| `a // b` | `a.__floordiv__(b)` | `b.__rfloordiv__(a)` | Floor division |
-| `a % b` | `a.__mod__(b)` | `b.__rmod__(a)` | Remainder |
-| `a ** b` | `a.__pow__(b)` | `b.__rpow__(a)` | Exponentiation |
-| `a @ b` | `a.__matmul__(b)` | `b.__rmatmul__(a)` | Matrix multiplication |
-| `a divmod b` | `a.__divmod__(b)` | `b.__rdivmod__(a)` | Quotient and remainder |
-| `a & b` | `a.__and__(b)` | `b.__rand__(a)` | Bitwise AND / set-like operation |
-| `a \| b` | `a.__or__(b)` | `b.__ror__(a)` | Bitwise OR / set-like operation |
-| `a ^ b` | `a.__xor__(b)` | `b.__rxor__(a)` | Bitwise XOR |
-| `a << b` | `a.__lshift__(b)` | `b.__rlshift__(a)` | Left shift |
-| `a >> b` | `a.__rshift__(b)` | `b.__rrshift__(a)` | Right shift |
-
-The expression `a + b` is not literally implemented as a simple Python-level call to `a.__add__(b)` in every situation. Python follows the binary operator dispatch rules, including subtype priority and reflected methods. The table is a useful mental model, not the complete dispatch algorithm.
-
-### 4.2 In-place operators
-
-| Expression | In-place method |
-|---|---|
-| `a += b` | `a.__iadd__(b)` |
-| `a -= b` | `a.__isub__(b)` |
-| `a *= b` | `a.__imul__(b)` |
-| `a /= b` | `a.__itruediv__(b)` |
-| `a //= b` | `a.__ifloordiv__(b)` |
-| `a %= b` | `a.__imod__(b)` |
-| `a **= b` | `a.__ipow__(b)` |
-| `a @= b` | `a.__imatmul__(b)` |
-| `a &= b`, `a \|= b`, `a ^= b` | `__iand__`, `__ior__`, `__ixor__` |
-| `a <<= b`, `a >>= b` | `__ilshift__`, `__irshift__` |
-
-If an in-place method is absent or returns `NotImplemented`, Python can fall back to the ordinary binary operation and rebind the left-hand variable to the result. Therefore, `x += y` does **not** universally mean “mutate the existing object.”
-
-### 4.3 Unary operators
-
-| Expression | Method | Typical meaning |
-|---|---|---|
-| `-x` | `__neg__` | Negation |
-| `+x` | `__pos__` | Unary plus / normalized positive value |
-| `abs(x)` | `__abs__` | Magnitude |
-| `~x` | `__invert__` | Bitwise inversion |
-
-Unary operators generally operate on one object and return a result. Their return types depend on the domain: `abs(Vector(...))` may return a scalar, while `-Vector(...)` should return another vector.
-
-## 5. Start with a small immutable `Vector`
-
-A vector is a useful first example because its operations have familiar mathematical meanings. This version is intentionally small and supports addition, scalar multiplication, magnitude, and a useful representation.
+`NotImplemented` is a special singleton used as a return value from a special method. It is not the same as raising `NotImplementedError`, which is an exception and normally signals that code has intentionally not been implemented.
 
 ```python
-from __future__ import annotations
-
-from math import hypot
-
-
-class Vector:
-    def __init__(self, x: float, y: float) -> None:
-        self.x = float(x)
-        self.y = float(y)
-
-    def __add__(self, other: object) -> Vector:
-        if not isinstance(other, Vector):
-            return NotImplemented
-        return Vector(self.x + other.x, self.y + other.y)
-
-    def __mul__(self, scalar: object) -> Vector:
-        if not isinstance(scalar, (int, float)):
-            return NotImplemented
-        return Vector(self.x * scalar, self.y * scalar)
-
-    def __abs__(self) -> float:
-        return hypot(self.x, self.y)
-
-    def __neg__(self) -> Vector:
-        return Vector(-self.x, -self.y)
-
-    def __repr__(self) -> str:
-        return f"Vector({self.x!r}, {self.y!r})"
+class Left:
+    def __add__(self, other):
+        print("Left.__add__")
+        return NotImplemented
 
 
-left = Vector(1, 2)
-right = Vector(3, 4)
-print(left + right)  # Vector(4.0, 6.0)
-print(left * 3)      # Vector(3.0, 6.0)
-print(abs(right))    # 5.0
-print(-left)         # Vector(-1.0, -2.0)
-print(left)          # Vector(1.0, 2.0): unchanged by addition
+class Right:
+    def __radd__(self, other):
+        print("Right.__radd__")
+        return "handled by right"
+
+
+print(Left() + Right())
 ```
 
-### What this example teaches
+Expected output:
 
-- `__add__` defines the class's meaning for `+`.
-- Returning a new `Vector` keeps the original operands unchanged.
-- Unsupported operands return `NotImplemented` rather than pretending to add unrelated types.
-- `__abs__` can return a scalar even though the original object is a vector.
-- The `__repr__` method makes examples and debugging output understandable.
+```text
+Left.__add__
+Right.__radd__
+handled by right
+```
 
-**Design note:** The example is pedagogical, not a complete industrial vector implementation. It accepts `bool` because `bool` is a subclass of `int`, and it converts coordinates to `float`; a stricter production API may choose to reject booleans and define a more explicit numeric policy.
-
-## 6. `NotImplemented` is part of operator negotiation
-
-`NotImplemented` is a special singleton used by binary special methods to say, “This operand combination is not supported by this implementation; let Python try the other dispatch path.” It is not the same as `NotImplementedError`.
-
-- Return `NotImplemented` when the type combination is unsupported.
-- Raise a specific exception when the operand types are supported but the supplied value violates a domain rule (for example, a negative quantity that the domain forbids).
-- Do not return `None` to signal unsupported arithmetic. `None` is an ordinary return value and usually leads to confusing behavior.
+If both sides decline, Python raises `TypeError`:
 
 ```python
-class Identifier:
-    def __init__(self, value: str) -> None:
-        self.value = value
+class NoArithmetic:
+    def __add__(self, other):
+        return NotImplemented
 
-    def __add__(self, other: object) -> object:
-        if not isinstance(other, Identifier):
-            return NotImplemented
-        return Identifier(self.value + other.value)
+    def __radd__(self, other):
+        return NotImplemented
 
-    def __repr__(self) -> str:
-        return f"Identifier({self.value!r})"
-
-
-print(Identifier("job-") + Identifier("42"))
 
 try:
-    Identifier("job-") + 42
+    NoArithmetic() + object()
 except TypeError as exc:
     print(type(exc).__name__)
 ```
 
-The final `TypeError` is produced because neither applicable operand implementation accepted the operation. Returning `NotImplemented` gives Python a chance to resolve the operation consistently rather than forcing a premature error inside one operand's method.
+Expected output:
 
-## 7. Reflected operators: support the other operand order
+```text
+TypeError
+```
 
-A direct method is associated with the left operand; a reflected method gives the right operand a chance to handle the expression. Reflected methods are especially useful when a custom value should interact with built-in numeric types.
+### 4.1 Binary dispatch and reflected-method priority
 
-For example, implementing only `Vector.__mul__` may support `vector * 3` but not `3 * vector`. `__rmul__` provides the reflected behavior.
+For a binary operation such as `a + b`, Python first considers the operation on the left operand and the reflected operation on the right operand. If the right operand's type is a strict subclass of the left operand's type and supplies a different reflected implementation, Python gives that reflected implementation priority. This allows a specialized subtype to handle an operation before a more general base-class implementation.
+
+The exact dispatch details depend on type relationships and whether the relevant methods are implemented/overridden; do not model the process as a simple unconditional left-call followed by right-call for every possible case.
+
+```python
+class Base:
+    def __add__(self, other):
+        print("Base.__add__")
+        return "base add"
+
+
+class Special(Base):
+    def __radd__(self, other):
+        print("Special.__radd__")
+        return "special reflected add"
+
+
+print(Base() + Special())
+```
+
+Expected output:
+
+```text
+Special.__radd__
+special reflected add
+```
+
+`Special` is a strict subclass of `Base`, and it provides its own reflected method, so that reflected implementation gets priority for this expression.
+
+### 4.2 Arithmetic operators and their methods
+
+| Expression | Left-side method | Reflected method |
+|---|---|---|
+| `a + b` | `a.__add__(b)` | `b.__radd__(a)` |
+| `a - b` | `a.__sub__(b)` | `b.__rsub__(a)` |
+| `a * b` | `a.__mul__(b)` | `b.__rmul__(a)` |
+| `a / b` | `a.__truediv__(b)` | `b.__rtruediv__(a)` |
+| `a // b` | `a.__floordiv__(b)` | `b.__rfloordiv__(a)` |
+| `a % b` | `a.__mod__(b)` | `b.__rmod__(a)` |
+| `a ** b` | `a.__pow__(b)` | `b.__rpow__(a)` |
+| `a @ b` | `a.__matmul__(b)` | `b.__rmatmul__(a)` |
+| `divmod(a, b)` | `a.__divmod__(b)` | `b.__rdivmod__(a)` |
+
+The reflected family is not a second, unrelated set of operators: it is the protocol that lets the right operand participate when the left implementation declines or when subclass priority applies.
+
+### 4.3 Unary and bitwise operator map
+
+| Expression | Special method |
+|---|---|
+| `-x` | `x.__neg__()` |
+| `+x` | `x.__pos__()` |
+| `abs(x)` | `x.__abs__()` |
+| `~x` | `x.__invert__()` |
+| `a & b` | `a.__and__(b)` / reflected `__rand__` |
+| `a \| b` | `a.__or__(b)` / reflected `__ror__` |
+| `a ^ b` | `a.__xor__(b)` / reflected `__rxor__` |
+| `a << b` | `a.__lshift__(b)` / reflected `__rlshift__` |
+| `a >> b` | `a.__rshift__(b)` / reflected `__rrshift__` |
+
+Comparison operators use the rich-comparison methods (`__lt__`, `__le__`, `__eq__`, `__ne__`, `__gt__`, `__ge__`) rather than arithmetic methods. See the preceding roadmap lesson for their detailed ordering contracts.
+
+---
+
+## 5. The evolving example: immutable `Vector2`
+
+A two-dimensional vector is a useful domain for arithmetic because addition, subtraction, negation, scalar multiplication, and magnitude have intuitive meanings. The class below is immutable by public-API convention: its public coordinates are read-only properties, and its arithmetic returns new vectors rather than mutating coordinates. Python code can still deliberately reassign the underscore-prefixed storage attributes, so this class is not a hard immutability boundary. Section 15 shows a frozen dataclass when ordinary attribute reassignment must be prevented.
+
+We deliberately support only:
+- vector + vector;
+- vector - vector;
+- vector * a real scalar and scalar * vector;
+- unary `+`, unary `-`, and `abs(vector)`.
+
+We do **not** claim that vector division, matrix multiplication, or every numeric conversion is meaningful for this type.
 
 ```python
 from __future__ import annotations
 
-from math import hypot
+from math import hypot, isfinite
+from numbers import Real
+from typing import Self
+from types import NotImplementedType
 
 
-class Vector:
-    def __init__(self, x: float, y: float) -> None:
-        self.x = float(x)
-        self.y = float(y)
+class Vector2:
+    __slots__ = ("_x", "_y")
 
-    def __mul__(self, scalar: object) -> Vector:
-        if not isinstance(scalar, (int, float)):
+    def __init__(self, x: Real, y: Real) -> None:
+        if isinstance(x, bool) or isinstance(y, bool):
+            raise TypeError("boolean coordinates are not accepted")
+        if not isinstance(x, Real) or not isinstance(y, Real):
+            raise TypeError("coordinates must be real numbers")
+        if not isfinite(float(x)) or not isfinite(float(y)):
+            raise ValueError("coordinates must be finite")
+        self._x = x
+        self._y = y
+
+    @property
+    def x(self) -> Real:
+        return self._x
+
+    @property
+    def y(self) -> Real:
+        return self._y
+
+    def __repr__(self) -> str:
+        return f"Vector2({self._x!r}, {self._y!r})"
+
+    def __eq__(self, other: object) -> bool | NotImplementedType:
+        if not isinstance(other, Vector2):
             return NotImplemented
-        return Vector(self.x * scalar, self.y * scalar)
+        return self._x == other._x and self._y == other._y
 
-    def __rmul__(self, scalar: object) -> Vector:
+    def __add__(self, other: object) -> Self | NotImplementedType:
+        if not isinstance(other, Vector2):
+            return NotImplemented
+        return type(self)(self._x + other._x, self._y + other._y)
+
+    def __sub__(self, other: object) -> Self | NotImplementedType:
+        if not isinstance(other, Vector2):
+            return NotImplemented
+        return type(self)(self._x - other._x, self._y - other._y)
+
+    def __mul__(self, scalar: object) -> Self | NotImplementedType:
+        if isinstance(scalar, bool) or not isinstance(scalar, Real):
+            return NotImplemented
+        return type(self)(self._x * scalar, self._y * scalar)
+
+    def __rmul__(self, scalar: object) -> Self | NotImplementedType:
         return self * scalar
 
-    def __repr__(self) -> str:
-        return f"Vector({self.x!r}, {self.y!r})"
+    def __neg__(self) -> Self:
+        return type(self)(-self._x, -self._y)
+
+    def __pos__(self) -> Self:
+        return type(self)(+self._x, +self._y)
+
+    def __abs__(self) -> float:
+        return hypot(float(self._x), float(self._y))
+
+    def __bool__(self) -> bool:
+        return self._x != 0 or self._y != 0
 
 
-vector = Vector(2, 5)
-print(vector * 3)  # Vector(6.0, 15.0)
-print(3 * vector)  # Vector(6.0, 15.0)
+v = Vector2(3, 4)
+print(v + Vector2(1, 2))
+print(v - Vector2(1, 2))
+print(v * 2)
+print(2 * v)
+print(-v, +v, abs(v), bool(Vector2(0, 0)))
+print(v)
 ```
 
-For scalar multiplication, the meaning is symmetric, so forwarding `__rmul__` to `__mul__` is appropriate. This pattern is not universally valid: subtraction and division are order-sensitive, so their reflected implementations must preserve the correct operand order.
+Expected output:
 
-### 7.1 Operand dispatch order and subclass priority
+```text
+Vector2(4, 6)
+Vector2(2, 2)
+Vector2(6, 8)
+Vector2(6, 8)
+Vector2(-3, -4) Vector2(3, 4) 5.0 False
+Vector2(3, 4)
+```
 
-At a high level, Python tries the left operand's implementation and may try the right operand's reflected implementation. There is an important refinement: if the right operand's type is a strict subclass of the left operand's type and supplies a distinct reflected implementation, that reflected implementation can be given priority. This lets a more specialized subtype control operations involving its instances.
+### 5.1 Why return `NotImplemented`?
 
-Do not build application logic around a simplistic “left always wins” rule. Return `NotImplemented` for unsupported combinations, and test operations with both operand orders and relevant subclasses.
+If `Vector2.__add__` receives a string, it declines rather than trying to guess a conversion. This leaves Python free to try the string's reflected method, if any, and then raise `TypeError` if no side supports the operation.
 
 ```python
-class BaseValue:
-    def __add__(self, other: object) -> str | object:
-        if not isinstance(other, BaseValue):
+v = Vector2(1, 2)
+try:
+    v + "north"
+except TypeError as exc:
+    print(type(exc).__name__, str(exc))
+```
+
+The exact wording of a `TypeError` message can vary by Python version and operand combination. The stable expectation is that the expression raises `TypeError`, not a particular message.
+
+### 5.2 Immutability and aliasing
+
+`a + b` returns a new value object. It does not modify either operand.
+
+```python
+a = Vector2(1, 2)
+alias = a
+result = a + Vector2(10, 20)
+print(alias is a, alias, result)
+```
+
+Expected output:
+
+```text
+True Vector2(1, 2) Vector2(11, 22)
+```
+
+This is different from mutating an object in place. The name `result` is bound to a newly returned object; the original `a` remains unchanged. The same distinction appears with built-ins: `list += iterable` mutates the existing list (so aliases observe the extension), while `tuple += iterable` creates a new tuple and rebinds the target name.
+
+The example accepts `numbers.Real` implementations such as ordinary integers and floats, while explicitly rejecting `bool`. It does not promise interoperability with `Decimal`, which is not registered as a `numbers.Real` in the standard numeric tower. `Fraction` is a `Real` and is accepted; the resulting coordinate arithmetic follows the underlying operand types. The constructor's finiteness check converts to `float` for validation, which is suitable for this small educational vector but is not a universal exactness strategy for arbitrary-precision numerics.
+
+---
+
+## 6. Reflected methods: `__radd__`, `__rmul__`, and friends
+
+A reflected method lets the right operand define what an operation means when the left operand cannot handle it. A canonical example is `2 * vector`: the integer's multiplication does not know how to scale a custom vector, so `Vector2.__rmul__` can handle the scalar.
+
+For a custom numeric type, implement reflected methods only when the operation is meaningful. Common pairs include:
+
+- `__add__` / `__radd__`
+- `__sub__` / `__rsub__`
+- `__mul__` / `__rmul__`
+- `__truediv__` / `__rtruediv__`
+- `__floordiv__` / `__rfloordiv__`
+- `__mod__` / `__rmod__`
+- `__pow__` / `__rpow__`
+- `__matmul__` / `__rmatmul__`
+
+The operation is not automatically commutative. For subtraction, `a - b` and `b - a` are different. A reflected subtraction implementation must preserve operand order.
+
+```python
+from __future__ import annotations
+from types import NotImplementedType
+
+
+class Quantity:
+    def __init__(self, value: int) -> None:
+        self.value = value
+
+    def __sub__(self, other: object) -> Quantity | NotImplementedType:
+        if not isinstance(other, Quantity):
             return NotImplemented
-        return "BaseValue.__add__"
+        return Quantity(self.value - other.value)
 
-
-class SpecialValue(BaseValue):
-    def __radd__(self, other: object) -> str | object:
-        if isinstance(other, BaseValue):
-            return "SpecialValue.__radd__"
+    def __rsub__(self, other: object) -> Quantity | NotImplementedType:
+        if isinstance(other, int) and not isinstance(other, bool):
+            return Quantity(other - self.value)
         return NotImplemented
 
+    def __repr__(self) -> str:
+        return f"Quantity({self.value})"
 
-print(BaseValue() + SpecialValue())
+
+print(Quantity(3) - Quantity(10))
+print(10 - Quantity(3))
 ```
 
-The result demonstrates the subclass's reflected method taking priority. The exact dispatch rules are documented by Python's data model; the practical lesson is to implement and test both sides intentionally.
+Expected output:
 
-## 8. Implementing `__radd__` correctly: `sum()`
+```text
+Quantity(-7)
+Quantity(7)
+```
 
-The built-in `sum()` starts with `0` by default. For a list of custom values, it effectively needs to combine the initial value with the first element, then accumulate the remaining elements. A custom class that supports adding only another instance may therefore fail at the initial `0 + first_value` step.
+In this design `10 - Quantity(3)` is explicitly supported, while other left operands are declined. This is a deliberate interoperability policy, not something Python invents automatically.
+
+---
+
+## 7. In-place operations: `__iadd__` and fallback
+
+The augmented assignment statement `x += y` first tries the in-place operation `x.__iadd__(y)` when available. If that operation is absent or returns `NotImplemented`, Python falls back to the normal addition protocol and assigns the result back to the target. For a mutable object, `__iadd__` may mutate the existing object and return it; for an immutable value object, it commonly returns a new object.
+
+Do not assume `+=` always mutates. The visible variable is assigned the operation's result, so object identity depends on the type's implementation.
 
 ```python
 from __future__ import annotations
+from types import NotImplementedType
 
 
-class Vector:
-    def __init__(self, x: int, y: int) -> None:
-        self.x = x
-        self.y = y
+class ImmutableCounter:
+    def __init__(self, value: int) -> None:
+        self.value = value
 
-    def __add__(self, other: object) -> Vector:
-        if not isinstance(other, Vector):
+    def __add__(self, other: object) -> ImmutableCounter | NotImplementedType:
+        if not isinstance(other, int) or isinstance(other, bool):
             return NotImplemented
-        return Vector(self.x + other.x, self.y + other.y)
-
-    def __radd__(self, other: object) -> Vector:
-        if other == 0:
-            return self
-        return self.__add__(other)
+        return type(self)(self.value + other)
 
     def __repr__(self) -> str:
-        return f"Vector({self.x}, {self.y})"
+        return f"ImmutableCounter({self.value})"
 
 
-vectors = [Vector(1, 1), Vector(2, 2), Vector(3, 3)]
-print(sum(vectors))  # Vector(6, 6)
+counter = ImmutableCounter(2)
+before = counter
+counter += 3  # no __iadd__: uses __add__ then rebinds counter
+print(counter, before, counter is before)
 ```
 
-Returning `self` for the additive identity `0` is safe in this example because `Vector` does not mutate itself during addition. A more explicit alternative is to pass a `Vector` start value to `sum()`:
+Expected output:
 
-```python
-class Vector:
-    def __init__(self, x: int, y: int) -> None:
-        self.x = x
-        self.y = y
-
-    def __add__(self, other: object) -> "Vector":
-        if not isinstance(other, Vector):
-            return NotImplemented
-        return Vector(self.x + other.x, self.y + other.y)
-
-    def __radd__(self, other: object) -> "Vector":
-        if other == 0:
-            return self
-        return self.__add__(other)
-
-    def __repr__(self) -> str:
-        return f"Vector({self.x}, {self.y})"
-
-
-vectors = [Vector(1, 1), Vector(2, 2)]
-total = sum(vectors, start=Vector(0, 0))
-print(total)  # Vector(3, 3)
+```text
+ImmutableCounter(5) ImmutableCounter(2) False
 ```
 
-**Production guidance:** Prefer an explicit `start` value when it communicates the domain clearly. If you want `sum(values)` to work naturally, define the zero/additive-identity behavior deliberately and test it. Do not accept every integer as a valid identity merely to make `sum()` work.
+For a mutable implementation, `__iadd__` could update internal state and return `self`. That can preserve aliases, which may be correct for a mutable collection but surprising for a value object. Write tests that explicitly check identity and mutation semantics when aliases matter.
 
-## 9. In-place operations: `__iadd__` and friends
+---
 
-In-place operators can be efficient for mutable objects, but mutation affects aliases. If an object is immutable, it is usually more appropriate for `+=` to create a new value or to rely on the fallback to `__add__`.
+## 8. Full arithmetic method reference
 
-### 9.1 A mutable vector with `__iadd__`
+This table maps the core numeric operations. Each special method normally receives the other operand as its argument; unary methods receive only `self`.
+
+| Operation | Primary method | Reflected method | Notes |
+|---|---|---|---|
+| `a + b` | `__add__` | `__radd__` | Addition / domain-specific combination |
+| `a - b` | `__sub__` | `__rsub__` | Order matters |
+| `a * b` | `__mul__` | `__rmul__` | Often scalar multiplication for vectors |
+| `a / b` | `__truediv__` | `__rtruediv__` | True division |
+| `a // b` | `__floordiv__` | `__rfloordiv__` | Floor division, not truncation toward zero |
+| `a % b` | `__mod__` | `__rmod__` | Remainder follows Python's modulo convention |
+| `a ** b` | `__pow__` | `__rpow__` | May also receive a modulus in three-argument `pow` |
+| `a @ b` | `__matmul__` | `__rmatmul__` | Matrix multiplication; not ordinary multiplication |
+| `divmod(a, b)` | `__divmod__` | `__rdivmod__` | Returns quotient/remainder pair |
+| `-a` | `__neg__` | — | Unary negation |
+| `+a` | `__pos__` | — | Unary plus |
+| `abs(a)` | `__abs__` | — | Absolute value / magnitude |
+| `~a` | `__invert__` | — | Bitwise inversion for integer-like values |
+| `a & b` | `__and__` | `__rand__` | Bitwise AND |
+| `a \| b` | `__or__` | `__ror__` | Bitwise OR |
+| `a ^ b` | `__xor__` | `__rxor__` | Bitwise XOR |
+| `a << b` | `__lshift__` | `__rlshift__` | Left shift |
+| `a >> b` | `__rshift__` | `__rrshift__` | Right shift |
+
+Comparison methods belong to the rich comparison protocol. They should not be implemented by reusing arithmetic methods unless the domain semantics explicitly require it.
+
+---
+
+## 9. `__divmod__` and three-argument `pow`
+
+`divmod(a, b)` combines floor division and modulo semantics. A custom numeric type can define `__divmod__` to return a pair appropriate to its domain.
+
+`pow(base, exponent, modulus)` has a special three-argument form, chiefly for modular exponentiation with integers. A custom `__pow__` may be called with a third argument in supported cases; if you implement it, account for the optional modulus deliberately. Do not claim that a custom `__pow__` supports three-argument `pow` unless its signature and behavior demonstrate it.
 
 ```python
 from __future__ import annotations
+from types import NotImplementedType
 
 
-class MutableVector:
-    def __init__(self, x: int, y: int) -> None:
-        self.x = x
-        self.y = y
+class IntLike:
+    def __init__(self, value: int) -> None:
+        self.value = value
 
-    def __add__(self, other: object) -> MutableVector:
-        if not isinstance(other, MutableVector):
+    def __divmod__(self, other: object) -> tuple[int, int] | NotImplementedType:
+        if not isinstance(other, IntLike):
             return NotImplemented
-        return MutableVector(self.x + other.x, self.y + other.y)
+        return divmod(self.value, other.value)
 
-    def __iadd__(self, other: object) -> MutableVector:
-        if not isinstance(other, MutableVector):
+    def __pow__(self, exponent: object, modulo: object | None = None) -> IntLike | NotImplementedType:
+        if not isinstance(exponent, int) or isinstance(exponent, bool):
             return NotImplemented
-        self.x += other.x
-        self.y += other.y
-        return self
+        if modulo is None:
+            if exponent < 0:
+                raise ValueError("IntLike supports only non-negative exponents without a modulus")
+            return type(self)(self.value ** exponent)
+        if not isinstance(modulo, int) or isinstance(modulo, bool):
+            return NotImplemented
+        return type(self)(pow(self.value, exponent, modulo))
 
     def __repr__(self) -> str:
-        return f"MutableVector({self.x}, {self.y})"
+        return f"IntLike({self.value})"
 
 
-first = MutableVector(1, 2)
-alias = first
-first += MutableVector(10, 20)
-print(first)       # MutableVector(11, 22)
-print(alias)       # MutableVector(11, 22): same object was mutated
-print(first is alias)  # True
+print(divmod(IntLike(17), IntLike(5)))
+print(pow(IntLike(2), 5))
+print(pow(IntLike(2), 5, 7))
 ```
 
-### 9.2 `list +=` versus `tuple +=`
+Expected output:
 
-```python
-values = [1, 2]
-alias = values
-values += [3]
-print(values)        # [1, 2, 3]
-print(alias)         # [1, 2, 3]
-print(values is alias)  # True
-
-items = (1, 2)
-alias_tuple = items
-items += (3,)
-print(items)             # (1, 2, 3)
-print(alias_tuple)       # (1, 2)
-print(items is alias_tuple)  # False
+```text
+(3, 2)
+IntLike(32)
+IntLike(4)
 ```
 
-Lists are mutable and their in-place addition extends the existing list. Tuples are immutable, so `+=` creates a new tuple and rebinds the variable. This difference matters when data structures are shared across pipeline stages or passed into helper functions.
+This is an educational wrapper around integer semantics, not a complete implementation of Python's integer protocol. It supports non-negative exponents without a modulus and integer exponents with a valid modulus; a negative exponent without a modulus raises `ValueError` rather than returning a floating-point result wrapped in an integer-like object. It does not define every arithmetic operation, conversion method, or reflected method.
 
-### 9.3 If `__iadd__` is absent
+---
 
-When an object has no applicable `__iadd__`, Python falls back to the ordinary addition protocol and reassigns the result to the left-hand target. For immutable value objects, this often produces the expected behavior without writing an in-place method.
+## 10. Numeric conversions and truth protocol
 
-Do not implement `__iadd__` merely because the operator exists. First decide whether the type is mutable, what aliasing means, and whether mutation is an expected part of the API.
+Conversion methods have different contracts and should not be treated as interchangeable.
 
-## 10. Conversion and interpretation protocols
-
-These methods connect custom objects to built-in conversion and truth-testing operations.
-
-| Built-in / expression | Special method | Intended contract |
+| Operation | Method | Meaning |
 |---|---|---|
-| `int(x)` | `__int__` | Explicit integer conversion |
-| `float(x)` | `__float__` | Explicit floating-point conversion |
-| `complex(x)` | `__complex__` | Explicit complex conversion |
-| `round(x)` / `round(x, n)` | `__round__` | Rounding semantics |
-| `list[index]` / `range(index)` | `__index__` | Exact integer-like value for indexing |
-| `bool(x)` / `if x:` | `__bool__` | Truth value |
+| `int(x)` | `__int__` | Integer conversion; may be lossy for non-integral values |
+| `float(x)` | `__float__` | Float conversion |
+| `complex(x)` | `__complex__` | Complex conversion |
+| `round(x)` / `round(x, ndigits)` | `__round__` | Rounding policy |
+| `operator.index(x)` and index contexts | `__index__` | Exact integer representation |
+| `bool(x)` | `__bool__` or fallback `__len__` | Truth value |
 
-`__index__` is not a general “convert anything to an integer” method. It represents an exact integer-like value used by operations that require an integer index. For example, `int(3.7)` truncates to `3`, but a float is not accepted as a list index. If your object represents an index, `__index__` should return an `int` and should not silently round or truncate a non-integral value.
+### 10.1 `__int__` is not `__index__`
+
+`__index__` is for exact integer contexts such as list indices and bit positions. `__int__` can represent a conversion and may discard fractional information. Implement `__index__` only when the object truly represents an exact integer.
 
 ```python
-class BatchIndex:
+import operator
+
+
+class PageNumber:
     def __init__(self, value: int) -> None:
         if isinstance(value, bool) or not isinstance(value, int):
-            raise TypeError("value must be an integer, not bool")
+            raise TypeError("page number must be an int")
         self.value = value
 
     def __index__(self) -> int:
         return self.value
 
+    def __int__(self) -> int:
+        return self.value
 
-records = ["batch-A", "batch-B", "batch-C"]
-index = BatchIndex(1)
-print(records[index])  # batch-B
-print(range(index))   # range(0, 1)
+
+pages = ["intro", "methods", "tests"]
+print(pages[PageNumber(1)])
+print(operator.index(PageNumber(2)))
 ```
 
-### 10.1 Conversion methods should be unsurprising
+Expected output:
 
-A conversion should preserve the meaning of the domain. Converting a `Money` object to `float` may lose precision; converting a `Duration` to `int` might need a documented unit such as seconds. Do not implement conversions simply because they are possible. If a conversion is ambiguous, prefer a named method such as `to_minor_units()` or `to_seconds()`.
+```text
+methods
+2
+```
+
+### 10.2 A conversion example
 
 ```python
-class DurationSeconds:
-    def __init__(self, seconds: int) -> None:
-        if isinstance(seconds, bool) or not isinstance(seconds, int):
-            raise TypeError("seconds must be an integer")
-        self.seconds = seconds
+class Measurement:
+    def __init__(self, value: float) -> None:
+        self.value = float(value)
+
+    def __float__(self) -> float:
+        return self.value
 
     def __int__(self) -> int:
-        return self.seconds
+        return int(self.value)
+
+    def __complex__(self) -> complex:
+        return complex(self.value)
+
+    def __round__(self, ndigits: int | None = None) -> int | float:
+        if ndigits is None:
+            return round(self.value)
+        return round(self.value, ndigits)
 
     def __bool__(self) -> bool:
-        return self.seconds != 0
+        return self.value != 0.0
 
 
-print(int(DurationSeconds(12)))   # 12
-print(bool(DurationSeconds(0)))   # False
-print(bool(DurationSeconds(12)))  # True
+m = Measurement(3.14159)
+print(int(m), float(m), complex(m), round(m, 2), bool(m))
+print(bool(Measurement(0.0)))
 ```
 
-An object's truthiness should be defined consistently. If you implement `__bool__`, it must return `True` or `False`. If `__bool__` is absent, Python may use `__len__` to determine truthiness for container-like objects; otherwise instances are generally truthy by default.
+Expected output:
 
-## 11. Bitwise operators and `enum.Flag`
+```text
+3 3.14159 (3.14159+0j) 3.14 True
+False
+```
 
-Bitwise operators (`&`, `|`, `^`, `~`, `<<`, `>>`) are appropriate for integer bit patterns, masks, and flag combinations. They are also used by some libraries for set-like or vectorized operations. The meaning should remain intuitive in the domain.
+`__bool__` should return an actual `bool`. If it is absent, Python falls back to `__len__` where available; it does not use `__int__` or `__float__` to determine truthiness.
 
-Python's `enum.Flag` is a safer way to model a finite set of combinable options than manually assigning unexplained integers.
+---
+
+## 11. Numeric tower and interoperability
+
+The `numbers` module describes an abstract numeric tower, including `Number`, `Complex`, `Real`, `Rational`, and `Integral`. These ABCs help describe mathematical capabilities, but runtime registration and arithmetic interoperability are not identical things. An object being an instance of an ABC does not guarantee that every mixed operation works.
+
+- `int` is an integral real number.
+- `float` is a real floating-point type.
+- `fractions.Fraction` represents rational numbers and participates in the standard numeric tower.
+- `decimal.Decimal` is designed for decimal arithmetic, including many financial use cases, but is not a `numbers.Real` implementation in the same way as `float` and `Fraction`.
+
+### 11.1 Why `Decimal + float` raises `TypeError`
+
+Mixing `Decimal` and `float` in arithmetic is rejected to prevent silent mixing of decimal arithmetic with binary floating-point approximation.
+
+```python
+from decimal import Decimal
+from fractions import Fraction
+
+
+print(Fraction(1, 3) + Fraction(1, 6))
+print(Fraction(1, 2) + 0.25)
+
+try:
+    Decimal("0.1") + 0.2
+except TypeError as exc:
+    print(type(exc).__name__)
+```
+
+Expected output:
+
+```text
+1/2
+0.75
+TypeError
+```
+
+The `Fraction`/`float` operation produces a `float`, while `Fraction` with `Fraction` stays exact as a rational. For precision-sensitive code, choose one numeric model and convert deliberately at a well-defined boundary.
+
+### 11.2 Interoperability policy for custom types
+
+Before supporting mixed operations, answer:
+
+1. Which operand types are supported?
+2. What type is returned?
+3. Does the result preserve exactness, precision, units, or currency?
+4. Should unsupported operands yield `NotImplemented` or a domain-specific exception?
+5. Does reflected dispatch preserve operand order?
+
+Avoid broad coercion such as `float(other)` inside every method. It may silently lose precision or accept semantically incompatible values.
+
+### 11.3 `numbers.Number` and `numbers.Real`
+
+```python
+from numbers import Number, Real
+from decimal import Decimal
+from fractions import Fraction
+
+for value in (3, 2.5, Fraction(1, 3), Decimal("1.2")):
+    print(type(value).__name__, isinstance(value, Number), isinstance(value, Real))
+```
+
+Expected output on standard Python 3.12+:
+
+```text
+int True True
+float True True
+Fraction True True
+Decimal True False
+```
+
+This is an example of ABC membership, not a complete predictor of mixed arithmetic support.
+
+---
+
+## 12. Bitwise operators and `enum.Flag`
+
+Bitwise operators are useful for masks, capabilities, permissions, and sets of flags. `enum.Flag` gives named members a readable representation while supporting combinations with bitwise operations.
 
 ```python
 from enum import Flag, auto
@@ -452,615 +649,516 @@ class Permission(Flag):
     EXECUTE = auto()
 
 
-allowed = Permission.READ | Permission.WRITE
-print(Permission.READ in allowed)       # True
-print(Permission.EXECUTE in allowed)    # False
-print(allowed & Permission.WRITE)       # Permission.WRITE
+granted = Permission.READ | Permission.WRITE
+print(granted)
+print(bool(granted & Permission.READ))
+print(bool(granted & Permission.EXECUTE))
 ```
 
-The exact numeric values generated by `auto()` are an implementation detail of the enum's value generation; use the symbolic members in application code. In an `IntFlag`, members are also integer-compatible, which can be useful for bitmasks that cross an external interface, but it is still important to validate values at system boundaries.
+Expected output:
 
-Avoid overloading `&` or `|` for a meaning that readers would not associate with intersection, union, or combination. The same caution applies to `>>` for function composition: it can be elegant in a deliberately designed DSL, but may surprise maintainers in ordinary business code.
-
-## 12. Matrix multiplication and `@`
-
-The `@` operator was added to support matrix multiplication without confusing it with element-wise multiplication (`*`). A custom type can implement `__matmul__` and, if useful, `__rmatmul__` and `__imatmul__`.
-
-The following minimal example shows the protocol shape for a two-dimensional matrix. It is illustrative, not a replacement for NumPy: it omits many validations, numerical considerations, and performance optimizations.
-
-```python
-from __future__ import annotations
-
-
-class Matrix2x2:
-    def __init__(self, rows: tuple[tuple[float, float], tuple[float, float]]) -> None:
-        self.rows = rows
-
-    def __matmul__(self, other: object) -> Matrix2x2:
-        if not isinstance(other, Matrix2x2):
-            return NotImplemented
-        a, b = self.rows
-        c, d = other.rows
-        return Matrix2x2((
-            (a[0] * c[0] + a[1] * d[0], a[0] * c[1] + a[1] * d[1]),
-            (b[0] * c[0] + b[1] * d[0], b[0] * c[1] + b[1] * d[1]),
-        ))
-
-    def __repr__(self) -> str:
-        return f"Matrix2x2({self.rows!r})"
-
-
-left = Matrix2x2(((1, 2), (3, 4)))
-right = Matrix2x2(((5, 6), (7, 8)))
-print(left @ right)
+```text
+Permission.READ|WRITE
+True
+False
 ```
 
-In scientific computing, `@` commonly means matrix multiplication, whereas `*` may mean element-wise multiplication for array-like objects. Follow the conventions of the ecosystem your type integrates with.
+Use `Flag` when combinations are meaningful. `IntFlag` is available when integer interoperability is specifically required. Avoid using arithmetic `+` for flag combination: bitwise OR expresses the set-union-like meaning.
 
-## 13. The numeric tower and interoperability
-
-Python has several built-in and standard-library numeric types, each with different semantics:
-
-- `int`: arbitrary-precision integers, subject to memory and performance limits.
-- `float`: usually IEEE 754 binary floating-point; many decimal fractions are approximations.
-- `fractions.Fraction`: rational values represented exactly as a numerator and denominator.
-- `decimal.Decimal`: decimal arithmetic with configurable precision and rounding behavior.
-- `complex`: complex numbers with real and imaginary components.
-
-The `numbers` module defines abstract base classes such as `Number`, `Complex`, `Real`, `Rational`, and `Integral`. These classes help express broad numeric categories, but registering with or subclassing an ABC does not automatically guarantee that every operator combination will work correctly. Your methods still need clear contracts.
-
-```python
-from fractions import Fraction
-from numbers import Number, Real
-from decimal import Decimal
-
-
-values = [10, 2.5, Fraction(1, 3), Decimal("1.25"), 2 + 3j]
-for value in values:
-    print(type(value).__name__, isinstance(value, Number))
-
-print(isinstance(10, Real))
-print(isinstance(2.5, Real))
-print(isinstance(2 + 3j, Real))
-```
-
-The `numbers` ABCs are classification tools, not a promise that arbitrary mixed arithmetic is safe. In particular, `Decimal` deliberately does not freely mix with `float` for arithmetic.
-
-### 13.1 Why `Decimal + float` raises
-
-```python
-from decimal import Decimal
-
-
-amount = Decimal("0.10")
-rate = 0.2
-
-try:
-    print(amount + rate)
-except TypeError as exc:
-    print(type(exc).__name__)
-```
-
-`Decimal` is designed for decimal arithmetic with explicit precision and rounding. Silently combining it with a binary floating-point approximation would make the numeric policy ambiguous, so Python raises `TypeError`. Convert at the boundary from a deliberate representation rather than trying to hide the mismatch inside a generic operator.
-
-```python
-from decimal import Decimal
-
-
-# Prefer constructing Decimal from text when the source is a decimal amount.
-amount = Decimal("0.10")
-rate = Decimal("0.20")
-print(amount + rate)  # 0.30
-
-# If a float already exists, Decimal(str(value)) uses its readable decimal
-# representation. This is a policy choice, not recovery of the original input.
-rate_from_float = Decimal(str(0.2))
-print(rate_from_float)  # 0.2
-```
-
-### 13.2 Do not use binary floats for exact monetary arithmetic
-
-```python
-from decimal import Decimal
-from fractions import Fraction
-
-
-print(0.1 + 0.2)                       # 0.30000000000000004
-print(Decimal("0.1") + Decimal("0.2"))  # 0.3
-print(Fraction(1, 10) + Fraction(2, 10))  # 3/10
-```
-
-Use `Decimal` or integer minor units when business requirements demand decimal monetary semantics. Use `Fraction` when exact rational arithmetic is needed. Use `float` for numerical workloads where binary floating-point behavior is expected and acceptable. Avoid designing custom operators that silently convert among these types without a clearly documented policy.
-
-## 14. `__divmod__` and modular exponentiation
-
-`divmod(a, b)` asks for quotient and remainder together. A custom numeric type can implement `__divmod__` (and, when appropriate, `__rdivmod__`) to preserve its domain semantics.
-
-```python
-class Minutes:
-    def __init__(self, value: int) -> None:
-        if isinstance(value, bool) or not isinstance(value, int):
-            raise TypeError("value must be an integer")
-        self.value = value
-
-    def __divmod__(self, other: object) -> tuple[int, int]:
-        if not isinstance(other, Minutes):
-            return NotImplemented
-        if other.value == 0:
-            raise ZeroDivisionError("cannot divide by zero minutes")
-        return divmod(self.value, other.value)
-
-
-quotient, remainder = divmod(Minutes(17), Minutes(5))
-print(quotient, remainder)  # 3 2
-```
-
-This example returns plain integers because its stated operation is a quotient/remainder pair. A production type should document the result types and units; if returning a tuple of custom quantities would be more meaningful, implement that contract instead.
-
-The built-in `pow(base, exponent, modulus)` supports modular exponentiation for integer-compatible values. For custom numeric types, `__pow__` may receive a third `modulo` argument. If the type does not support the three-argument form, it should reject it clearly rather than accidentally ignore the modulus.
-
-```python
-print(pow(2, 10, 17))  # 4
-```
-
-A custom class can receive the optional modulus as the third argument to `__pow__`. This small example supports integer exponents and the integer modular form; a production numeric type should document its supported combinations explicitly.
-
-```python
-class ModularInt:
-    def __init__(self, value: int) -> None:
-        if isinstance(value, bool) or not isinstance(value, int):
-            raise TypeError("value must be an integer")
-        self.value = value
-
-    def __pow__(self, exponent: object, modulo: object = None) -> object:
-        if isinstance(exponent, bool) or not isinstance(exponent, int):
-            return NotImplemented
-        if modulo is None:
-            return ModularInt(self.value ** exponent)
-        if isinstance(modulo, bool) or not isinstance(modulo, int):
-            return NotImplemented
-        return pow(self.value, exponent, modulo)
-
-    def __repr__(self) -> str:
-        return f"ModularInt({self.value})"
-
-
-print(pow(ModularInt(2), 10))      # ModularInt(1024)
-print(pow(ModularInt(2), 10, 17))  # 4
-```
-
-The three-argument form computes modular exponentiation efficiently and is not equivalent to computing `2 ** 10` first and then taking `% 17` for all possible large inputs in terms of resource use. For security-sensitive cryptographic operations, use vetted cryptographic libraries rather than implementing cryptography with a custom numeric class.
-
-## 15. Immutable value objects and frozen dataclasses
-
-Arithmetic is often easiest to reason about when a value object is immutable: an operation returns a new value rather than changing an existing one. This reduces aliasing surprises and makes values safer to share across functions, tasks, and pipeline stages.
-
-```python
-from __future__ import annotations
-
-from dataclasses import dataclass
-
-
-@dataclass(frozen=True)
-class Pixel:
-    x: int
-    y: int
-
-    def __add__(self, other: object) -> Pixel:
-        if not isinstance(other, Pixel):
-            return NotImplemented
-        return Pixel(self.x + other.x, self.y + other.y)
-
-
-first = Pixel(2, 3)
-second = first + Pixel(4, 5)
-print(first)   # Pixel(x=2, y=3)
-print(second)  # Pixel(x=6, y=8)
-```
-
-`frozen=True` prevents ordinary attribute assignment after initialization; it does not make every nested object deeply immutable. If a frozen dataclass contains a mutable list, that list can still be mutated. For a truly value-like type, prefer immutable fields or defensively copy/normalize inputs.
-
-For data engineering, immutable configuration values, partition identifiers, schema coordinates, and domain measurements can reduce accidental cross-stage mutation. Immutability does not replace validation or transaction boundaries, but it helps make local behavior predictable.
-
-## 16. Operator-based DSLs: useful, but use restraint
-
-Some libraries use operators to build domain-specific languages (DSLs):
-
-- `Path("data") / "events.csv"` composes a path.
-- `tensor_a @ tensor_b` performs matrix multiplication.
-- `Permission.READ | Permission.WRITE` combines flags.
-- A query library may use comparison and bitwise operators to build expressions.
-
-A pipeline DSL might choose `|` or `>>` for composition. That can be appropriate if the library defines the grammar consistently, documents precedence, and gives operators one obvious meaning. In a general-purpose application, `compose()`, `pipe()`, or `join_path()` may be clearer.
-
-Before overloading an operator, ask:
-
-1. Is this meaning familiar to Python developers?
-2. Does it preserve expected operand order and result type?
-3. Will the operation be surprising when used with built-in types?
-4. Is operator precedence intuitive for expressions users will write?
-5. Can the behavior be explained in one sentence and tested for both operand orders?
-6. Would a named method communicate the intention better?
-
-Avoid operator overloading that causes hidden I/O, mutates unexpectedly, or changes meaning based on subtle ambient state.
-
-## 17. NumPy interoperability awareness: `__array__` and `__array_ufunc__`
-
-NumPy supports advanced integration hooks for custom array-like objects:
-
-- `__array__` lets an object participate in conversion to a NumPy array, with behavior that depends on the method signature and NumPy version.
-- `__array_ufunc__` allows a custom object to control how NumPy universal functions (ufuncs) interact with it.
-
-These hooks are beyond a first implementation of arithmetic dunder methods. Their purpose is to coordinate behavior with NumPy operations such as `numpy.add`, not simply to provide an alias for `__add__`. Interoperability involves dtype, shape, broadcasting, ownership, coercion, and dispatch rules. Check the supported NumPy version's documentation before implementing these hooks in a library.
-
-Do not implement a speculative `__array__` method that eagerly materializes a large or lazy data source without documenting the memory cost. In data engineering and machine learning, implicit conversion can accidentally turn a distributed or lazy computation into a large in-memory operation.
-
-## 18. Performance: temporary objects and vectorization
-
-Operator overloads can make code elegant, but each operation may create a new object. A chain such as `a + b + c + d` can allocate intermediate values. In numeric workloads, looping over Python objects one element at a time can be far slower than using vectorized operations in a library designed for contiguous arrays or tensors.
-
-The right approach depends on the workload:
-
-- Prefer clarity and correctness first.
-- Measure with representative data before optimizing.
-- For large numerical arrays, consider NumPy, pandas, or the relevant tensor framework's vectorized operations.
-- Use in-place operations only when mutation semantics are safe and the library's API supports them correctly.
-- Consider allocation pressure, peak memory, and object lifetime as well as CPU time.
-- Do not assume that implementing `__iadd__` makes a type faster; profile the actual code path.
-
-```python
-from timeit import timeit
-
-
-values = list(range(1000))
-
-list_comprehension_time = timeit("[value * 2 for value in values]", globals=globals(), number=1000)
-map_time = timeit("list(map(lambda value: value * 2, values))", globals=globals(), number=1000)
-print(round(list_comprehension_time, 4), round(map_time, 4))
-```
-
-The timings depend on the Python build, machine, and workload. This snippet is a demonstration of measurement, not a claim that one form is always faster. For meaningful comparisons, run repeated measurements under controlled conditions and benchmark the actual production workload.
-
-## 19. Common mistakes and how to avoid them
-
-| Mistake | Why it is a problem | Better approach |
-|---|---|---|
-| Mutating `self` inside `__add__` | Violates normal expectations and surprises aliases | Return a new value for ordinary arithmetic |
-| Forgetting reflected methods | `3 * vector` or `sum(values)` may fail | Implement `__rmul__`/`__radd__` where semantics justify them |
-| Raising `TypeError` immediately for every unknown operand | Prevents Python from trying reflected dispatch | Return `NotImplemented` for unsupported type combinations |
-| Returning `None` for unsupported operations | `None` is treated as a result, not a dispatch signal | Return `NotImplemented` |
-| Treating `NotImplemented` as `NotImplementedError` | They have different meanings | Use the singleton in operator methods; reserve exceptions for actual failures |
-| Implementing `__iadd__` without considering aliases | Other references may observe mutation | Document mutability and test alias behavior |
-| Mixing `Decimal` and `float` casually | Precision and conversion policies become unclear | Normalize inputs to a deliberate numeric representation |
-| Accepting arbitrary types via silent coercion | Can hide domain bugs | Define explicit supported operand types and conversion rules |
-| Overloading `+` for an unrelated action | Code becomes difficult to read | Use a named method for non-arithmetic actions |
-| Using `__index__` for truncating conversion | Index protocols require exact integer semantics | Use `__int__` for explicit conversion and `__index__` only for index-like values |
-| Assuming `__array__` is harmless | May materialize a large dataset or lose laziness | Document conversion behavior and memory costs |
-| Optimizing before measuring | Adds complexity without proven benefit | Benchmark representative workloads first |
-
-## 20. Production case study: a small `Money` value object
-
-Money is a useful example because it demonstrates why operator design must include domain rules, not just method names. The implementation below stores integer minor units (for example, cents) and a currency code. It supports addition only between matching currencies and integer multiplication. It deliberately rejects floating-point multiplication to avoid silent rounding policy.
-
-```python
-from __future__ import annotations
-
-from dataclasses import dataclass
-
-
-@dataclass(frozen=True)
-class Money:
-    minor_units: int
-    currency: str = "USD"
-
-    def __post_init__(self) -> None:
-        if isinstance(self.minor_units, bool) or not isinstance(self.minor_units, int):
-            raise TypeError("minor_units must be an integer")
-        if not self.currency or self.currency.strip() != self.currency:
-            raise ValueError("currency must be a non-empty, trimmed code")
-
-    def __add__(self, other: object) -> Money:
-        if not isinstance(other, Money):
-            return NotImplemented
-        if self.currency != other.currency:
-            raise ValueError("cannot add different currencies")
-        return Money(self.minor_units + other.minor_units, self.currency)
-
-    def __mul__(self, factor: object) -> Money:
-        if isinstance(factor, bool) or not isinstance(factor, int):
-            return NotImplemented
-        return Money(self.minor_units * factor, self.currency)
-
-    def __rmul__(self, factor: object) -> Money:
-        return self * factor
-
-    def __repr__(self) -> str:
-        return f"Money({self.minor_units}, {self.currency!r})"
-
-
-subtotal = Money(1250, "USD") + Money(375, "USD")
-print(subtotal)       # Money(1625, 'USD')
-print(3 * subtotal)   # Money(4875, 'USD')
-```
-
-Important choices:
-
-- The representation stores minor units, avoiding binary floating-point for the amount itself.
-- Adding a different currency is a domain error, so it raises `ValueError` rather than returning `NotImplemented`. Both operands are valid `Money` objects, but the requested operation violates the domain rule.
-- Unsupported operand types return `NotImplemented` so Python can try reflected dispatch.
-- Multiplication accepts integers only. A production financial system may need decimal quantities, tax rules, explicit rounding modes, exchange rates, currency metadata, and auditability; this simple class does not claim to implement those policies.
-- Currency conversion should be a named operation with an explicit exchange-rate source and timestamp, not an implicit side effect of `+`.
-
-## 21. Testing operator contracts with `pytest`
-
-Operator tests should cover correct results, unsupported types, both operand orders where supported, immutability, invalid domain combinations, and edge cases. The following tests are self-contained and can be saved as `test_operator_lesson.py`.
-
-```python
-from dataclasses import dataclass
-import pytest
-
-
-@dataclass(frozen=True)
-class Money:
-    minor_units: int
-    currency: str = "USD"
-
-    def __add__(self, other: object) -> "Money":
-        if not isinstance(other, Money):
-            return NotImplemented
-        if self.currency != other.currency:
-            raise ValueError("currency mismatch")
-        return Money(self.minor_units + other.minor_units, self.currency)
-
-    def __mul__(self, factor: object) -> "Money":
-        if isinstance(factor, bool) or not isinstance(factor, int):
-            return NotImplemented
-        return Money(self.minor_units * factor, self.currency)
-
-    def __rmul__(self, factor: object) -> "Money":
-        return self * factor
-
-
-def test_addition_returns_new_value_and_preserves_inputs() -> None:
-    first = Money(100)
-    second = Money(250)
-    result = first + second
-    assert result == Money(350)
-    assert first == Money(100)
-    assert second == Money(250)
-    assert result is not first
-
-
-def test_reflected_multiplication() -> None:
-    assert 3 * Money(125) == Money(375)
-
-
-def test_unsupported_type_raises_type_error_after_dispatch() -> None:
-    with pytest.raises(TypeError):
-        Money(100) + 5
-
-
-def test_currency_mismatch_is_domain_error() -> None:
-    with pytest.raises(ValueError, match="currency mismatch"):
-        Money(100, "USD") + Money(100, "EUR")
-
-
-def test_float_multiplication_is_not_silently_accepted() -> None:
-    with pytest.raises(TypeError):
-        Money(100) * 1.5
-```
-
-Run the tests with:
-
-```bash
-python -m pytest -q test_operator_lesson.py
-```
-
-Expected result: five tests pass. Tests should validate externally observable behavior, not merely assert that a special method exists.
-
-## 22. Additional test ideas for a production class
-
-Extend the suite based on your domain:
-
-- Test zero, negative values, and very large integers.
-- Test `sum()` with and without an explicit start value if accumulation is supported.
-- Test both `a + b` and `b + a` when addition is intended to be commutative.
-- Test that subtraction and division preserve operand order.
-- Test that unsupported operations produce a useful `TypeError` at the expression boundary.
-- Test in-place operations with aliases if the class is mutable.
-- Test conversions such as `int(value)` and `float(value)` only if those conversions are part of the public API.
-- Test the exact rounding policy for decimal quantities.
-- Test interoperability with `Decimal`, `Fraction`, or third-party numeric types only if you explicitly support them.
-- Test NumPy interoperability against the supported NumPy versions if you implement array hooks.
-
-Do not assert that every conceivable type combination must work. A safe, documented rejection is often better than ambiguous coercion.
-
-## 23. Exercises
-
-Try these before reading the solutions. Use Python 3.12+ and write tests for each implementation.
-
-### Exercise 1 — Complete scalar multiplication
-
-Implement `__mul__` and `__rmul__` for a two-dimensional `Vector`. It should support `vector * 3` and `3 * vector`, return a new vector, and reject unsupported operands through `NotImplemented`.
-
-### Exercise 2 — Explain `sum()` failure
-
-Create a `Vector` class that adds only another `Vector`. Explain why `sum([Vector(1, 1), Vector(2, 2)])` fails, then fix it using either a suitable `__radd__` or an explicit `start` value.
-
-### Exercise 3 — Mutation and aliasing
-
-Create a mutable vector with `__iadd__`. Bind two names to the same instance, apply `+=`, and show what both names observe. Then explain how an immutable implementation should behave.
-
-### Exercise 4 — Design a unit-aware duration
-
-Create a `Duration` value object stored in integer milliseconds. Implement addition for durations and reject other operand types. Should multiplying a duration by a float be allowed? Document and test your chosen policy.
-
-### Exercise 5 — Decimal policy
-
-Write a small function that accepts decimal amounts from text and uses `Decimal`. Demonstrate why constructing `Decimal` from a string is preferable to passing a float directly when the original intent is decimal text.
-
-### Exercise 6 — Flags
-
-Define `Access` using `enum.Flag` with `READ`, `WRITE`, and `ADMIN`. Combine two flags and test membership. Explain why `|` is more readable than manually adding integer constants.
-
-### Exercise 7 — Matrix multiplication
-
-Implement `__matmul__` for a small fixed-size matrix type. Validate dimensions and return `NotImplemented` for an unsupported operand type. Write tests for a valid product and an invalid shape.
-
-### Exercise 8 — Operator restraint review
-
-Consider a class where `a + b` sends `a`'s contents to `b` over a network. Explain why a named method is likely a better API. Identify at least three design or debugging risks of hidden I/O inside an arithmetic operator.
-
-## 24. Exercise solutions and guidance
-
-### Solution 1 — Scalar multiplication
-
-```python
-from __future__ import annotations
-
-
-class Vector:
-    def __init__(self, x: float, y: float) -> None:
-        self.x = float(x)
-        self.y = float(y)
-
-    def __mul__(self, scalar: object) -> "Vector":
-        if isinstance(scalar, bool) or not isinstance(scalar, (int, float)):
-            return NotImplemented
-        return Vector(self.x * scalar, self.y * scalar)
-
-    def __rmul__(self, scalar: object) -> "Vector":
-        return self * scalar
-
-    def __repr__(self) -> str:
-        return f"Vector({self.x!r}, {self.y!r})"
-
-
-v = Vector(2, 4)
-assert (v * 3).x == 6 and (v * 3).y == 12
-assert (3 * v).x == 6 and (3 * v).y == 12
-assert (v.x, v.y) == (2.0, 4.0)  # Original value is unchanged.
-```
-
-The last assertion only checks that the object is equal to itself; it does not prove two separately created vectors compare by value. For a production value object, implement equality deliberately (or use an appropriate dataclass) and test it. The important operator lessons are the reflected method and returning a new instance.
-
-### Solution 2 — `sum()`
-
-`sum()` starts from integer zero by default, so the first operation is effectively `0 + first_vector`. If `Vector.__radd__` does not accept zero and `Vector.__add__` only accepts another vector, the operation fails. A deliberate `__radd__` can recognize zero as the additive identity, or the caller can write `sum(vectors, start=Vector(0, 0))`.
-
-### Solution 3 — Aliasing
-
-If `__iadd__` mutates the current instance, all references to that instance observe the change. For an immutable vector, `+=` should instead produce a new vector and rebind the variable; any alias to the original should continue to point at the original value.
-
-### Solution 4 — Duration
-
-A sound baseline is to add only other `Duration` values and store integer milliseconds. If fractional multiplication is needed, decide whether to return a decimal duration, round to an integer millisecond, or reject fractional results. Document the rounding mode and test boundary cases. Do not silently truncate.
-
-### Solution 5 — Decimal
-
-```python
-from decimal import Decimal
-
-
-amount = Decimal("0.10")
-assert amount + Decimal("0.20") == Decimal("0.30")
-assert Decimal(str(0.1)) == Decimal("0.1")
-```
-
-`Decimal("0.10")` directly represents the intended decimal literal. `Decimal(0.1)` instead captures the exact decimal value of the binary float approximation, which is usually not what a money input intended as decimal text means.
-
-### Solution 6 — Flags
-
-```python
-from enum import Flag, auto
-
-
-class Access(Flag):
-    READ = auto()
-    WRITE = auto()
-    ADMIN = auto()
-
-
-access = Access.READ | Access.WRITE
-assert Access.READ in access
-assert Access.WRITE in access
-assert Access.ADMIN not in access
-```
-
-The enum names document intent, and bitwise combination expresses a set of flags directly.
-
-### Solution 7 — Matrix multiplication
-
-The exact implementation depends on the matrix representation and shape policy. A correct solution should check that the left matrix's column count equals the right matrix's row count, return `NotImplemented` for unsupported types, and test dimension mismatch explicitly. Avoid silently truncating rows or filling missing values.
-
-### Solution 8 — Operator restraint
-
-Network I/O inside `+` would be surprising, could block, fail due to connectivity, retry, or produce external side effects when callers expect a pure value calculation. It also makes logging and debugging expressions harder and can hide latency. A named operation such as `send_to(destination)` communicates the effect and gives a place to express timeout, retry, authentication, and error-handling policy.
-
-## 25. Self-check
-
-Answer each question without looking back. Suggested answers follow.
-
-1. Which method normally implements `a + b` on the left operand?
-2. Why should an unsupported operand type usually cause a special method to return `NotImplemented` rather than raise `TypeError` immediately?
-3. Why might `3 * vector` fail when `vector * 3` works?
-4. What is the difference between `__add__` and `__iadd__`?
-5. If `__iadd__` is absent, what can Python do for `x += y`?
-6. Why does `sum([Vector(1, 1), Vector(2, 2)])` often need `__radd__` or an explicit `start`?
-7. When should `__index__` be used rather than `__int__`?
-8. Why does `Decimal("0.1") + 0.2` raise `TypeError`?
-9. What does `@` conventionally mean in scientific Python?
-10. Name two risks of operator overloads that have surprising meanings.
-11. Why is `enum.Flag` useful for permission sets?
-12. What are `__array__` and `__array_ufunc__` used for at a high level?
-
-### Answer key
-
-1. `__add__`.
-2. `NotImplemented` permits Python to try the reflected implementation on the other operand before raising a final `TypeError`.
-3. The left operand's `__mul__` may not support the vector; `Vector.__rmul__` is needed for scalar-left multiplication.
-4. `__add__` implements ordinary addition, normally returning a result without mutating the original operand; `__iadd__` defines the in-place operator behavior and may mutate.
-5. It can fall back to the ordinary binary operation and rebind `x` to the result.
-6. The default start value is integer zero, so `0 + first_vector` must be supported or the caller must provide a compatible `start` value.
-7. Use `__index__` for exact integer-like values in indexing contexts; `__int__` is for explicit integer conversion and may have different conversion semantics.
-8. Python avoids silently mixing decimal arithmetic with binary floating-point arithmetic, which would make precision policy unclear.
-9. Matrix multiplication.
-10. They can make code unreadable, hide side effects, create surprising coercions, complicate debugging, or introduce aliasing and performance problems.
-11. It represents named, combinable flags with readable bitwise operations and membership checks.
-12. They provide hooks for conversion to NumPy arrays and for custom handling of NumPy ufunc operations, respectively.
-
-## 26. Readiness checklist
-
-You are ready to move on when you can check each item honestly:
-
-- [ ] I can map common binary and unary operators to their special methods.
-- [ ] I can implement `__add__` so it returns a new value and preserves operands.
-- [ ] I can explain and use reflected methods such as `__rmul__` and `__radd__`.
-- [ ] I know when to return `NotImplemented` and when to raise a domain exception.
-- [ ] I understand why subclass reflected-method priority means dispatch is not simply “left side always wins.”
-- [ ] I can explain the difference between `+=` on mutable and immutable objects.
-- [ ] I can design `sum()` support deliberately rather than accepting arbitrary operands.
-- [ ] I can distinguish `__int__` from `__index__`.
-- [ ] I can use `enum.Flag` for combinable flags.
-- [ ] I understand why `Decimal`, `float`, and `Fraction` should not be mixed without an explicit policy.
-- [ ] I can explain `__divmod__`, three-argument `pow()`, and `@` at a conceptual level.
-- [ ] I know when a named method is clearer than an overloaded operator.
-- [ ] I can test result values, unsupported operands, reflected dispatch, immutability, and aliasing.
-- [ ] I understand that custom numeric operators may allocate temporary objects and that performance claims should be benchmarked.
-
-## 27. Key takeaways
-
-1. Operator overloading connects custom classes to familiar Python syntax through special methods.
-2. Keep operator meaning unsurprising and consistent with the domain.
-3. Ordinary arithmetic should generally return a new value rather than mutate operands.
-4. Reflected methods support the other operand order; `NotImplemented` lets Python continue dispatch.
-5. In-place operators may mutate, but are not guaranteed to do so.
-6. Numeric interoperability requires explicit policies for type support, precision, conversion, and rounding.
-7. Use `Decimal` or integer minor units for exact money semantics rather than binary floats.
-8. Use bitwise operators for flags/masks and `@` for matrix multiplication when those meanings are natural.
-9. NumPy integration hooks are advanced protocols and should be implemented only with a clear interoperability and memory model.
-10. Optimize only after measuring representative workloads.
+For custom bitmask types, define `__and__`, `__or__`, `__xor__`, reflected variants if meaningful, and `__invert__` with a clear policy for unknown bits.
 
 ---
 
-**Next lesson:** `05-properties-and-computed-attributes.md` — using properties and computed attributes to maintain a stable public API while adding validation, caching, and controlled access to object state.
+## 13. `__matmul__` and array interoperability
+
+The `@` operator maps to `__matmul__` and `__rmatmul__`. It is intended for matrix multiplication and related linear-algebra operations, not ordinary scalar multiplication. A custom matrix/vector class should define the shape rules and result type explicitly.
+
+NumPy adds a separate layer of interoperability:
+
+- `__array__` lets an object expose or convert to a NumPy array representation.
+- `__array_ufunc__` lets an object participate in NumPy universal-function dispatch, such as operations implemented by ufuncs.
+- `__array_priority__` has historically influenced precedence in some mixed NumPy operations, but the exact interaction depends on NumPy version and the operation. Prefer current NumPy interoperability protocols rather than relying on old precedence tricks.
+
+These hooks are NumPy-specific conventions, not Python's core numeric tower. They require NumPy to be installed and should be implemented only when the object has a well-defined array interpretation. This lesson does not claim that `Vector2` is a NumPy array or that it interoperates with NumPy automatically.
+
+Illustrative interface sketch (requires NumPy to implement fully; not a runnable implementation):
+
+```python
+# Sketch only — NumPy is an optional dependency.
+#
+# class MyArrayLike:
+#     def __array__(self, dtype=None, copy=None):
+#         ...
+#
+#     def __array_ufunc__(self, ufunc, method, *inputs, **kwargs):
+#         ...
+```
+
+Do not implement `__array__` merely to make an object “work with NumPy.” Define ownership, copy behavior, dtype conversion, and ufunc result semantics first.
+
+---
+
+## 14. Fluent operator DSLs: powerful but risky
+
+Operator overloading can make domain code readable. For example, `pathlib.Path / "file.txt"` composes a path, `Permission.READ | Permission.WRITE` combines flags, and a pipeline library might use `stage_a | stage_b` or `source >> transform` to compose operations. The latter two are custom DSL conventions, not built-in meanings for arbitrary objects.
+
+```python
+from pathlib import Path
+
+path = Path("data") / "records.csv"
+print(path.as_posix())
+```
+
+Expected output:
+
+```text
+data/records.csv
+```
+
+It can also create an opaque DSL where ordinary operators trigger hidden network calls, mutate global state, or mean unrelated things depending on context. A fluent DSL is appropriate when:
+
+- the operator meaning is familiar to the target audience;
+- operand types and result types are predictable;
+- errors are explicit;
+- precedence and associativity do not surprise users;
+- debugging is still straightforward.
+
+Prefer named methods when the operation is not naturally represented by a Python operator, e.g. `dataset.join(other, on="customer_id")` is often clearer than inventing arithmetic-like syntax.
+
+---
+
+## 15. Performance and value-object design
+
+A frozen dataclass makes the immutability contract enforceable for ordinary attribute assignment, rather than relying only on a private-attribute convention. Operator methods should return a new instance and decline unsupported operands.
+
+```python
+from dataclasses import dataclass
+from types import NotImplementedType
+
+
+@dataclass(frozen=True, slots=True)
+class FrozenPoint:
+    x: float
+    y: float
+
+    def __add__(self, other: object) -> "FrozenPoint | NotImplementedType":
+        if not isinstance(other, FrozenPoint):
+            return NotImplemented
+        return FrozenPoint(self.x + other.x, self.y + other.y)
+
+
+left = FrozenPoint(1, 2)
+right = left + FrozenPoint(3, 4)
+print(left, right, left is right)
+```
+
+Expected output:
+
+```text
+FrozenPoint(x=1, y=2) FrozenPoint(x=4, y=6) False
+```
+
+A frozen dataclass is not a security boundary against deliberate low-level mutation, but it prevents ordinary reassignment and is a clearer default for value objects.
+
+### 15.1 Temporary allocations
+
+Immutable arithmetic usually creates a new object per operation. For a small `Vector2`, this is a reasonable trade-off for clarity and alias safety. In tight numeric loops, repeated temporary allocations may be expensive.
+
+### 15.2 Vectorization
+
+Vectorized array operations can perform work in optimized native code and reduce Python-level loop overhead. Do not assume a custom class is vectorized just because it implements `__add__`. NumPy array interoperability must be designed explicitly, and benchmarks should use realistic data sizes.
+
+### 15.3 In-place methods
+
+An in-place method can avoid some allocations, but it changes aliasing semantics and may be impossible or inappropriate for immutable objects. Measure before adding complexity.
+
+### 15.4 Numeric correctness beats clever coercion
+
+A numeric API should document exactness, units, overflow, rounding, accepted operand types, and result types. Avoid silently converting `Decimal` to `float`, `Fraction` to `float`, or a dimensioned quantity to an untyped number.
+
+---
+
+## 16. Common mistakes and debugging
+
+1. **Raising `NotImplementedError` instead of returning `NotImplemented`.** The former is an exception; the latter declines an operation and permits dispatch.
+2. **Returning `None` for unsupported operand types.** Python treats it as a result, not a request to try the reflected method.
+3. **Forgetting `__radd__` when supporting `sum()`.** `sum()` starts with integer `0` by default, so the first operation is `0 + first_value`. A custom value type can support this intentionally in `__radd__`, or callers can supply a compatible `start` value to `sum()`.
+4. **Assuming reflected methods always run only after the left method.** A strict subclass's reflected implementation can get priority.
+5. **Implementing only the left method and expecting `scalar * custom_value` to work.** Add a reflected method when that operand order is meaningful.
+6. **Treating non-commutative operations as commutative.** Reflected subtraction/division must preserve operand order.
+7. **Assuming `+=` necessarily mutates.** It can return a new object and rebind the target.
+8. **Implementing `__iadd__` on an immutable type by mutating shared state.** That breaks value semantics and can surprise aliases.
+9. **Claiming all numeric types interoperate.** ABC membership is not a guarantee of mixed arithmetic support.
+10. **Silently coercing `Decimal` and `float`.** Their arithmetic models differ; Python rejects direct mixed addition.
+11. **Confusing `__int__` and `__index__`.** `__index__` must represent an exact integer for indexing contexts.
+12. **Returning a non-`bool` from `__bool__`.** The method must return `True` or `False`.
+13. **Claiming `__matmul__` is ordinary multiplication.** It has distinct linear-algebra semantics.
+14. **Overloading operators with surprising side effects.** Keep operator meanings intuitive and document result types.
+15. **Assuming custom operators are vectorized.** Python special methods alone do not remove Python-level loop overhead.
+16. **Implementing NumPy hooks without a coherent ownership or result policy.** `__array__` and `__array_ufunc__` are explicit interoperability contracts.
+17. **Ignoring aliases in tests.** A result can be numerically correct while mutating an operand unexpectedly.
+18. **Overpromising three-argument `pow`.** Test and document the optional modulus explicitly.
+19. **Implementing only a partial numeric API but presenting it as a complete number type.** State supported operations and conversions precisely.
+
+For debugging, inspect the actual operand types, the exact special method called, whether it returned `NotImplemented`, and whether the final exception came from dispatch or from inside a method. Avoid tests that assert exact `TypeError` wording unless the message itself is part of your public API.
+
+---
+
+## 17. Pytest tests
+
+Save the example classes in `operator_protocols_examples.py`, then save these tests as `test_operator_protocols.py`. They cover supported arithmetic, reflected operations, unsupported types, conversion, immutability/aliasing, dispatch priority, in-place fallback, `Decimal` interoperability, and bitwise flags.
+
+```python
+from decimal import Decimal
+from enum import Flag, auto
+from fractions import Fraction
+
+import pytest
+
+# Import these from your example module when using separate files:
+# from operator_protocols_examples import (Vector2, Quantity, ImmutableCounter, PageNumber, IntLike, FrozenPoint, SumVector)
+
+
+def test_vector_arithmetic_and_alias_safety():
+    vector = Vector2(3, 4)
+    alias = vector
+    result = vector + Vector2(1, 2)
+
+    assert result == Vector2(4, 6)
+    assert alias is vector
+    assert vector == Vector2(3, 4)
+    assert result is not vector
+
+
+def test_vector_reflected_scalar_multiplication():
+    assert 2 * Vector2(3, 4) == Vector2(6, 8)
+    assert Vector2(3, 4) * 2 == Vector2(6, 8)
+
+
+def test_vector_unary_and_bool():
+    assert -Vector2(1, 2) == Vector2(-1, -2)
+    assert +Vector2(1, 2) == Vector2(1, 2)
+    assert abs(Vector2(3, 4)) == 5.0
+    assert not Vector2(0, 0)
+
+
+def test_vector_unsupported_operand_raises_type_error():
+    with pytest.raises(TypeError):
+        _ = Vector2(1, 2) + "north"
+
+
+def test_subclass_reflected_method_priority(capsys):
+    class Base:
+        def __add__(self, other):
+            print("Base.__add__")
+            return "base"
+
+    class Special(Base):
+        def __radd__(self, other):
+            print("Special.__radd__")
+            return "special"
+
+    assert Base() + Special() == "special"
+    assert capsys.readouterr().out == "Special.__radd__\n"
+
+
+def test_inplace_fallback_rebinds_immutable_counter():
+    counter = ImmutableCounter(2)
+    before = counter
+    counter += 3
+    assert counter.value == 5
+    assert before.value == 2
+    assert counter is not before
+
+
+def test_iadd_notimplemented_falls_back_to_add():
+    class DecliningInplaceCounter:
+        def __init__(self, value: int) -> None:
+            self.value = value
+
+        def __iadd__(self, amount: int):
+            return NotImplemented
+
+        def __add__(self, amount: int):
+            return type(self)(self.value + amount)
+
+    counter = DecliningInplaceCounter(2)
+    before = counter
+    counter += 3
+    assert counter.value == 5
+    assert before.value == 2
+    assert counter is not before
+
+
+def test_mutable_inplace_add_preserves_alias():
+    class MutableCounter:
+        def __init__(self, value: int) -> None:
+            self.value = value
+
+        def __iadd__(self, amount: int) -> "MutableCounter":
+            self.value += amount
+            return self
+
+    counter = MutableCounter(2)
+    alias = counter
+    counter += 1
+    assert counter is alias
+    assert alias.value == 3
+
+
+def test_intlike_pow_rejects_negative_non_modular_exponent():
+    with pytest.raises(ValueError, match="non-negative exponents"):
+        pow(IntLike(2), -1)
+
+
+def test_frozen_point_addition_and_immutability():
+    from dataclasses import FrozenInstanceError
+
+    point = FrozenPoint(1, 2)
+    result = point + FrozenPoint(3, 4)
+    assert result == FrozenPoint(4, 6)
+    assert result is not point
+    with pytest.raises(FrozenInstanceError):
+        point.x = 10
+
+
+def test_sumvector_accepts_integer_zero_identity_only():
+    result = sum([SumVector(1, 1), SumVector(2, 2)])
+    assert (result.x, result.y) == (3, 3)
+    with pytest.raises(TypeError):
+        False + SumVector(1, 1)
+
+
+def test_page_number_index_protocol():
+    values = ["intro", "methods", "tests"]
+    assert values[PageNumber(1)] == "methods"
+
+
+def test_fraction_and_decimal_float_policy():
+    assert Fraction(1, 3) + Fraction(1, 6) == Fraction(1, 2)
+    with pytest.raises(TypeError):
+        _ = Decimal("0.1") + 0.2
+
+
+def test_flag_combination():
+    class Permission(Flag):
+        READ = auto()
+        WRITE = auto()
+        EXECUTE = auto()
+
+    granted = Permission.READ | Permission.WRITE
+    assert bool(granted & Permission.READ)
+    assert not bool(granted & Permission.EXECUTE)
+```
+
+The tests assume the corresponding classes in the lesson are copied into the importable example module. In a production repository, keep examples and tests in separate files and run `pytest -q`. Do not report a passing test run unless you have actually executed it.
+
+---
+
+## 18. Graduated exercises
+
+### Exercise 1 — Beginner: map operators
+
+For each expression below, name the primary special method and reflected method where one exists:
+
+- `a + b`
+- `a // b`
+- `-a`
+- `a @ b`
+- `a & b`
+- `divmod(a, b)`
+
+### Exercise 2 — Beginner: unsupported operands
+
+Implement a `Temperature` value object that adds only another `Temperature`. For other types, return `NotImplemented`. Demonstrate that adding a string raises `TypeError`.
+
+### Exercise 3 — Intermediate: reflected arithmetic
+
+Extend `Temperature` so that `5 + temperature` is meaningful only if the design clearly defines what the integer means. Implement `__radd__` without assuming the operation is automatically commutative.
+
+### Exercise 4 — Intermediate: in-place semantics
+
+Implement both an immutable counter without `__iadd__` and a mutable counter with `__iadd__`. Test the object identity and alias behavior of `counter += 1`.
+
+### Exercise 5 — Intermediate: conversion methods
+
+Implement a page-index type with `__index__`. Explain why an approximate measurement should not automatically implement `__index__`.
+
+### Exercise 6 — Advanced: `divmod` and modular power
+
+Implement a small integer wrapper supporting `__divmod__` and `__pow__(exponent, modulo=None)`. Test both `pow(value, exponent)` and `pow(value, exponent, modulus)`.
+
+### Exercise 7 — Advanced: numeric interoperability policy
+
+Write a short policy for how a domain numeric type should interact with `int`, `float`, `Fraction`, and `Decimal`. State which combinations are supported, what the result type is, and how unsupported combinations fail.
+
+### Exercise 8 — Production design: benchmark allocations
+
+Compare a pure-Python immutable vector loop with a vectorized array implementation for realistic sizes. Measure execution time and peak memory; explain why the benchmark is workload-dependent and why operator overloading alone does not imply vectorization.
+
+---
+
+## 19. Worked solutions
+
+### Solution 1
+
+| Expression | Primary method | Reflected method |
+|---|---|---|
+| `a + b` | `__add__` | `__radd__` |
+| `a // b` | `__floordiv__` | `__rfloordiv__` |
+| `-a` | `__neg__` | None |
+| `a @ b` | `__matmul__` | `__rmatmul__` |
+| `a & b` | `__and__` | `__rand__` |
+| `divmod(a, b)` | `__divmod__` | `__rdivmod__` |
+
+### Solution 2
+
+```python
+from __future__ import annotations
+from types import NotImplementedType
+
+
+class Temperature:
+    def __init__(self, celsius: float) -> None:
+        self.celsius = float(celsius)
+
+    def __add__(self, other: object) -> Temperature | NotImplementedType:
+        if not isinstance(other, Temperature):
+            return NotImplemented
+        return Temperature(self.celsius + other.celsius)
+
+    def __eq__(self, other: object) -> bool | NotImplementedType:
+        if not isinstance(other, Temperature):
+            return NotImplemented
+        return self.celsius == other.celsius
+
+    def __repr__(self) -> str:
+        return f"Temperature({self.celsius!r})"
+
+
+assert Temperature(10) + Temperature(5) == Temperature(15)
+try:
+    Temperature(10) + "5"
+except TypeError:
+    pass
+else:
+    raise AssertionError("unsupported addition should fail")
+```
+
+For a fully testable value object, implement `__eq__` and consider whether the temperature scale and absolute-zero constraints need validation. The unsupported-type behavior should be expressed by `NotImplemented`, not `NotImplementedError`.
+
+### Solution 3
+
+A valid design could treat an integer as a temperature delta only if the API explicitly defines that convention. Otherwise, do not implement `__radd__`; requiring a `Temperature` operand is safer. If the integer represents a delta, use a distinct `TemperatureDelta` type to prevent confusion between an absolute temperature and a difference.
+
+### Solution 4
+
+Immutable fallback is demonstrated by `ImmutableCounter` in Section 7. A mutable implementation could be:
+
+```python
+class MutableCounter:
+    def __init__(self, value: int) -> None:
+        self.value = value
+
+    def __iadd__(self, amount: int) -> "MutableCounter":
+        self.value += amount
+        return self
+
+
+counter = MutableCounter(2)
+alias = counter
+counter += 1
+assert counter is alias
+assert alias.value == 3
+```
+
+Because `__iadd__` mutates and returns `self`, aliases observe the change. This is appropriate only when mutation is part of the object's contract.
+
+### Solution 5
+
+The `PageNumber` class in Section 10 provides `__index__`, so list indexing accepts it. An approximate measurement should not implement `__index__` because index contexts require an exact integer interpretation; silently rounding or truncating would make indexing surprising.
+
+### Solution 6
+
+The `IntLike` class in Section 9 demonstrates both methods. Extend its tests to cover exponent zero, invalid exponents, modulus zero (which should raise `ValueError` under integer `pow` semantics), and negative exponents. If the wrapper does not intend to support those cases, state that limitation and test the expected failure.
+
+### Solution 7
+
+A conservative policy is to support exact rational operations with `int` and `Fraction`, explicitly decide whether float mixing is permitted, and reject `Decimal`/`float` mixing unless the caller converts at a deliberate boundary. The result type should be documented for every supported pair. ABC inheritance alone is insufficient evidence that an operation works.
+
+### Solution 8
+
+Use `timeit` and `tracemalloc` (or a benchmark framework) with repeatable inputs and enough repetitions. Record Python and NumPy versions, array sizes, warm-up policy, and whether allocations are included. Do not generalize from a tiny input: interpreter overhead, memory layout, native kernels, and conversion costs can reverse a result.
+
+---
+
+## 20. Roadmap self-check answers
+
+### 1. Why does `sum([Vector(1,1), Vector(2,2)])` fail by default and how do you fix it?
+
+`sum()` starts with integer `0`, so it begins by evaluating `0 + Vector(1, 1)`. A vector that implements only `Vector.__add__` for another vector cannot handle that first operation, and without a compatible `__radd__`, the expression raises `TypeError`. One fix is to implement `__radd__` for the intentional zero-start case; another is to provide a compatible `start` value such as `sum(vectors, Vector(0, 0))`. The latter requires the vector addition method to support the vector start value.
+
+```python
+from __future__ import annotations
+from types import NotImplementedType
+
+
+class SumVector:
+    def __init__(self, x: int, y: int) -> None:
+        self.x, self.y = x, y
+
+    def __add__(self, other: object) -> SumVector | NotImplementedType:
+        if not isinstance(other, SumVector):
+            return NotImplemented
+        return type(self)(self.x + other.x, self.y + other.y)
+
+    def __radd__(self, other: object) -> SumVector | NotImplementedType:
+        if type(other) is int and other == 0:
+            return type(self)(self.x, self.y)
+        return NotImplemented
+
+    def __repr__(self) -> str:
+        return f"SumVector({self.x}, {self.y})"
+
+print(sum([SumVector(1, 1), SumVector(2, 2)]))
+```
+
+Expected output:
+
+```text
+SumVector(3, 3)
+```
+
+The integer-zero case returns a copy rather than aliasing the first input, because this demonstration stores mutable attributes. For an actually immutable value object, returning `self` can be safe. For more complex numeric types, validate the exact zero type and preserve the domain's identity semantics.
+
+### 2. What happens if `__add__` returns `NotImplemented`?
+
+Python treats it as a refusal to handle that operand pair and tries an eligible reflected implementation on the right operand. If no implementation supports the operation, Python raises `TypeError`. `NotImplemented` is not the same as `NotImplementedError`.
+
+### 3. Which method does `v += w` call when `__iadd__` is absent?
+
+Python falls back to the normal addition protocol (`__add__` and, if needed, reflected dispatch), then rebinds the target name to the result. That may create a new object rather than mutate the existing one. Lists illustrate in-place mutation; tuples illustrate rebinding to a new tuple.
+
+---
+
+## 21. Final engineering checklist
+
+- [ ] Every supported operator has a documented meaning and result type.
+- [ ] Unsupported operand types return `NotImplemented` where appropriate.
+- [ ] Reflected methods preserve operand order and support only intentional combinations.
+- [ ] Subclass reflected-method priority is understood and tested.
+- [ ] In-place methods have explicit mutation and aliasing semantics.
+- [ ] `NotImplemented` is not confused with `NotImplementedError`.
+- [ ] Unary, arithmetic, bitwise, comparison, and conversion protocols are not conflated.
+- [ ] `__int__`, `__float__`, `__complex__`, `__round__`, `__index__`, and `__bool__` follow their contracts.
+- [ ] Three-argument `pow` and `divmod` are tested if claimed to be supported.
+- [ ] `int`, `float`, `Fraction`, and `Decimal` interoperability is explicit.
+- [ ] `Decimal`/`float` mixing is not silently coerced.
+- [ ] `enum.Flag` is used for flag combinations where appropriate.
+- [ ] `@` is reserved for a clear matrix-multiplication-like meaning.
+- [ ] NumPy interoperability hooks are treated as explicit, optional contracts.
+- [ ] Performance claims are benchmarked on representative workloads.
+- [ ] Tests cover aliases, unsupported operands, dispatch, numeric edge cases, and expected exceptions.
+- [ ] Operator overloading improves readability rather than hiding surprising side effects.
+
+**Lesson complete when:** you can trace an operator expression through Python's dispatch, implement a small coherent numeric value object, define its interoperability boundaries, and test both successful and rejected operations.

@@ -1,975 +1,926 @@
-# Lesson 11 — Copying, Pickling, and Object Lifecycle Hooks
+# Copying, Pickling, and Object Lifecycle Hooks
 
-**Stage:** Stage 1 — Programming & Computational Thinking  
-**Module:** 11 — Advanced Python Data Model and Object Design  
-**Level:** Beginner → Intermediate → Advanced  
-**Target:** Python 3.12+ (Python 3.13+ notes are explicitly marked)
+> **Stage 1 · Module 11 — Advanced Python Data Model and Object Design · Lesson 11**  
+> **Baseline:** Python 3.12+ (Python 3.13+ features are marked explicitly)  
+> **Audience:** beginner through advanced Python engineers, with data-pipeline examples
 
-> **Engineering objective:** Understand object identity and lifetime, choose correct copy semantics, serialize only appropriate state, reconstruct objects safely, and manage resources without depending on unreliable destruction timing.
+## Why this lesson matters
 
-## Learning outcomes
+A data pipeline often starts with a configuration object and then creates per-run variants, caches state, persists job specifications, and manages resources such as files or connections. Bugs appear when a “copy” still shares nested state, a deserialized object restores a stale or unsafe representation, or cleanup depends on garbage collection happening at a convenient time.
 
-By completing this lesson, you should be able to:
+This lesson connects the object model to those engineering problems. It does **not** replace earlier lessons on identity, mutability, slots, cooperative inheritance, or context managers; it applies those concepts to copying, serialization, construction, and finalization.
 
-- Distinguish assignment, aliasing, shallow copy, deep copy, and copy-with-changes.
-- Predict how nested mutable objects and cyclic graphs behave under copying.
-- Implement `__copy__` and `__deepcopy__` without breaking cycles or shared references.
-- Explain the roles of `__new__`, `__init__`, `__del__`, and garbage collection.
-- Use `copy.replace()` (Python 3.13+) and `dataclasses.replace()` appropriately.
-- Serialize and restore supported Python objects with `pickle`, including custom state handling.
-- Explain `__reduce__`, `__reduce_ex__`, pickle protocols, and `copyreg` at a practical level.
-- Identify why unpickling untrusted data is unsafe and select safer interchange formats.
-- Prefer context managers and `weakref.finalize` over `__del__` for resource cleanup.
-- Recognize class-creation hooks such as `__init_subclass__` and `__set_name__`.
-- Design and test robust behavior for data-engineering objects that contain caches, locks, connections, or large data structures.
+## Prerequisites
 
-## Prerequisites and environment
+You should be comfortable with:
 
-You should understand classes, instance attributes, mutability, references, inheritance, exceptions, context managers, and basic unit testing. Use Python 3.12 or newer; use Python 3.13+ only for the `copy.replace()` section.
+- names, references, `is`, `==`, mutable and immutable values;
+- lists, dictionaries, tuples, classes, instance attributes, and inheritance;
+- exceptions, context managers (`with`), type annotations, and basic `pytest`;
+- class attributes, `__slots__`, method resolution order, and the idea that special methods are generally looked up on the type.
 
-Recommended tools:
+## Learning objectives
 
-```bash
-python --version
-python -m venv .venv
-# Activate the virtual environment, then:
-python -m pip install pytest ruff
-```
+By the end, you should be able to:
 
-The examples are standard-library-first. Run them in a trusted local environment. Never test untrusted pickle payloads.
+1. Distinguish assignment/aliasing, shallow copy, deep copy, and serialization.
+2. Predict which identities and nested references are shared after each operation.
+3. Implement `__copy__` and `__deepcopy__` without breaking cycles or shared aliases.
+4. Explain the `memo` dictionary and test graph-copy invariants.
+5. Pickle and restore a module-level domain class, exclude process-local state, and version restored state.
+6. Explain `__reduce__` / `__reduce_ex__`, pickle compatibility limits, and why untrusted pickle bytes are unsafe.
+7. Distinguish `__new__`, `__init__`, `__init_subclass__`, `__del__`, and `weakref.finalize`.
+8. Choose reliable resource cleanup and reason about slots, weak references, cycles, and inheritance.
+9. Apply these rules with tests rather than relying on assumptions about identity or finalizer timing.
 
 ---
 
-## 1. Object identity, references, and lifetime
+## 1. Names, references, and identity
 
-### 1.1 Variables are names, not boxes
-
-A Python variable is a name bound to an object. Assignment normally creates another reference to the same object; it does not clone the object.
+Python variables are **names bound to objects**. Assignment usually binds another name to the same object; it does not clone the object.
 
 ```python
-source = {"status": "ready", "tags": ["daily"]}
-alias = source
+settings = {"retries": 3, "tags": ["daily"]}
+alias = settings
 
-assert alias is source
-alias["status"] = "running"
-assert source["status"] == "running"
+print(alias is settings)   # True
+print(alias == settings)   # True
+alias["retries"] = 5
+print(settings["retries"]) # 5
 ```
 
-- `is` asks whether two references point to the exact same object.
-- `==` asks whether objects compare equal according to their equality implementation.
-- `id(obj)` returns an identity value that is unique during that object's lifetime. Do not treat it as a persistent identifier or business key.
+`is` asks whether two references point to the same object. `==` asks whether values compare equal according to their equality implementation. Equal objects need not be identical.
 
-```python
-left = [1, 2]
-right = [1, 2]
-assert left == right
-assert left is not right
+### Reference diagram: assignment
+
+```text
+settings ─────┐
+              ├────> dict {"retries": 3, "tags": [...]}
+alias ────────┘
 ```
 
-### 1.2 Object graph model
+### Identity is not a value contract
 
-Objects can refer to other objects. A dictionary containing a list is a small object graph. Copying decisions concern which nodes in that graph are reused and which are recreated.
+Use `is` for identity-sensitive checks (especially `x is None`), not to compare ordinary values. CPython may reuse or intern some immutable objects, such as certain small integers and strings, as an implementation optimization. That behavior is not a portable application contract. Do not infer semantic equality or object lifetime from `id()` values.
+
+## 2. Shallow copy versus deep copy
+
+The `copy` module provides two different policies:
+
+- `copy.copy(obj)` makes a **shallow copy**: a new outer object, with references to nested objects copied as references.
+- `copy.deepcopy(obj)` recursively copies objects it is designed to copy, using a memo table to handle repeated references and cycles.
+
+Neither operation means “clone every byte of the process.” Files, sockets, locks, database sessions, generators, and other resources need deliberate semantics and may reject copying or pickling.
+
+### One nested configuration, three operations
 
 ```python
-record = {"metadata": {"labels": ["silver"]}}
-second_reference = record
+import copy
 
-assert second_reference["metadata"] is record["metadata"]
+source = {
+    "name": "daily-ingest",
+    "options": {"retries": 3, "tags": ["raw", "validated"]},
+}
+
+assigned = source
+shallow = copy.copy(source)
+deep = copy.deepcopy(source)
+
+print(assigned is source)                         # True
+print(shallow is source, shallow == source)       # False True
+print(shallow["options"] is source["options"])    # True
+print(deep["options"] is source["options"])      # False
+
+source["options"]["tags"].append("published")
+print(shallow["options"]["tags"])                 # ['raw', 'validated', 'published']
+print(deep["options"]["tags"])                    # ['raw', 'validated']
 ```
 
-This distinction matters in ETL jobs, where a transformation may unexpectedly mutate a shared configuration object, cached payload, or in-memory batch.
+### Reference diagrams
 
-### 1.3 Lifecycle at a high level
+Before copying:
 
-For an ordinary class call such as `JobConfig(...)`, Python creates an instance through `__new__`, then initializes it through `__init__` if `__new__` returned an instance of that class. The object remains alive while references keep it reachable (with implementation-specific details around cycles and garbage collection). Finalization is not a reliable scheduling mechanism.
+```text
+source ──> outer dict ──> options dict ──> tags list
+```
+
+After `copy.copy(source)`:
+
+```text
+source  ──> original outer dict ──┐
+                                  ├──> same options dict ──> same tags list
+shallow ──> new outer dict ───────┘
+```
+
+After `copy.deepcopy(source)`:
+
+```text
+source ──> original dict ──> original options ──> original tags
+deep   ──> new dict      ──> copied options   ──> copied tags
+```
+
+### “Deep” is not the same as “independent in every sense”
+
+Deep copy follows the copy protocol of each encountered object. Some types are treated as atomic or shared; custom types may define their own policy; external resources may not be copyable. A deep copy is only as correct as the semantics of the object graph and its copy hooks.
+
+### Mutable and immutable objects
+
+- Mutating a list or dict can be observed through every alias to that same object.
+- Integers, strings, and bytes are immutable: sharing them is generally safe because their value cannot be changed in place.
+- A tuple is immutable as a container, but may contain mutable objects. `("job", options_dict)` cannot have an element replaced, yet `options_dict` can still be mutated.
+- A frozen dataclass prevents normal field assignment; it does **not** automatically make nested lists or dictionaries immutable.
+- Copying immutable/atomic values may return the original object. Do not use identity as proof that a copy operation failed.
+
+For a production design, ask: **which state must be independent, and which state is intentionally shared?** That is the contract to test.
+
+## 3. A custom object graph for a pipeline
+
+Consider a pipeline run whose two stages intentionally share the same mutable defaults object. This can represent a shared policy/cache within one in-memory graph.
 
 ```python
-class Trace:
-    def __new__(cls, *args, **kwargs):
-        print("allocate")
-        return super().__new__(cls)
+from dataclasses import dataclass, field
 
-    def __init__(self, name):
-        print("initialize", name)
+@dataclass
+class Stage:
+    name: str
+    options: dict[str, object]
+
+@dataclass
+class PipelineConfig:
+    name: str
+    shared_defaults: dict[str, object]
+    stages: list[Stage] = field(default_factory=list)
+
+defaults: dict[str, object] = {"timeout": 30, "labels": ["batch"]}
+pipeline = PipelineConfig(
+    name="orders",
+    shared_defaults=defaults,
+    stages=[
+        Stage("extract", {"defaults": defaults, "source": "warehouse"}),
+        Stage("transform", {"defaults": defaults, "strict": True}),
+    ],
+)
+
+assert pipeline.stages[0].options["defaults"] is pipeline.shared_defaults
+assert pipeline.stages[1].options["defaults"] is pipeline.shared_defaults
+```
+
+Graph shape:
+
+```text
+pipeline
+ ├── shared_defaults ───────────────────────┐
+ └── stages list                            │
+      ├── Stage("extract").options["defaults"] ─┤
+      └── Stage("transform").options["defaults"]┘
+```
+
+The three edges point to **one** dictionary, not three equal dictionaries. If a copy is meant to represent a separate run, you usually want the new graph to preserve the internal sharing pattern while separating it from the original graph.
+
+## 4. Implementing `__copy__` and `__deepcopy__`
+
+Only implement these hooks when default behavior is wrong or your class has a clear copy contract. Prefer ordinary composition and immutable state when that avoids custom copying entirely.
+
+### The `memo` dictionary
+
+The `memo` argument to `__deepcopy__(self, memo)` is managed by the `copy` module. It maps identities of source objects to their already-created copies. A correct custom implementation normally:
+
+1. checks whether `id(self)` is already in `memo`;
+2. allocates an uninitialized clone;
+3. stores `memo[id(self)] = clone` **before** recursively copying child references;
+4. deep-copies each field with `copy.deepcopy(field, memo)` using the same memo;
+5. returns the clone.
+
+Registering the clone before descending is essential for cycles. Passing the same memo is essential for preserving shared aliases: if two fields point to one source object, they should usually point to one copied object.
+
+### A custom, slotted `JobSpec`
+
+This example gives `JobSpec` a deliberate copy policy and pickle state policy. It uses slots to demonstrate that custom code should not assume an instance has `__dict__`.
+
+```python
+from __future__ import annotations
+
+import copy
+from typing import Any
+
+class JobSpec:
+    __slots__ = ("name", "settings", "metadata", "__weakref__")
+    STATE_VERSION = 1
+
+    def __init__(
+        self,
+        name: str,
+        settings: dict[str, Any],
+        metadata: dict[str, Any],
+    ) -> None:
         self.name = name
+        self.settings = settings
+        self.metadata = metadata
 
-item = Trace("daily-ingest")
-# allocate
-# initialize daily-ingest
-```
-
-Do not infer that `__del__` runs immediately when a variable goes out of scope. The timing and behavior of finalization can vary, especially with reference cycles and interpreter shutdown.
-
----
-
-## 2. Assignment vs shallow copy vs deep copy
-
-### 2.1 Assignment: another reference
-
-```python
-import copy
-
-original = {"columns": ["id", "amount"]}
-assigned = original
-assigned["columns"].append("currency")
-assert original["columns"] == ["id", "amount", "currency"]
-assert assigned is original
-```
-
-Use assignment when shared ownership is intentional. It is not a copy operation.
-
-### 2.2 Shallow copy: new outer object, shared children
-
-`copy.copy(obj)` makes a shallow copy. For a built-in list or dictionary, it creates a new outer container while references to nested objects are copied as references.
-
-```python
-import copy
-
-original = {"tags": ["daily"], "attempt": 1}
-shallow = copy.copy(original)
-
-assert shallow is not original
-assert shallow["tags"] is original["tags"]
-shallow["attempt"] = 2
-shallow["tags"].append("retry")
-
-assert original["attempt"] == 1
-assert original["tags"] == ["daily", "retry"]
-```
-
-This is useful when the outer structure should be independent but its child objects are intentionally shared or immutable. It is dangerous when nested state must be isolated.
-
-### 2.3 Deep copy: recursively copy a graph
-
-`copy.deepcopy(obj)` recursively copies supported objects and maintains a memo table to handle cycles and preserve repeated references within the copied graph.
-
-```python
-import copy
-
-original = {"tags": ["daily"]}
-deep = copy.deepcopy(original)
-deep["tags"].append("retry")
-
-assert original["tags"] == ["daily"]
-assert deep["tags"] == ["daily", "retry"]
-assert deep is not original
-assert deep["tags"] is not original["tags"]
-```
-
-Deep copy is not a universal promise to duplicate every reachable resource. Classes can customize it; some objects are treated specially; external resources such as open sockets should generally not be cloned as if they were ordinary data.
-
-### 2.4 Decision table
-
-| Operation | New outer object? | Nested mutable objects | Typical use |
-|---|---:|---|---|
-| `b = a` | No | Shared | Intentional alias |
-| `copy.copy(a)` | Usually yes for built-in containers | Usually shared | Copy container shell |
-| `copy.deepcopy(a)` | Usually yes | Recursively copied where supported | Independent object graph |
-| `dataclasses.replace(a, ...)` | Yes for a dataclass instance | Other fields are reused by reference | Copy a record with selected field changes |
-| `copy.replace(a, ...)` | Yes for supported replaceable objects; Python 3.13+ | Depends on object's replacement implementation | Generic copy-with-changes protocol |
-
-Do not choose `deepcopy` reflexively. It can be expensive, duplicate objects that should remain shared, and fail or behave unexpectedly for objects that represent external resources.
-
-### 2.5 Common copy patterns
-
-**Copy only the mutable field that needs isolation:**
-
-```python
-from copy import copy
-
-class Batch:
-    def __init__(self, rows, schema):
-        self.rows = list(rows)
-        self.schema = schema  # schema is intentionally shared/read-only
-
-    def with_rows(self, rows):
-        clone = copy(self)
-        clone.rows = list(rows)
+    def __copy__(self) -> JobSpec:
+        # New outer object; nested values intentionally remain shared.
+        clone = type(self).__new__(type(self))
+        clone.name = self.name
+        clone.settings = self.settings
+        clone.metadata = self.metadata
         return clone
 
-schema = {"id": "int"}
-first = Batch([{"id": 1}], schema)
-second = first.with_rows([{"id": 2}])
-assert second is not first
-assert second.schema is first.schema
-assert second.rows is not first.rows
-```
-
-Note that `list(rows)` copies the outer list only. If row dictionaries are mutable and must be isolated too, define that requirement explicitly and copy each row or use a suitable deep-copy strategy.
-
----
-
-## 3. Customizing copy behavior
-
-### 3.1 `__copy__`
-
-Define `__copy__(self)` when the default shallow-copy behavior is not appropriate. Return a new instance with the intended shallow semantics; do not accidentally invoke the public copy function recursively on `self`.
-
-```python
-import copy
-
-class QueryPlan:
-    def __init__(self, steps, cache=None):
-        self.steps = list(steps)
-        self.cache = {} if cache is None else cache
-
-    def __copy__(self):
-        cls = type(self)
-        clone = cls.__new__(cls)
-        clone.steps = self.steps.copy()
-        clone.cache = self.cache  # explicitly shared cache
-        return clone
-
-plan = QueryPlan(["scan", "filter"])
-clone = copy.copy(plan)
-assert clone is not plan
-assert clone.steps is not plan.steps
-assert clone.cache is plan.cache
-```
-
-This example chooses to copy the steps list but share the cache. That is a design decision, not a universal rule. Document it so callers know what mutations are shared.
-
-### 3.2 `__deepcopy__(self, memo)`
-
-A custom `__deepcopy__` must cooperate with the memo dictionary. The memo prevents infinite recursion for cycles and ensures that repeated references to one source object map to one corresponding copied object.
-
-```python
-import copy
-
-class Node:
-    def __init__(self, name):
-        self.name = name
-        self.children = []
-
-    def __deepcopy__(self, memo):
+    def __deepcopy__(self, memo: dict[int, Any]) -> JobSpec:
         existing = memo.get(id(self))
         if existing is not None:
             return existing
 
+        # Bypass __init__: we are reconstructing an existing object's state.
         clone = type(self).__new__(type(self))
-        memo[id(self)] = clone
+        memo[id(self)] = clone  # must precede recursive field copies
+
         clone.name = copy.deepcopy(self.name, memo)
-        clone.children = copy.deepcopy(self.children, memo)
+        clone.settings = copy.deepcopy(self.settings, memo)
+        clone.metadata = copy.deepcopy(self.metadata, memo)
         return clone
 
-root = Node("root")
-child = Node("child")
-root.children.extend([child, child])  # two edges to the same node
-root.children[0].children.append(root)  # cycle back to root
+    def __getstate__(self) -> dict[str, Any]:
+        # Store durable data only. Do not serialize open resources or locks.
+        return {
+            "version": self.STATE_VERSION,
+            "name": self.name,
+            "settings": self.settings,
+            "metadata": self.metadata,
+        }
 
-cloned_root = copy.deepcopy(root)
-assert cloned_root is not root
-assert cloned_root.children[0] is cloned_root.children[1]
-assert cloned_root.children[0].children[0] is cloned_root
+    def __setstate__(self, state: dict[str, Any]) -> None:
+        # Example migration point for older saved state.
+        version = state.get("version", 0)
+        if version == 0:
+            # Hypothetical older format used "options" instead of "settings".
+            settings = state["options"]
+            metadata = state.get("metadata", {})
+        elif version == 1:
+            settings = state["settings"]
+            metadata = state["metadata"]
+        else:
+            raise ValueError(f"Unsupported JobSpec state version: {version}")
+
+        self.name = state["name"]
+        self.settings = settings
+        self.metadata = metadata
 ```
 
-The order is essential: allocate the clone and put it in `memo` **before** recursively copying children. Otherwise a cycle can recurse indefinitely.
+**Inheritance boundary:** these hooks deliberately copy and serialize only the slots declared by `JobSpec`. A subclass that adds slots or changes allocation through a custom `__new__` must extend or override the relevant hooks and test its own state. The expression `type(self).__new__(type(self))` bypasses `__init__`, but it still invokes the subclass's `__new__`; it is not a universal allocator for every possible subclass.
 
-### 3.3 Copying immutable or shared objects
-
-Immutable values such as integers and strings are safe to share. Some domain objects are intentionally identity-bearing (for example, a connection pool or a process-wide registry) and should not be duplicated. A custom `__deepcopy__` can return `self` for a genuinely immutable object, but do not do this for an object whose reachable state can change.
+### Test the graph semantics
 
 ```python
 import copy
 
-class CurrencyCode:
-    __slots__ = ("value",)
+shared = {"tags": ["raw"]}
+job = JobSpec(
+    "orders",
+    settings={"defaults": shared, "retries": 2},
+    metadata={"defaults": shared, "owner": "data-platform"},
+)
 
-    def __init__(self, value):
-        object.__setattr__(self, "value", value.upper())
+shallow = copy.copy(job)
+deep = copy.deepcopy(job)
 
-    def __setattr__(self, name, value):
-        raise AttributeError("CurrencyCode is immutable")
+assert shallow is not job
+assert shallow.settings is job.settings
+assert deep.settings is not job.settings
+assert deep.settings["defaults"] is deep.metadata["defaults"]
+assert deep.settings["defaults"] is not shared
 
-    def __deepcopy__(self, memo):
-        return self
-
-usd = CurrencyCode("usd")
-assert copy.deepcopy(usd) is usd
+shared["tags"].append("changed")
+assert "changed" in shallow.settings["defaults"]["tags"]
+assert "changed" not in deep.settings["defaults"]["tags"]
 ```
 
-For production code, also consider how immutability is enforced during construction, equality, and serialization. “I intend not to mutate this” is weaker than a design that prevents mutation.
+`JobSpec` deliberately does not define value equality, so the default `==` is identity-based. For that reason, the meaningful assertions here are about identity and state, not `shallow == job`.
 
-### 3.4 Testing copy contracts
-
-Write tests for identity and mutation behavior, not just equality.
+### Cycles: why memoization order matters
 
 ```python
 import copy
 
-source = {"items": [{"value": 1}]}
-shallow = copy.copy(source)
-deep = copy.deepcopy(source)
+cycle: list[object] = []
+cycle.append(cycle)
 
-assert shallow == source == deep
-assert shallow is not source
-assert shallow["items"] is source["items"]
-assert deep["items"] is not source["items"]
-
-deep["items"][0]["value"] = 99
-assert source["items"][0]["value"] == 1
+cloned_cycle = copy.deepcopy(cycle)
+assert cloned_cycle is not cycle
+assert cloned_cycle[0] is cloned_cycle
 ```
 
-A useful test suite checks: outer identity, nested identity, cycle preservation, alias preservation, and any resources intentionally shared or excluded.
+The list implementation in the standard library already handles this. A custom `__deepcopy__` that recursively copies children **before** memoizing its partially built clone can recurse indefinitely on cycles.
 
----
-
-## 4. Copy with changes: `dataclasses.replace` and `copy.replace`
-
-### 4.1 `dataclasses.replace`
-
-`dataclasses.replace()` creates a new dataclass instance by calling its initialization path with existing field values and requested changes. It is a shallow, field-level replacement—not a recursive clone.
+### Shared aliases are a graph property
 
 ```python
-from dataclasses import dataclass, replace
+shared_child = {"threshold": 10}
+source = {"left": shared_child, "right": shared_child}
+clone = copy.deepcopy(source)
 
-@dataclass(frozen=True)
-class RunConfig:
-    dataset: str
-    retries: int
-    labels: list[str]
-
-base = RunConfig("events", 3, ["raw"])
-retry_config = replace(base, retries=5)
-
-assert retry_config is not base
-assert retry_config.retries == 5
-assert retry_config.labels is base.labels
+assert clone["left"] is clone["right"]   # sharing preserved inside clone
+assert clone["left"] is not shared_child # detached from source graph
 ```
 
-The frozen dataclass prevents field reassignment but does not make a list field immutable. If the label list must be immutable, prefer a tuple or another immutable representation.
+Do not call `copy.deepcopy(child)` without passing `memo` inside your own hook. That starts a separate copy operation and can duplicate shared nodes or mishandle cycles across fields.
 
-Be aware that dataclass `init=False` fields are not simply copied as ordinary constructor arguments; consult the dataclasses contract when using custom initialization or derived state.
+### When custom copy hooks should not copy everything
 
-### 4.2 `copy.replace` — Python 3.13+
+A class may intentionally share immutable collaborators, caches, or externally managed services. It may also reject copying if duplication has no valid meaning. Document that policy. Never blindly duplicate a database connection, lock, thread, open file, generator, or transaction and pretend it is independent.
 
-Python 3.13 introduced `copy.replace(obj, **changes)`, a generic replacement operation for supported objects, including dataclass instances, named tuples, and classes that implement `__replace__`. It is not a general replacement for `copy.copy` or `copy.deepcopy`.
+## 5. Copying related APIs
 
-```python
-import copy
-from collections import namedtuple
+### `dataclasses.replace` and `copy.replace`
 
-Point = namedtuple("Point", "x y")
-p1 = Point(2, 3)
-p2 = copy.replace(p1, x=10)
+`dataclasses.replace(instance, field=value)` creates a new dataclass instance with selected fields changed. It is not a recursive deep copy: unchanged fields can continue to refer to the same nested objects.
 
-assert p1 == Point(2, 3)
-assert p2 == Point(10, 3)
-```
+Python 3.13+ adds `copy.replace(obj, **changes)` for supported objects (including dataclasses and named tuples, and classes implementing `__replace__`). It is a *new-object-with-selected-fields-changed* operation, not a substitute for `copy.copy` or `copy.deepcopy`. On Python 3.12, use `dataclasses.replace` where appropriate.
 
-Only run this example on Python 3.13 or newer. On Python 3.12, use `dataclasses.replace` for dataclasses or the relevant type-specific replacement method.
+### Slotted and frozen dataclasses
 
-### 4.3 Choosing a replacement strategy
+- A slotted object may not have `__dict__`; use its public attributes or explicit state rather than assuming `vars(obj)` works.
+- Weak references to slotted instances require a `__weakref__` slot (or the appropriate dataclass option where supported).
+- Frozen dataclasses prevent ordinary assignment but may still contain mutable nested values.
+- Copy behavior depends on fields and their values; test nested state explicitly.
+- Multiple inheritance with incompatible non-empty slot layouts can fail with `TypeError`. Do not use slots without considering the hierarchy and layout constraints.
 
-- Use `copy.copy` for shallow duplication.
-- Use `copy.deepcopy` when independent nested state is genuinely required and supported.
-- Use `dataclasses.replace` for dataclass records with selected changed fields.
-- Use `copy.replace` on Python 3.13+ when the object's replacement protocol is supported.
-- Use a named constructor or factory when a replacement must enforce complex invariants or recalculate derived state.
+## 6. Copying is not serialization
 
----
+| Operation | Purpose | Result | Main concern |
+|---|---|---|---|
+| Assignment | Bind another name | Same object | Aliasing |
+| `copy.copy` | New outer object | In-memory object | Nested references stay shared |
+| `copy.deepcopy` | Recursively copy supported graph | In-memory graph | Custom policies, resources, cycles |
+| `pickle.dumps` | Encode supported Python object state | `bytes` | Compatibility and code-execution risk |
+| `pickle.loads` | Reconstruct object from pickle bytes | In-memory object | **Unsafe for untrusted input** |
+| JSON encoding | Exchange basic data structures | Text/bytes | Requires explicit schema/type mapping |
 
-## 5. `__new__` and `__init__`
+Copying operates on an in-memory object graph. Pickling encodes reconstruction instructions and state into a byte stream. Neither is automatically a stable public storage schema.
 
-### 5.1 The distinction
+## 7. Pickle basics and practical restoration
 
-- `__new__(cls, ...)` creates and returns an instance. It is a static method in behavior, although it is normally written without `@staticmethod`.
-- `__init__(self, ...)` initializes an already-created instance and must return `None`.
-- Python calls `__init__` only when `__new__` returns an instance of the class being constructed (or a subclass).
+Pickle is Python's object serialization mechanism. The exact bytes depend on protocol and implementation details. `pickle.dumps(obj, protocol=pickle.HIGHEST_PROTOCOL)` creates bytes; `pickle.loads(data)` reconstructs an object.
 
-Most classes only need `__init__`. Override `__new__` when construction itself must control the instance, especially for immutable built-in subclasses, interning/singleton designs, or specialized allocation behavior.
+Typical constraints:
 
-### 5.2 Subclassing an immutable built-in
+- Functions and classes are generally referenced by importable module and qualified name, not embedded as their source code. They should be defined at module scope and remain importable under the same name.
+- Lambdas and local/nested classes/functions generally cannot be pickled by standard `pickle`.
+- Open files, sockets, locks, database connections, generators, and live sessions are generally not suitable serialized state.
+- Pickle does not promise compatibility across arbitrary code changes, Python versions, package versions, or deployments.
+- `pickle` is Python-specific and is not an interoperable data-exchange format like a documented JSON schema or Protocol Buffers schema.
 
-Immutable built-in values must usually be customized in `__new__`, because the value is established during creation.
-
-```python
-class NormalizedCode(str):
-    def __new__(cls, value):
-        normalized = value.strip().upper()
-        return super().__new__(cls, normalized)
-
-code = NormalizedCode("  ab-12  ")
-assert code == "AB-12"
-assert isinstance(code, NormalizedCode)
-```
-
-This is an example where `__init__` is not the right place to normalize the underlying string value.
-
-### 5.3 Construction pitfalls
-
-- Do not return a non-instance from `__new__` and expect `__init__` to run.
-- Do not use `__new__` as a routine substitute for a factory function.
-- Singleton patterns can introduce hidden global state and complicate tests; use only when the identity requirement is real.
-- If subclassing `tuple`, `int`, or `str`, follow the built-in type's construction contract and test subclass behavior carefully.
-
-### 5.4 `__init_subclass__` and `__set_name__`
-
-These are class-creation hooks rather than per-instance initialization hooks.
-
-- `__init_subclass__` runs when a subclass is created and is useful for validation or registration.
-- A descriptor's `__set_name__(owner, name)` is called when the descriptor is assigned in the class body, allowing it to learn its owner and attribute name.
-
-```python
-class Plugin:
-    registry = {}
-    plugin_name = None
-
-    def __init_subclass__(cls, *, name=None, **kwargs):
-        super().__init_subclass__(**kwargs)
-        if name is not None:
-            if name in Plugin.registry:
-                raise ValueError(f"duplicate plugin: {name}")
-            cls.plugin_name = name
-            Plugin.registry[name] = cls
-
-class CsvPlugin(Plugin, name="csv"):
-    pass
-
-assert Plugin.registry["csv"] is CsvPlugin
-```
-
-This example uses a small class registry. In production, consider import order, duplicate registration policy, thread safety, plugin discovery, and whether Python package entry points are a better extension mechanism.
-
----
-
-## 6. Pickle fundamentals
-
-### 6.1 What pickle does
-
-`pickle` is Python's object serialization mechanism. It converts supported Python object graphs into a byte stream and reconstructs them later. It is useful for trusted Python-to-Python persistence and some internal workflows, but it is not a language-neutral interchange format and should not be treated as a stable long-term schema by default.
+The `JobSpec` class above defines `__getstate__` and `__setstate__`, so it can serialize durable fields and reconstruct them without trying to pickle a process-local resource.
 
 ```python
 import pickle
 
-payload = {"job_id": 42, "status": "complete", "columns": ["id", "value"]}
-blob = pickle.dumps(payload, protocol=pickle.HIGHEST_PROTOCOL)
-restored = pickle.loads(blob)
-assert restored == payload
+job = JobSpec(
+    "orders",
+    settings={"retries": 3, "tags": ["raw"]},
+    metadata={"owner": "analytics"},
+)
+
+payload = pickle.dumps(job, protocol=pickle.HIGHEST_PROTOCOL)
+restored = pickle.loads(payload)
+
+assert isinstance(restored, JobSpec)
+assert restored is not job
+assert restored.name == job.name
+assert restored.settings == job.settings
+assert restored.settings is not job.settings
+print(restored.name, restored.settings["retries"])
+# orders 3
 ```
 
-This example uses only a built-in dictionary. For custom classes, pickle generally relies on importable class definitions and reconstruction instructions; the class code itself is not bundled as a portable application definition.
+### State hooks and versioning
 
-### 6.2 Pickle protocols
+`__getstate__` returns the state to serialize. `__setstate__` restores it on an object allocated during unpickling. Do not assume `__init__` will be called when unpickling an instance. The class above includes a `version` field and a migration branch for a hypothetical version-0 state.
 
-A pickle protocol is a versioned encoding capability. `pickle.HIGHEST_PROTOCOL` selects the highest protocol supported by the current Python runtime. This is convenient for local same-environment use, but it may not be readable by older Python versions. Choose a protocol deliberately when interoperability with older supported runtimes matters.
+For durable systems:
+
+1. Treat stored state as a schema that can evolve.
+2. Add explicit version identifiers and migration tests.
+3. Keep durable data separate from runtime resources.
+4. Fail clearly on unknown future versions rather than silently inventing defaults.
+5. Pin and test relevant code/runtime versions if pickle is used for trusted internal caches.
+6. Prefer a documented, language-neutral format for long-lived data or cross-service interchange.
+
+Versioning a pickle state dict can help with migrations, but it does **not** make pickle a stable long-term storage format. Class paths and reconstruction behavior can still change.
+
+### Excluding a process-local lock
+
+A lock represents synchronization state for one process, not durable business data. Exclude it from the state and create a fresh lock when restoring the object. This example is for trusted, local data only; never use pickle on attacker-controlled bytes.
 
 ```python
 import pickle
-
-value = ("partition-7", 120)
-blob = pickle.dumps(value, protocol=4)
-assert pickle.loads(blob) == value
-```
-
-Do not assume that selecting an older protocol makes a custom class universally portable. The class must still be importable and compatible, and the object must be supported by that protocol.
-
-### 6.3 What is commonly picklable?
-
-Commonly supported values include built-in containers of picklable values, many standard-library types, and instances of importable user-defined classes. Module-level functions and classes can often be referenced by module and qualified name. Lambdas, nested/local classes, open file handles, sockets, locks, database connections, and many runtime-bound resources are not directly picklable in the expected way.
-
-```python
-# Place this class at module top level in a real .py module for normal use.
-class TaskSpec:
-    def __init__(self, name):
-        self.name = name
-
-# In a module-level script, an instance is typically picklable if the module
-# can be imported by the receiving process.
-```
-
-Interactive notebooks, REPLs, and `__main__` can behave differently across processes. Test serialization in the actual deployment context, especially when using multiprocessing or distributed workers.
-
-### 6.4 Security: never unpickle untrusted data
-
-**Unpickling untrusted bytes can execute arbitrary code.** Treat pickle data as executable input, not merely as passive data. Do not load pickle files from users, unknown websites, untrusted object stores, or arbitrary network sources.
-
-Safer choices depend on the use case:
-
-- JSON for simple, language-neutral data structures.
-- MessagePack for compact structured values when the ecosystem supports it.
-- Protocol Buffers or another schema-based format for explicit schemas and cross-language contracts.
-- A signed/authenticated envelope can help verify origin and integrity, but signing does not make unsafe pickle payloads safe if the signing key or trust boundary is compromised.
-
-Serialization format selection should account for schema evolution, validation, size, performance, compatibility, and threat model.
-
----
-
-## 7. Custom pickle state: `__getstate__` and `__setstate__`
-
-### 7.1 Why custom state is needed
-
-A runtime object may combine durable data with runtime-only state. A cache may contain a dictionary that is safe to serialize, alongside a `threading.Lock` that is not. Serialize the durable state and recreate the runtime-only field during restoration.
-
-```python
-import pickle
-import threading
+from threading import Lock
 
 class Cache:
-    def __init__(self):
-        self.data = {}
-        self.lock = threading.Lock()
+    def __init__(self) -> None:
+        self.data: dict[str, int] = {}
+        self.lock = Lock()
 
-    def __getstate__(self):
-        state = self.__dict__.copy()
-        state.pop("lock", None)
-        return state
+    def __getstate__(self) -> dict[str, object]:
+        return {"state_version": 1, "data": self.data}
 
-    def __setstate__(self, state):
-        self.__dict__.update(state)
-        self.lock = threading.Lock()
+    def __setstate__(self, state: dict[str, object]) -> None:
+        if state.get("state_version", 0) != 1:
+            raise ValueError("unsupported Cache state version")
+        data = state.get("data")
+        if not isinstance(data, dict) or any(
+            not isinstance(key, str) or not isinstance(value, int)
+            for key, value in data.items()
+        ):
+            raise ValueError("invalid Cache data state")
+        self.data = data
+        self.lock = Lock()
 
 cache = Cache()
-cache.data["region"] = "ap-south-1"
-restored = pickle.loads(pickle.dumps(cache))
-assert restored.data == cache.data
-assert restored.lock is not cache.lock
+cache.data["rows"] = 12
+restored_cache = pickle.loads(pickle.dumps(cache))
+assert restored_cache.data == {"rows": 12}
+assert restored_cache.lock is not cache.lock
 ```
 
-`__getstate__` should return the state intended for serialization. `__setstate__` restores that state and recreates or reinitializes omitted runtime-only resources. This example is for illustration; the class should live in an importable module for cross-process use.
+In production code, validate state shapes and types explicitly rather than relying on a type-ignore comment. The lock is recreated, not restored from the byte stream.
 
-### 7.2 State design checklist
+### `__reduce__` and `__reduce_ex__`
 
-Before pickling a class, decide:
+Pickle can use `__reduce_ex__(protocol)` (preferred when provided) or `__reduce__()` to obtain a reconstruction recipe. A reduction is commonly a tuple such as:
 
-1. Which fields represent durable business state?
-2. Which fields are caches that can be recomputed?
-3. Which fields hold external resources or synchronization primitives?
-4. Does the restored object need validation or migration?
-5. Are credentials, tokens, personal data, or secrets accidentally included?
-6. Can a newer/older class definition read the stored state?
+```python
+(callable, args, state)
+```
 
-Do not serialize secrets simply because they are attributes. Prefer explicit allow-listed state over dumping every field if the object contains sensitive or volatile data.
+Conceptually, pickle calls `callable(*args)` to create an object and then applies `state` (often through `__setstate__` if present). The full reduction protocol has additional supported tuple forms for list items, dictionary items, and state-setting callables; consult the Python documentation before implementing those forms.
 
-### 7.3 Slots and state
-
-Slotted classes and classes with custom storage may require careful state handling. Do not assume that `self.__dict__` exists when using `__slots__`. Check the exact class layout and the pickle support provided by its base classes. A simple explicit state tuple or dictionary is often easier to review than relying on implicit state details.
-
----
-
-## 8. `__reduce__`, `__reduce_ex__`, and `copyreg`
-
-### 8.1 The reconstruction model
-
-At a lower level, pickle can ask an object for a reduction recipe describing how to reconstruct it. `__reduce_ex__(protocol)` is the protocol-aware hook; `__reduce__()` is the older/general hook. A reduction can describe a callable plus arguments and optional state/iterators. The exact tuple forms are part of the pickle protocol and should be used only when the simpler state hooks are insufficient.
-
-Prefer `__getstate__` / `__setstate__` for ordinary state customization. Reach for a custom reduction only when reconstruction genuinely requires a custom factory or a more specialized recipe.
-
-### 8.2 Example: custom reconstruction factory
+Example: an immutable-like domain value whose constructor is the reconstruction callable. This class uses the protocol-aware `__reduce_ex__(protocol)` hook:
 
 ```python
 import pickle
 
-class Endpoint:
-    def __init__(self, host, port):
-        self.host = host
-        self.port = port
+class RegionCode:
+    def __init__(self, code: str) -> None:
+        self.code = code
 
-    def __reduce__(self):
-        return (type(self), (self.host, self.port))
+    def __reduce_ex__(self, protocol: int):
+        # This example needs only a callable and positional arguments.
+        return (type(self), (self.code,))
 
-endpoint = Endpoint("warehouse.internal", 5432)
-restored = pickle.loads(pickle.dumps(endpoint))
-assert (restored.host, restored.port) == (endpoint.host, endpoint.port)
+code = RegionCode("ap-south-1")
+round_trip = pickle.loads(pickle.dumps(code))
+assert round_trip.code == "ap-south-1"
 ```
 
-This simple example returns the class and constructor arguments. It is mainly educational; ordinary classes may already support the needed behavior without overriding `__reduce__`.
-
-### 8.3 `copyreg`
-
-`copyreg` lets an application register reduction functions for types that it does not own or cannot modify. Registration affects the process that performs serialization and should be treated as explicit application configuration.
+`copyreg` offers an alternative when you need to register a reduction function for a type you do not control. In real applications, keep the class and reducer importable at module scope:
 
 ```python
 import copyreg
 import pickle
 
-class Coordinate:
-    def __init__(self, x, y):
-        self.x, self.y = x, y
+class RegisteredRegionCode:
+    def __init__(self, code: str) -> None:
+        self.code = code
 
-def rebuild_coordinate(x, y):
-    return Coordinate(x, y)
+def restore_region_code(code: str) -> RegisteredRegionCode:
+    return RegisteredRegionCode(code)
 
-def reduce_coordinate(value):
-    return (rebuild_coordinate, (value.x, value.y))
+def reduce_region_code(value: RegisteredRegionCode):
+    return (restore_region_code, (value.code,))
 
-copyreg.pickle(Coordinate, reduce_coordinate)
-point = Coordinate(3, 4)
-restored = pickle.loads(pickle.dumps(point))
-assert (restored.x, restored.y) == (3, 4)
+copyreg.pickle(RegisteredRegionCode, reduce_region_code)
+value = RegisteredRegionCode("eu-west-1")
+restored = pickle.loads(pickle.dumps(value))
+assert type(restored) is RegisteredRegionCode
+assert restored.code == "eu-west-1"
 ```
 
-The reconstruction function must be available in the receiving environment. Avoid global registrations that unexpectedly change serialization behavior across unrelated parts of a large application.
+A reduction is a reconstruction recipe, not merely a dump of attributes. A custom reduction is powerful and therefore easy to get wrong. Prefer ordinary pickle support and state hooks unless you need explicit control over reconstruction. The `copy` module may also consult reduction/pickle protocols for types without specialized copy hooks; that does not make copying equivalent to serialization.
 
-### 8.4 Copy and pickle are related, not identical
+### Security: never unpickle untrusted bytes
 
-The `copy` module can use reduction support for some objects, which is why poorly designed serialization hooks can also affect copying. However, shallow copying, deep copying, and serialization have different goals. Test each public operation independently and document the intended contract.
+**Never call `pickle.loads` or `pickle.load` on data an attacker can control.** Unpickling can invoke arbitrary callables during reconstruction and can execute code. A signature or MAC can help establish authenticity only if keys and verification are handled correctly and the signed bytes are verified *before* deserialization; it does not make untrusted pickle intrinsically safe.
 
----
+For untrusted input, use a constrained format such as JSON with schema validation, or a purpose-built protocol. Do not accept pickle files from uploads, public URLs, untrusted job queues, or users. Do not treat “it came from our network” as a security boundary.
 
-## 9. Lifecycle cleanup: `__del__`, context managers, and `weakref.finalize`
+## 8. Construction: `__new__` versus `__init__`
 
-### 9.1 Why `__del__` is not reliable resource management
+Object creation and initialization are distinct phases:
 
-`__del__(self)` may be called when an object is about to be finalized, but its timing is not guaranteed in a portable way. Reference cycles, interpreter shutdown, resurrection, and exceptions inside finalizers make it unsuitable for reliably closing files, sockets, transactions, or database connections.
+1. `type.__call__` orchestrates construction for an ordinary class.
+2. `__new__(cls, ...)` creates and returns an instance (or potentially returns something else).
+3. If `__new__` returns an instance of `cls` or a subclass, Python calls `__init__(instance, ...)` to initialize that already-created object.
+4. If `__new__` returns an object that is not an instance of `cls`, `__init__` for `cls` is not called.
 
-Avoid this pattern:
+Most classes should implement `__init__` only. Override `__new__` when creation itself needs control, especially for immutable built-in subclasses, caching/factory behavior, or carefully designed singleton-like patterns.
 
 ```python
-class BadFileOwner:
-    def __init__(self, path):
-        self.file = open(path, "w", encoding="utf-8")
+class TracedJob:
+    def __new__(cls, name: str):
+        print("allocate")
+        return super().__new__(cls)
 
-    def __del__(self):
-        # Not a reliable guarantee that the file closes at a useful time.
-        self.file.close()
+    def __init__(self, name: str) -> None:
+        print("initialize")
+        self.name = name
+
+job = TracedJob("orders")
+# allocate
+# initialize
 ```
 
-The code is syntactically valid but intentionally demonstrates a design to avoid.
+An immutable built-in subclass commonly validates/transforms its value in `__new__`, because the immutable value must be established during creation:
 
-### 9.2 Prefer a context manager
+```python
+class PositiveCode(int):
+    def __new__(cls, value: int) -> PositiveCode:
+        if value <= 0:
+            raise ValueError("value must be positive")
+        return super().__new__(cls, value)
 
-A context manager makes the resource lifetime explicit and deterministic on normal control-flow exit, including when exceptions occur inside the block.
+assert PositiveCode(7) == 7
+```
+
+Copy and unpickle protocols may allocate an object without running the ordinary `__init__`; their job is to reconstruct state. Therefore, keep constructors focused and make state restoration establish the invariants it needs.
+
+## 9. `__init_subclass__`: a class-creation hook
+
+`__init_subclass__` runs when a subclass is created. It is useful for validating subclass declarations or building a registry without a metaclass. It is not called each time an instance is constructed.
+
+```python
+class JobPlugin:
+    registry: dict[str, type["JobPlugin"]] = {}
+
+    def __init_subclass__(cls, *, plugin_name: str | None = None, **kwargs: object) -> None:
+        super().__init_subclass__(**kwargs)
+        if plugin_name is None:
+            return
+        if plugin_name in JobPlugin.registry:
+            raise ValueError(f"duplicate plugin: {plugin_name}")
+        JobPlugin.registry[plugin_name] = cls
+
+class CsvJob(JobPlugin, plugin_name="csv"):
+    pass
+
+class JsonJob(JobPlugin, plugin_name="json"):
+    pass
+
+assert JobPlugin.registry["csv"] is CsvJob
+```
+
+Engineering points:
+
+- Call `super().__init_subclass__(**kwargs)` to cooperate with other hooks in the MRO.
+- Consume only the keyword arguments your class owns; pass the rest onward.
+- Decide whether abstract/intermediate subclasses should register.
+- Be cautious with import-time side effects and plugin registration.
+- `__set_name__` is another class-creation hook, used by descriptors to learn the attribute name assigned to them.
+- `__class_getitem__` supports class subscription syntax such as `MyType[int]` for generic-like APIs. `__instancecheck__` and `__subclasscheck__` can customize checks through a metaclass; they are advanced tools, not normal replacements for good interfaces.
+
+## 10. Finalization, `__del__`, and reliable cleanup
+
+### `__del__` is not a resource-management plan
+
+`__del__(self)` is a finalizer that may be invoked when an object is being finalized, but its timing and conditions are not a dependable cleanup contract. Cycles, implementation details, process termination, interpreter shutdown, and exceptions in finalizers complicate behavior. During shutdown, module globals or dependencies a finalizer expects may already be cleared. Finalizers can also participate in resurrection or keep objects alive in surprising ways.
+
+Never rely on `__del__` to guarantee that a file, socket, transaction, lock, or remote session is closed promptly. Do not write tests that assert a finalizer runs at a particular time after `del obj`. `del obj` removes a name; it does not itself guarantee immediate destruction.
+
+### Prefer deterministic cleanup: context managers
 
 ```python
 from pathlib import Path
 
-path = Path("example-output.txt")
-with path.open("w", encoding="utf-8") as stream:
-    stream.write("completed\n")
-
-assert path.read_text(encoding="utf-8") == "completed\n"
-path.unlink()
+def read_first_line(path: Path) -> str:
+    with path.open("r", encoding="utf-8") as handle:
+        return handle.readline()
 ```
 
-For custom resources, implement `__enter__` and `__exit__`, or use `contextlib` helpers. Database transactions, locks, temporary files, and network sessions should have explicit ownership and cleanup rules.
+The `with` statement calls the context manager's exit protocol when the block exits, including exceptional exits. For resources you own, implement or use a context manager and define who owns the resource. This is the preferred mechanism for deterministic cleanup.
 
-### 9.3 `weakref.finalize`
+### `weakref.finalize` as a fallback
 
-`weakref.finalize(obj, callback, *args, **kwargs)` registers a callback that can run when the target object is about to be finalized, without requiring the target class to define `__del__`. It is often easier to reason about than `__del__`, but it is still a fallback mechanism—not a substitute for explicit resource management.
+`weakref.finalize(obj, callback, *args, **kwargs)` registers a callback associated with `obj` becoming unreachable. The finalizer object keeps the callback and its arguments alive, but it must not hold a strong reference back to `obj`; otherwise the target may never become unreachable. A callback that is a bound method of the target is a common mistake because the bound method retains the target.
+
+Example pattern: the callback owns only the file handle, not the wrapper object.
 
 ```python
-import tempfile
+from pathlib import Path
 import weakref
+from typing import TextIO
 
-class TempPath:
-    def __init__(self):
-        handle = tempfile.NamedTemporaryFile(delete=False)
+def _close_handle(handle: TextIO) -> None:
+    if not handle.closed:
         handle.close()
-        self.path = handle.name
-        self._finalizer = weakref.finalize(self, self._remove, self.path)
 
-    @staticmethod
-    def _remove(path):
-        import os
-        try:
-            os.remove(path)
-        except FileNotFoundError:
-            pass
+class ManagedTextFile:
+    def __init__(self, path: Path) -> None:
+        self._handle = path.open("w", encoding="utf-8")
+        self._finalizer = weakref.finalize(self, _close_handle, self._handle)
 
-item = TempPath()
-assert item._finalizer.alive
-item._finalizer()  # Explicitly invoke cleanup now; later finalization is disabled.
-assert not item._finalizer.alive
+    def write(self, text: str) -> None:
+        self._handle.write(text)
+
+    def close(self) -> None:
+        # Calling the finalizer explicitly invokes the callback once and
+        # marks it dead; later finalization will not invoke it a second time.
+        self._finalizer()
+
+    def __enter__(self) -> ManagedTextFile:
+        return self
+
+    def __exit__(self, exc_type: object, exc: object, tb: object) -> None:
+        self.close()
 ```
 
-Important: the callback and its arguments must not accidentally keep a strong reference to the target object, or finalization may never happen. Here the callback is a static method and receives only the path string.
-
-### 9.4 `weakref.ref` and object reachability
-
-A weak reference allows code to refer to an object without keeping it alive. It is useful for caches and registries where entries should not by themselves prevent object collection. Not all Python objects support weak references; slotted classes generally need a `__weakref__` slot unless a base class already provides weak-reference support.
+Usage:
 
 ```python
-import weakref
-
-class Session:
-    pass
-
-session = Session()
-reference = weakref.ref(session)
-assert reference() is session
-
-del session
-assert reference() is None
+with ManagedTextFile(Path("pipeline.log")) as log:
+    log.write("pipeline started\n")
 ```
 
-The example assumes ordinary CPython behavior for this simple object; write portable code around reachability and weak-reference semantics, not around assumptions about exact garbage-collection timing.
+The context manager provides deterministic cleanup. The finalizer is a safety net, not a substitute for `close()`/`with`. For critical resources, test explicit cleanup and error paths.
 
-### 9.5 Object resurrection and shutdown
+### Cycles and garbage collection
 
-A finalizer can, in some circumstances, arrange for an object to become reachable again (“resurrection”). This is surprising and usually a design smell. During interpreter shutdown, module globals and logging facilities may already be partially dismantled, so cleanup code that depends on them can fail. Keep finalizers minimal and idempotent; perform essential cleanup explicitly.
+Reference cycles can keep objects reachable from one another even after external names disappear. Modern Python's cyclic garbage collector can collect many unreachable cycles, but collection timing is not a resource-lifetime guarantee. A finalizer may be called as part of cyclic collection, and finalization order among related objects should not be assumed. Design cleanup so it does not depend on another object being finalized first.
 
----
+### `weakref.ref` versus `weakref.finalize`
 
-## 10. Class-creation hooks: awareness and safe usage
+- `weakref.ref(obj)` creates a weak reference that does not keep `obj` alive; calling the weak reference returns the object while it remains alive, otherwise `None`.
+- `weakref.finalize(obj, callback, ...)` registers a one-shot callback associated with the target's finalization.
+- Many built-in and slotted objects are not weak-referenceable by default. For a custom slotted class, include `__weakref__` in `__slots__` if weak references are needed.
+- A weak-reference callback should not close over the target strongly. Avoid storing a bound method of the target as the callback.
 
-This lesson's main focus is instance copying, serialization, and lifecycle. The following hooks operate at class-creation time and connect to the next metaprogramming module.
+## 11. `__del__`, ownership, and process-local state
 
-| Hook | When it runs | Typical purpose |
-|---|---|---|
-| `__new__` | When an instance is created | Control allocation/value creation |
-| `__init__` | After instance creation | Initialize instance state |
-| `__init_subclass__` | When a subclass is created | Validate or register subclasses |
-| `__set_name__` | When a descriptor is assigned in a class body | Learn owner and attribute name |
-| `__class_getitem__` | When `SomeClass[...]` syntax is evaluated | Generic-style class subscription |
-| `__instancecheck__` / `__subclasscheck__` | During relevant `isinstance` / `issubclass` checks | Customize instance/subclass checks via a metaclass |
+A pipeline configuration is data; an open connection is a live resource. Separate these responsibilities.
 
-Do not confuse these class-definition hooks with `__del__`, which concerns instance finalization. Use the smallest hook that solves the problem; metaprogramming can make APIs harder to debug if used unnecessarily.
+- A durable `JobSpec` can be copied or serialized as data.
+- A database connection should be created by the worker that owns it and closed by an explicit context manager or lifecycle method.
+- A lock should be recreated in the receiving process rather than copied as if it were ordinary data.
+- A cache may be intentionally shared within one process but omitted from persisted state.
+- A finalizer can be useful as a fallback for cleanup, but should not decide transaction commit/rollback semantics.
 
----
+Do not put runtime-only state into a pickle merely because it happens to be an attribute. Define a clear boundary between durable configuration and runtime execution state.
 
-## 11. Identity, interning, and implementation details
-
-### 11.1 Identity is not value equality
-
-Use `is` for identity comparisons, especially `x is None`. Use `==` for value equality. Never use `is` to compare strings, numbers, timestamps, or business identifiers.
-
-```python
-first = "pipeline"
-second = "pipe" + "line"
-# Do not depend on whether these happen to be the same interned object.
-assert first == second
-```
-
-Python implementations may intern some strings or reuse some small integer objects. These are implementation optimizations, not application contracts. `id()` is not a stable ID across process runs.
-
-### 11.2 Caches and singleton assumptions
-
-A cache may intentionally return the same object for repeated inputs, but make that behavior explicit in the API. Do not accidentally depend on an implementation cache for correctness. Tests should assert documented identity guarantees only.
-
----
-
-## 12. Data-engineering case study: copying a pipeline configuration
-
-Imagine an ingestion pipeline has a shared schema, per-run options, a cache, and a lock. A run-specific variant should not accidentally mutate the default options, and a lock should not be duplicated or serialized as ordinary data.
-
-```python
-import copy
-import threading
-
-class PipelineConfig:
-    def __init__(self, dataset, options=None):
-        self.dataset = dataset
-        self.options = dict(options or {})
-        self.cache = {}
-        self._lock = threading.Lock()
-
-    def for_run(self, **overrides):
-        clone = copy.copy(self)
-        clone.options = {**self.options, **overrides}
-        clone.cache = {}  # run-scoped cache, deliberately not shared
-        clone._lock = threading.Lock()  # independent synchronization primitive
-        return clone
-
-    def __getstate__(self):
-        return {"dataset": self.dataset, "options": self.options}
-
-    def __setstate__(self, state):
-        self.dataset = state["dataset"]
-        self.options = dict(state["options"])
-        self.cache = {}
-        self._lock = threading.Lock()
-
-base = PipelineConfig("events", {"batch_size": 500, "mode": "incremental"})
-retry = base.for_run(batch_size=100)
-assert base.options["batch_size"] == 500
-assert retry.options["batch_size"] == 100
-assert retry.cache is not base.cache
-```
-
-The example's design choices are deliberate:
-
-- Per-run options are independent dictionaries.
-- The cache is recreated because it is transient state.
-- The lock is recreated because it is a runtime synchronization primitive.
-- Pickled state contains only the durable dataset identifier and options.
-
-In a real system, validate configuration values, avoid serializing credentials, decide whether the cache should be shared or reset, and test compatibility across the versions you actually deploy. If the configuration is intended to be a durable cross-language contract, a schema-based format may be preferable to pickle.
-
----
-
-## 13. Common mistakes and production risks
+## 12. Common mistakes and corrections
 
 | Mistake | Why it fails | Better approach |
 |---|---|---|
-| Treating assignment as copying | Both names point to one object | Choose aliasing or copy explicitly |
-| Assuming shallow copy isolates nested state | Child objects remain shared | Test nested identity; copy selected children or deep-copy intentionally |
-| Deep-copying everything | Expensive and may duplicate identity-bearing resources | Define an ownership and sharing policy |
-| Omitting `memo` handling in custom `__deepcopy__` | Cycles can recurse; aliases can be broken | Register clone in `memo` before copying children |
-| Pickling locks, connections, or open files directly | These are runtime resources, not portable data | Exclude them and recreate on restore |
-| Unpickling untrusted bytes | May execute arbitrary code | Use a safe data format and validate input |
-| Treating pickle as a durable schema | Class paths and code changes can break compatibility | Version schemas and use explicit migrations/formats |
-| Relying on `__del__` for essential cleanup | Timing is uncertain | Use context managers and explicit `close()` methods |
-| Finalizer captures target strongly | Target may never become collectible | Keep finalizer callbacks independent of target |
-| Assuming `frozen=True` makes nested values immutable | Nested lists/dicts can still mutate | Use immutable field types or defensive copies |
-| Depending on `id()` or interning | Behavior is not a persistent identity contract | Use explicit identifiers |
+| Treating assignment as copying | Both names refer to one object | Draw the reference graph; use an explicit copy policy |
+| Shallow-copying nested config and mutating it | Nested dicts/lists remain shared | Deep-copy the graph or copy only the fields that need isolation |
+| Assuming deep copy duplicates every object | Hooks and atomic/resource types can be shared or reject copying | Define and test semantics for each custom type |
+| Forgetting `memo` in `__deepcopy__` | Cycles can recurse forever; aliases can split | Memoize the clone before recursing and pass the same memo to every nested `deepcopy` |
+| Calling `copy.deepcopy(child)` without `memo` in a hook | Starts a separate copy traversal | Always call `copy.deepcopy(child, memo)` inside `__deepcopy__` |
+| Using `vars(obj)` on a slotted object | It may have no `__dict__` | Access slots explicitly or define state hooks |
+| Treating pickle as a permanent schema | Class paths and code/state layouts can change | Version state, test migrations, or use a stable data format |
+| Pickling lambdas, local classes, or live handles | Standard pickle relies on importable names and supported state | Move definitions to module scope; serialize durable data only |
+| Unpickling user-controlled bytes | Reconstruction can execute arbitrary code | Never unpickle untrusted data; validate a constrained format |
+| Using `__del__` to close resources | Timing/order are unreliable | Use `with`, explicit `close()`, and optionally `weakref.finalize` as fallback |
+| Registering a finalizer with a bound method of its target | The callback can keep the target alive | Pass a standalone callback and only the resource it needs |
+| Assuming `__init__` always runs during restore/copy | Reconstruction protocols may bypass it | Validate and restore invariants in the relevant hook |
+| Relying on small-int/string interning | Identity reuse is implementation-dependent | Compare values with `==`; use `is` for identity checks only |
+| Confusing `replace` with deep copy | Unchanged fields may still share nested objects | Test identities of changed and unchanged fields |
 
----
+## 13. Tests with `pytest`
 
-## 14. Testing strategy
-
-### 14.1 Copy behavior tests
-
-Test each documented invariant: equal values, distinct outer identity, nested sharing/isolation, cycle preservation, and intentional shared state.
+Save the following as `test_lesson11.py` in the same directory as a module containing the `JobSpec` definition, or keep the class in the test file for a standalone exercise. The tests below are self-contained when `JobSpec` is defined above them in the same file.
 
 ```python
 import copy
-
-class Box:
-    def __init__(self, items):
-        self.items = items
-
-box = Box([[1]])
-shallow = copy.copy(box)
-deep = copy.deepcopy(box)
-
-assert shallow is not box
-assert shallow.items is box.items
-assert deep.items is not box.items
-assert deep.items[0] is not box.items[0]
-```
-
-### 14.2 Pickle round-trip tests
-
-A round-trip test should verify the public contract, not necessarily identity equality with the original object.
-
-```python
 import pickle
-
-payload = {"offset": 25, "partition": "p-3"}
-restored = pickle.loads(pickle.dumps(payload))
-assert restored == payload
-assert restored is not payload
-```
-
-For custom classes, run tests from an importable module and include the actual supported Python versions and deployment process model. Test omitted transient state, recreated locks, validation, and schema-version migrations.
-
-### 14.3 Test resource cleanup explicitly
-
-Do not rely on garbage collection to prove cleanup works. Invoke `close()` or context-manager exit and assert the resource is closed. For `weakref.finalize`, test that explicit invocation performs cleanup and marks the finalizer dead; do not make fragile tests that depend on an exact time when garbage collection runs.
-
-### 14.4 Suggested pytest tests
-
-```python
-import copy
 import pytest
 
-@pytest.mark.parametrize("operation", [copy.copy, copy.deepcopy])
-def test_copy_returns_distinct_outer_container(operation):
-    original = {"values": [1, 2]}
-    duplicate = operation(original)
-    assert duplicate == original
-    assert duplicate is not original
+def make_job() -> JobSpec:
+    shared = {"tags": ["raw"]}
+    return JobSpec(
+        "orders",
+        settings={"defaults": shared, "retries": 2},
+        metadata={"defaults": shared, "owner": "data-platform"},
+    )
+
+def test_assignment_and_shallow_copy() -> None:
+    job = make_job()
+    alias = job
+    shallow = copy.copy(job)
+
+    assert alias is job
+    assert shallow is not job
+    assert shallow.settings is job.settings
+    assert shallow.settings["defaults"] is job.settings["defaults"]
+
+def test_deepcopy_detaches_and_preserves_internal_alias() -> None:
+    job = make_job()
+    clone = copy.deepcopy(job)
+
+    assert clone is not job
+    assert clone.settings is not job.settings
+    assert clone.settings == job.settings
+    assert clone.settings["defaults"] is clone.metadata["defaults"]
+    assert clone.settings["defaults"] is not job.settings["defaults"]
+
+    job.settings["defaults"]["tags"].append("changed")
+    assert "changed" not in clone.settings["defaults"]["tags"]
+
+def test_deepcopy_handles_cycle() -> None:
+    original: list[object] = []
+    original.append(original)
+
+    cloned = copy.deepcopy(original)
+
+    assert cloned is not original
+    assert cloned[0] is cloned
+
+def test_custom_deepcopy_handles_cycle_through_a_field() -> None:
+    job = JobSpec("cyclic", settings={}, metadata={})
+    job.settings["owner"] = job
+
+    clone = copy.deepcopy(job)
+
+    assert clone is not job
+    assert clone.settings["owner"] is clone
+
+def test_pickle_round_trip_restores_state() -> None:
+    job = make_job()
+    restored = pickle.loads(pickle.dumps(job))
+
+    assert isinstance(restored, JobSpec)
+    assert restored is not job
+    assert restored.name == job.name
+    assert restored.settings == job.settings
+    assert restored.settings is not job.settings
+    assert restored.settings["defaults"] is restored.metadata["defaults"]
+
+def test_legacy_state_version_migrates() -> None:
+    job = JobSpec.__new__(JobSpec)
+    job.__setstate__({
+        "version": 0,
+        "name": "orders",
+        "options": {"retries": 1},
+    })
+    assert job.settings == {"retries": 1}
+    assert job.metadata == {}
+
+def test_unsupported_state_version_fails() -> None:
+    job = JobSpec.__new__(JobSpec)
+    with pytest.raises(ValueError, match="Unsupported JobSpec state version"):
+        job.__setstate__({
+            "version": 999,
+            "name": "orders",
+            "settings": {},
+            "metadata": {},
+        })
 ```
 
-Extend this with assertions about nested identity appropriate to each operation. Parametrization is useful, but do not assert the same nested-object contract for shallow and deep copy.
+Run with:
 
----
-
-## 15. Exercises
-
-### Beginner
-
-1. Create a list, assign it to a second name, mutate through the second name, and explain the result using `is`.
-2. Create a nested dictionary and compare assignment, `copy.copy`, and `copy.deepcopy` by checking outer and inner identity.
-3. Explain why `id(obj)` is not a suitable persistent database primary key.
-4. Use `dataclasses.replace` to create a run configuration with a different retry count; test whether nested fields are shared.
-
-### Intermediate
-
-5. Implement a `__copy__` method for a `PipelineConfig` that copies run-specific options but shares an immutable schema object.
-6. Implement `__deepcopy__` for a `Node` graph that contains both cycles and repeated references. Prove that the copied graph preserves both relationships.
-7. Add `__getstate__` and `__setstate__` to a class containing a dictionary and `threading.Lock`; prove that data is restored and the lock is new.
-8. Write a top-level class in an importable module and test a pickle round trip in a fresh Python process.
-9. Replace a `__del__`-based file cleanup example with a context manager.
-
-### Advanced
-
-10. Design a versioned serialized state format and a migration function from version 1 to version 2. Explain why pickle alone does not solve schema evolution.
-11. Compare `__reduce__` with `__getstate__` / `__setstate__`; justify the simpler option for a class of your choice.
-12. Implement a `weakref.finalize` fallback for a temporary resource while preserving an explicit `close()` API. Ensure the callback does not strongly reference the owner.
-13. Review a dataclass containing a mutable list and a cache. Decide which fields should be immutable, copied, recomputed, or omitted from serialized state.
-14. Write a threat-model note explaining why signing a pickle is not a substitute for avoiding untrusted unpickling.
-
-## 16. Selected solutions and reasoning
-
-### Solution 1: assignment aliases
-
-```python
-items = ["extract"]
-other_name = items
-other_name.append("load")
-assert items == ["extract", "load"]
-assert other_name is items
+```bash
+python -m pytest -q
 ```
 
-Both names refer to one list. No new list was created.
+Expected test summary when run in a correctly configured Python 3.12+ environment:
 
-### Solution 2: shallow vs deep copy
+```text
+7 passed
+```
+
+The count is an expected summary, not a substitute for running the suite in your own supported environment. If the test file is split from the implementation, import `JobSpec` from its actual module rather than relying on a shared file namespace.
+
+### What these tests establish
+
+- identity versus aliasing;
+- shallow-copy sharing of nested fields;
+- deep-copy detachment while preserving graph-internal aliases;
+- self-referential built-in cycles and cycles passing through a custom `__deepcopy__`;
+- pickle round-trip state restoration;
+- migration from a legacy state version and rejection of an unsupported state version.
+
+Add tests for any project-specific policy, such as deliberately shared collaborators, omitted caches, migration from each supported state version, and resource cleanup on exceptions.
+
+## 14. Graduated exercises with worked solutions
+
+### Exercise 1 — Predict the references (beginner)
 
 ```python
 import copy
-source = {"nested": [1]}
-shallow = copy.copy(source)
-deep = copy.deepcopy(source)
-assert shallow is not source
-assert shallow["nested"] is source["nested"]
-assert deep["nested"] is not source["nested"]
+a = {"columns": ["id", "amount"]}
+b = copy.copy(a)
+c = copy.deepcopy(a)
+a["columns"].append("country")
 ```
 
-The shallow copy creates an independent outer dictionary, while deep copy also copies the nested list.
+Questions: Which list contains `"country"`? Are `a` and `b` identical? Are `a` and `b` equal after the mutation?
 
-### Solution 7: exclude and recreate a lock
+**Worked solution**
 
-Use the `Cache` implementation in Section 7.1. The key invariants are that the serialized state contains the durable data only and that `__setstate__` constructs a new `threading.Lock` after restoring the dictionary.
+- `a["columns"]` and `b["columns"]` refer to the same list, so both see `"country"`.
+- `a is b` is `False`: the outer dictionaries are distinct.
+- `a == b` is `True` after the mutation because their nested values compare equal.
+- `c["columns"]` does not contain `"country"` because its nested list was copied.
 
-### Solution 9: deterministic cleanup
+### Exercise 2 — Preserve an alias (intermediate)
 
-Use a `with` statement around the file or implement `__enter__` / `__exit__` on a resource-owning class. Essential cleanup should be explicit and tested; `__del__` may be a last-resort safety net but should not be the only cleanup path.
+Create a dict where `"left"` and `"right"` point to the same child dict. Deep-copy it and prove the clone keeps the internal alias while detaching from the original.
 
----
+**Worked solution**
 
-## 17. Quick reference
+```python
+child = {"limit": 5}
+source = {"left": child, "right": child}
+clone = copy.deepcopy(source)
 
-| Need | Preferred tool | Important caveat |
-|---|---|---|
-| Another reference to same object | Assignment | Mutations are shared |
-| New outer container | `copy.copy` | Nested references usually remain shared |
-| Independent supported object graph | `copy.deepcopy` | Expensive; custom objects/resources need care |
-| Change fields on a dataclass | `dataclasses.replace` | Shallow field reuse; initialization rules apply |
-| Generic replacement (Python 3.13+) | `copy.replace` | Requires a supported object / `__replace__` implementation |
-| Customize shallow copy | `__copy__` | Document which fields are shared |
-| Customize deep copy | `__deepcopy__(memo)` | Memoize clone before recursive copying |
-| Serialize trusted Python object state | `pickle` | Never unpickle untrusted input |
-| Exclude/recreate transient state | `__getstate__`, `__setstate__` | Plan schema evolution and secret handling |
-| Custom reconstruction recipe | `__reduce_ex__`, `__reduce__`, `copyreg` | Use only when simpler hooks are insufficient |
-| Deterministic resource cleanup | Context manager / `close()` | Explicit ownership and error handling |
-| Fallback cleanup callback | `weakref.finalize` | Callback must not retain target strongly |
-| Create immutable subclass value | `__new__` | Follow base type construction contract |
-| Validate/register subclasses | `__init_subclass__` | Class-creation hook, not instance lifecycle |
+assert clone["left"] is clone["right"]
+assert clone["left"] is not child
+```
 
-## 18. Completion checklist
+The memo table records the source child’s identity after it is copied; the second edge reuses that copied child.
 
-- [ ] I can explain aliasing with `is` and value equality with `==`.
-- [ ] I can predict the effects of shallow and deep copying on nested mutable state.
-- [ ] I can implement `__deepcopy__` with cycle and alias preservation.
-- [ ] I can choose between copy, deep copy, and copy-with-changes based on ownership requirements.
-- [ ] I can explain when `__new__` is necessary and how it differs from `__init__`.
-- [ ] I can serialize and restore a class while excluding locks or other runtime-only state.
-- [ ] I understand `__reduce__` / `__reduce_ex__` and when not to use them.
-- [ ] I can explain the security risk of unpickling untrusted data.
-- [ ] I use context managers for essential resource cleanup and understand the limits of finalizers.
-- [ ] I can explain `weakref.finalize`, `__init_subclass__`, and `__set_name__` at a practical level.
-- [ ] I have tests for identity, nested state, round trips, and cleanup behavior.
+### Exercise 3 — Fix a broken `__deepcopy__` (advanced)
 
-## Recommended study sequence
+This implementation is wrong:
 
-1. Type and run Sections 1–2; predict identities before executing.
-2. Implement the custom copy examples in Section 3 and deliberately remove the memo assignment to observe why cycle handling matters.
-3. Run the `dataclasses.replace` example; if using Python 3.13+, run the `copy.replace` example too.
-4. Run pickle examples only with trusted local data; test in an importable module.
-5. Compare custom state hooks with the `__reduce__` example and write down why one is simpler for your use case.
-6. Replace finalizer-only cleanup with explicit context management and add tests.
-7. Complete exercises 5–14 and include the resulting code in your module mini-project.
+```python
+def __deepcopy__(self, memo):
+    clone = type(self).__new__(type(self))
+    clone.child = copy.deepcopy(self.child)  # bug
+    return clone
+```
 
-**Module connection:** This lesson completes Module 11's data-model series. The next module, **Metaprogramming and Dynamic Python**, builds on class-creation hooks, descriptors, and runtime type behavior.
+**Worked solution**
+
+```python
+def __deepcopy__(self, memo):
+    existing = memo.get(id(self))
+    if existing is not None:
+        return existing
+    clone = type(self).__new__(type(self))
+    memo[id(self)] = clone
+    clone.child = copy.deepcopy(self.child, memo)
+    return clone
+```
+
+The fixed method uses the same memo for the full traversal and records the clone before descending, which handles both repeated references and cycles.
+
+### Exercise 4 — Persist data, not runtime resources (advanced)
+
+A class owns `settings`, an open file, and a lock. What should survive a pickle round trip?
+
+**Worked solution**
+
+Persist the durable settings and any stable logical identifiers. Omit the live file and lock from serialized state; in `__setstate__`, restore the settings and create new runtime resources only if that is the class's documented responsibility. Prefer a separate runtime wrapper/context manager so a pure configuration object does not own resources at all. Never deserialize untrusted pickle data.
+
+### Exercise 5 — Replace nondeterministic cleanup (advanced)
+
+A class closes a socket only in `__del__`. Rewrite its usage to make cleanup reliable.
+
+**Worked solution**
+
+Implement/use a context manager and close the socket in `__exit__` (or use `contextlib.closing` if the object exposes `close()`):
+
+```python
+from contextlib import closing
+
+with closing(open_socket()) as sock:
+    perform_work(sock)
+```
+
+`open_socket()` and `perform_work()` are application-specific placeholders. The key property is that the resource is closed as control leaves the `with` block, including when the body raises. A `weakref.finalize` callback may be an additional fallback, but it should not replace deterministic ownership.
+
+## 15. Roadmap self-check — answers
+
+1. **What is the difference between `__new__` and `__init__`, and when must you override `__new__`?**  
+   `__new__` creates and returns an instance; `__init__` initializes an instance already returned by `__new__`. Override `__new__` when creation itself must be customized, especially for immutable built-in subclasses, factories, or carefully controlled instance caching. Most ordinary classes need only `__init__`.
+
+2. **Why is `__getstate__` needed for a class holding a `threading.Lock`?**  
+   A lock is process-local runtime synchronization state and is not ordinarily picklable. `__getstate__` can omit it and return only durable data; `__setstate__` restores that data and creates a fresh lock if the restored object owns one. Prefer keeping runtime resources outside serializable configuration where possible.
+
+3. **Rewrite a `__del__`-based cleanup using `weakref.finalize` or a context manager.**  
+   Prefer a context manager with explicit `close()` in `__exit__` for deterministic cleanup. If a finalizer is appropriate as a fallback, register a standalone callback and pass only the resource to close; do not use a bound method that strongly retains the target object. The `ManagedTextFile` example above demonstrates both patterns.
+
+## 16. Final engineering checklist
+
+Before shipping code that copies, serializes, or finalizes objects, verify:
+
+- [ ] I know whether each operation creates an alias, a shallow copy, a deep copy, or serialized bytes.
+- [ ] I have documented which nested state must be independent and which sharing is intentional.
+- [ ] My tests assert identity (`is`) and value equality (`==`) separately.
+- [ ] Custom `__deepcopy__` checks `memo`, registers the clone before recursion, and passes the same memo to nested copies.
+- [ ] Shared references and cycles are tested explicitly.
+- [ ] Copy behavior for slots, inheritance, frozen dataclasses, weak references, and resource fields is deliberate.
+- [ ] Pickle state excludes live resources and contains an explicit version where persistence requires migration.
+- [ ] Restoration is tested without assuming `__init__` runs.
+- [ ] I understand that `__reduce__` controls reconstruction and that class/function import paths affect compatibility.
+- [ ] I never unpickle data that an attacker can control.
+- [ ] Resource ownership is explicit; critical cleanup uses `with` or `close()`, not `__del__`.
+- [ ] Any `weakref.finalize` callback does not strongly retain the target.
+- [ ] I do not depend on garbage-collection timing, finalizer ordering, object resurrection, interning, or `id()` reuse.
+- [ ] I have run the tests in the supported Python versions and recorded the actual results.
+
+## Key takeaways
+
+1. A copy is a graph transformation; decide the intended aliasing semantics first.
+2. `deepcopy`'s memo is what lets a traversal preserve shared nodes and cycles.
+3. Pickle is a Python reconstruction protocol, not a safe untrusted-input format or a universal long-term schema.
+4. `__new__` creates; `__init__` initializes; `__init_subclass__` runs during subclass creation.
+5. Deterministic resource ownership beats destructor timing. Use context managers first and finalizers only as a fallback.
