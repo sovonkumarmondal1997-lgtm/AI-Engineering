@@ -1,0 +1,88 @@
+product:
+  name: customer_360
+  version: "2.1.0"
+  lifecycle_status: active
+  description: "Governed customer profile for support and customer analytics."
+  purpose: "Provide a consent-aware, current view of customer identity links, lifecycle, preferences, and recent interactions."
+  non_goals:
+    - "Not a system of record for legal identity."
+    - "Not approved for automated credit or eligibility decisions."
+  owner:
+    team: "customer-data"
+    business_owner: "customer-product-owner"
+    technical_owner: "customer-data-oncall"
+    support_channel: "#customer-data-support"
+    escalation: "customer-data-oncall@example.invalid"
+  consumers:
+    - "customer-support"
+    - "customer-analytics"
+    - "personalization-service"
+  output_port:
+    type: "table"
+    address: "lakehouse.customer.customer_360"
+    format: "delta"
+  schema:
+    - name: customer_key
+      type: string
+      nullable: false
+      description: "Stable internal customer key."
+      key: primary
+    - name: profile_updated_at
+      type: datetime
+      nullable: false
+      description: "UTC time of last profile update."
+    - name: consent_status
+      type: string
+      nullable: false
+      description: "Current permitted-use status."
+    - name: lifetime_order_count
+      type: integer
+      nullable: false
+      description: "Count of eligible orders under the documented order definition."
+    - name: last_order_at
+      type: datetime
+      nullable: true
+      description: "UTC time of latest eligible order."
+  lineage:
+    sources:
+      - "orders"
+      - "customer_preferences"
+      - "support_interactions"
+    transformation: "Resolve identity links under approved rules; apply consent filtering; aggregate eligible order and interaction facts."
+  classification: confidential
+  retention_days: 365
+  access:
+    default: "deny"
+    roles:
+      - name: "customer-support"
+        permissions: ["read"]
+      - name: "personalization-service"
+        permissions: ["read:consented-fields"]
+      - name: "customer-data-owner"
+        permissions: ["read", "write", "admin"]
+    restricted_fields: ["customer_key"]
+  slos:
+    freshness:
+      max_age_minutes: 60
+      target_percent: 99.0
+      window_days: 30
+      probe_interval_minutes: 60
+    completeness:
+      min_expected_row_ratio_percent: 99.0
+      target_percent: 99.0
+      window_days: 30
+      probe_interval_minutes: 60
+    quality:
+      max_duplicate_order_ids: 0
+      max_null_order_ids: 0
+  contract:
+    compatibility_policy: "backward-compatible additive changes only within v2"
+    deprecation_notice_days: 120
+    support_hours: "24x5; P1 privacy or profile corruption incident acknowledged within 15 minutes"
+  documentation:
+    catalogue_url: "https://catalog.example.invalid/products/customer_360"
+    sample_query: "SELECT consent_status, COUNT(*) FROM lakehouse.customer.customer_360 GROUP BY consent_status"
+    changelog:
+      - version: "2.1.0"
+        date: "2026-09-15"
+        change: "Added consent-aware access notes."

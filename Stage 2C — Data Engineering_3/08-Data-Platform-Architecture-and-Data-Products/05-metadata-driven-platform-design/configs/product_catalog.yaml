@@ -1,0 +1,28 @@
+schema_version: "3.0"
+pipeline_id: "erp_product_catalog"
+description: "Ingest product catalogue from ERP extract"
+source:
+  system: "erp"
+  object: "product_catalog"
+  connector: "csv_file"
+  connection_ref: "local.erp_products"
+  extraction_mode: "incremental"
+  keys: ["sku"]
+  columns: ["sku", "name", "category", "modified_at"]
+  dbt_schema: "erp_raw"
+  watermark: "modified_at"
+  cdc_cursor: null
+target:
+  layer: "silver"
+  dataset: "erp_product_catalog"
+quality_checks:
+  - type: "not_null"
+    column: "sku"
+  - type: "unique"
+    column: "sku"
+schedule: "30 2 * * *"
+owner: "product-data@example.com"
+classification: "public"
+retention_days: 1825
+tags: ["product", "catalog"]
+custom_logic: null

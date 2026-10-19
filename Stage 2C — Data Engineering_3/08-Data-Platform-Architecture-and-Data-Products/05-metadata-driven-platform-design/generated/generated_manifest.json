@@ -1,0 +1,14 @@
+{
+  "schema_version": "3.0",
+  "generator_version": "0.2.0",
+  "artifacts": {
+    "commerce_orders.plan.json": "c3c2a7bf44c06b612468008fd9ce7d521e1e6fa867c1ac446b63c7fa91a86694",
+    "crm_customers.plan.json": "883a2b58ea884db6458fda2a0ea1e3fc6926905d416577d68db3ed471d96cc87",
+    "erp_product_catalog.plan.json": "fcb956d92335828fab0c477c310e3e841b96e9a655da0908944110394e31e61a",
+    "governance_policies.json": "8526d2155502204ee0bbcb6f38c0ba60c3930363da11d58a098543d4378017d7",
+    "sources.yml": "8fdf187c771a6c4293f82661c09db8a282090282f82cb4ece3661c8f0261667f",
+    "stg_commerce_orders.sql": "59e6f24db8250cf99fbc56cca30ea0d551c94623b7644bdd5e444b76c921a5b3",
+    "stg_crm_customers.sql": "6833e5b44e6827de0885850458feece57d99c2dd60b6f9e70435751213161608",
+    "stg_erp_product_catalog.sql": "74a3cc64c02abba767672840492899a3b11be044d34fc82f74822b73d74a88eb"
+  }
+}

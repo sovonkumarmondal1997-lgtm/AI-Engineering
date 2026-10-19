@@ -1,0 +1,71 @@
+{
+  "product": "orders",
+  "version": "1.2.0",
+  "spec_validation": "passed",
+  "snapshot_evaluation": {
+    "observed_at": "2026-10-19T09:00:00Z",
+    "latest_event_age_minutes": 8.0,
+    "freshness_sli_pass": true,
+    "expected_rows": 1000,
+    "actual_rows": 997,
+    "completeness_percent": 99.7,
+    "completeness_sli_pass": true,
+    "quality_sli_pass": true,
+    "overall_pass": true
+  },
+  "freshness_error_budget": {
+    "window_start": "2026-10-19T00:00:00Z",
+    "window_end": "2026-10-19T10:00:00Z",
+    "probes_observed": 10,
+    "sli_failures_observed": 1,
+    "observed_failure_percent": 10.0,
+    "sli": "freshness",
+    "target_percent": 99.0,
+    "configured_window_days": 30,
+    "configured_probe_interval_minutes": 60,
+    "expected_probes_per_slo_window": 720,
+    "allowed_failed_probes_per_slo_window": 7.2,
+    "budget_consumed_percent": 13.889,
+    "error_rate_burn_multiple": 10.0,
+    "warning": "This is a simple cumulative budget-consumption ratio, not a time-normalized burn-rate alert."
+  },
+  "completeness_error_budget": {
+    "window_start": "2026-10-19T00:00:00Z",
+    "window_end": "2026-10-19T10:00:00Z",
+    "probes_observed": 10,
+    "sli_failures_observed": 0,
+    "observed_failure_percent": 0.0,
+    "sli": "completeness",
+    "target_percent": 99.0,
+    "configured_window_days": 30,
+    "configured_probe_interval_minutes": 60,
+    "expected_probes_per_slo_window": 720,
+    "allowed_failed_probes_per_slo_window": 7.2,
+    "budget_consumed_percent": 0.0,
+    "error_rate_burn_multiple": 0.0,
+    "warning": "This is a simple cumulative budget-consumption ratio, not a time-normalized burn-rate alert."
+  },
+  "schema_change": {
+    "old_version": "1.2.0",
+    "new_version": "2.0.0",
+    "removed_fields": [
+      "order_status"
+    ],
+    "added_fields": [
+      "source_system",
+      "status_code"
+    ],
+    "breaking": true,
+    "recommended_action": "publish a parallel major version, migrate consumers, then retire old version after notice period"
+  },
+  "consumer_notification": {
+    "mechanism": "local-json-outbox",
+    "sent": false,
+    "recipient_count": 3,
+    "outbox_file": "/mnt/data/experiments/03_data_products/reports/notification_outbox.json"
+  },
+  "catalogue_registration": {
+    "status": "not_attempted",
+    "reason": "No live DataHub/OpenMetadata server or credentials configured; local spec/catalogue metadata only."
+  }
+}

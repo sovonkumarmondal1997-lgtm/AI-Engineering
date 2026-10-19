@@ -1,0 +1,9 @@
+{
+  "observed_at": "2026-10-19T09:00:00Z",
+  "latest_event_at": "2026-10-19T08:52:00Z",
+  "expected_rows": 1000,
+  "actual_rows": 997,
+  "duplicate_order_ids": 0,
+  "null_order_ids": 0,
+  "invalid_rows": 0
+}

@@ -1,0 +1,4 @@
+-- Generated from {{ pipeline.pipeline_id }} (schema {{ pipeline.schema_version }})
+{{ dbt_config_line }}
+select {{ columns | join(', ') }}
+from {{ source_call }}

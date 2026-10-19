@@ -1,0 +1,93 @@
+{
+  "scale": {
+    "1": "Materially fails requirement",
+    "2": "Major gaps",
+    "3": "Meets minimum based on current hypothesis",
+    "4": "Strong expected fit, evidence still to collect",
+    "5": "Exceeds requirement with strong evidence"
+  },
+  "weights": {
+    "functionality_source_coverage": 18,
+    "scalability": 10,
+    "security_compliance": 15,
+    "integration": 12,
+    "operability": 14,
+    "ecosystem": 5,
+    "support": 7,
+    "roadmap_viability": 5,
+    "lock_in_portability": 7,
+    "price_predictability": 7
+  },
+  "criteria_descriptions": {
+    "functionality_source_coverage": "Critical source and object coverage, incremental/delete semantics, schema drift, backfill",
+    "scalability": "Ability to meet freshness and throughput as usage grows",
+    "security_compliance": "IAM, secrets, audit, data processing terms, region and security gates",
+    "integration": "Warehouse, orchestration, secrets, CI/CD and lineage integration",
+    "operability": "Retries, replay, upgrades, alerting, incident triage and on-call burden",
+    "ecosystem": "Available skills, integrations, hiring pool and community",
+    "support": "Contractual response, escalation and reference quality",
+    "roadmap_viability": "Governance, release cadence, vendor/project viability",
+    "lock_in_portability": "Data/config export, destination neutrality, tested migration path",
+    "price_predictability": "Usage definition, quote, caps/alerts, renewal and overage terms"
+  },
+  "candidate_scores": {
+    "fivetran_managed": {
+      "functionality_source_coverage": 4,
+      "scalability": 4,
+      "security_compliance": 3,
+      "integration": 4,
+      "operability": 5,
+      "ecosystem": 4,
+      "support": 4,
+      "roadmap_viability": 4,
+      "lock_in_portability": 2,
+      "price_predictability": 2
+    },
+    "airbyte_self_managed": {
+      "functionality_source_coverage": 3,
+      "scalability": 4,
+      "security_compliance": 3,
+      "integration": 4,
+      "operability": 2,
+      "ecosystem": 4,
+      "support": 2,
+      "roadmap_viability": 3,
+      "lock_in_portability": 4,
+      "price_predictability": 4
+    },
+    "custom_dlt": {
+      "functionality_source_coverage": 2,
+      "scalability": 3,
+      "security_compliance": 3,
+      "integration": 4,
+      "operability": 2,
+      "ecosystem": 3,
+      "support": 2,
+      "roadmap_viability": 3,
+      "lock_in_portability": 4,
+      "price_predictability": 4
+    }
+  },
+  "evidence_status": "All scores are illustrative hypotheses for teaching, not measured or verified vendor-specific results. Every candidate hard-gate status is NOT_ASSESSED. Replace with dated documentation, POC measurements, references and written commercial quotes before approval.",
+  "hard_gates": [
+    "Critical source/object coverage and update/delete semantics",
+    "Security/legal/privacy approval",
+    "Visible failure, retry/backfill and reconciliation",
+    "Acceptable export, termination and deletion terms"
+  ],
+  "candidate_labels": {
+    "fivetran_managed": "Fivetran managed ingestion (illustrative hypothesis; verify connector/plan fit)",
+    "airbyte_self_managed": "Airbyte self-managed (illustrative hypothesis; verify deployment/connector fit)",
+    "custom_dlt": "Custom dlt-based ingestion (illustrative hypothesis; implementation owned by team)"
+  },
+  "hard_gate_status": {
+    "fivetran_managed": "NOT_ASSESSED",
+    "airbyte_self_managed": "NOT_ASSESSED",
+    "custom_dlt": "NOT_ASSESSED"
+  },
+  "candidate_rationale": {
+    "fivetran_managed": "Hypothesis only: expect lower routine connector operations and broad standard-source coverage, offset by usage-billing uncertainty and higher switching costs. Validate with source inventory, POC, quote, export test, references, and security/legal review.",
+    "airbyte_self_managed": "Hypothesis only: expect greater deployment control and potentially predictable licence economics, offset by team-owned upgrades, scaling, security, support, and incident response. Validate exact Core connectors/version, staffing, capacity, licence, and recovery.",
+    "custom_dlt": "Hypothesis only: expect source-specific control and code ownership, offset by custom connector build effort and ongoing maintenance/on-call. Measure engineering time, correctness, failure recovery, security, and exit work in the POC."
+  }
+}

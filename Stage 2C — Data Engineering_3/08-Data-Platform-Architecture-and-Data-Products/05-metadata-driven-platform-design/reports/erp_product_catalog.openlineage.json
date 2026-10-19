@@ -1,0 +1,30 @@
+{
+  "eventType": "OTHER",
+  "eventTime": "2026-10-19T09:03:56.394987+00:00",
+  "run": {
+    "runId": "demo-run-3"
+  },
+  "job": {
+    "namespace": "urn:metadata-platform-lab:job",
+    "name": "erp_product_catalog",
+    "facets": {
+      "documentation": {
+        "description": "Local simulation only; no data-plane execution occurred."
+      }
+    }
+  },
+  "inputs": [
+    {
+      "namespace": "urn:metadata-platform-lab:source:erp",
+      "name": "product_catalog"
+    }
+  ],
+  "outputs": [
+    {
+      "namespace": "urn:metadata-platform-lab:target:silver",
+      "name": "erp_product_catalog"
+    }
+  ],
+  "producer": "https://example.invalid/metadata-platform-lab",
+  "schemaURL": "https://openlineage.io/spec/2-0-2/OpenLineage.json"
+}

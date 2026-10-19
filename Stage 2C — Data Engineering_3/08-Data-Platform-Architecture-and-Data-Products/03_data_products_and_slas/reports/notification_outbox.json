@@ -1,0 +1,20 @@
+{
+  "mechanism": "local-json-outbox",
+  "sent": false,
+  "reason": "simulation only; no SMTP/API configured",
+  "message": "orders v2.0.0 is planned as a breaking release; migrate by 2027-01-17. See migration guide in the product documentation.",
+  "recipients": [
+    {
+      "name": "finance-analytics",
+      "email": "finance-analytics@example.invalid"
+    },
+    {
+      "name": "customer-analytics",
+      "email": "customer-analytics@example.invalid"
+    },
+    {
+      "name": "operations-reporting",
+      "email": "operations-reporting@example.invalid"
+    }
+  ]
+}

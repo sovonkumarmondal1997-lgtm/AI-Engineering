@@ -1,0 +1,89 @@
+product:
+  name: orders
+  version: "1.2.0"
+  lifecycle_status: active
+  description: "Curated order facts for analytics and operational reporting."
+  purpose: "Provide one row per order with stable order status, timestamps, currency, and order amount semantics."
+  non_goals:
+    - "Does not represent recognized accounting revenue."
+    - "Does not expose payment-card data or raw authentication secrets."
+  owner:
+    team: "commerce-data"
+    business_owner: "orders-product-owner"
+    technical_owner: "orders-data-oncall"
+    support_channel: "#orders-data-support"
+    escalation: "commerce-data-oncall@example.invalid"
+  consumers:
+    - "finance-analytics"
+    - "customer-analytics"
+    - "operations-reporting"
+  output_port:
+    type: "table"
+    address: "lakehouse.analytics.orders"
+    format: "parquet"
+  schema:
+    - name: order_id
+      type: string
+      nullable: false
+      description: "Stable unique order identifier."
+      key: primary
+    - name: customer_id
+      type: string
+      nullable: false
+      description: "Pseudonymous customer identifier."
+    - name: ordered_at
+      type: datetime
+      nullable: false
+      description: "UTC timestamp when the order was accepted."
+    - name: order_status
+      type: string
+      nullable: false
+      description: "accepted, cancelled, fulfilled, or refunded."
+    - name: currency
+      type: string
+      nullable: false
+      description: "ISO 4217 currency code."
+    - name: order_total
+      type: number
+      nullable: false
+      description: "Gross order amount in the stated currency, before finance recognition rules."
+  lineage:
+    sources:
+      - "commerce.orders"
+      - "commerce.order_lines"
+    transformation: "Normalize order status; aggregate order lines; retain cancelled orders with explicit status."
+  classification: internal
+  retention_days: 400
+  access:
+    default: "deny"
+    roles:
+      - name: "orders-consumer"
+        permissions: ["read"]
+      - name: "orders-owner"
+        permissions: ["read", "write", "admin"]
+    restricted_fields: []
+  slos:
+    freshness:
+      max_age_minutes: 15
+      target_percent: 99.0
+      window_days: 30
+      probe_interval_minutes: 60
+    completeness:
+      min_expected_row_ratio_percent: 99.5
+      target_percent: 99.0
+      window_days: 30
+      probe_interval_minutes: 60
+    quality:
+      max_duplicate_order_ids: 0
+      max_null_order_ids: 0
+  contract:
+    compatibility_policy: "backward-compatible additive changes only within v1"
+    deprecation_notice_days: 90
+    support_hours: "business hours, 09:00-18:00 Asia/Kolkata; P1 data incidents acknowledged within 30 minutes"
+  documentation:
+    catalogue_url: "https://catalog.example.invalid/products/orders"
+    sample_query: "SELECT order_status, COUNT(*) FROM lakehouse.analytics.orders GROUP BY order_status"
+    changelog:
+      - version: "1.2.0"
+        date: "2026-10-01"
+        change: "Documented explicit cancellation semantics; no schema change."

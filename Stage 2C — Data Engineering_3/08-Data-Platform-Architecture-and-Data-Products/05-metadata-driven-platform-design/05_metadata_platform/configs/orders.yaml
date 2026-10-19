@@ -1,0 +1,25 @@
+schema_version: "2.0"
+pipeline_id: "commerce_orders"
+description: "Ingest orders from commerce export"
+source:
+  system: "commerce"
+  object: "orders"
+  connector: "csv_file"
+  connection_ref: "local.commerce_orders"
+  extraction_mode: "full"
+  keys: ["order_id"]
+  watermark: null
+target:
+  layer: "bronze"
+  dataset: "commerce_orders"
+quality_checks:
+  - type: "not_null"
+    column: "order_id"
+  - type: "unique"
+    column: "order_id"
+schedule: "*/15 * * * *"
+owner: "commerce-analytics@example.com"
+classification: "internal"
+retention_days: 730
+tags: ["orders", "commerce"]
+custom_logic: null

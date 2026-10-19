@@ -1,0 +1,80 @@
+{
+  "pipeline_id": "crm_customers",
+  "schema_version": "3.0",
+  "generator_version": "0.2.0",
+  "config_digest": "6c4fd3104126d9fd73f09ca768b773f854c4278154dd483c901fbea30ac36275",
+  "source": {
+    "system": "crm",
+    "object": "customers",
+    "connector": "csv_file",
+    "connection_ref": "local.crm_customers",
+    "extraction_mode": "incremental",
+    "keys": [
+      "customer_id"
+    ],
+    "columns": [
+      "customer_id",
+      "email",
+      "full_name",
+      "updated_at"
+    ],
+    "dbt_schema": "crm_raw",
+    "watermark": "updated_at",
+    "cdc_cursor": null
+  },
+  "target": {
+    "layer": "bronze",
+    "dataset": "crm_customers"
+  },
+  "schedule": "0 * * * *",
+  "owner": "crm-data@example.com",
+  "quality_checks": [
+    {
+      "type": "not_null",
+      "column": "customer_id",
+      "values": null
+    },
+    {
+      "type": "unique",
+      "column": "customer_id",
+      "values": null
+    },
+    {
+      "type": "not_null",
+      "column": "updated_at",
+      "values": null
+    }
+  ],
+  "governance": {
+    "pipeline_id": "crm_customers",
+    "classification": "confidential",
+    "masking": {
+      "mask_pii": true,
+      "policy": "mask_email_phone_in_nonprod"
+    },
+    "retention": {
+      "days": 365,
+      "action": "expire_or_delete_after_retention",
+      "enforcement_status": "policy_artifact_only"
+    },
+    "owner": "crm-data@example.com",
+    "owner_notifications": {
+      "on_failure": true,
+      "on_quality_failure": true,
+      "recipient": "crm-data@example.com"
+    },
+    "access_review_required": true,
+    "enforcement_status": "policy_artifact_only"
+  },
+  "execution": {
+    "mode": "local_simulation",
+    "checkpoint_key": "crm_customers:watermark",
+    "retry_policy": {
+      "max_attempts": 3,
+      "backoff": "exponential"
+    },
+    "idempotency_key": "pipeline_id + source_window + config_digest",
+    "custom_logic_requested": null,
+    "custom_logic_executed": false
+  }
+}

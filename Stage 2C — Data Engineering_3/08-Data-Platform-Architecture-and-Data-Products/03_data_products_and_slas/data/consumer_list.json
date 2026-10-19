@@ -1,0 +1,7 @@
+{
+  "consumers": [
+    {"name": "finance-analytics", "email": "finance-analytics@example.invalid"},
+    {"name": "customer-analytics", "email": "customer-analytics@example.invalid"},
+    {"name": "operations-reporting", "email": "operations-reporting@example.invalid"}
+  ]
+}

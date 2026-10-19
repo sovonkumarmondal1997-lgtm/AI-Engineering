@@ -1,0 +1,16 @@
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: tenant_lab
+      POSTGRES_USER: lab_admin
+      POSTGRES_PASSWORD: lab_admin_local_only
+    ports:
+      - "55432:5432"
+    volumes:
+      - ./postgres/bootstrap.sql:/docker-entrypoint-initdb.d/001-bootstrap.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lab_admin -d tenant_lab"]
+      interval: 2s
+      timeout: 3s
+      retries: 30

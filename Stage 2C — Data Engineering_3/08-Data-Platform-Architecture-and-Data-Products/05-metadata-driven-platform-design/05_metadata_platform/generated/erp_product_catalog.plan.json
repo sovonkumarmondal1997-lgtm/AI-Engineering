@@ -1,0 +1,58 @@
+{
+  "pipeline_id": "erp_product_catalog",
+  "schema_version": "2.0",
+  "config_digest": "785823c3e312ec26f839d96b0ed1db61158a566935a65c3300462135bc09fdb4",
+  "source": {
+    "system": "erp",
+    "object": "product_catalog",
+    "connector": "csv_file",
+    "connection_ref": "local.erp_products",
+    "extraction_mode": "incremental",
+    "keys": [
+      "sku"
+    ],
+    "watermark": "modified_at"
+  },
+  "target": {
+    "layer": "silver",
+    "dataset": "erp_product_catalog"
+  },
+  "schedule": "30 2 * * *",
+  "owner": "product-data@example.com",
+  "quality_checks": [
+    {
+      "type": "not_null",
+      "column": "sku",
+      "values": null
+    },
+    {
+      "type": "unique",
+      "column": "sku",
+      "values": null
+    }
+  ],
+  "governance": {
+    "pipeline_id": "erp_product_catalog",
+    "classification": "public",
+    "masking": {
+      "mask_pii": false,
+      "policy": "no_default_masking"
+    },
+    "retention": {
+      "days": 1825,
+      "action": "expire_or_delete_after_retention"
+    },
+    "owner": "product-data@example.com",
+    "access_review_required": false
+  },
+  "execution": {
+    "mode": "local_simulation",
+    "checkpoint_key": "erp_product_catalog:watermark",
+    "retry_policy": {
+      "max_attempts": 3,
+      "backoff": "exponential"
+    },
+    "idempotency_key": "pipeline_id + source_window + config_digest",
+    "custom_logic": null
+  }
+}

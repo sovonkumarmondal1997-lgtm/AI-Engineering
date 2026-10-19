@@ -1,0 +1,3 @@
+order_id,customer_id,amount,status
+O-100,1,49.95,paid
+O-101,2,19.50,pending

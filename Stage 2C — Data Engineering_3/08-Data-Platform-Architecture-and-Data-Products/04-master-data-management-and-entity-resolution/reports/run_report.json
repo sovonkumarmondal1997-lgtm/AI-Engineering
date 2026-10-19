@@ -1,0 +1,798 @@
+{
+  "record_count": 21,
+  "candidate_generation": {
+    "record_count": 21,
+    "labelled_record_count": 21,
+    "unlabelled_record_count": 0,
+    "all_possible_pairs": 210,
+    "all_possible_labelled_pairs": 210,
+    "all_ground_truth_match_pairs": 11,
+    "candidate_true_pairs": 11,
+    "blocking_recall": 1.0,
+    "blocking_recall_defined": true,
+    "candidate_pairs": 13,
+    "reduction_ratio": 0.9381
+  },
+  "deterministic_metrics": {
+    "candidate_pairs": 13,
+    "labelled_candidate_pairs": 13,
+    "unlabelled_candidate_pairs": 0,
+    "candidate_ground_truth_match_pairs": 11,
+    "predicted_matches": 11,
+    "true_positives": 11,
+    "false_positives": 0,
+    "false_negatives_within_candidates": 0,
+    "precision": 1.0,
+    "recall_within_candidates": 1.0,
+    "f1_within_candidates": 1.0,
+    "precision_defined": true,
+    "recall_defined": true,
+    "f1_defined": true
+  },
+  "probabilistic_metrics": {
+    "candidate_pairs": 13,
+    "labelled_candidate_pairs": 13,
+    "unlabelled_candidate_pairs": 0,
+    "candidate_ground_truth_match_pairs": 11,
+    "predicted_matches": 8,
+    "true_positives": 8,
+    "false_positives": 0,
+    "false_negatives_within_candidates": 3,
+    "precision": 1.0,
+    "recall_within_candidates": 0.7273,
+    "f1_within_candidates": 0.8421,
+    "precision_defined": true,
+    "recall_defined": true,
+    "f1_defined": true
+  },
+  "uncertain_pairs": [
+    {
+      "left_id": "WEB-101",
+      "right_id": "BILL-201",
+      "left_entity": "E1",
+      "right_entity": "E1",
+      "ground_truth_match": true,
+      "score": 8.5,
+      "decision": "review",
+      "features": {
+        "email_exact": false,
+        "phone_exact": true,
+        "dob_exact": true,
+        "postcode_exact": true,
+        "name_similarity": 0.9,
+        "name_token_similarity": 0.3333,
+        "address_similarity": 0.6875
+      }
+    },
+    {
+      "left_id": "CRM-003",
+      "right_id": "BILL-203",
+      "left_entity": "E3",
+      "right_entity": "E3",
+      "ground_truth_match": true,
+      "score": 7.0,
+      "decision": "review",
+      "features": {
+        "email_exact": false,
+        "phone_exact": true,
+        "dob_exact": true,
+        "postcode_exact": true,
+        "name_similarity": 0.8235,
+        "name_token_similarity": 0.3333,
+        "address_similarity": 0.6967
+      }
+    },
+    {
+      "left_id": "CRM-002",
+      "right_id": "CRM-012",
+      "left_entity": "E2",
+      "right_entity": "E11",
+      "ground_truth_match": false,
+      "score": 8.0,
+      "decision": "review",
+      "features": {
+        "email_exact": false,
+        "phone_exact": true,
+        "dob_exact": false,
+        "postcode_exact": true,
+        "name_similarity": 0.9655,
+        "name_token_similarity": 0.3333,
+        "address_similarity": 1.0
+      }
+    },
+    {
+      "left_id": "CRM-008",
+      "right_id": "WEB-108",
+      "left_entity": "E8",
+      "right_entity": "E8",
+      "ground_truth_match": true,
+      "score": 8.5,
+      "decision": "review",
+      "features": {
+        "email_exact": false,
+        "phone_exact": true,
+        "dob_exact": true,
+        "postcode_exact": true,
+        "name_similarity": 1.0,
+        "name_token_similarity": 1.0,
+        "address_similarity": 0.8462
+      }
+    },
+    {
+      "left_id": "WEB-102",
+      "right_id": "CRM-012",
+      "left_entity": "E2",
+      "right_entity": "E11",
+      "ground_truth_match": false,
+      "score": 8.0,
+      "decision": "review",
+      "features": {
+        "email_exact": false,
+        "phone_exact": true,
+        "dob_exact": false,
+        "postcode_exact": true,
+        "name_similarity": 1.0,
+        "name_token_similarity": 1.0,
+        "address_similarity": 0.9444
+      }
+    }
+  ],
+  "clusters": [
+    [
+      "BILL-201",
+      "CRM-001",
+      "WEB-101"
+    ],
+    [
+      "BILL-203"
+    ],
+    [
+      "CRM-002",
+      "WEB-102"
+    ],
+    [
+      "CRM-003"
+    ],
+    [
+      "CRM-004",
+      "WEB-104"
+    ],
+    [
+      "CRM-005",
+      "WEB-105"
+    ],
+    [
+      "CRM-006",
+      "WEB-106"
+    ],
+    [
+      "CRM-007",
+      "WEB-107"
+    ],
+    [
+      "CRM-008"
+    ],
+    [
+      "CRM-009",
+      "WEB-109"
+    ],
+    [
+      "CRM-010"
+    ],
+    [
+      "CRM-012"
+    ],
+    [
+      "WEB-108"
+    ]
+  ],
+  "cross_reference": [
+    {
+      "record_id": "BILL-201",
+      "master_id": "M-000001"
+    },
+    {
+      "record_id": "BILL-203",
+      "master_id": "M-000002"
+    },
+    {
+      "record_id": "CRM-001",
+      "master_id": "M-000001"
+    },
+    {
+      "record_id": "CRM-002",
+      "master_id": "M-000003"
+    },
+    {
+      "record_id": "CRM-003",
+      "master_id": "M-000004"
+    },
+    {
+      "record_id": "CRM-004",
+      "master_id": "M-000005"
+    },
+    {
+      "record_id": "CRM-005",
+      "master_id": "M-000006"
+    },
+    {
+      "record_id": "CRM-006",
+      "master_id": "M-000007"
+    },
+    {
+      "record_id": "CRM-007",
+      "master_id": "M-000008"
+    },
+    {
+      "record_id": "CRM-008",
+      "master_id": "M-000009"
+    },
+    {
+      "record_id": "CRM-009",
+      "master_id": "M-000010"
+    },
+    {
+      "record_id": "CRM-010",
+      "master_id": "M-000011"
+    },
+    {
+      "record_id": "CRM-012",
+      "master_id": "M-000012"
+    },
+    {
+      "record_id": "WEB-101",
+      "master_id": "M-000001"
+    },
+    {
+      "record_id": "WEB-102",
+      "master_id": "M-000003"
+    },
+    {
+      "record_id": "WEB-104",
+      "master_id": "M-000005"
+    },
+    {
+      "record_id": "WEB-105",
+      "master_id": "M-000006"
+    },
+    {
+      "record_id": "WEB-106",
+      "master_id": "M-000007"
+    },
+    {
+      "record_id": "WEB-107",
+      "master_id": "M-000008"
+    },
+    {
+      "record_id": "WEB-108",
+      "master_id": "M-000013"
+    },
+    {
+      "record_id": "WEB-109",
+      "master_id": "M-000010"
+    }
+  ],
+  "identity_events": [],
+  "golden_records": [
+    {
+      "master_id": "M-000001",
+      "name": {
+        "value": "Ananya Sharma",
+        "source_record_id": "CRM-001",
+        "rule": "source"
+      },
+      "email": {
+        "value": "ANANYA.SHARMA@example.com",
+        "source_record_id": "WEB-101",
+        "rule": "recent"
+      },
+      "phone": {
+        "value": "9876543210",
+        "source_record_id": "WEB-101",
+        "rule": "recent"
+      },
+      "address": {
+        "value": "12 Park St, Kolkata",
+        "source_record_id": "WEB-101",
+        "rule": "recent"
+      },
+      "postcode": {
+        "value": "700016",
+        "source_record_id": "CRM-001",
+        "rule": "source"
+      },
+      "dob": {
+        "value": "1990-04-12",
+        "source_record_id": "WEB-101",
+        "rule": "complete"
+      },
+      "source_record_ids": [
+        "BILL-201",
+        "CRM-001",
+        "WEB-101"
+      ],
+      "consent_values": [
+        "active"
+      ],
+      "consent_policy_note": "conflicting consent must be resolved by policy; this lab does not infer permission from survivorship"
+    },
+    {
+      "master_id": "M-000002",
+      "name": {
+        "value": "Meera Das",
+        "source_record_id": "BILL-203",
+        "rule": "source"
+      },
+      "email": null,
+      "phone": {
+        "value": "9000011111",
+        "source_record_id": "BILL-203",
+        "rule": "recent"
+      },
+      "address": {
+        "value": "4 Sector I, Salt Lake",
+        "source_record_id": "BILL-203",
+        "rule": "recent"
+      },
+      "postcode": {
+        "value": "700091",
+        "source_record_id": "BILL-203",
+        "rule": "source"
+      },
+      "dob": {
+        "value": "1992-07-21",
+        "source_record_id": "BILL-203",
+        "rule": "complete"
+      },
+      "source_record_ids": [
+        "BILL-203"
+      ],
+      "consent_values": [
+        "active"
+      ],
+      "consent_policy_note": "conflicting consent must be resolved by policy; this lab does not infer permission from survivorship"
+    },
+    {
+      "master_id": "M-000003",
+      "name": {
+        "value": "Rahul Banerjee",
+        "source_record_id": "CRM-002",
+        "rule": "source"
+      },
+      "email": {
+        "value": "rahul.b@example.com",
+        "source_record_id": "WEB-102",
+        "rule": "recent"
+      },
+      "phone": {
+        "value": "9123456789",
+        "source_record_id": "WEB-102",
+        "rule": "recent"
+      },
+      "address": {
+        "value": "8 Lake Rd, Kolkata",
+        "source_record_id": "WEB-102",
+        "rule": "recent"
+      },
+      "postcode": {
+        "value": "700029",
+        "source_record_id": "CRM-002",
+        "rule": "source"
+      },
+      "dob": {
+        "value": "1985-11-03",
+        "source_record_id": "WEB-102",
+        "rule": "complete"
+      },
+      "source_record_ids": [
+        "CRM-002",
+        "WEB-102"
+      ],
+      "consent_values": [
+        "active"
+      ],
+      "consent_policy_note": "conflicting consent must be resolved by policy; this lab does not infer permission from survivorship"
+    },
+    {
+      "master_id": "M-000004",
+      "name": {
+        "value": "Mira Das",
+        "source_record_id": "CRM-003",
+        "rule": "source"
+      },
+      "email": {
+        "value": "mira.das@example.com",
+        "source_record_id": "CRM-003",
+        "rule": "recent"
+      },
+      "phone": {
+        "value": "+91 90000 11111",
+        "source_record_id": "CRM-003",
+        "rule": "recent"
+      },
+      "address": {
+        "value": "4 Salt Lake, Kolkata",
+        "source_record_id": "CRM-003",
+        "rule": "recent"
+      },
+      "postcode": {
+        "value": "700091",
+        "source_record_id": "CRM-003",
+        "rule": "source"
+      },
+      "dob": {
+        "value": "1992-07-21",
+        "source_record_id": "CRM-003",
+        "rule": "complete"
+      },
+      "source_record_ids": [
+        "CRM-003"
+      ],
+      "consent_values": [
+        "active"
+      ],
+      "consent_policy_note": "conflicting consent must be resolved by policy; this lab does not infer permission from survivorship"
+    },
+    {
+      "master_id": "M-000005",
+      "name": {
+        "value": "Sanjay Roy",
+        "source_record_id": "CRM-004",
+        "rule": "source"
+      },
+      "email": {
+        "value": "s.roy@example.com",
+        "source_record_id": "WEB-104",
+        "rule": "recent"
+      },
+      "phone": {
+        "value": "9888877777",
+        "source_record_id": "WEB-104",
+        "rule": "recent"
+      },
+      "address": {
+        "value": "20 New Town, Kolkata",
+        "source_record_id": "WEB-104",
+        "rule": "recent"
+      },
+      "postcode": {
+        "value": "700156",
+        "source_record_id": "CRM-004",
+        "rule": "source"
+      },
+      "dob": {
+        "value": "1978-03-09",
+        "source_record_id": "WEB-104",
+        "rule": "complete"
+      },
+      "source_record_ids": [
+        "CRM-004",
+        "WEB-104"
+      ],
+      "consent_values": [
+        "active"
+      ],
+      "consent_policy_note": "conflicting consent must be resolved by policy; this lab does not infer permission from survivorship"
+    },
+    {
+      "master_id": "M-000006",
+      "name": {
+        "value": "Priya Sen",
+        "source_record_id": "CRM-005",
+        "rule": "source"
+      },
+      "email": {
+        "value": "priya.sen@example.com",
+        "source_record_id": "WEB-105",
+        "rule": "recent"
+      },
+      "phone": {
+        "value": "9333322222",
+        "source_record_id": "WEB-105",
+        "rule": "recent"
+      },
+      "address": {
+        "value": "9 Ballygunge Pl",
+        "source_record_id": "WEB-105",
+        "rule": "recent"
+      },
+      "postcode": {
+        "value": "700019",
+        "source_record_id": "CRM-005",
+        "rule": "source"
+      },
+      "dob": {
+        "value": "1988-09-30",
+        "source_record_id": "WEB-105",
+        "rule": "complete"
+      },
+      "source_record_ids": [
+        "CRM-005",
+        "WEB-105"
+      ],
+      "consent_values": [
+        "active"
+      ],
+      "consent_policy_note": "conflicting consent must be resolved by policy; this lab does not infer permission from survivorship"
+    },
+    {
+      "master_id": "M-000007",
+      "name": {
+        "value": "Amit Ghosh",
+        "source_record_id": "CRM-006",
+        "rule": "source"
+      },
+      "email": {
+        "value": "amit.ghosh@example.com",
+        "source_record_id": "WEB-106",
+        "rule": "recent"
+      },
+      "phone": {
+        "value": "9555566666",
+        "source_record_id": "WEB-106",
+        "rule": "recent"
+      },
+      "address": {
+        "value": "3 Howrah Rd",
+        "source_record_id": "WEB-106",
+        "rule": "recent"
+      },
+      "postcode": {
+        "value": "711101",
+        "source_record_id": "CRM-006",
+        "rule": "source"
+      },
+      "dob": {
+        "value": "1991-01-05",
+        "source_record_id": "WEB-106",
+        "rule": "complete"
+      },
+      "source_record_ids": [
+        "CRM-006",
+        "WEB-106"
+      ],
+      "consent_values": [
+        "active"
+      ],
+      "consent_policy_note": "conflicting consent must be resolved by policy; this lab does not infer permission from survivorship"
+    },
+    {
+      "master_id": "M-000008",
+      "name": {
+        "value": "Nisha Kapoor",
+        "source_record_id": "CRM-007",
+        "rule": "source"
+      },
+      "email": {
+        "value": "nisha.k@example.com",
+        "source_record_id": "WEB-107",
+        "rule": "recent"
+      },
+      "phone": {
+        "value": "9666611111",
+        "source_record_id": "WEB-107",
+        "rule": "recent"
+      },
+      "address": {
+        "value": "7 Alipore, Kolkata",
+        "source_record_id": "WEB-107",
+        "rule": "recent"
+      },
+      "postcode": {
+        "value": "700027",
+        "source_record_id": "CRM-007",
+        "rule": "source"
+      },
+      "dob": {
+        "value": "1994-06-11",
+        "source_record_id": "WEB-107",
+        "rule": "complete"
+      },
+      "source_record_ids": [
+        "CRM-007",
+        "WEB-107"
+      ],
+      "consent_values": [
+        "active"
+      ],
+      "consent_policy_note": "conflicting consent must be resolved by policy; this lab does not infer permission from survivorship"
+    },
+    {
+      "master_id": "M-000009",
+      "name": {
+        "value": "Arjun Mehta",
+        "source_record_id": "CRM-008",
+        "rule": "source"
+      },
+      "email": {
+        "value": "arjun.mehta@example.com",
+        "source_record_id": "CRM-008",
+        "rule": "recent"
+      },
+      "phone": {
+        "value": "+91 94444 33333",
+        "source_record_id": "CRM-008",
+        "rule": "recent"
+      },
+      "address": {
+        "value": "11 Camac Street",
+        "source_record_id": "CRM-008",
+        "rule": "recent"
+      },
+      "postcode": {
+        "value": "700017",
+        "source_record_id": "CRM-008",
+        "rule": "source"
+      },
+      "dob": {
+        "value": "1989-02-14",
+        "source_record_id": "CRM-008",
+        "rule": "complete"
+      },
+      "source_record_ids": [
+        "CRM-008"
+      ],
+      "consent_values": [
+        "active"
+      ],
+      "consent_policy_note": "conflicting consent must be resolved by policy; this lab does not infer permission from survivorship"
+    },
+    {
+      "master_id": "M-000010",
+      "name": {
+        "value": "Kavita Rao",
+        "source_record_id": "CRM-009",
+        "rule": "source"
+      },
+      "email": {
+        "value": "kavita.rao@example.com",
+        "source_record_id": "WEB-109",
+        "rule": "recent"
+      },
+      "phone": {
+        "value": "9222244444",
+        "source_record_id": "WEB-109",
+        "rule": "recent"
+      },
+      "address": {
+        "value": "2 Behala",
+        "source_record_id": "WEB-109",
+        "rule": "recent"
+      },
+      "postcode": {
+        "value": "700034",
+        "source_record_id": "CRM-009",
+        "rule": "source"
+      },
+      "dob": {
+        "value": "1993-12-01",
+        "source_record_id": "WEB-109",
+        "rule": "complete"
+      },
+      "source_record_ids": [
+        "CRM-009",
+        "WEB-109"
+      ],
+      "consent_values": [
+        "active"
+      ],
+      "consent_policy_note": "conflicting consent must be resolved by policy; this lab does not infer permission from survivorship"
+    },
+    {
+      "master_id": "M-000011",
+      "name": {
+        "value": "Dev Patel",
+        "source_record_id": "CRM-010",
+        "rule": "source"
+      },
+      "email": {
+        "value": "dev.patel@example.com",
+        "source_record_id": "CRM-010",
+        "rule": "recent"
+      },
+      "phone": {
+        "value": "+91 91111 22222",
+        "source_record_id": "CRM-010",
+        "rule": "recent"
+      },
+      "address": {
+        "value": "5 Tollygunge",
+        "source_record_id": "CRM-010",
+        "rule": "recent"
+      },
+      "postcode": {
+        "value": "700033",
+        "source_record_id": "CRM-010",
+        "rule": "source"
+      },
+      "dob": {
+        "value": "1987-08-19",
+        "source_record_id": "CRM-010",
+        "rule": "complete"
+      },
+      "source_record_ids": [
+        "CRM-010"
+      ],
+      "consent_values": [
+        "active"
+      ],
+      "consent_policy_note": "conflicting consent must be resolved by policy; this lab does not infer permission from survivorship"
+    },
+    {
+      "master_id": "M-000012",
+      "name": {
+        "value": "Rahul Bannerjee",
+        "source_record_id": "CRM-012",
+        "rule": "source"
+      },
+      "email": null,
+      "phone": {
+        "value": "+91 91234 56789",
+        "source_record_id": "CRM-012",
+        "rule": "recent"
+      },
+      "address": {
+        "value": "8 Lake Road, Kolkata",
+        "source_record_id": "CRM-012",
+        "rule": "recent"
+      },
+      "postcode": {
+        "value": "700029",
+        "source_record_id": "CRM-012",
+        "rule": "source"
+      },
+      "dob": {
+        "value": "1986-11-03",
+        "source_record_id": "CRM-012",
+        "rule": "complete"
+      },
+      "source_record_ids": [
+        "CRM-012"
+      ],
+      "consent_values": [
+        "active"
+      ],
+      "consent_policy_note": "conflicting consent must be resolved by policy; this lab does not infer permission from survivorship"
+    },
+    {
+      "master_id": "M-000013",
+      "name": {
+        "value": "Arjun Mehta",
+        "source_record_id": "WEB-108",
+        "rule": "source"
+      },
+      "email": {
+        "value": "arjun.m@example.com",
+        "source_record_id": "WEB-108",
+        "rule": "recent"
+      },
+      "phone": {
+        "value": "9444433333",
+        "source_record_id": "WEB-108",
+        "rule": "recent"
+      },
+      "address": {
+        "value": "11 Camac St",
+        "source_record_id": "WEB-108",
+        "rule": "recent"
+      },
+      "postcode": {
+        "value": "700017",
+        "source_record_id": "WEB-108",
+        "rule": "source"
+      },
+      "dob": {
+        "value": "1989-02-14",
+        "source_record_id": "WEB-108",
+        "rule": "complete"
+      },
+      "source_record_ids": [
+        "WEB-108"
+      ],
+      "consent_values": [
+        "active"
+      ],
+      "consent_policy_note": "conflicting consent must be resolved by policy; this lab does not infer permission from survivorship"
+    }
+  ]
+}

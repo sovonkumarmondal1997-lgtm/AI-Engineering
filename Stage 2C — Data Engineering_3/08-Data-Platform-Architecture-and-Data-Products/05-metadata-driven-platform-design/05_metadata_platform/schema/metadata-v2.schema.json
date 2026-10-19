@@ -1,0 +1,234 @@
+{
+  "$defs": {
+    "QualityCheck": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "enum": [
+            "not_null",
+            "unique",
+            "accepted_values"
+          ],
+          "title": "Type",
+          "type": "string"
+        },
+        "column": {
+          "minLength": 1,
+          "title": "Column",
+          "type": "string"
+        },
+        "values": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Values"
+        }
+      },
+      "required": [
+        "type",
+        "column"
+      ],
+      "title": "QualityCheck",
+      "type": "object"
+    },
+    "SourceSpec": {
+      "additionalProperties": false,
+      "properties": {
+        "system": {
+          "minLength": 2,
+          "pattern": "^[a-z][a-z0-9_-]*$",
+          "title": "System",
+          "type": "string"
+        },
+        "object": {
+          "minLength": 1,
+          "pattern": "^[a-zA-Z][a-zA-Z0-9_]*$",
+          "title": "Object",
+          "type": "string"
+        },
+        "connector": {
+          "enum": [
+            "csv_file",
+            "http_api",
+            "database"
+          ],
+          "title": "Connector",
+          "type": "string"
+        },
+        "connection_ref": {
+          "minLength": 3,
+          "title": "Connection Ref",
+          "type": "string"
+        },
+        "extraction_mode": {
+          "enum": [
+            "full",
+            "incremental",
+            "cdc"
+          ],
+          "title": "Extraction Mode",
+          "type": "string"
+        },
+        "keys": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Keys",
+          "type": "array"
+        },
+        "watermark": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Watermark"
+        }
+      },
+      "required": [
+        "system",
+        "object",
+        "connector",
+        "connection_ref",
+        "extraction_mode",
+        "keys"
+      ],
+      "title": "SourceSpec",
+      "type": "object"
+    },
+    "TargetSpec": {
+      "additionalProperties": false,
+      "properties": {
+        "layer": {
+          "enum": [
+            "bronze",
+            "silver",
+            "gold"
+          ],
+          "title": "Layer",
+          "type": "string"
+        },
+        "dataset": {
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "title": "Dataset",
+          "type": "string"
+        }
+      },
+      "required": [
+        "layer",
+        "dataset"
+      ],
+      "title": "TargetSpec",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "2.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "pipeline_id": {
+      "pattern": "^[a-z][a-z0-9_]*$",
+      "title": "Pipeline Id",
+      "type": "string"
+    },
+    "description": {
+      "minLength": 10,
+      "title": "Description",
+      "type": "string"
+    },
+    "source": {
+      "$ref": "#/$defs/SourceSpec"
+    },
+    "target": {
+      "$ref": "#/$defs/TargetSpec"
+    },
+    "quality_checks": {
+      "items": {
+        "$ref": "#/$defs/QualityCheck"
+      },
+      "minItems": 1,
+      "title": "Quality Checks",
+      "type": "array"
+    },
+    "schedule": {
+      "minLength": 9,
+      "title": "Schedule",
+      "type": "string"
+    },
+    "owner": {
+      "title": "Owner",
+      "type": "string"
+    },
+    "classification": {
+      "enum": [
+        "public",
+        "internal",
+        "confidential",
+        "restricted"
+      ],
+      "title": "Classification",
+      "type": "string"
+    },
+    "retention_days": {
+      "exclusiveMinimum": 0,
+      "maximum": 36500,
+      "title": "Retention Days",
+      "type": "integer"
+    },
+    "tags": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "title": "Tags",
+      "type": "array"
+    },
+    "custom_logic": {
+      "anyOf": [
+        {
+          "enum": [
+            "normalize_phone_v1",
+            "custom_api_pagination_v1"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Custom Logic"
+    }
+  },
+  "required": [
+    "schema_version",
+    "pipeline_id",
+    "description",
+    "source",
+    "target",
+    "quality_checks",
+    "schedule",
+    "owner",
+    "classification",
+    "retention_days"
+  ],
+  "title": "PipelineSpec",
+  "type": "object"
+}

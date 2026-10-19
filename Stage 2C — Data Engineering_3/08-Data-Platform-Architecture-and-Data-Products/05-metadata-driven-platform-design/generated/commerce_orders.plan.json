@@ -1,0 +1,75 @@
+{
+  "pipeline_id": "commerce_orders",
+  "schema_version": "3.0",
+  "generator_version": "0.2.0",
+  "config_digest": "6c7805cbb9acc5c479069a78d811f262901305989ce4391e393bf60731ad3997",
+  "source": {
+    "system": "commerce",
+    "object": "orders",
+    "connector": "csv_file",
+    "connection_ref": "local.commerce_orders",
+    "extraction_mode": "full",
+    "keys": [
+      "order_id"
+    ],
+    "columns": [
+      "order_id",
+      "customer_id",
+      "amount",
+      "status"
+    ],
+    "dbt_schema": "commerce_raw",
+    "watermark": null,
+    "cdc_cursor": null
+  },
+  "target": {
+    "layer": "bronze",
+    "dataset": "commerce_orders"
+  },
+  "schedule": "*/15 * * * *",
+  "owner": "commerce-analytics@example.com",
+  "quality_checks": [
+    {
+      "type": "not_null",
+      "column": "order_id",
+      "values": null
+    },
+    {
+      "type": "unique",
+      "column": "order_id",
+      "values": null
+    }
+  ],
+  "governance": {
+    "pipeline_id": "commerce_orders",
+    "classification": "internal",
+    "masking": {
+      "mask_pii": false,
+      "policy": "internal_access_controls"
+    },
+    "retention": {
+      "days": 730,
+      "action": "expire_or_delete_after_retention",
+      "enforcement_status": "policy_artifact_only"
+    },
+    "owner": "commerce-analytics@example.com",
+    "owner_notifications": {
+      "on_failure": true,
+      "on_quality_failure": true,
+      "recipient": "commerce-analytics@example.com"
+    },
+    "access_review_required": false,
+    "enforcement_status": "policy_artifact_only"
+  },
+  "execution": {
+    "mode": "local_simulation",
+    "checkpoint_key": null,
+    "retry_policy": {
+      "max_attempts": 3,
+      "backoff": "exponential"
+    },
+    "idempotency_key": "pipeline_id + source_window + config_digest",
+    "custom_logic_requested": null,
+    "custom_logic_executed": false
+  }
+}

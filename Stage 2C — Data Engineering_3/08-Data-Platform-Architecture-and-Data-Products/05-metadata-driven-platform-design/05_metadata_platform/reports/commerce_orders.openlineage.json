@@ -1,0 +1,25 @@
+{
+  "eventType": "COMPLETE",
+  "eventTime": "2026-10-19T07:46:44.086948+00:00",
+  "run": {
+    "runId": "demo-run-2"
+  },
+  "job": {
+    "namespace": "metadata-platform-lab",
+    "name": "commerce_orders"
+  },
+  "inputs": [
+    {
+      "namespace": "commerce",
+      "name": "orders"
+    }
+  ],
+  "outputs": [
+    {
+      "namespace": "bronze",
+      "name": "commerce_orders"
+    }
+  ],
+  "producer": "https://example.invalid/metadata-platform-lab",
+  "schemaURL": "https://openlineage.io/spec/2-0-2/OpenLineage.json"
+}

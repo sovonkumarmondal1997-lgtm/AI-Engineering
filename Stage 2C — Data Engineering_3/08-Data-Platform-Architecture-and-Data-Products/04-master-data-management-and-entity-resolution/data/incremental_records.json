@@ -1,0 +1,30 @@
+[
+  {
+    "record_id": "WEB-110",
+    "source": "web",
+    "source_id": "W910",
+    "name": "Dev Patel",
+    "email": "dev.patel@example.com",
+    "phone": "9111122222",
+    "address": "5 Tollygunge, Kolkata",
+    "postcode": "700033",
+    "dob": "1987-08-19",
+    "updated_at": "2026-03-01",
+    "consent": "active",
+    "entity_id": "E10"
+  },
+  {
+    "record_id": "CRM-011",
+    "source": "crm",
+    "source_id": "C110",
+    "name": "Tara Bose",
+    "email": "tara.bose@example.com",
+    "phone": "+91 90000 22222",
+    "address": "15 Gariahat Road",
+    "postcode": "700019",
+    "dob": "1995-05-06",
+    "updated_at": "2026-03-02",
+    "consent": "active",
+    "entity_id": "E12"
+  }
+]

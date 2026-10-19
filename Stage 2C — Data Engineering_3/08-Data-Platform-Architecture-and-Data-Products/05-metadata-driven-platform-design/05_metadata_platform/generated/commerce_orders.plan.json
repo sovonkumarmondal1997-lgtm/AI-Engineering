@@ -1,0 +1,58 @@
+{
+  "pipeline_id": "commerce_orders",
+  "schema_version": "2.0",
+  "config_digest": "405b5a0d0819aea8fad60931f195e63f7fbfb515dd13f7f821962b8442b57bb9",
+  "source": {
+    "system": "commerce",
+    "object": "orders",
+    "connector": "csv_file",
+    "connection_ref": "local.commerce_orders",
+    "extraction_mode": "full",
+    "keys": [
+      "order_id"
+    ],
+    "watermark": null
+  },
+  "target": {
+    "layer": "bronze",
+    "dataset": "commerce_orders"
+  },
+  "schedule": "*/15 * * * *",
+  "owner": "commerce-analytics@example.com",
+  "quality_checks": [
+    {
+      "type": "not_null",
+      "column": "order_id",
+      "values": null
+    },
+    {
+      "type": "unique",
+      "column": "order_id",
+      "values": null
+    }
+  ],
+  "governance": {
+    "pipeline_id": "commerce_orders",
+    "classification": "internal",
+    "masking": {
+      "mask_pii": false,
+      "policy": "internal_access_controls"
+    },
+    "retention": {
+      "days": 730,
+      "action": "expire_or_delete_after_retention"
+    },
+    "owner": "commerce-analytics@example.com",
+    "access_review_required": false
+  },
+  "execution": {
+    "mode": "local_simulation",
+    "checkpoint_key": null,
+    "retry_policy": {
+      "max_attempts": 3,
+      "backoff": "exponential"
+    },
+    "idempotency_key": "pipeline_id + source_window + config_digest",
+    "custom_logic": null
+  }
+}

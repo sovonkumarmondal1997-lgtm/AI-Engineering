@@ -1,0 +1,4 @@
+candidate,label,weighted_score_1_to_5,evidence_status,hard_gate_status,decision_eligible
+fivetran_managed,Fivetran managed ingestion (illustrative hypothesis; verify connector/plan fit),3.71,ILLUSTRATIVE_HYPOTHESIS_NOT_MEASURED,NOT_ASSESSED,NO—HARD GATES NOT ASSESSED
+airbyte_self_managed,Airbyte self-managed (illustrative hypothesis; verify deployment/connector fit),3.2,ILLUSTRATIVE_HYPOTHESIS_NOT_MEASURED,NOT_ASSESSED,NO—HARD GATES NOT ASSESSED
+custom_dlt,Custom dlt-based ingestion (illustrative hypothesis; implementation owned by team),2.87,ILLUSTRATIVE_HYPOTHESIS_NOT_MEASURED,NOT_ASSESSED,NO—HARD GATES NOT ASSESSED

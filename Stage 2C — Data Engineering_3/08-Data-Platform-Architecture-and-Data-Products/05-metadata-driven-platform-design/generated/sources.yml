@@ -1,0 +1,17 @@
+version: 2
+sources:
+- name: crm
+  schema: crm_raw
+  tables:
+  - name: customers
+    description: Landing relation for crm_customers
+- name: commerce
+  schema: commerce_raw
+  tables:
+  - name: orders
+    description: Landing relation for commerce_orders
+- name: erp
+  schema: erp_raw
+  tables:
+  - name: product_catalog
+    description: Landing relation for erp_product_catalog

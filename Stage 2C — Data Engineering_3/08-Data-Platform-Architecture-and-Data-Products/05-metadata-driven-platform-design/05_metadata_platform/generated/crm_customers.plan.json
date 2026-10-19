@@ -1,0 +1,63 @@
+{
+  "pipeline_id": "crm_customers",
+  "schema_version": "2.0",
+  "config_digest": "b17ca21c4f7e46fad269acd06206317caab710d5f171d661ab39ee8a7cc3951c",
+  "source": {
+    "system": "crm",
+    "object": "customers",
+    "connector": "csv_file",
+    "connection_ref": "local.crm_customers",
+    "extraction_mode": "incremental",
+    "keys": [
+      "customer_id"
+    ],
+    "watermark": "updated_at"
+  },
+  "target": {
+    "layer": "bronze",
+    "dataset": "crm_customers"
+  },
+  "schedule": "0 * * * *",
+  "owner": "crm-data@example.com",
+  "quality_checks": [
+    {
+      "type": "not_null",
+      "column": "customer_id",
+      "values": null
+    },
+    {
+      "type": "unique",
+      "column": "customer_id",
+      "values": null
+    },
+    {
+      "type": "not_null",
+      "column": "updated_at",
+      "values": null
+    }
+  ],
+  "governance": {
+    "pipeline_id": "crm_customers",
+    "classification": "confidential",
+    "masking": {
+      "mask_pii": true,
+      "policy": "mask_email_phone_in_nonprod"
+    },
+    "retention": {
+      "days": 365,
+      "action": "expire_or_delete_after_retention"
+    },
+    "owner": "crm-data@example.com",
+    "access_review_required": true
+  },
+  "execution": {
+    "mode": "local_simulation",
+    "checkpoint_key": "crm_customers:watermark",
+    "retry_policy": {
+      "max_attempts": 3,
+      "backoff": "exponential"
+    },
+    "idempotency_key": "pipeline_id + source_window + config_digest",
+    "custom_logic": null
+  }
+}

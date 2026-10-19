@@ -1,0 +1,65 @@
+[
+  {
+    "pipeline_id": "crm_customers",
+    "classification": "confidential",
+    "masking": {
+      "mask_pii": true,
+      "policy": "mask_email_phone_in_nonprod"
+    },
+    "retention": {
+      "days": 365,
+      "action": "expire_or_delete_after_retention",
+      "enforcement_status": "policy_artifact_only"
+    },
+    "owner": "crm-data@example.com",
+    "owner_notifications": {
+      "on_failure": true,
+      "on_quality_failure": true,
+      "recipient": "crm-data@example.com"
+    },
+    "access_review_required": true,
+    "enforcement_status": "policy_artifact_only"
+  },
+  {
+    "pipeline_id": "commerce_orders",
+    "classification": "internal",
+    "masking": {
+      "mask_pii": false,
+      "policy": "internal_access_controls"
+    },
+    "retention": {
+      "days": 730,
+      "action": "expire_or_delete_after_retention",
+      "enforcement_status": "policy_artifact_only"
+    },
+    "owner": "commerce-analytics@example.com",
+    "owner_notifications": {
+      "on_failure": true,
+      "on_quality_failure": true,
+      "recipient": "commerce-analytics@example.com"
+    },
+    "access_review_required": false,
+    "enforcement_status": "policy_artifact_only"
+  },
+  {
+    "pipeline_id": "erp_product_catalog",
+    "classification": "public",
+    "masking": {
+      "mask_pii": false,
+      "policy": "no_default_masking"
+    },
+    "retention": {
+      "days": 1825,
+      "action": "expire_or_delete_after_retention",
+      "enforcement_status": "policy_artifact_only"
+    },
+    "owner": "product-data@example.com",
+    "owner_notifications": {
+      "on_failure": true,
+      "on_quality_failure": true,
+      "recipient": "product-data@example.com"
+    },
+    "access_review_required": false,
+    "enforcement_status": "policy_artifact_only"
+  }
+]

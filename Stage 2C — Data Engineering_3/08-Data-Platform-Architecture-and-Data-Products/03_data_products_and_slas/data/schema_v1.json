@@ -1,0 +1,4 @@
+{
+  "version": "1.2.0",
+  "fields": ["order_id", "customer_id", "ordered_at", "order_status", "currency", "order_total"]
+}

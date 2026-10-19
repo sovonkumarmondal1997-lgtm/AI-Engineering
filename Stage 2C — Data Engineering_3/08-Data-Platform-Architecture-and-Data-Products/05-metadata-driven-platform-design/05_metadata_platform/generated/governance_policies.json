@@ -1,0 +1,44 @@
+[
+  {
+    "pipeline_id": "crm_customers",
+    "classification": "confidential",
+    "masking": {
+      "mask_pii": true,
+      "policy": "mask_email_phone_in_nonprod"
+    },
+    "retention": {
+      "days": 365,
+      "action": "expire_or_delete_after_retention"
+    },
+    "owner": "crm-data@example.com",
+    "access_review_required": true
+  },
+  {
+    "pipeline_id": "commerce_orders",
+    "classification": "internal",
+    "masking": {
+      "mask_pii": false,
+      "policy": "internal_access_controls"
+    },
+    "retention": {
+      "days": 730,
+      "action": "expire_or_delete_after_retention"
+    },
+    "owner": "commerce-analytics@example.com",
+    "access_review_required": false
+  },
+  {
+    "pipeline_id": "erp_product_catalog",
+    "classification": "public",
+    "masking": {
+      "mask_pii": false,
+      "policy": "no_default_masking"
+    },
+    "retention": {
+      "days": 1825,
+      "action": "expire_or_delete_after_retention"
+    },
+    "owner": "product-data@example.com",
+    "access_review_required": false
+  }
+]

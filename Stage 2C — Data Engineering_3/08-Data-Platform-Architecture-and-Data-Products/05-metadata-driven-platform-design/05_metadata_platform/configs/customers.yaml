@@ -1,0 +1,27 @@
+schema_version: "2.0"
+pipeline_id: "crm_customers"
+description: "Ingest customer master records from CRM"
+source:
+  system: "crm"
+  object: "customers"
+  connector: "csv_file"
+  connection_ref: "local.crm_customers"
+  extraction_mode: "incremental"
+  keys: ["customer_id"]
+  watermark: "updated_at"
+target:
+  layer: "bronze"
+  dataset: "crm_customers"
+quality_checks:
+  - type: "not_null"
+    column: "customer_id"
+  - type: "unique"
+    column: "customer_id"
+  - type: "not_null"
+    column: "updated_at"
+schedule: "0 * * * *"
+owner: "crm-data@example.com"
+classification: "confidential"
+retention_days: 365
+tags: ["customer", "crm"]
+custom_logic: null
