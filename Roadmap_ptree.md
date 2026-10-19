@@ -914,7 +914,8 @@ Stage 2C — Data Engineering_3/
 │   ├── 06-redis-caching-and-data-structures.md
 │   ├── 07-elasticsearch-and-opensearch-for-search-and-logs.md
 │   ├── 08-graph-databases-neo4j-and-cypher.md
-│   └── 09-change-streams-and-nosql-to-lakehouse-ingestion.md
+│   ├── 09-change-streams-and-nosql-to-lakehouse-ingestion.md
+│   └── roadmap-NoSQL-and-Distributed-Databases.md
 ├── 02-Hadoop-Ecosystem-and-Legacy-Big-Data/
 │   ├── 01-hdfs-architecture-namenode-datanodes-and-replication.md
 │   ├── 02-yarn-resource-management.md
@@ -922,7 +923,8 @@ Stage 2C — Data Engineering_3/
 │   ├── 04-hive-metastore-and-hiveql.md
 │   ├── 05-hbase-and-wide-column-on-hdfs.md
 │   ├── 06-sqoop-flume-and-oozie-legacy-tooling.md
-│   └── 07-migrating-hadoop-workloads-to-cloud-lakehouse.md
+│   ├── 07-migrating-hadoop-workloads-to-cloud-lakehouse.md
+│   └── roadmap-Hadoop-Ecosystem-and-Legacy-Big-Data.md
 ├── 03-Snowflake-Deep-Dive/
 │   ├── 01-snowflake-architecture-storage-compute-and-services.md
 │   ├── 02-virtual-warehouses-sizing-and-scaling.md
@@ -933,7 +935,8 @@ Stage 2C — Data Engineering_3/
 │   ├── 07-time-travel-cloning-and-zero-copy.md
 │   ├── 08-rbac-masking-policies-and-row-access.md
 │   ├── 09-data-sharing-and-marketplace.md
-│   └── 10-cost-monitoring-and-resource-monitors.md
+│   ├── 10-cost-monitoring-and-resource-monitors.md
+│   └── roadmap-Snowflake-Deep-Dive.md
 ├── 04-Google-Cloud-BigQuery-and-GCP-Data-Engineering/
 │   ├── 01-gcp-data-services-landscape.md
 │   ├── 02-bigquery-architecture-slots-and-storage.md
@@ -943,7 +946,8 @@ Stage 2C — Data Engineering_3/
 │   ├── 06-pubsub-and-dataflow-apache-beam.md
 │   ├── 07-dataproc-and-dataproc-serverless.md
 │   ├── 08-cloud-composer-and-workflows.md
-│   └── 09-dataplex-iam-and-governance.md
+│   ├── 09-dataplex-iam-and-governance.md
+│   └── roadmap-Google-Cloud-BigQuery-and-GCP-Data-Engineering.md
 ├── 05-Azure-Data-Engineering-and-Microsoft-Fabric/
 │   ├── 01-azure-data-services-landscape.md
 │   ├── 02-adls-gen2-and-blob-storage.md
@@ -953,7 +957,8 @@ Stage 2C — Data Engineering_3/
 │   ├── 06-microsoft-fabric-lakehouse-and-onelake.md
 │   ├── 07-azure-databricks-integration.md
 │   ├── 08-entra-id-rbac-and-key-vault.md
-│   └── 09-purview-governance-and-lineage.md
+│   ├── 09-purview-governance-and-lineage.md
+│   └── roadmap-Azure-Data-Engineering-and-Microsoft-Fabric.md
 ├── 06-dbt-and-Analytics-Engineering/
 │   ├── 01-dbt-project-structure-and-materializations.md
 │   ├── 02-sources-seeds-snapshots-and-incremental-models.md
@@ -962,14 +967,16 @@ Stage 2C — Data Engineering_3/
 │   ├── 05-documentation-lineage-and-exposures.md
 │   ├── 06-dbt-performance-and-slim-ci.md
 │   ├── 07-semantic-layer-and-metricflow.md
-│   └── 08-deploying-dbt-with-airflow-and-dbt-cloud.md
+│   ├── 08-deploying-dbt-with-airflow-and-dbt-cloud.md
+│   └── roadmap-dbt-and-Analytics-Engineering.md
 ├── 07-Real-Time-OLAP-and-Query-Engines/
 │   ├── 01-clickhouse-architecture-and-mergetree.md
 │   ├── 02-apache-druid-and-apache-pinot-overview.md
 │   ├── 03-trino-and-presto-federated-queries.md
 │   ├── 04-starrocks-and-doris-overview.md
 │   ├── 05-materialized-views-and-pre-aggregation.md
-│   └── 06-choosing-an-olap-engine-for-low-latency-dashboards.md
+│   ├── 06-choosing-an-olap-engine-for-low-latency-dashboards.md
+│   └── roadmap-Real-Time-OLAP-and-Query-Engines.md
 ├── 08-Data-Platform-Architecture-and-Data-Products/
 │   ├── 01-lambda-vs-kappa-architecture.md
 │   ├── 02-data-mesh-principles-and-domain-ownership.md
@@ -977,7 +984,8 @@ Stage 2C — Data Engineering_3/
 │   ├── 04-master-data-management-and-entity-resolution.md
 │   ├── 05-metadata-driven-platform-design.md
 │   ├── 06-multi-tenant-and-multi-region-data-platforms.md
-│   └── 07-build-vs-buy-and-vendor-selection.md
+│   ├── 07-build-vs-buy-and-vendor-selection.md
+│   └── roadmap-Data-Platform-Architecture-and-Data-Products.md
 ├── 09-Analytics-Foundations-for-Data-Engineers/
 │   ├── 01-descriptive-statistics-and-distributions-at-scale.md
 │   ├── 02-sampling-and-approximate-algorithms-hyperloglog-and-sketches.md
@@ -987,13 +995,15 @@ Stage 2C — Data Engineering_3/
 │   ├── 06-time-series-analysis-and-forecasting-basics.md
 │   ├── 07-bi-tools-and-dashboard-design-metabase-superset-tableau.md
 │   ├── 08-data-visualization-with-matplotlib-plotly-and-altair.md
-│   └── 09-data-storytelling-and-stakeholder-communication.md
+│   ├── 09-data-storytelling-and-stakeholder-communication.md
+│   └── roadmap-Analytics-Foundations-for-Data-Engineers.md
 └── 10-Big-Data-ML-and-MLOps-Handoff/
     ├── 01-distributed-ml-with-spark-mllib.md
     ├── 02-feature-engineering-at-scale.md
     ├── 03-training-data-pipelines-and-dataset-versioning.md
     ├── 04-model-registry-and-batch-vs-online-inference.md
-    └── 05-data-drift-monitoring-for-ml-pipelines.md
+    ├── 05-data-drift-monitoring-for-ml-pipelines.md
+    └── roadmap-Big-Data-ML-and-MLOps-Handoff.md
 ```
 
 ## 3. New stages (3–18) — full file plan
