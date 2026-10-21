@@ -1,0 +1,5 @@
+order_id,customer_email,order_date,country,quantity,unit_price,status
+A1,Ann@Example.com,2026-02-01,usa,2,10.50,PAID
+A2,bob@example.com,2026-02-02,United Kingdom,1,5.00,shipped
+A3,not-an-email,2026-02-30,India,0,10.999,new
+A1,ann@example.com,2026-02-01,US,1,1.00,new

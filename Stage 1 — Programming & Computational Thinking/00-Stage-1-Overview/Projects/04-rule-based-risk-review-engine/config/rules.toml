@@ -1,0 +1,22 @@
+[thresholds]
+review_at = 40
+reject_at = 80
+
+[[rules]]
+id = "high_amount"
+type = "high_amount"
+threshold_cents = 500000
+points = 40
+
+[[rules]]
+id = "watch_country"
+type = "country"
+countries = ["XX", "YY"]
+points = 30
+
+[[rules]]
+id = "account_velocity"
+type = "velocity"
+max_count = 2
+window_seconds = 60
+points = 50

@@ -1,0 +1,11 @@
+[pipeline]
+max_reject_rate = 0.40
+
+[countries]
+usa = "US"
+"united states" = "US"
+us = "US"
+uk = "GB"
+gb = "GB"
+india = "IN"
+in = "IN"

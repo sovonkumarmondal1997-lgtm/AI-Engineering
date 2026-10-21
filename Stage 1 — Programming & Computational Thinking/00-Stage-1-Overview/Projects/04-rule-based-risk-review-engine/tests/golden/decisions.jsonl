@@ -1,0 +1,4 @@
+{"config_sha256":"b64601e2fbd49efe71e36a7cff4de00d205d9b81fcc4a4cf75cdc86386c84e62","decision":"approve","hits":[],"score":0,"txn_id":"txn-001"}
+{"config_sha256":"b64601e2fbd49efe71e36a7cff4de00d205d9b81fcc4a4cf75cdc86386c84e62","decision":"review","hits":[{"points":40,"reason":"amount_cents=650000 meets threshold=500000","rule_id":"high_amount"}],"score":40,"txn_id":"txn-002"}
+{"config_sha256":"b64601e2fbd49efe71e36a7cff4de00d205d9b81fcc4a4cf75cdc86386c84e62","decision":"approve","hits":[{"points":30,"reason":"country=XX is on the configured watch list","rule_id":"watch_country"}],"score":30,"txn_id":"txn-003"}
+{"config_sha256":"b64601e2fbd49efe71e36a7cff4de00d205d9b81fcc4a4cf75cdc86386c84e62","decision":"review","hits":[{"points":50,"reason":"account has 3 transactions within inclusive 60s window","rule_id":"account_velocity"}],"score":50,"txn_id":"txn-004"}

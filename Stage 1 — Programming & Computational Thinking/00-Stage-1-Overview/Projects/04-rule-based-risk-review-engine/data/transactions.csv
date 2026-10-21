@@ -1,0 +1,5 @@
+txn_id,account_id,amount_cents,country,timestamp,merchant_category
+txn-001,acct-1,1200,US,2026-05-01T12:00:00Z,grocery
+txn-002,acct-2,650000,US,2026-05-01T12:00:10Z,travel
+txn-003,acct-1,800,XX,2026-05-01T12:00:20Z,online
+txn-004,acct-1,900,US,2026-05-01T12:00:30Z,online
