@@ -36,7 +36,7 @@ AI Engineering/
 ├── Stage 5A — Machine Learning Foundation/            # Stage 5A
 ├── Stage 5B — Advanced Machine Learning/              # Stage 5B
 ├── STAGE 5C - MLOps/                                  # Stage 5C
-├── Deep Learning & Transformers/            # Stage 6
+├── Stage 5C — Deep Learning & Transformers/            # Stage 5C
 ├── Backend Engineering for AI Systems/      # Stage 7
 ├── LLM Application Engineering/             # Stage 8
 ├── Retrieval & RAG Systems/                 # Stage 9
@@ -3197,12 +3197,12 @@ STAGE 5C - MLOps/
     └── 08-final-production-mlops-capstone.md
 ```
 
-### Stage 6 — Deep Learning & Transformers — `Deep Learning & Transformers/`
+### Stage 5C — Deep Learning & Transformers
 
 ```text
-Deep Learning & Transformers/
+Stage 5C — Deep Learning & Transformers/
 ├── README.md
-├── 00-Stage-6-Overview/
+├── 00-Stage-Overview/
 │   ├── README.md
 │   ├── learning-plan.md
 │   └── Projects/
@@ -3210,22 +3210,22 @@ Deep Learning & Transformers/
 │       └── 01-train-a-small-gpt-and-write-the-report.md
 ├── 01-Neural-Networks-and-Backpropagation/
 │   ├── README.md
-│   ├── 01-the-neuron.md
+│   ├── 01-the-neuron-and-perceptron.md
 │   ├── 02-layers-and-activations.md
-│   ├── 03-forward-pass.md
-│   ├── 04-backpropagation.md
-│   ├── 05-build-micrograd.md
+│   ├── 03-forward-pass-and-loss-computation.md
+│   ├── 04-backpropagation-in-practice.md
 │   ├── practice-questions.md
 │   └── Projects/
 │       ├── README.md
-│       └── 01-autograd-engine-from-scratch.md
+│       └── 01-mlp-from-scratch-in-numpy.md
 ├── 02-PyTorch-Fundamentals/
 │   ├── README.md
 │   ├── 01-tensors.md
-│   ├── 02-autograd.md
+│   ├── 02-autograd-in-practice.md
 │   ├── 03-nn-module.md
 │   ├── 04-datasets-and-dataloaders.md
 │   ├── 05-gpu-and-device-management.md
+│   ├── 06-saving-and-loading-models-in-pytorch.md
 │   ├── practice-questions.md
 │   └── Projects/
 │       ├── README.md
@@ -3233,49 +3233,65 @@ Deep Learning & Transformers/
 ├── 03-Training-Deep-Networks/
 │   ├── README.md
 │   ├── 01-the-training-loop.md
-│   ├── 02-optimizers.md
-│   ├── 03-initialization-and-normalization.md
-│   ├── 04-dropout-and-regularization.md
-│   ├── 05-learning-rate-schedules.md
-│   ├── 06-debugging-training-runs.md
+│   ├── 02-optimizers-and-learning-rate-schedules-in-practice.md
+│   ├── 03-initialization-and-normalization-in-practice.md
+│   ├── 04-dropout-regularization-and-data-augmentation.md
+│   ├── 05-mixed-precision-training.md
+│   ├── 06-gradient-clipping-and-gradient-accumulation.md
+│   ├── 07-deep-learning-tuning-playbook-learning-rate-batch-size-and-budget.md
+│   ├── 08-debugging-training-runs.md
 │   ├── practice-questions.md
 │   └── Projects/
 │       ├── README.md
 │       └── 01-training-diagnostics-dashboard.md
-├── 04-CNNs-and-RNNs-Essentials/
+├── 04-Computer-Vision-Essentials/
 │   ├── README.md
-│   ├── 01-convolutions.md
-│   ├── 02-cnn-architectures.md
-│   ├── 03-recurrent-networks.md
-│   ├── 04-why-rnns-struggle.md
+│   ├── 01-convolutions-in-practice-and-feature-maps.md
+│   ├── 02-cnn-architectures-and-residual-connections.md
+│   ├── 03-transfer-learning-and-fine-tuning.md
+│   ├── 04-object-detection.md
+│   ├── 05-image-segmentation.md
+│   ├── 06-detection-and-segmentation-metrics.md
 │   ├── practice-questions.md
 │   └── Projects/
 │       ├── README.md
-│       └── 01-transfer-learning-image-classifier.md
-├── 05-Embeddings-and-Representation-Learning/
+│       ├── 01-transfer-learning-image-classifier.md
+│       └── 02-object-detection-mini-project.md
+├── 05-Sequence-Models-and-Tabular-Deep-Learning/
+│   ├── README.md
+│   ├── 01-recurrent-networks-in-practice.md
+│   ├── 02-why-rnns-struggle-and-gated-units.md
+│   ├── 03-deep-learning-for-time-series-and-tabular-data.md
+│   ├── practice-questions.md
+│   └── Projects/
+│       ├── README.md
+│       └── 01-tabular-deep-learning-vs-gradient-boosting.md
+├── 06-Embeddings-and-Representation-Learning/
 │   ├── README.md
 │   ├── 01-one-hot-vs-dense-embeddings.md
 │   ├── 02-word2vec-intuition.md
 │   ├── 03-contrastive-learning.md
 │   ├── 04-sentence-embeddings.md
+│   ├── 05-autoencoders-and-representation-learning.md
 │   ├── practice-questions.md
 │   └── Projects/
 │       ├── README.md
 │       └── 01-train-small-word-embeddings.md
-├── 06-Attention-and-the-Transformer/
+├── 07-Attention-and-the-Transformer/
 │   ├── README.md
 │   ├── 01-the-attention-idea.md
-│   ├── 02-queries-keys-and-values.md
-│   ├── 03-scaled-dot-product-attention.md
-│   ├── 04-multi-head-attention.md
-│   ├── 05-positional-encoding.md
-│   ├── 06-the-transformer-block.md
-│   ├── 07-encoder-decoder-and-decoder-only.md
+│   ├── 02-queries-keys-values-and-scaled-dot-product-attention.md
+│   ├── 03-multi-head-attention-and-masking.md
+│   ├── 04-positional-encoding-in-practice.md
+│   ├── 05-the-transformer-block.md
+│   ├── 06-encoder-decoder-and-decoder-only-architectures.md
+│   ├── 07-efficient-attention-and-flashattention.md
+│   ├── 08-architecture-variants-mixture-of-experts-and-state-space-models.md
 │   ├── practice-questions.md
 │   └── Projects/
 │       ├── README.md
-│       └── 01-attention-from-scratch.md
-├── 07-Tokenization/
+│       └── 01-transformer-block-in-pytorch.md
+├── 08-Tokenization/
 │   ├── README.md
 │   ├── 01-why-tokenization-matters.md
 │   ├── 02-characters-words-and-subwords.md
@@ -3285,73 +3301,74 @@ Deep Learning & Transformers/
 │   └── Projects/
 │       ├── README.md
 │       └── 01-build-a-bpe-tokenizer.md
-├── 08-Build-a-GPT-From-Scratch/
+├── 09-Build-a-GPT-From-Scratch/
 │   ├── README.md
 │   ├── 01-bigram-language-model.md
 │   ├── 02-self-attention-head.md
 │   ├── 03-full-gpt-model.md
 │   ├── 04-training-on-a-text-corpus.md
-│   ├── 05-sampling-from-your-model.md
-│   ├── 06-scaling-it-up.md
+│   ├── 05-scaling-it-up.md
 │   ├── practice-questions.md
 │   └── Projects/
 │       ├── README.md
 │       └── 01-nano-gpt-on-custom-corpus.md
-├── 09-Pretraining-Scaling-Laws-and-Compute/
+├── 10-Pretraining-Scaling-Laws-and-Compute/
 │   ├── README.md
 │   ├── 01-pretraining-objectives.md
 │   ├── 02-pretraining-data.md
 │   ├── 03-scaling-laws.md
 │   ├── 04-compute-flops-and-memory.md
-│   ├── 05-distributed-training-overview.md
+│   ├── 05-distributed-training-ddp-fsdp-and-activation-checkpointing.md
+│   ├── 06-long-context-and-training-stability.md
 │   ├── practice-questions.md
 │   └── Projects/
 │       ├── README.md
 │       └── 01-scaling-mini-experiment.md
-├── 10-Post-Training-SFT-RLHF-DPO-and-Constitutional-AI/
+├── 11-Post-Training-SFT-RLHF-DPO-and-Constitutional-AI/
 │   ├── README.md
 │   ├── 01-from-base-model-to-assistant.md
 │   ├── 02-supervised-fine-tuning.md
 │   ├── 03-reward-models-and-rlhf.md
-│   ├── 04-dpo.md
+│   ├── 04-dpo-and-preference-optimization.md
 │   ├── 05-constitutional-ai-and-rlaif.md
 │   ├── 06-reinforcement-learning-for-reasoning.md
 │   ├── practice-questions.md
 │   └── Projects/
 │       ├── README.md
 │       └── 01-compare-base-vs-instruct-models.md
-├── 11-Decoding-and-Sampling/
+├── 12-Decoding-and-Sampling/
 │   ├── README.md
-│   ├── 01-greedy-and-beam-search.md
+│   ├── 01-greedy-and-sampling-based-decoding.md
 │   ├── 02-temperature.md
-│   ├── 03-top-k-and-top-p.md
+│   ├── 03-top-k-top-p-and-min-p.md
 │   ├── 04-kv-cache-intuition.md
 │   ├── 05-speculative-decoding-intuition.md
 │   ├── practice-questions.md
 │   └── Projects/
 │       ├── README.md
 │       └── 01-sampling-parameters-experiment.md
-├── 12-Reasoning-Models-and-Test-Time-Compute/
+├── 13-Reasoning-Models-and-Test-Time-Compute/
 │   ├── README.md
 │   ├── 01-chain-of-thought.md
-│   ├── 02-test-time-compute.md
-│   ├── 03-how-reasoning-models-are-trained.md
-│   ├── 04-when-reasoning-helps-and-hurts.md
+│   ├── 02-test-time-compute-and-inference-scaling.md
+│   ├── 03-when-reasoning-helps-and-hurts.md
+│   ├── 04-reasoning-budgets-and-cost.md
 │   ├── practice-questions.md
 │   └── Projects/
 │       ├── README.md
 │       └── 01-reasoning-budget-vs-accuracy.md
-├── 13-Multimodal-Models/
+├── 14-Multimodal-Models/
 │   ├── README.md
 │   ├── 01-vision-transformers.md
-│   ├── 02-clip-and-contrastive-image-text.md
+│   ├── 02-clip-and-image-text-alignment.md
 │   ├── 03-vision-language-models.md
 │   ├── 04-audio-and-speech-models.md
+│   ├── 05-diffusion-models-in-practice.md
 │   ├── practice-questions.md
 │   └── Projects/
 │       ├── README.md
 │       └── 01-zero-shot-image-classification-with-clip.md
-└── 14-Reading-and-Reproducing-ML-Papers/
+└── 15-Reading-and-Reproducing-ML-Papers/
     ├── README.md
     ├── 01-how-to-read-a-paper.md
     ├── 02-the-essential-paper-list.md
@@ -5006,7 +5023,7 @@ Modules exclude the `00-` overview folder. Lessons are the numbered `NN-*.md` fi
 | 5A | Machine Learning Foundation | `Stage 5A — Machine Learning Foundation/` | 13 | 103 | 164 | `foundation-capstone-and-reproducible-report` |
 | 5B | Advanced Machine Learning | `Stage 5B — Advanced Machine Learning/` | 15 | 98 | 167 | `advanced-ml-capstone` |
 | 5C | MLOps | `STAGE 5C - MLOps/` | 16 | 100 | 139 | `final-production-mlops-capstone` |
-| 6 | Deep Learning & Transformers | `Deep Learning & Transformers/` | 14 | 69 | 130 | `train-a-small-gpt-and-write-the-report` |
+| 5C | Deep Learning & Transformers | `Stage 5C — Deep Learning & Transformers/` | 15 | 79 | 145 | `train-a-small-gpt-and-write-the-report` |
 | 7 | Backend Engineering for AI Systems | `Backend Engineering for AI Systems/` | 11 | 50 | 99 | `production-ready-ai-api-service` |
 | 8 | LLM Application Engineering | `LLM Application Engineering/` | 13 | 56 | 113 | `structured-document-extraction-service` |
 | 9 | Retrieval & RAG Systems | `Retrieval & RAG Systems/` | 13 | 54 | 111 | `rag-v1-foundation-for-flagship-1` |
@@ -5019,7 +5036,7 @@ Modules exclude the `00-` overview folder. Lessons are the numbered `NN-*.md` fi
 | 16 | Flagship Portfolio Projects | `Flagship Portfolio Projects/` | 7 | — | 156 | 7 flagship repos (1 optional) |
 | 17 | Interview Preparation & Getting Hired | `Interview Preparation & Getting Hired/` | 10 | 30 | 75 | `job-search-campaign-tracker` |
 | 18 | Career Growth to Senior | `Career Growth to Senior/` | 6 | 19 | 48 | `senior-readiness-evidence-portfolio` |
-| **Total** | | | **336** | **2163** | **3756** | |
+| **Total** | | | **337** | **2173** | **3771** | |
 
 ## 5. Build order
 
