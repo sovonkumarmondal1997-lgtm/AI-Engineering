@@ -2452,112 +2452,186 @@ Stage 4B — Mathematics for Machine Learning/
 
 ```text
 Stage 4C — Advanced Mathematics for Machine Learning — Deep Learning/
+├── README.md
 │
-├── 01-Linear-Algebra-Advanced-Topics/
-│   ├── 01-matrix-rank-and-rank-nullity-theorem.md
-│   ├── 02-null-space-column-space-and-row-space.md
-│   ├── 03-basis-dimension-and-change-of-basis.md
-│   ├── 04-orthogonality-and-orthonormal-bases.md
-│   ├── 05-orthogonal-projections-and-least-squares-solutions.md
-│   ├── 06-positive-definite-and-positive-semidefinite-matrices.md
-│   ├── 07-singular-value-decomposition-svd-mathematical-derivation.md
-│   ├── 08-eigendecomposition-and-spectral-theorem.md
-│   ├── 09-matrix-calculus.md
-│   ├── 10-jacobian-matrices.md
-│   ├── 11-hessian-matrices.md
-│   └── 12-kronecker-products-and-vectorization.md
+├── 00-Stage-4C-Overview/
+│   ├── README.md
+│   ├── learning-plan.md
+│   ├── how-4c-connects-to-4b-and-the-ml-stages.md
+│   └── Projects/
+│       ├── README.md
+│       └── 01-deep-learning-math-derivation-notebook.md
 │
-├── 02-Calculus-Advanced-Topics/
-│   ├── 13-limits-and-continuity.md
-│   ├── 14-multivariable-functions.md
-│   ├── 15-multivariable-chain-rule.md
-│   ├── 16-directional-derivatives.md
-│   ├── 17-second-order-derivatives.md
-│   ├── 18-taylor-series-and-taylor-approximation.md
-│   ├── 19-jacobian-and-hessian-applications.md
-│   ├── 20-implicit-differentiation.md
-│   ├── 21-constrained-optimization.md
-│   └── 22-lagrange-multipliers-and-kkt-conditions.md
+├── 01-Advanced-Linear-Algebra/
+│   ├── README.md
+│   ├── 01-vector-spaces-subspaces-basis-and-change-of-basis.md
+│   ├── 02-four-fundamental-subspaces-and-the-rank-nullity-theorem.md
+│   ├── 03-orthogonality-orthonormal-bases-and-gram-schmidt.md
+│   ├── 04-orthogonal-projections-onto-subspaces-and-the-geometry-of-least-squares.md
+│   ├── 05-lu-qr-and-cholesky-decompositions.md
+│   ├── 06-the-spectral-theorem-for-symmetric-matrices.md
+│   ├── 07-positive-definite-and-positive-semidefinite-matrices.md
+│   ├── 08-svd-derivation-pseudoinverse-and-the-eckart-young-theorem.md
+│   ├── 09-pca-mathematical-derivation.md
+│   ├── 10-tensors-index-notation-and-einsum.md
+│   ├── practice-questions.md
+│   └── Projects/
+│       ├── README.md
+│       ├── 01-gram-schmidt-qr-and-cholesky-from-scratch.md
+│       ├── 02-pca-from-scratch-with-svd.md
+│       └── 03-einsum-workout-for-transformer-operations.md
 │
-├── 03-Optimization-Advanced-Topics/
-│   ├── 23-convex-sets-and-convex-functions.md
-│   ├── 24-convex-and-non-convex-optimization.md
-│   ├── 25-first-order-and-second-order-optimality-conditions.md
-│   ├── 26-newtons-method.md
-│   ├── 27-quasi-newton-methods.md
-│   ├── 28-coordinate-descent.md
-│   ├── 29-proximal-gradient-methods.md
-│   ├── 30-constrained-and-regularized-optimization.md
-│   ├── 31-saddle-points-and-local-minima.md
-│   ├── 32-gradient-conditioning-and-ill-conditioning.md
-│   ├── 33-convergence-rates-and-convergence-analysis.md
-│   └── 34-stochastic-optimization-theory.md
+├── 02-Multivariable-and-Matrix-Calculus/
+│   ├── README.md
+│   ├── 01-the-multivariable-chain-rule.md
+│   ├── 02-directional-derivatives-and-gradient-geometry.md
+│   ├── 03-jacobian-matrices.md
+│   ├── 04-hessian-matrices-and-second-order-derivatives.md
+│   ├── 05-taylor-series-and-multivariate-taylor-approximation.md
+│   ├── 06-matrix-calculus-identities.md
+│   ├── 07-vectorization-and-kronecker-products-optional.md
+│   ├── practice-questions.md
+│   └── Projects/
+│       ├── README.md
+│       ├── 01-jacobian-and-hessian-numerical-lab.md
+│       └── 02-taylor-approximation-visualizer.md
 │
-├── 04-Probability-Advanced-Topics/
-│   ├── 35-joint-probability-distributions.md
-│   ├── 36-marginal-and-conditional-distributions.md
-│   ├── 37-probability-density-and-mass-functions.md
-│   ├── 38-cumulative-distribution-functions.md
-│   ├── 39-covariance-matrices.md
-│   ├── 40-conditional-expectation.md
-│   ├── 41-law-of-total-expectation.md
-│   ├── 42-law-of-total-variance.md
-│   ├── 43-independence-and-conditional-independence.md
-│   ├── 44-multivariate-gaussian-distribution.md
-│   ├── 45-change-of-variables-for-random-variables.md
-│   ├── 46-markov-chains.md
-│   ├── 47-monte-carlo-estimation.md
-│   └── 48-bayesian-inference-and-posterior-distributions.md
+├── 03-Optimization-Theory-and-Training-Algorithms/
+│   ├── README.md
+│   ├── 01-convex-sets-and-convex-functions.md
+│   ├── 02-first-and-second-order-optimality-conditions.md
+│   ├── 03-constrained-optimization-and-lagrange-multipliers.md
+│   ├── 04-kkt-conditions-and-duality-introduction.md
+│   ├── 05-convergence-rates-of-gradient-descent.md
+│   ├── 06-conditioning-and-ill-conditioned-problems.md
+│   ├── 07-newtons-method-and-quasi-newton-lbfgs.md
+│   ├── 08-proximal-methods-and-coordinate-descent.md
+│   ├── 09-saddle-points-and-non-convex-landscapes.md
+│   ├── 10-stochastic-optimization-theory-and-gradient-noise.md
+│   ├── 11-optimizers-in-full-nesterov-rmsprop-adam-and-adamw.md
+│   ├── 12-learning-rate-schedules-warmup-and-decay.md
+│   ├── practice-questions.md
+│   └── Projects/
+│       ├── README.md
+│       ├── 01-convex-versus-non-convex-landscape-explorer.md
+│       ├── 02-optimizer-from-scratch-adamw-and-schedules.md
+│       └── 03-newton-and-lbfgs-comparison.md
 │
-├── 05-Statistics-Advanced-Topics/
-│   ├── 49-maximum-likelihood-estimation-mle.md
-│   ├── 50-maximum-a-posteriori-estimation-map.md
-│   ├── 51-bayesian-vs-frequentist-statistics.md
-│   ├── 52-bias-variance-and-mean-squared-error.md
-│   ├── 53-consistency-and-asymptotic-normality.md
-│   ├── 54-likelihood-functions-and-log-likelihood.md
-│   ├── 55-fisher-information.md
-│   ├── 56-statistical-decision-theory.md
-│   ├── 57-empirical-risk-and-expected-risk.md
-│   ├── 58-bootstrap-confidence-intervals-and-advanced-resampling.md
-│   ├── 59-bayesian-parameter-estimation.md
-│   └── 60-uncertainty-quantification.md
+├── 04-Advanced-Probability/
+│   ├── README.md
+│   ├── 01-joint-distributions-and-marginalization.md
+│   ├── 02-conditional-distributions-and-conditional-independence.md
+│   ├── 03-covariance-matrices.md
+│   ├── 04-the-multivariate-gaussian-distribution.md
+│   ├── 05-conditional-expectation.md
+│   ├── 06-law-of-total-expectation-and-law-of-total-variance.md
+│   ├── 07-change-of-variables-for-random-variables.md
+│   ├── 08-concentration-inequalities-markov-chebyshev-and-hoeffding.md
+│   ├── 09-markov-chains-and-stationary-distributions.md
+│   ├── 10-monte-carlo-estimation-and-importance-sampling.md
+│   ├── 11-mcmc-metropolis-hastings-and-gibbs-sampling.md
+│   ├── practice-questions.md
+│   └── Projects/
+│       ├── README.md
+│       ├── 01-multivariate-gaussian-explorer.md
+│       ├── 02-monte-carlo-and-importance-sampling-lab.md
+│       └── 03-metropolis-hastings-sampler.md
 │
-├── 06-Information-Theory-Advanced-Topics/
-│   ├── 61-conditional-entropy.md
-│   ├── 62-mutual-information.md
-│   ├── 63-joint-entropy.md
-│   ├── 64-jensen-shannon-divergence.md
-│   ├── 65-cross-entropy-and-kl-divergence-mathematical-derivations.md
-│   ├── 66-differential-entropy.md
-│   ├── 67-maximum-entropy-principle.md
-│   ├── 68-information-bottleneck-principle.md
-│   └── 69-rate-distortion-theory.md
+├── 05-Statistical-Estimation-and-Bayesian-Inference/
+│   ├── README.md
+│   ├── 01-likelihood-and-log-likelihood.md
+│   ├── 02-maximum-likelihood-estimation.md
+│   ├── 03-properties-of-estimators-bias-variance-and-consistency.md
+│   ├── 04-fisher-information-and-the-cramer-rao-bound.md
+│   ├── 05-maximum-a-posteriori-estimation-and-priors-as-regularization.md
+│   ├── 06-bayesian-inference-posteriors-and-conjugate-priors.md
+│   ├── 07-empirical-risk-expected-risk-and-generalization.md
+│   ├── 08-uncertainty-quantification-aleatoric-epistemic-and-calibration.md
+│   ├── 09-the-exponential-family-and-generalized-linear-models.md
+│   ├── 10-expectation-maximization-and-gaussian-mixture-models.md
+│   ├── practice-questions.md
+│   └── Projects/
+│       ├── README.md
+│       ├── 01-mle-and-map-estimation-lab.md
+│       ├── 02-bayesian-coin-and-conjugate-update-demo.md
+│       └── 03-gaussian-mixture-em-from-scratch.md
 │
-├── 07-Mathematical-Foundations-for-Deep-Learning/
-│   ├── 70-computational-graphs-and-functional-composition.md
-│   ├── 71-vector-jacobian-products-vjps.md
-│   ├── 72-jacobian-vector-products-jvps.md
-│   ├── 73-reverse-mode-automatic-differentiation.md
-│   ├── 74-forward-mode-automatic-differentiation.md
-│   ├── 75-backpropagation-through-computational-graphs.md
-│   ├── 76-softmax-derivatives-and-cross-entropy-gradients.md
-│   ├── 77-vanishing-and-exploding-gradients-mathematical-analysis.md
-│   ├── 78-weight-initialization-and-activation-statistics.md
-│   ├── 79-numerical-stability-in-exponential-and-logarithmic-operations.md
-│   └── 80-floating-point-arithmetic-and-numerical-error.md
+├── 06-Advanced-Information-Theory/
+│   ├── README.md
+│   ├── 01-joint-and-conditional-entropy.md
+│   ├── 02-mutual-information.md
+│   ├── 03-properties-of-cross-entropy-and-kl-divergence.md
+│   ├── 04-jensen-shannon-divergence-and-other-divergences.md
+│   ├── 05-differential-entropy-and-the-maximum-entropy-principle-optional.md
+│   ├── practice-questions.md
+│   └── Projects/
+│       ├── README.md
+│       └── 01-mutual-information-and-divergence-calculator.md
 │
-└── 08-Mathematical-Foundations-for-Transformers-and-Advanced-ML/
-    ├── 81-positional-encoding-mathematics.md
-    ├── 82-scaled-dot-product-attention.md
-    ├── 83-attention-as-matrix-operations.md
-    ├── 84-softmax-temperature-and-probability-distributions.md
-    ├── 85-embedding-spaces-and-representation-geometry.md
-    ├── 86-low-rank-matrix-approximations.md
-    ├── 87-random-projections-and-dimensionality-reduction.md
-    ├── 88-principal-component-analysis-pca-mathematical-derivation.md
-    ├── 89-singular-value-and-spectral-analysis-of-neural-networks.md
-    └── 90-random-variables-and-noise-in-stochastic-gradient-descent.md
+├── 07-Mathematics-of-Deep-Learning-Training/
+│   ├── README.md
+│   ├── 01-vector-jacobian-and-jacobian-vector-products.md
+│   ├── 02-reverse-mode-automatic-differentiation.md
+│   ├── 03-forward-mode-automatic-differentiation.md
+│   ├── 04-backpropagation-through-layers-in-matrix-form.md
+│   ├── 05-softmax-and-cross-entropy-gradients.md
+│   ├── 06-modern-activations-gelu-silu-and-gradient-flow.md
+│   ├── 07-vanishing-and-exploding-gradients.md
+│   ├── 08-weight-initialization-xavier-and-he.md
+│   ├── 09-normalization-mathematics-batchnorm-layernorm-and-rmsnorm.md
+│   ├── 10-regularization-mathematics-dropout-and-label-smoothing.md
+│   ├── 11-floating-point-arithmetic-and-numerical-error.md
+│   ├── 12-numerical-stability-logsumexp-and-stable-softmax.md
+│   ├── practice-questions.md
+│   └── Projects/
+│       ├── README.md
+│       ├── 01-mini-autograd-engine.md
+│       ├── 02-initialization-and-gradient-flow-experiments.md
+│       └── 03-normalization-layers-from-scratch.md
+│
+├── 08-Mathematics-of-Convolutional-and-Recurrent-Models/
+│   ├── README.md
+│   ├── 01-convolution-versus-cross-correlation-and-output-shapes.md
+│   ├── 02-fourier-transform-and-the-convolution-theorem.md
+│   ├── 03-pooling-receptive-fields-and-backpropagation-through-convolution.md
+│   ├── 04-recurrent-networks-and-backpropagation-through-time.md
+│   ├── 05-lstm-and-gru-gating-mathematics.md
+│   ├── practice-questions.md
+│   └── Projects/
+│       ├── README.md
+│       ├── 01-convolution-from-scratch-and-fft-check.md
+│       └── 02-bptt-gradient-flow-in-a-simple-rnn.md
+│
+├── 09-Mathematics-of-Transformers-and-Representations/
+│   ├── README.md
+│   ├── 01-scaled-dot-product-attention-as-matrix-operations.md
+│   ├── 02-multi-head-attention-and-masking.md
+│   ├── 03-positional-encodings-sinusoidal-and-rotary-rope.md
+│   ├── 04-softmax-temperature-and-sampling-distributions.md
+│   ├── 05-geometry-of-learned-representations-and-anisotropy.md
+│   ├── 06-lora-and-low-rank-weight-updates.md
+│   ├── 07-random-projections-and-the-johnson-lindenstrauss-lemma.md
+│   ├── 08-singular-value-spectra-of-weight-matrices.md
+│   ├── practice-questions.md
+│   └── Projects/
+│       ├── README.md
+│       ├── 01-attention-from-scratch-in-numpy.md
+│       ├── 02-rope-and-positional-encoding-visualizer.md
+│       └── 03-lora-low-rank-update-demo.md
+│
+└── 10-Mathematics-of-Generative-and-Latent-Variable-Models/
+    ├── README.md
+    ├── 01-latent-variable-models-and-marginal-likelihood.md
+    ├── 02-variational-inference-and-the-elbo.md
+    ├── 03-the-reparameterization-trick-and-the-vae-objective.md
+    ├── 04-gans-and-adversarial-objectives.md
+    ├── 05-diffusion-models-forward-process-and-noise-prediction.md
+    ├── 06-autoregressive-factorization-and-sequence-likelihood.md
+    ├── practice-questions.md
+    └── Projects/
+        ├── README.md
+        ├── 01-vae-elbo-on-a-toy-dataset.md
+        └── 02-diffusion-forward-process-visualizer.md
 ```
 
 ### Stage 5A — Machine Learning Foundation
@@ -4873,7 +4947,7 @@ Modules exclude the `00-` overview folder. Lessons are the numbered `NN-*.md` fi
 | 3 | Data Structures & Algorithms | `Stage 3 — Data Structures & Algorithms/` | 21 | 235 | 352 | `algorithm-toolkit-and-benchmark` |
 | 4A | Basic Mathematics Prerequisite | `Stage 4A — Basic Mathematics Prerequisite/` | 15 | 125 | 192 | `prerequisite-math-workbook-and-readiness-check` |
 | 4B | Mathematics for Machine Learning | `Stage 4B — Mathematics for Machine Learning/` | 14 | 80 | 159 | `math-for-ml-notebook-library` |
-| 4C | Advanced Mathematics for Machine Learning — Deep Learning | `Stage 4C — Advanced Mathematics for Machine Learning — Deep Learning/` | 8 | 90 | 90 | none (module lessons only, no stage project) |
+| 4C | Advanced Mathematics for Machine Learning — Deep Learning | `Stage 4C — Advanced Mathematics for Machine Learning — Deep Learning/` | 10 | 86 | 147 | `deep-learning-math-derivation-notebook` |
 | 5A | Machine Learning Foundation | `STAGE 5A - Machine Learning Foundation/` | 14 | 130 | 178 | `foundation-capstone-and-reproducible-report` |
 | 5B | Advanced Machine Learning | `STAGE 5B - Advanced Machine Learning/` | 13 | 94 | 124 | `advanced-ml-capstone` |
 | 5C | MLOps | `STAGE 5C - MLOps/` | 16 | 100 | 139 | `final-production-mlops-capstone` |
@@ -4890,7 +4964,7 @@ Modules exclude the `00-` overview folder. Lessons are the numbered `NN-*.md` fi
 | 16 | Flagship Portfolio Projects | `Flagship Portfolio Projects/` | 7 | — | 156 | 7 flagship repos (1 optional) |
 | 17 | Interview Preparation & Getting Hired | `Interview Preparation & Getting Hired/` | 10 | 30 | 75 | `job-search-campaign-tracker` |
 | 18 | Career Growth to Senior | `Career Growth to Senior/` | 6 | 19 | 48 | `senior-readiness-evidence-portfolio` |
-| **Total** | | | **333** | **2190** | **3670** | |
+| **Total** | | | **335** | **2186** | **3727** | |
 
 ## 5. Build order
 
