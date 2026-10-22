@@ -1579,6 +1579,7 @@ Stage 3 — Data Structures & Algorithms/
 │   ├── learning-plan.md
 │   ├── stage-prerequisites-and-learning-objectives.md
 │   ├── dsa-topic-map-and-interview-coverage.md
+│   ├── role-wise-dsa-relevance-map.md
 │   ├── progress-tracker-and-readiness-checklist.md
 │   └── Projects/
 │       ├── README.md
@@ -1612,6 +1613,10 @@ Stage 3 — Data Structures & Algorithms/
 │   ├── 08-string-manipulation-and-patterns.md
 │   ├── 09-subarrays-substrings-and-subsequences.md
 │   ├── 10-hashing-collisions-and-performance-tradeoffs.md
+│   ├── 11-kadane-and-maximum-subarray-patterns.md
+│   ├── 12-boyer-moore-voting-and-majority-element.md
+│   ├── 13-dutch-national-flag-and-in-place-partitioning.md
+│   ├── 14-rolling-hash-and-rabin-karp.md
 │   ├── practice-questions.md
 │   └── Projects/
 │       ├── README.md
@@ -1646,11 +1651,14 @@ Stage 3 — Data Structures & Algorithms/
 │   ├── 07-fast-and-slow-pointer-linked-list-problems.md
 │   ├── 08-expression-parsing-and-balanced-delimiters.md
 │   ├── 09-designing-data-structures-with-combined-components.md
+│   ├── 10-lfu-cache-design.md
+│   ├── 11-time-based-key-value-store-and-design-problems.md
 │   ├── practice-questions.md
 │   └── Projects/
 │       ├── README.md
 │       ├── 01-implement-an-lru-cache.md
-│       └── 02-build-a-stack-queue-and-deque-toolkit.md
+│       ├── 02-build-a-stack-queue-and-deque-toolkit.md
+│       └── 03-implement-an-lfu-cache.md
 │
 ├── 05-Recursion-Backtracking-and-Sorting/
 │   ├── README.md
@@ -1664,6 +1672,9 @@ Stage 3 — Data Structures & Algorithms/
 │   ├── 08-constraint-satisfaction-and-pruning.md
 │   ├── 09-stable-in-place-and-adaptive-sorting.md
 │   ├── 10-selection-algorithms-and-quickselect.md
+│   ├── 11-counting-radix-and-bucket-sort.md
+│   ├── 12-non-comparison-sorting-and-top-k-frequent-patterns.md
+│   ├── 13-sorting-in-python-timsort-and-custom-comparators.md
 │   ├── practice-questions.md
 │   └── Projects/
 │       ├── README.md
@@ -1682,6 +1693,12 @@ Stage 3 — Data Structures & Algorithms/
 │   ├── 08-binary-tree-views-and-tree-properties.md
 │   ├── 09-binary-search-tree-validation-and-operations.md
 │   ├── 10-serialization-and-deserialization-of-trees.md
+│   ├── 11-avl-trees-and-rotations.md
+│   ├── 12-red-black-trees-and-balancing-invariants.md
+│   ├── 13-morris-traversal-and-constant-space-traversal.md
+│   ├── 14-euler-tour-and-subtree-queries.md
+│   ├── 15-binary-lifting-and-fast-lca.md
+│   ├── 16-trie-variants-wildcard-and-xor-tries.md
 │   ├── practice-questions.md
 │   └── Projects/
 │       ├── README.md
@@ -1698,6 +1715,8 @@ Stage 3 — Data Structures & Algorithms/
 │   ├── 06-two-heaps-and-running-medians.md
 │   ├── 07-heap-based-search-and-selection.md
 │   ├── 08-priority-queue-design-tradeoffs.md
+│   ├── 09-tournament-trees-and-k-way-selection.md
+│   ├── 10-indexed-priority-queues-and-decrease-key.md
 │   ├── practice-questions.md
 │   └── Projects/
 │       ├── README.md
@@ -1792,6 +1811,9 @@ Stage 3 — Data Structures & Algorithms/
 │   ├── 10-bipartite-matching-introduction.md
 │   ├── 11-advanced-topological-ordering-and-dependency-analysis.md
 │   ├── 12-graph-algorithm-complexity-and-tradeoffs.md
+│   ├── 13-a-star-search-and-heuristics.md
+│   ├── 14-bidirectional-search-and-0-1-bfs.md
+│   ├── 15-eulerian-and-hamiltonian-paths-introduction.md
 │   ├── practice-questions.md
 │   └── Projects/
 │       ├── README.md
@@ -1812,6 +1834,8 @@ Stage 3 — Data Structures & Algorithms/
 │   ├── 10-sparse-table-for-static-range-queries.md
 │   ├── 11-choosing-between-prefix-sums-fenwick-and-segment-trees.md
 │   ├── 12-range-query-complexity-and-correctness.md
+│   ├── 13-sqrt-decomposition-and-mos-algorithm.md
+│   ├── 14-interval-trees-and-merge-sort-trees.md
 │   ├── practice-questions.md
 │   └── Projects/
 │       ├── README.md
@@ -1833,13 +1857,102 @@ Stage 3 — Data Structures & Algorithms/
 │   ├── 11-choosing-between-greedy-dp-and-backtracking.md
 │   ├── 12-reducing-one-problem-to-a-known-pattern.md
 │   ├── 13-approximating-and-bounding-complexity.md
+│   ├── 14-game-theory-minimax-and-game-dp.md
+│   ├── 15-reservoir-sampling-and-fisher-yates-shuffle.md
 │   ├── practice-questions.md
 │   └── Projects/
 │       ├── README.md
 │       ├── 01-pattern-recognition-practice-engine.md
 │       └── 02-mixed-pattern-challenge-set.md
 │
-├── 15-Coding-Interview-Method/
+├── 15-String-Algorithms/
+│   ├── README.md
+│   ├── 01-string-matching-fundamentals.md
+│   ├── 02-kmp-and-prefix-function.md
+│   ├── 03-z-algorithm.md
+│   ├── 04-rabin-karp-and-multi-pattern-hashing.md
+│   ├── 05-manacher-and-palindromic-substrings.md
+│   ├── 06-aho-corasick-multi-pattern-search.md
+│   ├── 07-suffix-arrays-and-suffix-trees-introduction.md
+│   ├── 08-longest-common-prefix-and-string-dp-links.md
+│   ├── 09-text-processing-for-logs-and-tokenization.md
+│   ├── practice-questions.md
+│   └── Projects/
+│       ├── README.md
+│       ├── 01-substring-search-engine-benchmark.md
+│       └── 02-log-pattern-scanner-with-aho-corasick.md
+│
+├── 16-Math-Number-Theory-and-Geometry/
+│   ├── README.md
+│   ├── 01-gcd-lcm-and-euclidean-algorithm.md
+│   ├── 02-primes-and-sieve-of-eratosthenes.md
+│   ├── 03-modular-arithmetic-and-fast-exponentiation.md
+│   ├── 04-combinatorics-nCr-and-counting-with-modulo.md
+│   ├── 05-probability-and-expected-value-for-interviews.md
+│   ├── 06-basic-computational-geometry-and-line-sweep.md
+│   ├── 07-convex-hull-and-closest-pair-introduction.md
+│   ├── practice-questions.md
+│   └── Projects/
+│       ├── README.md
+│       ├── 01-number-theory-toolkit.md
+│       └── 02-geometry-problem-set.md
+│
+├── 17-Probabilistic-and-Advanced-Data-Structures/
+│   ├── README.md
+│   ├── 01-why-approximate-data-structures-exist.md
+│   ├── 02-bloom-filter-and-counting-bloom-filter.md
+│   ├── 03-count-min-sketch-and-frequency-estimation.md
+│   ├── 04-hyperloglog-and-cardinality-estimation.md
+│   ├── 05-skip-lists.md
+│   ├── 06-consistent-hashing-and-hash-rings.md
+│   ├── 07-cuckoo-and-open-addressing-hash-tables.md
+│   ├── 08-heavy-hitters-and-streaming-algorithms.md
+│   ├── 09-sliding-window-statistics-over-streams.md
+│   ├── practice-questions.md
+│   └── Projects/
+│       ├── README.md
+│       ├── 01-bloom-filter-deduplicator.md
+│       ├── 02-streaming-analytics-sketch-library.md
+│       └── 03-consistent-hash-ring-simulator.md
+│
+├── 18-Storage-Engine-and-Large-Scale-Data-Algorithms/
+│   ├── README.md
+│   ├── 01-memory-hierarchy-and-io-cost-model.md
+│   ├── 02-b-trees-and-b-plus-trees.md
+│   ├── 03-lsm-trees-memtables-and-compaction.md
+│   ├── 04-external-merge-sort.md
+│   ├── 05-hash-joins-sort-merge-joins-and-nested-loops.md
+│   ├── 06-partitioning-sharding-and-skew-handling.md
+│   ├── 07-columnar-encoding-run-length-and-dictionary.md
+│   ├── 08-mapreduce-style-algorithm-design.md
+│   ├── practice-questions.md
+│   └── Projects/
+│       ├── README.md
+│       ├── 01-mini-lsm-key-value-store.md
+│       ├── 02-external-sort-for-large-files.md
+│       └── 03-join-algorithm-comparison.md
+│
+├── 19-Similarity-Search-and-AI-Algorithms/
+│   ├── README.md
+│   ├── 01-nearest-neighbor-search-fundamentals.md
+│   ├── 02-kd-trees-and-ball-trees.md
+│   ├── 03-minhash-and-jaccard-similarity.md
+│   ├── 04-locality-sensitive-hashing.md
+│   ├── 05-hnsw-and-graph-based-ann-search.md
+│   ├── 06-top-k-retrieval-and-reranking-with-heaps.md
+│   ├── 07-beam-search-and-constrained-decoding.md
+│   ├── 08-dag-scheduling-and-task-planning-search.md
+│   ├── 09-rate-limiting-token-bucket-and-leaky-bucket.md
+│   ├── 10-agent-workflow-graphs-and-state-machines.md
+│   ├── 11-caching-and-memoization-for-llm-applications.md
+│   ├── practice-questions.md
+│   └── Projects/
+│       ├── README.md
+│       ├── 01-mini-vector-search-engine.md
+│       ├── 02-agent-task-dag-scheduler.md
+│       └── 03-rate-limiter-and-llm-request-queue.md
+│
+├── 20-Coding-Interview-Method/
 │   ├── README.md
 │   ├── 01-structured-problem-solving-framework.md
 │   ├── 02-communicating-while-coding.md
@@ -1859,7 +1972,7 @@ Stage 3 — Data Structures & Algorithms/
 │       ├── 01-practice-log-first-50-problems.md
 │       └── 02-timed-mock-interview-scorecard.md
 │
-└── 16-Advanced-DSA-Capstone-and-Interview-Readiness/
+└── 21-Advanced-DSA-Capstone-and-Interview-Readiness/
     ├── README.md
     ├── 01-capstone-requirements-and-success-criteria.md
     ├── 02-building-a-reusable-dsa-algorithm-toolkit.md
@@ -1870,6 +1983,7 @@ Stage 3 — Data Structures & Algorithms/
     ├── 07-final-readiness-assessment.md
     ├── 08-gaps-remediation-and-revision-plan.md
     ├── 09-final-project-documentation-and-demonstration.md
+    ├── 10-system-design-bridge-from-dsa-to-architecture.md
     ├── practice-questions.md
     └── Projects/
         ├── README.md
@@ -1882,220 +1996,246 @@ Stage 3 — Data Structures & Algorithms/
 
 ```text
 Stage 4A — Basic Mathematics Prerequisite/
+├── README.md
+│
 ├── 00-Prerequisite-Overview/
 │   ├── README.md
-│   └── learning-plan.md
-├── README.md
-├── 01-Arithmetic-Fundamentals/
-│   ├── 01-what-mathematics-is-and-why-numbers-matter.md
-│   ├── 02-natural-numbers-whole-numbers-integers-rational-numbers-and-irrational-numbers.md
-│   ├── 03-positive-and-negative-numbers.md
-│   ├── 04-number-lines-and-comparing-numbers.md
-│   ├── 05-place-value-and-decimal-notation.md
-│   ├── 06-addition-and-subtraction.md
-│   ├── 07-multiplication-and-division.md
-│   ├── 08-order-of-operations-bodmas-or-pemdas.md
-│   ├── 09-absolute-value.md
-│   ├── 10-factors-and-multiples.md
-│   ├── 11-prime-numbers-and-composite-numbers.md
-│   ├── 12-divisibility-rules.md
-│   ├── 13-highest-common-factor-and-lowest-common-multiple.md
-│   ├── 14-rounding-and-estimation.md
-│   ├── 15-decimal-arithmetic.md
-│   ├── 16-units-and-basic-unit-conversions.md
-│   ├── 17-mental-arithmetic-and-calculation-checks.md
-│   └── 18-common-arithmetic-errors-and-how-to-detect-them.md
-├── 02-Fractions-Percentages-Ratios-and-Proportions/
-│   ├── 01-what-fractions-represent.md
-│   ├── 02-numerators-and-denominators.md
-│   ├── 03-equivalent-fractions.md
-│   ├── 04-simplifying-fractions.md
-│   ├── 05-comparing-and-ordering-fractions.md
-│   ├── 06-adding-and-subtracting-fractions.md
-│   ├── 07-multiplying-and-dividing-fractions.md
-│   ├── 08-converting-fractions-to-decimals.md
-│   ├── 09-converting-decimals-to-percentages.md
-│   ├── 10-converting-percentages-to-fractions.md
-│   ├── 11-understanding-ratios.md
-│   ├── 12-simplifying-ratios.md
-│   ├── 13-equivalent-ratios.md
-│   ├── 14-rates-and-unit-rates.md
-│   ├── 15-direct-proportion.md
-│   ├── 16-inverse-proportion.md
-│   ├── 17-finding-a-percentage-of-a-quantity.md
-│   ├── 18-percentage-increase-and-decrease.md
-│   ├── 19-reverse-percentages.md
-│   ├── 20-percentage-points-versus-percentage-change.md
-│   ├── 21-weighted-averages.md
-│   └── 22-scaling-quantities-and-interpreting-proportional-changes.md
-├── 03-Algebra-Fundamentals/
-│   ├── 01-what-algebra-is-and-why-variables-are-used.md
-│   ├── 02-variables-constants-coefficients-and-terms.md
-│   ├── 03-algebraic-expressions.md
-│   ├── 04-translating-word-problems-into-expressions.md
-│   ├── 05-like-and-unlike-terms.md
-│   ├── 06-simplifying-algebraic-expressions.md
-│   ├── 07-the-distributive-property.md
-│   ├── 08-expanding-brackets.md
-│   ├── 09-factorization-fundamentals.md
-│   ├── 10-common-algebraic-identities.md
-│   ├── 11-substitution-into-formulas.md
-│   ├── 12-rearranging-formulas.md
-│   ├── 13-evaluating-expressions-with-negative-numbers.md
-│   ├── 14-fractions-in-algebraic-expressions.md
-│   ├── 15-ratios-and-proportional-relationships-in-algebra.md
-│   ├── 16-polynomials-and-their-basic-terminology.md
-│   ├── 17-introduction-to-quadratic-expressions.md
-│   └── 18-common-algebra-mistakes.md
-├── 04-Equations-and-Inequalities/
-│   ├── 01-what-an-equation-represents.md
-│   ├── 02-equality-and-the-balance-principle.md
-│   ├── 03-solving-one-step-equations.md
-│   ├── 04-solving-multi-step-linear-equations.md
-│   ├── 05-equations-with-brackets.md
-│   ├── 06-equations-with-fractions.md
-│   ├── 07-equations-with-variables-on-both-sides.md
-│   ├── 08-translating-word-problems-into-equations.md
-│   ├── 09-formula-rearrangement-and-solving-for-a-selected-variable.md
-│   ├── 10-what-inequalities-represent.md
-│   ├── 11-less-than-and-greater-than-relationships.md
-│   ├── 12-solving-linear-inequalities.md
-│   ├── 13-reversing-inequality-signs-when-multiplying-or-dividing-by-negative-values.md
-│   ├── 14-compound-inequalities.md
-│   ├── 15-interval-notation-and-solution-sets.md
-│   ├── 16-absolute-value-equations-and-inequalities.md
-│   ├── 17-introduction-to-systems-of-linear-equations.md
-│   └── 18-checking-solutions-and-identifying-invalid-results.md
-├── 05-Exponents-Powers-and-Roots/
-│   ├── 01-meaning-of-powers-and-exponents.md
-│   ├── 02-base-and-exponent.md
-│   ├── 03-multiplication-of-powers-with-the-same-base.md
-│   ├── 04-division-of-powers-with-the-same-base.md
-│   ├── 05-power-of-a-power.md
-│   ├── 06-powers-of-products-and-quotients.md
-│   ├── 07-zero-exponents.md
-│   ├── 08-negative-exponents.md
-│   ├── 09-fractional-exponents.md
-│   ├── 10-squares-cubes-and-higher-powers.md
-│   ├── 11-square-roots-and-cube-roots.md
-│   ├── 12-simplifying-radicals.md
-│   ├── 13-scientific-notation.md
-│   ├── 14-orders-of-magnitude.md
-│   ├── 15-exponential-growth-and-decay.md
-│   ├── 16-comparing-linear-and-exponential-growth.md
-│   ├── 17-powers-of-2-and-binary-scale-intuition.md
-│   └── 18-common-exponent-errors.md
+│   ├── learning-plan.md
+│   ├── how-4a-connects-to-4b-and-4c.md
+│   ├── readiness-checklist-and-self-assessment.md
+│   └── Projects/
+│       ├── README.md
+│       └── 01-prerequisite-math-workbook-and-readiness-check.md
+│
+├── 01-Number-Systems-and-Arithmetic-Essentials/
+│   ├── README.md
+│   ├── 01-number-types-and-the-number-line.md
+│   ├── 02-sets-set-notation-and-venn-diagrams.md
+│   ├── 03-negative-numbers-and-absolute-value.md
+│   ├── 04-place-value-decimals-and-rounding.md
+│   ├── 05-order-of-operations.md
+│   ├── 06-factors-multiples-primes-and-gcd-lcm-essentials.md
+│   ├── 07-estimation-mental-math-and-sanity-checks.md
+│   ├── 08-units-conversions-and-dimensional-consistency.md
+│   ├── practice-questions.md
+│   └── Projects/
+│       ├── README.md
+│       └── 01-number-system-explorer-in-python.md
+│
+├── 02-Fractions-Ratios-and-Percentages/
+│   ├── README.md
+│   ├── 01-fractions-meaning-equivalence-and-simplifying.md
+│   ├── 02-comparing-and-ordering-fractions.md
+│   ├── 03-fraction-arithmetic.md
+│   ├── 04-converting-between-fractions-decimals-and-percentages.md
+│   ├── 05-ratios-simplifying-and-equivalent-ratios.md
+│   ├── 06-rates-and-unit-rates.md
+│   ├── 07-direct-and-inverse-proportion.md
+│   ├── 08-percentages-of-quantities-increase-decrease-and-reverse.md
+│   ├── 09-percentage-points-versus-percentage-change.md
+│   ├── 10-weighted-averages.md
+│   ├── practice-questions.md
+│   └── Projects/
+│       ├── README.md
+│       └── 01-percentage-and-ratio-calculator.md
+│
+├── 03-Algebra-Foundations/
+│   ├── README.md
+│   ├── 01-variables-constants-coefficients-terms-and-expressions.md
+│   ├── 02-translating-words-into-expressions.md
+│   ├── 03-like-terms-simplifying-and-the-distributive-property.md
+│   ├── 04-expanding-brackets-and-algebraic-identities.md
+│   ├── 05-factorization-fundamentals.md
+│   ├── 06-substitution-and-evaluating-formulas.md
+│   ├── 07-rearranging-formulas.md
+│   ├── 08-algebraic-fractions.md
+│   ├── 09-polynomials-and-basic-terminology.md
+│   ├── 10-common-algebra-mistakes.md
+│   ├── practice-questions.md
+│   └── Projects/
+│       ├── README.md
+│       └── 01-symbolic-algebra-checker-with-sympy.md
+│
+├── 04-Equations-Inequalities-and-Systems/
+│   ├── README.md
+│   ├── 01-equations-and-the-balance-principle.md
+│   ├── 02-solving-linear-equations.md
+│   ├── 03-linear-equations-with-brackets-fractions-and-variables-on-both-sides.md
+│   ├── 04-translating-word-problems-into-equations.md
+│   ├── 05-factoring-trinomials-and-solving-quadratics-by-factoring.md
+│   ├── 06-completing-the-square.md
+│   ├── 07-the-quadratic-formula-and-the-discriminant.md
+│   ├── 08-solving-linear-inequalities.md
+│   ├── 09-compound-inequalities-solution-sets-and-interval-notation.md
+│   ├── 10-absolute-value-equations-and-inequalities.md
+│   ├── 11-systems-of-linear-equations-by-substitution.md
+│   ├── 12-systems-of-linear-equations-by-elimination.md
+│   ├── 13-special-cases-no-solution-and-infinitely-many-solutions.md
+│   ├── 14-three-variable-systems-and-the-bridge-to-matrices.md
+│   ├── 15-checking-solutions-and-extraneous-results.md
+│   ├── practice-questions.md
+│   └── Projects/
+│       ├── README.md
+│       └── 01-equation-and-system-solver-toolkit.md
+│
+├── 05-Exponents-Roots-and-Growth/
+│   ├── README.md
+│   ├── 01-powers-bases-exponents-squares-and-cubes.md
+│   ├── 02-exponent-laws.md
+│   ├── 03-zero-and-negative-exponents.md
+│   ├── 04-fractional-exponents-roots-and-radicals.md
+│   ├── 05-scientific-notation-and-orders-of-magnitude.md
+│   ├── 06-compound-growth-and-decay-linear-versus-exponential.md
+│   ├── 07-the-constant-e-and-continuous-growth.md
+│   ├── 08-powers-of-two-and-binary-scale.md
+│   ├── practice-questions.md
+│   └── Projects/
+│       ├── README.md
+│       └── 01-exponential-growth-and-scale-visualizer.md
+│
 ├── 06-Logarithms/
-│   ├── 01-what-logarithms-mean.md
-│   ├── 02-the-relationship-between-exponents-and-logarithms.md
-│   ├── 03-logarithms-in-base-10.md
-│   ├── 04-natural-logarithms-and-the-constant-e.md
-│   ├── 05-evaluating-simple-logarithms.md
-│   ├── 06-logarithms-of-1-and-of-the-base.md
-│   ├── 07-product-rule-for-logarithms.md
-│   ├── 08-quotient-rule-for-logarithms.md
-│   ├── 09-power-rule-for-logarithms.md
-│   ├── 10-change-of-base-formula.md
-│   ├── 11-solving-simple-exponential-equations.md
-│   ├── 12-solving-simple-logarithmic-equations.md
-│   ├── 13-graphs-of-exponential-and-logarithmic-functions.md
-│   ├── 14-logarithmic-scales-and-orders-of-magnitude.md
-│   └── 15-common-logarithm-mistakes.md
-├── 07-Functions/
-│   ├── 01-what-a-function-is.md
-│   ├── 02-inputs-outputs-and-the-function-rule.md
-│   ├── 03-function-notation-f-of-x.md
-│   ├── 04-domain-and-range.md
-│   ├── 05-independent-and-dependent-variables.md
-│   ├── 06-evaluating-functions.md
-│   ├── 07-linear-functions.md
-│   ├── 08-quadratic-functions.md
-│   ├── 09-polynomial-functions.md
-│   ├── 10-exponential-functions.md
-│   ├── 11-logarithmic-functions.md
-│   ├── 12-absolute-value-functions.md
-│   ├── 13-piecewise-defined-functions.md
-│   ├── 14-function-composition.md
-│   ├── 15-inverse-functions-and-their-meaning.md
-│   ├── 16-interpreting-function-graphs.md
-│   ├── 17-understanding-parameters-in-a-function.md
-│   ├── 18-introduction-to-sigmoid-and-relu-functions.md
-│   └── 19-recognizing-how-changing-parameters-affects-outputs.md
-├── 08-Graphs-and-Coordinate-Geometry/
-│   ├── 01-the-cartesian-coordinate-plane.md
-│   ├── 02-the-x-axis-and-y-axis.md
-│   ├── 03-ordered-pairs-and-plotting-points.md
-│   ├── 04-reading-coordinates-from-graphs.md
-│   ├── 05-independent-and-dependent-variables-on-graphs.md
-│   ├── 06-intercepts.md
-│   ├── 07-slope-and-rate-of-change.md
-│   ├── 08-equation-of-a-straight-line.md
-│   ├── 09-slope-intercept-form.md
-│   ├── 10-graphing-linear-equations.md
-│   ├── 11-understanding-quadratic-graphs.md
-│   ├── 12-graphing-exponential-and-logarithmic-functions.md
-│   ├── 13-interpreting-increasing-and-decreasing-functions.md
-│   ├── 14-local-maxima-and-minima-as-visual-ideas.md
-│   ├── 15-distance-between-two-points.md
-│   ├── 16-midpoints.md
-│   ├── 17-understanding-graph-scales-and-axes.md
-│   └── 18-interpreting-charts-without-misleading-conclusions.md
-├── 09-Basic-Geometry-and-Trigonometry/
-│   ├── 01-points-lines-line-segments-and-angles.md
-│   ├── 02-parallel-and-perpendicular-lines.md
-│   ├── 03-types-of-angles.md
-│   ├── 04-triangles-and-their-properties.md
-│   ├── 05-pythagorean-theorem.md
-│   ├── 06-perimeter-and-area.md
-│   ├── 07-area-of-triangles-and-rectangles.md
-│   ├── 08-circles-radius-diameter-and-circumference.md
-│   ├── 09-coordinate-distance-and-geometric-interpretation.md
-│   ├── 10-degrees-and-radians.md
-│   ├── 11-right-triangle-trigonometry.md
-│   ├── 12-sine-cosine-and-tangent.md
-│   ├── 13-basic-trigonometric-identities.md
-│   ├── 14-unit-circle-intuition.md
-│   ├── 15-periodic-functions.md
-│   ├── 16-sine-and-cosine-graphs.md
-│   ├── 17-amplitude-period-and-phase.md
-│   └── 18-basic-geometric-intuition-for-angles-between-vectors.md
-├── 10-Sequences-and-Mathematical-Patterns/
-│   ├── 01-what-a-sequence-is.md
-│   ├── 02-sequence-terms-and-indices.md
-│   ├── 03-arithmetic-sequences.md
-│   ├── 04-geometric-sequences.md
-│   ├── 05-common-differences-and-common-ratios.md
-│   ├── 06-explicit-formulas-for-sequences.md
-│   ├── 07-recursive-definitions.md
-│   ├── 08-summation-notation.md
-│   ├── 09-expanding-a-summation-into-individual-terms.md
-│   ├── 10-basic-finite-sums.md
-│   ├── 11-introduction-to-infinite-sequences.md
-│   ├── 12-recognizing-mathematical-patterns.md
-│   ├── 13-growth-rates-and-repeated-multiplication.md
-│   ├── 14-simple-recurrence-relations.md
-│   └── 15-understanding-indexed-data-and-parameter-lists.md
-└── 11-Mathematical-Notation-and-Problem-Solving/
-    ├── 01-common-mathematical-symbols.md
-    ├── 02-equality-equivalence-and-approximation.md
-    ├── 03-inequality-symbols.md
-    ├── 04-subscripts-and-superscripts.md
-    ├── 05-indices-and-indexed-variables.md
-    ├── 06-greek-letters-commonly-used-in-mathematics.md
-    ├── 07-variables-versus-parameters.md
-    ├── 08-function-notation.md
-    ├── 09-set-notation-and-basic-set-operations.md
-    ├── 10-interval-notation.md
-    ├── 11-the-meaning-of-summation-and-product-notation.md
-    ├── 12-reading-formulas-from-left-to-right.md
-    ├── 13-understanding-assumptions-and-conditions.md
-    ├── 14-translating-words-into-mathematical-expressions.md
-    ├── 15-breaking-complex-problems-into-smaller-steps.md
-    ├── 16-checking-answers-by-substitution.md
-    ├── 17-estimation-and-sanity-checks.md
-    ├── 18-dimensional-and-unit-consistency.md
-    ├── 19-identifying-common-algebraic-errors.md
-    └── 20-reading-beginner-level-mathematical-explanations-and-research-formulas.md
+│   ├── README.md
+│   ├── 01-what-logarithms-mean-and-the-exponent-log-relationship.md
+│   ├── 02-common-and-natural-logarithms-and-evaluating-them.md
+│   ├── 03-logarithm-rules.md
+│   ├── 04-change-of-base.md
+│   ├── 05-solving-exponential-equations.md
+│   ├── 06-solving-logarithmic-equations.md
+│   ├── 07-logarithmic-scales.md
+│   ├── 08-why-logarithms-matter-in-machine-learning.md
+│   ├── practice-questions.md
+│   └── Projects/
+│       ├── README.md
+│       └── 01-logarithm-scale-and-log-likelihood-demo.md
+│
+├── 07-Functions-and-Graphs/
+│   ├── README.md
+│   ├── 01-cartesian-plane-plotting-and-reading-coordinates.md
+│   ├── 02-what-a-function-is-and-function-notation.md
+│   ├── 03-domain-and-range.md
+│   ├── 04-variables-parameters-and-independent-versus-dependent.md
+│   ├── 05-evaluating-and-piecewise-functions.md
+│   ├── 06-linear-functions-slope-intercepts-and-line-equations.md
+│   ├── 07-intersection-of-lines-and-the-geometry-of-linear-systems.md
+│   ├── 08-quadratic-functions-and-parabolas.md
+│   ├── 09-polynomial-functions-and-end-behavior.md
+│   ├── 10-exponential-and-logarithmic-functions-and-graphs.md
+│   ├── 11-function-composition.md
+│   ├── 12-inverse-functions.md
+│   ├── 13-increasing-decreasing-extrema-and-curvature-intuition.md
+│   ├── 14-activation-shapes-sigmoid-tanh-and-relu.md
+│   ├── 15-transformations-and-how-parameters-change-graphs.md
+│   ├── 16-reading-graph-scales-and-avoiding-misleading-charts.md
+│   ├── practice-questions.md
+│   └── Projects/
+│       ├── README.md
+│       └── 01-function-plotter-and-activation-gallery.md
+│
+├── 08-Geometry-and-Trigonometry/
+│   ├── README.md
+│   ├── 01-points-lines-angles-parallel-and-perpendicular.md
+│   ├── 02-triangles-and-the-pythagorean-theorem.md
+│   ├── 03-distance-midpoint-and-circles-in-the-plane.md
+│   ├── 04-degrees-and-radians.md
+│   ├── 05-right-triangle-trigonometry.md
+│   ├── 06-unit-circle-and-basic-trigonometric-identities.md
+│   ├── 07-periodic-functions-and-sine-cosine-graphs.md
+│   ├── practice-questions.md
+│   └── Projects/
+│       ├── README.md
+│       └── 01-trigonometry-and-unit-circle-visualizer.md
+│
+├── 09-Vectors-as-Arrows-and-Data-Points/
+│   ├── README.md
+│   ├── 01-scalars-vectors-and-points-versus-vectors.md
+│   ├── 02-vector-addition-subtraction-and-scaling-in-2d-and-3d.md
+│   ├── 03-vector-length-and-unit-vectors.md
+│   ├── 04-direction-angle-and-perpendicularity-intuition.md
+│   ├── 05-data-points-as-lists-of-numbers.md
+│   ├── practice-questions.md
+│   └── Projects/
+│       ├── README.md
+│       └── 01-vector-arrows-and-angle-explorer.md
+│
+├── 10-Sequences-Series-and-Summation/
+│   ├── README.md
+│   ├── 01-sequences-terms-indices-and-explicit-formulas.md
+│   ├── 02-arithmetic-sequences.md
+│   ├── 03-geometric-sequences.md
+│   ├── 04-recursive-definitions-and-recurrence-relations.md
+│   ├── 05-summation-and-product-notation.md
+│   ├── 06-finite-sums-and-series-formulas.md
+│   ├── 07-infinite-sequences-and-the-idea-of-convergence.md
+│   ├── 08-infinite-geometric-series.md
+│   ├── practice-questions.md
+│   └── Projects/
+│       ├── README.md
+│       └── 01-sequence-and-series-explorer.md
+│
+├── 11-Counting-and-Combinatorics/
+│   ├── README.md
+│   ├── 01-the-counting-principle.md
+│   ├── 02-factorials-and-permutations.md
+│   ├── 03-combinations-and-binomial-coefficients.md
+│   ├── 04-pascals-triangle-and-the-binomial-theorem.md
+│   ├── 05-inclusion-exclusion.md
+│   ├── 06-counting-with-restrictions-and-combinatorial-explosion.md
+│   ├── practice-questions.md
+│   └── Projects/
+│       ├── README.md
+│       └── 01-counting-and-combinatorics-calculator.md
+│
+├── 12-Descriptive-Statistics-Basics/
+│   ├── README.md
+│   ├── 01-types-of-data.md
+│   ├── 02-mean-median-and-mode.md
+│   ├── 03-range-variance-and-standard-deviation-of-data.md
+│   ├── 04-quartiles-percentiles-iqr-and-outliers.md
+│   ├── 05-histograms-box-plots-and-scatter-plots.md
+│   ├── 06-z-scores-and-standardization.md
+│   ├── 07-population-sample-and-common-data-pitfalls.md
+│   ├── practice-questions.md
+│   └── Projects/
+│       ├── README.md
+│       └── 01-descriptive-statistics-from-scratch.md
+│
+├── 13-Limits-and-Rates-of-Change-Bridge/
+│   ├── README.md
+│   ├── 01-average-rate-of-change-and-secant-lines.md
+│   ├── 02-instantaneous-rate-of-change-and-tangent-slope-intuition.md
+│   ├── 03-limits-of-functions-numerically-and-graphically.md
+│   ├── 04-limit-laws-and-continuity-intuition.md
+│   ├── 05-limits-at-infinity-and-asymptotes.md
+│   ├── 06-accumulation-and-area-under-a-curve-intuition.md
+│   ├── practice-questions.md
+│   └── Projects/
+│       ├── README.md
+│       └── 01-secant-to-tangent-limit-visualizer.md
+│
+├── 14-Complex-Numbers-Optional/
+│   ├── README.md
+│   ├── 01-imaginary-unit-and-complex-arithmetic.md
+│   ├── 02-complex-plane-modulus-and-conjugate.md
+│   ├── 03-polar-form-and-eulers-formula-introduction.md
+│   ├── practice-questions.md
+│   └── Projects/
+│       ├── README.md
+│       └── 01-complex-plane-visualizer.md
+│
+└── 15-Mathematical-Notation-Reasoning-and-Math-in-Code/
+    ├── README.md
+    ├── 01-symbols-for-equality-approximation-and-inequality.md
+    ├── 02-greek-letters-in-mathematics.md
+    ├── 03-subscripts-superscripts-and-indices.md
+    ├── 04-reading-formulas-left-to-right-assumptions-and-conditions.md
+    ├── 05-basic-logic-if-then-counterexamples-and-necessary-vs-sufficient.md
+    ├── 06-problem-solving-strategy-and-verifying-answers.md
+    ├── 07-reading-research-style-mathematics.md
+    ├── 08-translating-formulas-into-python-and-numpy.md
+    ├── practice-questions.md
+    └── Projects/
+        ├── README.md
+        └── 01-formula-to-python-translation-workbook.md
 ```
 
 ### Stage 4B — Mathematics for Machine Learning
@@ -4647,8 +4787,8 @@ Modules exclude the `00-` overview folder. Lessons are the numbered `NN-*.md` fi
 | 2C | Data Engineering_3 | `Stage 2C — Data Engineering_3/` | 10 | 79 | 80 | none (module lessons only, no stage project) |
 | 2D | Data Architecture | `Stage 2D — Data Architecture/` | 16 | 124 | 209 | `enterprise-data-architecture-capstone` |
 | 2E | Production DevOps & Platform Engineering | `Stage 2E — Production DevOps & Platform Engineering/` | 17 | 164 | 251 | `end-to-end-production-devops-capstone` |
-| 3 | Data Structures & Algorithms | `Stage 3 — Data Structures & Algorithms/` | 16 | 166 | 253 | `algorithm-toolkit-and-benchmark` |
-| 4A | Basic Mathematics Prerequisite | `Stage 4A — Basic Mathematics Prerequisite/` | 11 | 199 | 202 | none (module lessons only, no stage project) |
+| 3 | Data Structures & Algorithms | `Stage 3 — Data Structures & Algorithms/` | 21 | 235 | 352 | `algorithm-toolkit-and-benchmark` |
+| 4A | Basic Mathematics Prerequisite | `Stage 4A — Basic Mathematics Prerequisite/` | 15 | 125 | 192 | `prerequisite-math-workbook-and-readiness-check` |
 | 4B | Mathematics for Machine Learning | `Stage 4B — Mathematics for Machine Learning/` | 10 | 54 | 99 | `math-for-ml-notebook-library` |
 | 4C | Advanced Mathematics for Machine Learning — Deep Learning | `Stage 4C — Advanced Mathematics for Machine Learning — Deep Learning/` | 8 | 90 | 90 | none (module lessons only, no stage project) |
 | 5A | Machine Learning Foundation | `STAGE 5A - Machine Learning Foundation/` | 14 | 130 | 178 | `foundation-capstone-and-reproducible-report` |
@@ -4667,7 +4807,7 @@ Modules exclude the `00-` overview folder. Lessons are the numbered `NN-*.md` fi
 | 16 | Flagship Portfolio Projects | `Flagship Portfolio Projects/` | 7 | — | 156 | 7 flagship repos (1 optional) |
 | 17 | Interview Preparation & Getting Hired | `Interview Preparation & Getting Hired/` | 10 | 30 | 75 | `job-search-campaign-tracker` |
 | 18 | Career Growth to Senior | `Career Growth to Senior/` | 6 | 19 | 48 | `senior-readiness-evidence-portfolio` |
-| **Total** | | | **320** | **2169** | **3521** | |
+| **Total** | | | **329** | **2164** | **3610** | |
 
 ## 5. Build order
 
