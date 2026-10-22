@@ -5,8 +5,8 @@ Every stage and module here matches a stage and module in the roadmap, in the sa
 
 ## How to read this tree
 
-- **Stages 0–2C already exist** in this repository. Their module folders are listed from disk, with file counts.
-- **Stages 3–18 are new.** Create each folder only when you start that stage, the same rule the repo already uses.
+- **Stages 0–5D already exist** in this repository. Their trees below are synced from disk.
+- **Stages 7–18 are new.** Create each folder only when you start that stage, the same rule the repo already uses.
 - Naming follows the existing repo conventions:
   - Stage folder: a readable title, e.g. `Mathematics for Machine Learning/`
   - Stage overview: `00-Stage-N-Overview/` with `README.md`, `learning-plan.md` and the stage project in `Projects/`
@@ -158,7 +158,48 @@ Stage 1 — Programming & Computational Thinking/
 │   ├── Projects/
 │   │   ├── 01-personal-expense-ledger-cli.md
 │   │   ├── 02-log-investigation-and-reliability-cli.md
+│   │   ├── 03-data-quality-and-transformation-pipeline/
+│   │   │   ├── .gitignore
+│   │   │   ├── README.md
+│   │   │   ├── config.toml
+│   │   │   ├── data/
+│   │   │   │   └── orders.csv
+│   │   │   ├── data-contract.md
+│   │   │   ├── learning-notes.md
+│   │   │   ├── pyproject.toml
+│   │   │   ├── src/
+│   │   │   │   └── dqpipe/
+│   │   │   │       ├── __init__.py
+│   │   │   │       ├── cli.py
+│   │   │   │       ├── config.py
+│   │   │   │       ├── pipeline.py
+│   │   │   │       └── rules.py
+│   │   │   └── tests/
+│   │   │       ├── test_cli.py
+│   │   │       ├── test_pipeline.py
+│   │   │       └── test_rules.py
 │   │   ├── 03-data-quality-and-transformation-pipeline.md
+│   │   ├── 04-rule-based-risk-review-engine/
+│   │   │   ├── .gitignore
+│   │   │   ├── README.md
+│   │   │   ├── config/
+│   │   │   │   └── rules.toml
+│   │   │   ├── data/
+│   │   │   │   └── transactions.csv
+│   │   │   ├── pyproject.toml
+│   │   │   ├── src/
+│   │   │   │   └── riskreview/
+│   │   │   │       ├── __init__.py
+│   │   │   │       ├── cli.py
+│   │   │   │       ├── engine.py
+│   │   │   │       ├── io.py
+│   │   │   │       ├── models.py
+│   │   │   │       └── rules.py
+│   │   │   └── tests/
+│   │   │       ├── golden/
+│   │   │       │   └── decisions.jsonl
+│   │   │       ├── test_engine.py
+│   │   │       └── test_io_cli.py
 │   │   ├── 04-rule-based-risk-review-engine.md
 │   │   └── README.md
 │   ├── README.md
@@ -477,16 +518,8 @@ Stage 2 — Python for Data Engineering_1/
 │   │   ├── 05-real-time-kafka-streaming-pipeline.md
 │   │   ├── 06-data-quality-and-observability-platform.md
 │   │   ├── 07-capstone-end-to-end-data-platform.md
-│   │   ├── README.md
-│   │   ├── api-to-warehouse-incremental-ingestion.md
-│   │   ├── capstone-end-to-end-data-platform.md
-│   │   ├── cdc-replication-postgres-to-lakehouse.md
-│   │   ├── data-quality-and-observability-platform.md
-│   │   ├── lakehouse-medallion-pipeline-with-pyspark-and-delta.md
-│   │   ├── orchestrated-elt-with-airflow-and-dbt.md
-│   │   └── real-time-kafka-streaming-pipeline.md
-│   ├── README.md
-│   └── learning-plan.md
+│   │   └── README.md
+│   └── README.md
 ├── 01-Data-Engineering-Foundations-and-Pipeline-Thinking/
 │   ├── 01-what-data-engineers-build.md
 │   ├── 02-data-lifecycle-from-sources-to-consumers.md
@@ -800,14 +833,8 @@ Stage 2B — Python for Data Engineering_2/
 │   │   ├── 03-aws-serverless-lakehouse.md
 │   │   ├── 04-databricks-lakehouse-platform.md
 │   │   ├── 05-system-design-interview-portfolio.md
-│   │   ├── README.md
-│   │   ├── aws-serverless-lakehouse.md
-│   │   ├── databricks-lakehouse-platform.md
-│   │   ├── dockerized-local-data-lab.md
-│   │   ├── remote-server-pipeline-operations.md
-│   │   └── system-design-interview-portfolio.md
-│   ├── README.md
-│   └── learning-plan.md
+│   │   └── README.md
+│   └── README.md
 ├── 01-Docker-Essentials-for-Data-Labs/
 │   ├── 01-containers-images-and-registries-for-users.md
 │   ├── 02-running-databases-and-services-in-containers.md
@@ -981,9 +1008,151 @@ Stage 2C — Data Engineering_3/
 │   ├── 01-lambda-vs-kappa-architecture.md
 │   ├── 02-data-mesh-principles-and-domain-ownership.md
 │   ├── 03-data-products-and-slas.md
+│   ├── 03_data_products_and_slas/
+│   │   ├── CONSUMER_ONBOARDING.md
+│   │   ├── README.md
+│   │   ├── data/
+│   │   │   ├── consumer_list.json
+│   │   │   ├── orders_snapshot.json
+│   │   │   ├── schema_v1.json
+│   │   │   ├── schema_v2_breaking.json
+│   │   │   └── slo_history.json
+│   │   ├── product_lab.py
+│   │   ├── pyproject.toml
+│   │   ├── reports/
+│   │   │   ├── notification_outbox.json
+│   │   │   └── slo_report.json
+│   │   ├── specs/
+│   │   │   ├── customer_360.yaml
+│   │   │   └── orders.yaml
+│   │   └── tests/
+│   │       └── test_product_lab.py
+│   ├── 04-master-data-management-and-entity-resolution/
+│   │   ├── README.md
+│   │   ├── data/
+│   │   │   ├── incremental_records.json
+│   │   │   └── source_records.json
+│   │   ├── pyproject.toml
+│   │   ├── reports/
+│   │   │   └── run_report.json
+│   │   ├── resolver.py
+│   │   ├── run_lab.py
+│   │   ├── splink_runner.py
+│   │   └── tests/
+│   │       └── test_resolver.py
 │   ├── 04-master-data-management-and-entity-resolution.md
+│   ├── 05-metadata-driven-platform-design/
+│   │   ├── 05_metadata_platform/
+│   │   │   ├── README.md
+│   │   │   ├── configs/
+│   │   │   │   ├── customers.yaml
+│   │   │   │   ├── orders.yaml
+│   │   │   │   └── product_catalog.yaml
+│   │   │   ├── data/
+│   │   │   │   ├── data_customers.csv
+│   │   │   │   ├── data_orders.csv
+│   │   │   │   └── data_products.csv
+│   │   │   ├── fixtures/
+│   │   │   │   ├── expected_crm_plan_contract.json
+│   │   │   │   └── legacy_customers_v1.yaml
+│   │   │   ├── generated/
+│   │   │   │   ├── commerce_orders.plan.json
+│   │   │   │   ├── crm_customers.plan.json
+│   │   │   │   ├── erp_product_catalog.plan.json
+│   │   │   │   ├── governance_policies.json
+│   │   │   │   ├── stg_commerce_orders.sql
+│   │   │   │   ├── stg_crm_customers.sql
+│   │   │   │   └── stg_erp_product_catalog.sql
+│   │   │   ├── metadata_platform.py
+│   │   │   ├── pyproject.toml
+│   │   │   ├── reports/
+│   │   │   │   ├── commerce_orders.openlineage.json
+│   │   │   │   ├── crm_customers.openlineage.json
+│   │   │   │   ├── erp_product_catalog.openlineage.json
+│   │   │   │   └── run_history.jsonl
+│   │   │   ├── run_lab.py
+│   │   │   ├── schema/
+│   │   │   │   ├── generate_json_schema.py
+│   │   │   │   └── metadata-v2.schema.json
+│   │   │   ├── templates/
+│   │   │   │   └── staging_model.sql.j2
+│   │   │   └── tests/
+│   │   │       └── test_platform.py
+│   │   ├── README.md
+│   │   ├── configs/
+│   │   │   ├── customers.yaml
+│   │   │   ├── orders.yaml
+│   │   │   └── product_catalog.yaml
+│   │   ├── data/
+│   │   │   ├── data_customers.csv
+│   │   │   ├── data_orders.csv
+│   │   │   └── data_products.csv
+│   │   ├── fixtures/
+│   │   │   ├── expected_crm_plan_contract.json
+│   │   │   └── legacy_customers_v1.yaml
+│   │   ├── generated/
+│   │   │   ├── commerce_orders.plan.json
+│   │   │   ├── crm_customers.plan.json
+│   │   │   ├── erp_product_catalog.plan.json
+│   │   │   ├── generated_manifest.json
+│   │   │   ├── governance_policies.json
+│   │   │   ├── sources.yml
+│   │   │   ├── stg_commerce_orders.sql
+│   │   │   ├── stg_crm_customers.sql
+│   │   │   └── stg_erp_product_catalog.sql
+│   │   ├── metadata_platform.py
+│   │   ├── pyproject.toml
+│   │   ├── reports/
+│   │   │   ├── commerce_orders.openlineage.json
+│   │   │   ├── crm_customers.openlineage.json
+│   │   │   ├── erp_product_catalog.openlineage.json
+│   │   │   └── run_history.jsonl
+│   │   ├── run_lab.py
+│   │   ├── schema/
+│   │   │   ├── generate_json_schema.py
+│   │   │   └── metadata-v3.schema.json
+│   │   ├── templates/
+│   │   │   └── staging_model.sql.j2
+│   │   └── tests/
+│   │       └── test_platform.py
 │   ├── 05-metadata-driven-platform-design.md
+│   ├── 06-multi-tenant-and-multi-region-data-platforms/
+│   │   └── experiments/
+│   │       └── 06_multi_tenant/
+│   │           ├── README.md
+│   │           ├── docker-compose.yml
+│   │           ├── docs/
+│   │           │   ├── architecture.md
+│   │           │   └── offboarding.md
+│   │           ├── outputs/
+│   │           │   ├── 11111111-1111-1111-1111-111111111111-export-manifest.json
+│   │           │   └── audit.jsonl
+│   │           ├── postgres/
+│   │           │   ├── bootstrap.sql
+│   │           │   └── silo_variant.sql
+│   │           ├── pyproject.toml
+│   │           ├── run_lab.py
+│   │           ├── tenancy_lab.py
+│   │           └── tests/
+│   │               ├── test_postgres_rls.py
+│   │               └── test_simulation.py
 │   ├── 06-multi-tenant-and-multi-region-data-platforms.md
+│   ├── 07-build-vs-buy-and-vendor-selection/
+│   │   └── experiments/
+│   │       └── 07_build_vs_buy/
+│   │           ├── README.md
+│   │           ├── assumptions.json
+│   │           ├── docs/
+│   │           │   └── adr/
+│   │           │       └── ADR-007.md
+│   │           ├── model.py
+│   │           ├── outputs/
+│   │           │   ├── scorecard_results.csv
+│   │           │   └── tco_results.csv
+│   │           ├── poc_plan.md
+│   │           ├── scorecard.json
+│   │           └── tests/
+│   │               └── test_model.py
 │   ├── 07-build-vs-buy-and-vendor-selection.md
 │   └── roadmap-Data-Platform-Architecture-and-Data-Products.md
 ├── 09-Analytics-Foundations-for-Data-Engineers/
@@ -1016,7 +1185,6 @@ Stage 2D — Data Architecture/
 │   ├── Projects/
 │   │   ├── 01-enterprise-data-architecture-capstone.md
 │   │   └── README.md
-│   ├── learning-plan.md
 │   └── README.md
 ├── 01-Data-Architecture-Foundations-and-Principles/
 │   ├── Projects/
@@ -1056,7 +1224,6 @@ Stage 2D — Data Architecture/
 │   ├── 05-data-fabric-and-metadata-driven-architecture.md
 │   ├── 06-event-driven-and-data-sharing-patterns.md
 │   ├── 07-selecting-and-combining-architecture-patterns.md
-│   ├── practice-questions.md
 │   ├── README.md
 │   └── roadmap-Data-Architecture-Patterns-and-Reference-Architectures.md
 ├── 04-Conceptual-Logical-and-Physical-Data-Modeling/
@@ -5051,20 +5218,20 @@ Modules exclude the `00-` overview folder. Lessons are the numbered `NN-*.md` fi
 | Stage | Name | Folder | Modules | Lessons | Files | Stage project |
 |---|---|---|---|---|---|---|
 | 0 | Computer & Digital Foundation | `Stage 0 — Computer & Digital Foundation/` | 4 | 61 | 79 | `stage-0-incident-simulation` |
-| 1 | Programming & Computational Thinking | `Stage 1 — Programming & Computational Thinking/` | 24 | 212 | 282 | 4 stage projects: `personal-expense-ledger-cli`, `log-investigation-and-reliability-cli`, `data-quality-and-transformation-pipeline`, `rule-based-risk-review-engine` |
-| 2 | Python for Data Engineering_1 | `Stage 2 — Python for Data Engineering_1/` | 22 | 206 | 295 | 7 stage projects, ending in `capstone-end-to-end-data-platform` |
-| 2B | Python for Data Engineering_2 | `Stage 2B — Python for Data Engineering_2/` | 5 | 67 | 98 | 5 stage projects, ending in `system-design-interview-portfolio` |
-| 2C | Data Engineering_3 | `Stage 2C — Data Engineering_3/` | 10 | 79 | 80 | none (module lessons only, no stage project) |
-| 2D | Data Architecture | `Stage 2D — Data Architecture/` | 16 | 124 | 209 | `enterprise-data-architecture-capstone` |
+| 1 | Programming & Computational Thinking | `Stage 1 — Programming & Computational Thinking/` | 24 | 212 | 311 | 4 stage projects: `personal-expense-ledger-cli`, `log-investigation-and-reliability-cli`, `data-quality-and-transformation-pipeline`, `rule-based-risk-review-engine` |
+| 2 | Python for Data Engineering_1 | `Stage 2 — Python for Data Engineering_1/` | 22 | 206 | 287 | 7 stage projects, ending in `capstone-end-to-end-data-platform` |
+| 2B | Python for Data Engineering_2 | `Stage 2B — Python for Data Engineering_2/` | 5 | 67 | 92 | 5 stage projects, ending in `system-design-interview-portfolio` |
+| 2C | Data Engineering_3 | `Stage 2C — Data Engineering_3/` | 10 | 79 | 191 | none (module lessons only, no stage project) |
+| 2D | Data Architecture | `Stage 2D — Data Architecture/` | 16 | 124 | 207 | `enterprise-data-architecture-capstone` |
 | 2E | Production DevOps & Platform Engineering | `Stage 2E — Production DevOps & Platform Engineering/` | 17 | 164 | 251 | `end-to-end-production-devops-capstone` |
 | 3 | Data Structures & Algorithms | `Stage 3 — Data Structures & Algorithms/` | 21 | 235 | 352 | `algorithm-toolkit-and-benchmark` |
 | 4A | Basic Mathematics Prerequisite | `Stage 4A — Basic Mathematics Prerequisite/` | 15 | 125 | 192 | `prerequisite-math-workbook-and-readiness-check` |
 | 4B | Mathematics for Machine Learning | `Stage 4B — Mathematics for Machine Learning/` | 14 | 80 | 159 | `math-for-ml-notebook-library` |
 | 4C | Advanced Mathematics for Machine Learning — Deep Learning | `Stage 4C — Advanced Mathematics for Machine Learning — Deep Learning/` | 10 | 86 | 147 | `deep-learning-math-derivation-notebook` |
-| 5A | Machine Learning Foundation | `Stage 5A — Machine Learning Foundation/` | 13 | 103 | 164 | `foundation-capstone-and-reproducible-report` |
-| 5B | Advanced Machine Learning | `Stage 5B — Advanced Machine Learning/` | 15 | 98 | 167 | `advanced-ml-capstone` |
+| 5A | Machine Learning Foundation | `Stage 5A — Machine Learning Foundation/` | 13 | 106 | 164 | `foundation-capstone-and-reproducible-report` |
+| 5B | Advanced Machine Learning | `Stage 5B — Advanced Machine Learning/` | 15 | 102 | 167 | `advanced-ml-capstone` |
 | 5C | Deep Learning & Transformers | `Stage 5C — Deep Learning & Transformers/` | 15 | 79 | 145 | `train-a-small-gpt-and-write-the-report` |
-| 5D | MLOps | `Stage 5D — MLOps/` | 16 | 89 | 165 | `final-production-mlops-capstone` |
+| 5D | MLOps | `Stage 5D — MLOps/` | 16 | 93 | 165 | `final-production-mlops-capstone` |
 | 7 | Backend Engineering for AI Systems | `Backend Engineering for AI Systems/` | 11 | 50 | 99 | `production-ready-ai-api-service` |
 | 8 | LLM Application Engineering | `LLM Application Engineering/` | 13 | 56 | 113 | `structured-document-extraction-service` |
 | 9 | Retrieval & RAG Systems | `Retrieval & RAG Systems/` | 13 | 54 | 111 | `rag-v1-foundation-for-flagship-1` |
@@ -5077,7 +5244,7 @@ Modules exclude the `00-` overview folder. Lessons are the numbered `NN-*.md` fi
 | 16 | Flagship Portfolio Projects | `Flagship Portfolio Projects/` | 7 | — | 156 | 7 flagship repos (1 optional) |
 | 17 | Interview Preparation & Getting Hired | `Interview Preparation & Getting Hired/` | 10 | 30 | 75 | `job-search-campaign-tracker` |
 | 18 | Career Growth to Senior | `Career Growth to Senior/` | 6 | 19 | 48 | `senior-readiness-evidence-portfolio` |
-| **Total** | | | **337** | **2162** | **3797** | |
+| **Total** | | | **345** | **2270** | **4055** | |
 
 ## 5. Build order
 
