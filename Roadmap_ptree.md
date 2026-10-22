@@ -1262,16 +1262,53 @@ Stage 2D — Data Architecture/
 ```text
 Stage 2E — Production DevOps & Platform Engineering/
 ├── README.md
+│
 ├── 00-Stage-2E-Overview/
 │   ├── README.md
 │   ├── learning-plan.md
 │   ├── prerequisites-and-exit-criteria.md
 │   ├── production-devops-tooling-map.md
+│   ├── lab-environment-setup.md
+│   ├── local-lab-kind-minikube-and-localstack.md
+│   ├── free-tier-cloud-account-and-cost-safety.md
 │   └── Projects/
 │       ├── README.md
 │       └── 01-production-readiness-baseline.md
 │
-├── 01-Production-Kubernetes-Operations/
+├── 01-Container-Image-Engineering-and-Registry-Hygiene/
+│   ├── README.md
+│   ├── 01-multi-stage-builds-and-layer-optimization.md
+│   ├── 02-minimal-and-distroless-base-images.md
+│   ├── 03-reproducible-and-deterministic-image-builds.md
+│   ├── 04-build-caching-buildkit-and-build-performance.md
+│   ├── 05-image-tagging-versioning-and-immutability.md
+│   ├── 06-container-registries-mirrors-and-pull-through-caches.md
+│   ├── 07-registry-retention-garbage-collection-and-access-control.md
+│   ├── 08-non-root-containers-and-runtime-defaults.md
+│   ├── practice-questions.md
+│   └── Projects/
+│       ├── README.md
+│       └── 01-hardened-optimized-image-pipeline-for-data-services.md
+│
+├── 02-CI-CD-Pipeline-Engineering/
+│   ├── README.md
+│   ├── 01-ci-cd-architecture-and-pipeline-design-principles.md
+│   ├── 02-github-actions-workflows-runners-and-reusable-workflows.md
+│   ├── 03-gitlab-ci-stages-jobs-and-templates.md
+│   ├── 04-build-caching-parallelism-and-pipeline-speed.md
+│   ├── 05-monorepo-and-path-based-pipelines.md
+│   ├── 06-test-stages-quality-gates-and-flaky-test-management.md
+│   ├── 07-artifact-repositories-and-package-publishing.md
+│   ├── 08-semantic-versioning-changelogs-and-release-automation.md
+│   ├── 09-environment-promotion-approvals-and-protected-branches.md
+│   ├── 10-self-hosted-runners-scaling-and-security.md
+│   ├── 11-pipeline-observability-and-dora-delivery-metrics.md
+│   ├── practice-questions.md
+│   └── Projects/
+│       ├── README.md
+│       └── 01-multi-stage-ci-cd-pipeline-for-data-and-ml-service.md
+│
+├── 03-Production-Kubernetes-Operations/
 │   ├── README.md
 │   ├── 01-production-cluster-architecture-and-control-plane.md
 │   ├── 02-namespaces-resource-quotas-and-limit-ranges.md
@@ -1281,14 +1318,62 @@ Stage 2E — Production DevOps & Platform Engineering/
 │   ├── 06-horizontal-and-vertical-autoscaling.md
 │   ├── 07-node-pools-taints-affinity-and-workload-placement.md
 │   ├── 08-cluster-upgrades-and-version-compatibility.md
-│   ├── 09-kubernetes-rbac-and-network-policies.md
-│   ├── 10-production-cluster-troubleshooting.md
+│   ├── 09-kubernetes-rbac-and-pod-security-standards.md
+│   ├── 10-etcd-health-backup-and-control-plane-troubleshooting.md
+│   ├── 11-production-cluster-troubleshooting.md
 │   ├── practice-questions.md
 │   └── Projects/
 │       ├── README.md
 │       └── 01-resilient-data-pipeline-on-kubernetes.md
 │
-├── 02-Advanced-Infrastructure-as-Code-and-Cloud-Operations/
+├── 04-Kubernetes-Networking-Ingress-and-Service-Mesh/
+│   ├── README.md
+│   ├── 01-kubernetes-networking-model-cni-and-pod-networking.md
+│   ├── 02-services-kube-proxy-and-cluster-dns.md
+│   ├── 03-ingress-controllers-and-gateway-api.md
+│   ├── 04-load-balancers-and-external-traffic-management.md
+│   ├── 05-network-policies-and-zero-trust-segmentation.md
+│   ├── 06-tls-termination-and-certificate-lifecycle-with-cert-manager.md
+│   ├── 07-service-mesh-fundamentals-istio-and-linkerd.md
+│   ├── 08-mtls-traffic-shifting-retries-and-circuit-breaking.md
+│   ├── 09-ebpf-networking-and-cilium-overview.md
+│   ├── 10-network-troubleshooting-dns-latency-and-packet-loss.md
+│   ├── practice-questions.md
+│   └── Projects/
+│       ├── README.md
+│       └── 01-secure-ingress-and-mtls-for-data-and-ml-apis.md
+│
+├── 05-Kubernetes-Storage-and-Stateful-Data-Workloads/
+│   ├── README.md
+│   ├── 01-volumes-persistentvolumes-and-persistentvolumeclaims.md
+│   ├── 02-storageclasses-dynamic-provisioning-and-csi-drivers.md
+│   ├── 03-volume-snapshots-cloning-and-expansion.md
+│   ├── 04-statefulset-storage-patterns-and-stable-identity.md
+│   ├── 05-running-databases-and-brokers-with-operators.md
+│   ├── 06-storage-performance-iops-throughput-and-latency.md
+│   ├── 07-data-locality-zonal-failure-and-volume-affinity.md
+│   ├── 08-storage-troubleshooting-and-orphaned-volumes.md
+│   ├── practice-questions.md
+│   └── Projects/
+│       ├── README.md
+│       └── 01-stateful-data-platform-with-snapshots-and-recovery.md
+│
+├── 06-Helm-Kustomize-and-Kubernetes-Packaging/
+│   ├── README.md
+│   ├── 01-kubernetes-manifest-management-and-the-templating-problem.md
+│   ├── 02-helm-charts-values-and-templates.md
+│   ├── 03-helm-hooks-dependencies-and-subcharts.md
+│   ├── 04-helm-chart-testing-linting-and-versioning.md
+│   ├── 05-kustomize-bases-overlays-and-patches.md
+│   ├── 06-choosing-helm-vs-kustomize-and-combining-them.md
+│   ├── 07-chart-repositories-oci-registries-and-signing.md
+│   ├── 08-operators-crds-and-custom-controllers-overview.md
+│   ├── practice-questions.md
+│   └── Projects/
+│       ├── README.md
+│       └── 01-reusable-chart-and-overlays-for-multi-environment-delivery.md
+│
+├── 07-Advanced-Infrastructure-as-Code-and-Cloud-Operations/
 │   ├── README.md
 │   ├── 01-terraform-state-backends-locking-and-recovery.md
 │   ├── 02-terraform-modules-and-environment-reuse.md
@@ -1298,27 +1383,51 @@ Stage 2E — Production DevOps & Platform Engineering/
 │   ├── 06-policy-as-code-for-infrastructure-guardrails.md
 │   ├── 07-cloud-quotas-service-limits-and-resource-governance.md
 │   ├── 08-infrastructure-decommissioning-and-orphan-cleanup.md
+│   ├── 09-terragrunt-opentofu-and-pulumi-alternatives.md
+│   ├── 10-configuration-management-with-ansible.md
+│   ├── 11-infrastructure-testing-terratest-and-plan-validation.md
+│   ├── 12-crossplane-and-kubernetes-native-infrastructure.md
 │   ├── practice-questions.md
 │   └── Projects/
 │       ├── README.md
 │       └── 01-governed-multi-environment-data-platform-infrastructure.md
 │
-├── 03-GitOps-and-Progressive-Delivery/
+├── 08-GitOps-and-Progressive-Delivery/
 │   ├── README.md
 │   ├── 01-gitops-principles-and-desired-state-reconciliation.md
-│   ├── 02-configuration-and-secret-reference-management.md
-│   ├── 03-deployment-drift-detection-and-reconciliation.md
-│   ├── 04-progressive-delivery-with-canary-and-blue-green-releases.md
-│   ├── 05-release-health-analysis-and-automated-abort.md
-│   ├── 06-database-and-data-platform-migration-safety.md
-│   ├── 07-backward-compatible-pipeline-and-api-releases.md
-│   ├── 08-release-evidence-and-audit-trails.md
+│   ├── 02-argo-cd-applications-projects-and-sync-policies.md
+│   ├── 03-flux-controllers-and-kustomize-helm-reconciliation.md
+│   ├── 04-repository-layout-and-multi-environment-promotion.md
+│   ├── 05-configuration-and-secret-reference-management.md
+│   ├── 06-deployment-drift-detection-and-reconciliation.md
+│   ├── 07-progressive-delivery-with-canary-and-blue-green-releases.md
+│   ├── 08-argo-rollouts-flagger-and-traffic-based-analysis.md
+│   ├── 09-release-health-analysis-and-automated-abort.md
+│   ├── 10-feature-flags-and-dark-launches.md
+│   ├── 11-database-and-data-platform-migration-safety.md
+│   ├── 12-backward-compatible-pipeline-and-api-releases.md
+│   ├── 13-release-evidence-and-audit-trails.md
 │   ├── practice-questions.md
 │   └── Projects/
 │       ├── README.md
 │       └── 01-gitops-controlled-data-service-release.md
 │
-├── 04-Site-Reliability-Engineering-and-Incident-Management/
+├── 09-Secrets-and-Identity-Management/
+│   ├── README.md
+│   ├── 01-secrets-threat-model-and-lifecycle.md
+│   ├── 02-hashicorp-vault-architecture-and-auth-methods.md
+│   ├── 03-dynamic-secrets-leases-and-rotation.md
+│   ├── 04-external-secrets-operator-and-cloud-secret-managers.md
+│   ├── 05-sops-sealed-secrets-and-encrypted-secrets-in-git.md
+│   ├── 06-kubernetes-secret-encryption-and-csi-secret-store.md
+│   ├── 07-workload-identity-irsa-and-federated-credentials.md
+│   ├── 08-secret-leak-detection-and-incident-response.md
+│   ├── practice-questions.md
+│   └── Projects/
+│       ├── README.md
+│       └── 01-zero-static-credential-secrets-platform.md
+│
+├── 10-Site-Reliability-Engineering-and-Incident-Management/
 │   ├── README.md
 │   ├── 01-service-level-indicators-objectives-and-error-budgets.md
 │   ├── 02-reliability-targets-for-batch-streaming-and-inference.md
@@ -1329,27 +1438,35 @@ Stage 2E — Production DevOps & Platform Engineering/
 │   ├── 07-toil-reduction-and-operational-automation.md
 │   ├── 08-runbook-design-and-operational-readiness-reviews.md
 │   ├── 09-error-budget-policies-and-release-freezes.md
+│   ├── 10-on-call-rotations-handoffs-and-sustainable-paging.md
+│   ├── 11-dora-metrics-and-engineering-performance-measurement.md
 │   ├── practice-questions.md
 │   └── Projects/
 │       ├── README.md
 │       └── 01-production-incident-simulation-and-postmortem.md
 │
-├── 05-Production-Observability-and-Performance-Operations/
+├── 11-Production-Observability-Stack-and-Performance-Operations/
 │   ├── README.md
 │   ├── 01-production-telemetry-architecture-and-retention.md
-│   ├── 02-service-dependencies-and-end-to-end-failure-correlation.md
-│   ├── 03-actionable-alerts-and-symptom-based-monitoring.md
-│   ├── 04-saturation-queue-depth-and-resource-exhaustion.md
-│   ├── 05-distributed-trace-analysis-and-bottleneck-isolation.md
-│   ├── 06-scheduled-job-freshness-and-deadline-monitoring.md
-│   ├── 07-observability-cost-cardinality-and-data-retention.md
-│   ├── 08-production-load-stress-and-soak-testing.md
+│   ├── 02-prometheus-metrics-scraping-and-promql.md
+│   ├── 03-grafana-dashboards-and-dashboard-as-code.md
+│   ├── 04-loki-and-centralized-log-pipelines.md
+│   ├── 05-opentelemetry-collector-and-trace-pipelines.md
+│   ├── 06-alertmanager-routing-silencing-and-on-call-integration.md
+│   ├── 07-service-dependencies-and-end-to-end-failure-correlation.md
+│   ├── 08-actionable-alerts-and-symptom-based-monitoring.md
+│   ├── 09-saturation-queue-depth-and-resource-exhaustion.md
+│   ├── 10-distributed-trace-analysis-and-bottleneck-isolation.md
+│   ├── 11-scheduled-job-freshness-and-deadline-monitoring.md
+│   ├── 12-observability-cost-cardinality-and-data-retention.md
+│   ├── 13-production-load-stress-and-soak-testing.md
 │   ├── practice-questions.md
 │   └── Projects/
 │       ├── README.md
-│       └── 01-platform-health-and-bottleneck-investigation.md
+│       ├── 01-platform-health-and-bottleneck-investigation.md
+│       └── 02-end-to-end-observability-stack-build.md
 │
-├── 06-Production-Security-and-Software-Supply-Chain/
+├── 12-Production-Security-and-Software-Supply-Chain/
 │   ├── README.md
 │   ├── 01-threat-modelling-for-data-and-ml-platforms.md
 │   ├── 02-container-image-scanning-and-vulnerability-triage.md
@@ -1360,12 +1477,15 @@ Stage 2E — Production DevOps & Platform Engineering/
 │   ├── 07-runtime-security-and-container-hardening.md
 │   ├── 08-admission-controls-and-deployment-policy-enforcement.md
 │   ├── 09-security-auditing-and-vulnerability-remediation-workflows.md
+│   ├── 10-slsa-framework-and-build-provenance-levels.md
+│   ├── 11-kyverno-and-opa-gatekeeper-policy-authoring.md
+│   ├── 12-runtime-threat-detection-with-falco.md
 │   ├── practice-questions.md
 │   └── Projects/
 │       ├── README.md
 │       └── 01-secure-and-verified-container-release.md
 │
-├── 07-Backup-Disaster-Recovery-and-Resilience-Testing/
+├── 13-Backup-Disaster-Recovery-and-Resilience-Testing/
 │   ├── README.md
 │   ├── 01-recovery-time-and-recovery-point-objectives.md
 │   ├── 02-backup-scope-retention-and-immutability.md
@@ -1375,12 +1495,29 @@ Stage 2E — Production DevOps & Platform Engineering/
 │   ├── 06-regional-failure-and-dependency-outage-strategies.md
 │   ├── 07-restore-drills-and-recovery-evidence.md
 │   ├── 08-failure-injection-and-resilience-exercises.md
+│   ├── 09-kubernetes-backup-and-restore-with-velero.md
+│   ├── 10-chaos-engineering-with-litmus-and-chaos-mesh.md
 │   ├── practice-questions.md
 │   └── Projects/
 │       ├── README.md
 │       └── 01-tested-disaster-recovery-for-data-and-ml.md
 │
-├── 08-Platform-Capacity-and-FinOps-Operations/
+├── 14-Multi-Cluster-and-Multi-Region-Operations/
+│   ├── README.md
+│   ├── 01-multi-cluster-topologies-and-when-to-split-clusters.md
+│   ├── 02-fleet-management-and-cluster-lifecycle-with-cluster-api.md
+│   ├── 03-multi-cluster-gitops-and-config-propagation.md
+│   ├── 04-cross-cluster-service-discovery-and-traffic-routing.md
+│   ├── 05-global-load-balancing-and-dns-failover.md
+│   ├── 06-active-active-vs-active-passive-regional-designs.md
+│   ├── 07-data-replication-and-consistency-across-regions.md
+│   ├── 08-multi-cluster-observability-and-policy-governance.md
+│   ├── practice-questions.md
+│   └── Projects/
+│       ├── README.md
+│       └── 01-two-region-failover-for-a-data-platform.md
+│
+├── 15-Platform-Capacity-Compute-Economics-and-FinOps/
 │   ├── README.md
 │   ├── 01-platform-capacity-forecasting-and-headroom.md
 │   ├── 02-workload-priorities-quotas-and-resource-contention.md
@@ -1389,18 +1526,40 @@ Stage 2E — Production DevOps & Platform Engineering/
 │   ├── 05-idle-resource-detection-and-automated-cleanup.md
 │   ├── 06-cost-reliability-and-performance-tradeoffs.md
 │   ├── 07-capacity-and-cost-review-for-production-releases.md
+│   ├── 08-spot-and-preemptible-instances-for-data-workloads.md
+│   ├── 09-karpenter-and-cluster-autoscaler-node-provisioning.md
+│   ├── 10-event-driven-autoscaling-with-keda.md
+│   ├── 11-kubernetes-cost-visibility-with-opencost.md
+│   ├── 12-gpu-scheduling-sharing-and-ml-workload-economics.md
 │   ├── practice-questions.md
 │   └── Projects/
 │       ├── README.md
 │       └── 01-capacity-and-cost-governance-for-data-ml-platforms.md
 │
-└── 09-Production-DevOps-Integrated-Capstone/
+├── 16-Platform-Engineering-and-Internal-Developer-Platforms/
+│   ├── README.md
+│   ├── 01-platform-engineering-principles-and-platform-as-a-product.md
+│   ├── 02-golden-paths-templates-and-paved-roads.md
+│   ├── 03-self-service-infrastructure-and-environment-provisioning.md
+│   ├── 04-developer-portals-and-backstage-service-catalog.md
+│   ├── 05-scaffolding-and-software-templates.md
+│   ├── 06-platform-apis-with-crossplane-compositions.md
+│   ├── 07-multi-tenancy-isolation-and-tenant-onboarding.md
+│   ├── 08-platform-slos-adoption-metrics-and-developer-experience.md
+│   ├── 09-platform-governance-deprecation-and-versioning.md
+│   ├── practice-questions.md
+│   └── Projects/
+│       ├── README.md
+│       └── 01-self-service-data-and-ml-platform-portal.md
+│
+└── 17-Production-DevOps-Integrated-Capstone/
     ├── README.md
     ├── capstone-requirements.md
     ├── production-readiness-checklist.md
     ├── incident-and-recovery-rubric.md
     ├── security-and-release-rubric.md
     ├── cost-and-reliability-rubric.md
+    ├── platform-and-delivery-rubric.md
     └── Projects/
         ├── README.md
         ├── 01-production-data-platform-deployment.md
@@ -4487,7 +4646,7 @@ Modules exclude the `00-` overview folder. Lessons are the numbered `NN-*.md` fi
 | 2B | Python for Data Engineering_2 | `Stage 2B — Python for Data Engineering_2/` | 5 | 67 | 98 | 5 stage projects, ending in `system-design-interview-portfolio` |
 | 2C | Data Engineering_3 | `Stage 2C — Data Engineering_3/` | 10 | 79 | 80 | none (module lessons only, no stage project) |
 | 2D | Data Architecture | `Stage 2D — Data Architecture/` | 16 | 124 | 209 | `enterprise-data-architecture-capstone` |
-| 2E | Production DevOps & Platform Engineering | `Stage 2E — Production DevOps & Platform Engineering/` | 9 | 67 | 117 | `end-to-end-production-devops-capstone` |
+| 2E | Production DevOps & Platform Engineering | `Stage 2E — Production DevOps & Platform Engineering/` | 17 | 164 | 251 | `end-to-end-production-devops-capstone` |
 | 3 | Data Structures & Algorithms | `Stage 3 — Data Structures & Algorithms/` | 16 | 166 | 253 | `algorithm-toolkit-and-benchmark` |
 | 4A | Basic Mathematics Prerequisite | `Stage 4A — Basic Mathematics Prerequisite/` | 11 | 199 | 202 | none (module lessons only, no stage project) |
 | 4B | Mathematics for Machine Learning | `Stage 4B — Mathematics for Machine Learning/` | 10 | 54 | 99 | `math-for-ml-notebook-library` |
