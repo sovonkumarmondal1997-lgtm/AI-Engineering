@@ -2243,126 +2243,209 @@ Stage 4A — Basic Mathematics Prerequisite/
 ```text
 Stage 4B — Mathematics for Machine Learning/
 ├── README.md
+│
 ├── 00-Stage-4-Overview/
 │   ├── README.md
 │   ├── learning-plan.md
+│   ├── how-4b-connects-to-4a-and-4c.md
 │   └── Projects/
 │       ├── README.md
 │       └── 01-math-for-ml-notebook-library.md
-├── 01-Math-Refresher-and-Notation/
+│
+├── 01-Vectors-Dot-Product-and-Norms/
 │   ├── README.md
-│   ├── 01-numbers-and-algebra-refresher.md
-│   ├── 02-functions-and-graphs.md
-│   ├── 03-exponents-and-logarithms.md
-│   ├── 04-summation-and-product-notation.md
-│   ├── 05-reading-math-in-papers.md
+│   ├── 01-vectors-in-n-dimensions-and-numpy-arrays.md
+│   ├── 02-dot-product-and-its-geometric-meaning.md
+│   ├── 03-projection-onto-a-vector.md
+│   ├── 04-norms-l1-l2-and-infinity-and-distance.md
+│   ├── 05-linear-combinations-span-and-linear-independence.md
 │   ├── practice-questions.md
 │   └── Projects/
 │       ├── README.md
-│       └── 01-plot-common-functions.md
-├── 02-Vectors-and-Vector-Spaces/
+│       ├── 01-vector-operations-library-in-numpy.md
+│       └── 02-geometry-of-dot-product-explorer.md
+│
+├── 02-Matrices-and-Linear-Transformations/
 │   ├── README.md
-│   ├── 01-what-a-vector-is.md
-│   ├── 02-vector-operations.md
-│   ├── 03-dot-product-and-projection.md
-│   ├── 04-norms-and-distance.md
-│   ├── 05-linear-independence-and-span.md
+│   ├── 01-matrices-as-data-tables-and-linear-maps.md
+│   ├── 02-matrix-vector-and-matrix-matrix-multiplication.md
+│   ├── 03-transpose-identity-and-special-matrices.md
+│   ├── 04-matrix-shapes-broadcasting-and-batching.md
+│   ├── 05-linear-transformations-rotation-scaling-and-shear.md
+│   ├── 06-solving-ax-equals-b-and-gaussian-elimination.md
+│   ├── 07-determinants-and-invertibility.md
+│   ├── 08-matrix-inverse-and-when-it-fails.md
+│   ├── 09-rank-and-column-space-intuition.md
 │   ├── practice-questions.md
 │   └── Projects/
 │       ├── README.md
-│       └── 01-vectors-in-numpy.md
-├── 03-Matrices-and-Linear-Transformations/
+│       ├── 01-matrix-operations-from-scratch.md
+│       ├── 02-gaussian-elimination-solver.md
+│       └── 03-linear-transformation-visualizer.md
+│
+├── 03-Eigenvalues-SVD-and-Low-Rank-Structure/
 │   ├── README.md
-│   ├── 01-matrices-as-data-and-functions.md
-│   ├── 02-matrix-multiplication.md
-│   ├── 03-transpose-inverse-and-identity.md
-│   ├── 04-matrix-shapes-and-broadcasting.md
-│   ├── 05-eigenvalues-and-eigenvectors.md
-│   ├── 06-svd-and-low-rank-approximation.md
+│   ├── 01-eigenvalues-and-eigenvectors.md
+│   ├── 02-eigendecomposition-and-matrix-powers.md
+│   ├── 03-singular-value-decomposition-intuition-and-computation.md
+│   ├── 04-low-rank-approximation.md
+│   ├── 05-matrix-norms-frobenius-and-spectral.md
 │   ├── practice-questions.md
 │   └── Projects/
 │       ├── README.md
-│       └── 01-image-compression-with-svd.md
-├── 04-Similarity-Distance-and-Embedding-Math/
+│       ├── 01-eigenvalue-power-iteration.md
+│       └── 02-image-compression-with-svd.md
+│
+├── 04-Similarity-Distance-and-Embedding-Geometry/
 │   ├── README.md
 │   ├── 01-cosine-similarity.md
-│   ├── 02-euclidean-vs-cosine.md
-│   ├── 03-high-dimensional-geometry.md
-│   ├── 04-nearest-neighbors-intuition.md
+│   ├── 02-euclidean-versus-cosine-versus-dot-product-similarity.md
+│   ├── 03-high-dimensional-geometry-and-the-curse-of-dimensionality.md
 │   ├── practice-questions.md
 │   └── Projects/
 │       ├── README.md
-│       └── 01-word-vector-similarity-explorer.md
-├── 05-Derivatives-and-Gradients/
+│       ├── 01-word-vector-similarity-explorer.md
+│       └── 02-curse-of-dimensionality-experiments.md
+│
+├── 05-Derivatives-and-Single-Variable-Optimization/
 │   ├── README.md
-│   ├── 01-rates-of-change.md
+│   ├── 01-the-derivative-from-limits-slope-of-a-curve.md
 │   ├── 02-derivative-rules.md
-│   ├── 03-partial-derivatives.md
-│   ├── 04-gradients.md
-│   ├── 05-numerical-vs-analytical-derivatives.md
+│   ├── 03-derivatives-of-exponential-logarithmic-and-trigonometric-functions.md
+│   ├── 04-the-chain-rule.md
+│   ├── 05-derivatives-of-sigmoid-tanh-and-relu.md
+│   ├── 06-second-derivatives-and-curvature.md
+│   ├── 07-finding-minima-and-maxima.md
+│   ├── 08-numerical-versus-analytical-derivatives-and-gradient-checking.md
 │   ├── practice-questions.md
 │   └── Projects/
 │       ├── README.md
-│       └── 01-numerical-gradient-checker.md
-├── 06-Chain-Rule-and-Optimization/
+│       ├── 01-symbolic-and-numerical-derivative-comparison.md
+│       └── 02-numerical-gradient-checker.md
+│
+├── 06-Integral-Calculus/
 │   ├── README.md
-│   ├── 01-the-chain-rule.md
-│   ├── 02-computational-graphs.md
-│   ├── 03-gradient-descent.md
-│   ├── 04-learning-rate-and-convergence.md
-│   ├── 05-sgd-momentum-and-adam-intuition.md
+│   ├── 01-antiderivatives-and-the-indefinite-integral.md
+│   ├── 02-definite-integrals-and-the-fundamental-theorem-of-calculus.md
+│   ├── 03-integration-by-substitution-and-by-parts.md
+│   ├── 04-improper-integrals.md
+│   ├── 05-numerical-integration-riemann-sums-and-the-trapezoid-rule.md
+│   ├── 06-double-integrals-introduction.md
 │   ├── practice-questions.md
 │   └── Projects/
 │       ├── README.md
-│       └── 01-gradient-descent-visualizer.md
-├── 07-Probability-Fundamentals/
+│       ├── 01-numerical-integration-toolkit.md
+│       └── 02-area-under-a-density-curve-lab.md
+│
+├── 07-Multivariable-Calculus-and-Gradients/
 │   ├── README.md
-│   ├── 01-events-and-probability.md
-│   ├── 02-conditional-probability.md
-│   ├── 03-bayes-theorem.md
-│   ├── 04-random-variables.md
-│   ├── 05-expectation-and-variance.md
-│   ├── 06-independence-and-correlation.md
+│   ├── 01-functions-of-several-variables-and-level-sets.md
+│   ├── 02-partial-derivatives.md
+│   ├── 03-gradients-and-the-direction-of-steepest-ascent.md
+│   ├── 04-computational-graphs-and-backpropagation-by-hand.md
 │   ├── practice-questions.md
 │   └── Projects/
 │       ├── README.md
-│       └── 01-probability-simulations.md
-├── 08-Distributions-and-Sampling/
+│       ├── 01-gradient-field-and-contour-plotter.md
+│       └── 02-backpropagation-by-hand-on-a-tiny-network.md
+│
+├── 08-Optimization-Fundamentals/
+│   ├── README.md
+│   ├── 01-loss-functions-mse-mae-and-huber.md
+│   ├── 02-gradient-descent.md
+│   ├── 03-learning-rate-and-convergence.md
+│   ├── 04-stochastic-and-mini-batch-gradient-descent.md
+│   ├── 05-momentum-rmsprop-and-adam-intuition.md
+│   ├── practice-questions.md
+│   └── Projects/
+│       ├── README.md
+│       ├── 01-gradient-descent-visualizer.md
+│       └── 02-optimizer-comparison-sgd-momentum-adam.md
+│
+├── 09-Probability-Fundamentals/
+│   ├── README.md
+│   ├── 01-sample-spaces-events-and-probability-axioms.md
+│   ├── 02-conditional-probability-and-the-multiplication-rule.md
+│   ├── 03-law-of-total-probability-and-bayes-theorem.md
+│   ├── 04-independence.md
+│   ├── 05-random-variables-discrete-and-continuous.md
+│   ├── 06-pmf-pdf-and-cdf.md
+│   ├── 07-expectation-and-variance.md
+│   ├── 08-covariance-and-correlation.md
+│   ├── practice-questions.md
+│   └── Projects/
+│       ├── README.md
+│       ├── 01-probability-simulations.md
+│       └── 02-bayes-spam-filter-by-hand.md
+│
+├── 10-Common-Distributions/
 │   ├── README.md
 │   ├── 01-bernoulli-and-binomial.md
-│   ├── 02-normal-distribution.md
-│   ├── 03-categorical-distribution-and-softmax.md
-│   ├── 04-law-of-large-numbers.md
-│   ├── 05-central-limit-theorem.md
-│   ├── 06-sampling-methods.md
+│   ├── 02-categorical-multinomial-and-softmax.md
+│   ├── 03-poisson-distribution.md
+│   ├── 04-uniform-and-exponential-distributions.md
+│   ├── 05-normal-distribution.md
+│   ├── 06-beta-and-dirichlet-distributions-in-outline.md
 │   ├── practice-questions.md
 │   └── Projects/
 │       ├── README.md
-│       └── 01-sampling-from-a-next-token-distribution.md
-├── 09-Statistics-for-Experiments-and-Evals/
+│       ├── 01-distribution-gallery-and-fitting.md
+│       └── 02-poisson-event-rate-simulator.md
+│
+├── 11-Sampling-and-Limit-Theorems/
 │   ├── README.md
-│   ├── 01-descriptive-statistics.md
-│   ├── 02-confidence-intervals.md
-│   ├── 03-bootstrap-resampling.md
-│   ├── 04-hypothesis-testing-and-p-values.md
-│   ├── 05-paired-tests-for-model-comparison.md
-│   ├── 06-sample-size-and-statistical-power.md
-│   ├── 07-multiple-comparisons.md
+│   ├── 01-random-sampling-and-inverse-transform-sampling.md
+│   ├── 02-law-of-large-numbers.md
+│   ├── 03-central-limit-theorem.md
+│   ├── 04-sampling-distributions-and-standard-error.md
 │   ├── practice-questions.md
 │   └── Projects/
 │       ├── README.md
-│       └── 01-is-prompt-b-really-better.md
-└── 10-Information-Theory-for-ML/
+│       ├── 01-sampling-from-a-next-token-distribution.md
+│       └── 02-clt-and-lln-simulation-lab.md
+│
+├── 12-Inferential-Statistics-for-Experiments-and-Evals/
+│   ├── README.md
+│   ├── 01-confidence-intervals.md
+│   ├── 02-bootstrap-resampling.md
+│   ├── 03-hypothesis-testing-and-p-values.md
+│   ├── 04-t-tests-and-paired-tests-for-model-comparison.md
+│   ├── 05-tests-for-proportions-and-ab-testing.md
+│   ├── 06-effect-size-sample-size-and-statistical-power.md
+│   ├── 07-correlation-versus-causation-confounding-and-sampling-bias.md
+│   ├── practice-questions.md
+│   └── Projects/
+│       ├── README.md
+│       ├── 01-is-prompt-b-really-better.md
+│       ├── 02-bootstrap-confidence-interval-lab.md
+│       └── 03-ab-test-analysis-report.md
+│
+├── 13-Information-Theory-for-ML/
+│   ├── README.md
+│   ├── 01-information-and-surprise.md
+│   ├── 02-entropy.md
+│   ├── 03-cross-entropy-as-a-loss.md
+│   ├── 04-kl-divergence.md
+│   ├── 05-perplexity.md
+│   ├── practice-questions.md
+│   └── Projects/
+│       ├── README.md
+│       ├── 01-compute-perplexity-of-text.md
+│       └── 02-entropy-and-kl-explorer.md
+│
+└── 14-Linear-Models-Mathematics/
     ├── README.md
-    ├── 01-information-and-surprise.md
-    ├── 02-entropy.md
-    ├── 03-cross-entropy-loss.md
-    ├── 04-kl-divergence.md
-    ├── 05-perplexity.md
+    ├── 01-linear-regression-design-matrix-and-residuals.md
+    ├── 02-the-normal-equation-and-closed-form-solution.md
+    ├── 03-gradient-descent-versus-closed-form-for-linear-regression.md
+    ├── 04-logistic-regression-sigmoid-and-log-loss-gradient.md
+    ├── 05-ridge-and-lasso-regularization-mathematics.md
     ├── practice-questions.md
     └── Projects/
         ├── README.md
-        └── 01-compute-perplexity-of-text.md
+        ├── 01-linear-regression-from-scratch-in-numpy.md
+        ├── 02-logistic-regression-from-scratch.md
+        └── 03-ridge-versus-lasso-comparison.md
 ```
 
 ### Stage 4C — Advanced Mathematics for Machine Learning — Deep Learning
@@ -4789,7 +4872,7 @@ Modules exclude the `00-` overview folder. Lessons are the numbered `NN-*.md` fi
 | 2E | Production DevOps & Platform Engineering | `Stage 2E — Production DevOps & Platform Engineering/` | 17 | 164 | 251 | `end-to-end-production-devops-capstone` |
 | 3 | Data Structures & Algorithms | `Stage 3 — Data Structures & Algorithms/` | 21 | 235 | 352 | `algorithm-toolkit-and-benchmark` |
 | 4A | Basic Mathematics Prerequisite | `Stage 4A — Basic Mathematics Prerequisite/` | 15 | 125 | 192 | `prerequisite-math-workbook-and-readiness-check` |
-| 4B | Mathematics for Machine Learning | `Stage 4B — Mathematics for Machine Learning/` | 10 | 54 | 99 | `math-for-ml-notebook-library` |
+| 4B | Mathematics for Machine Learning | `Stage 4B — Mathematics for Machine Learning/` | 14 | 80 | 159 | `math-for-ml-notebook-library` |
 | 4C | Advanced Mathematics for Machine Learning — Deep Learning | `Stage 4C — Advanced Mathematics for Machine Learning — Deep Learning/` | 8 | 90 | 90 | none (module lessons only, no stage project) |
 | 5A | Machine Learning Foundation | `STAGE 5A - Machine Learning Foundation/` | 14 | 130 | 178 | `foundation-capstone-and-reproducible-report` |
 | 5B | Advanced Machine Learning | `STAGE 5B - Advanced Machine Learning/` | 13 | 94 | 124 | `advanced-ml-capstone` |
@@ -4807,7 +4890,7 @@ Modules exclude the `00-` overview folder. Lessons are the numbered `NN-*.md` fi
 | 16 | Flagship Portfolio Projects | `Flagship Portfolio Projects/` | 7 | — | 156 | 7 flagship repos (1 optional) |
 | 17 | Interview Preparation & Getting Hired | `Interview Preparation & Getting Hired/` | 10 | 30 | 75 | `job-search-campaign-tracker` |
 | 18 | Career Growth to Senior | `Career Growth to Senior/` | 6 | 19 | 48 | `senior-readiness-evidence-portfolio` |
-| **Total** | | | **329** | **2164** | **3610** | |
+| **Total** | | | **333** | **2190** | **3670** | |
 
 ## 5. Build order
 
