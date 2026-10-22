@@ -34,7 +34,7 @@ AI Engineering/
 ├── Stage 4B — Mathematics for Machine Learning/       # Stage 4B
 ├── Stage 4C — Advanced Mathematics for Machine Learning — Deep Learning/   # Stage 4C
 ├── Stage 5A — Machine Learning Foundation/            # Stage 5A
-├── STAGE 5B - Advanced Machine Learning/              # Stage 5B
+├── Stage 5B — Advanced Machine Learning/              # Stage 5B
 ├── STAGE 5C - MLOps/                                  # Stage 5C
 ├── Deep Learning & Transformers/            # Stage 6
 ├── Backend Engineering for AI Systems/      # Stage 7
@@ -2834,64 +2834,75 @@ Stage 5A — Machine Learning Foundation/
 ### Stage 5B — Advanced Machine Learning
 
 ```text
-STAGE 5B - Advanced Machine Learning/
+Stage 5B — Advanced Machine Learning/
 ├── README.md
-├── 00-Stage-Overview-and-Learning-Plan/
+├── 00-Stage-Overview/
 │   ├── README.md
 │   ├── learning-plan.md
 │   ├── prerequisites-and-exit-criteria.md
-│   └── Projects/01-advanced-experiment-design.md
+│   └── Projects/
+│       ├── README.md
+│       └── 01-advanced-experiment-design.md
 ├── 01-Advanced-Validation-and-Model-Selection/
 │   ├── README.md
 │   ├── 01-nested-validation-and-selection-bias.md
-│   ├── 02-grouped-temporal-and-distribution-aware-validation.md
+│   ├── 02-distribution-aware-validation-and-adversarial-validation.md
 │   ├── 03-bayesian-hyperparameter-optimization.md
-│   ├── 04-compute-aware-search-and-early-stopping.md
+│   ├── 04-compute-aware-search-and-multi-fidelity-tuning.md
 │   ├── 05-robustness-and-sensitivity-analysis.md
-│   ├── 06-statistical-comparison-of-models.md
-│   └── Projects/01-compute-aware-model-selection.md
-├── 02-Probabilistic-and-Bayesian-Machine-Learning/
+│   ├── 06-comparing-models-across-folds-and-datasets.md
+│   ├── practice-questions.md
+│   └── Projects/
+│       ├── README.md
+│       └── 01-compute-aware-model-selection.md
+├── 02-Probabilistic-Prediction-and-Uncertainty-in-Practice/
 │   ├── README.md
-│   ├── 01-random-variables-and-probability-distributions.md
-│   ├── 02-likelihood-and-log-likelihood.md
-│   ├── 03-maximum-likelihood-estimation.md
-│   ├── 04-maximum-a-posteriori-estimation.md
-│   ├── 05-priors-posteriors-and-bayesian-updating.md
-│   ├── 06-bayesian-vs-frequentist-interpretations.md
-│   ├── 07-predictive-distributions-and-uncertainty.md
-│   ├── 08-aleatoric-vs-epistemic-uncertainty.md
-│   ├── 09-confidence-vs-prediction-intervals.md
-│   ├── 10-bootstrap-uncertainty-estimation.md
-│   └── Projects/01-probabilistic-prediction-report.md
+│   ├── 01-probabilistic-classifiers-and-predictive-distributions.md
+│   ├── 02-bayesian-linear-and-logistic-regression-in-practice.md
+│   ├── 03-ensembles-and-bootstrap-for-prediction-uncertainty.md
+│   ├── 04-gaussian-processes-and-small-data-uncertainty.md
+│   ├── 05-split-conformal-prediction.md
+│   ├── 06-conformalized-quantile-regression-and-adaptive-intervals.md
+│   ├── 07-uncertainty-aware-abstention-and-human-review.md
+│   ├── practice-questions.md
+│   └── Projects/
+│       ├── README.md
+│       ├── 01-probabilistic-prediction-report.md
+│       └── 02-conformal-prediction-lab.md
 ├── 03-Imbalanced-Learning-and-Decision-Thresholds/
 │   ├── README.md
 │   ├── 01-rare-event-problem-framing.md
 │   ├── 02-class-weights-and-cost-sensitive-learning.md
-│   ├── 03-under-and-oversampling.md
-│   ├── 04-smote-and-its-limitations.md
-│   ├── 05-resampling-inside-training-folds.md
-│   ├── 06-expected-cost-and-threshold-optimization.md
-│   ├── 07-alert-capacity-and-review-limits.md
-│   └── Projects/01-rare-event-classification.md
+│   ├── 03-under-and-oversampling-and-smote-limitations.md
+│   ├── 04-resampling-inside-training-folds.md
+│   ├── 05-expected-cost-and-threshold-optimization.md
+│   ├── 06-alert-capacity-and-review-limits.md
+│   ├── practice-questions.md
+│   └── Projects/
+│       ├── README.md
+│       └── 01-rare-event-classification.md
 ├── 04-Probability-Calibration-and-Reliability/
 │   ├── README.md
 │   ├── 01-calibration-vs-discrimination.md
 │   ├── 02-reliability-diagrams-and-brier-score.md
-│   ├── 03-platt-scaling.md
-│   ├── 04-isotonic-regression.md
+│   ├── 03-platt-scaling-and-temperature-scaling.md
+│   ├── 04-isotonic-regression-and-multiclass-calibration.md
 │   ├── 05-calibration-data-and-leakage-prevention.md
-│   └── Projects/01-calibrated-risk-scoring-model.md
+│   ├── practice-questions.md
+│   └── Projects/
+│       ├── README.md
+│       └── 01-calibrated-risk-scoring-model.md
 ├── 05-Dimensionality-Reduction-and-Representation/
 │   ├── README.md
-│   ├── 01-curse-of-dimensionality.md
-│   ├── 02-feature-selection-vs-feature-extraction.md
-│   ├── 03-pca-and-explained-variance.md
-│   ├── 04-svd-and-pca-connection.md
-│   ├── 05-random-projection-and-ica-overview.md
-│   ├── 06-tsne-and-umap.md
-│   ├── 07-reconstruction-error-and-information-loss.md
-│   ├── 08-leakage-and-visualization-limitations.md
-│   └── Projects/01-dimensionality-reduction-comparison.md
+│   ├── 01-pca-in-practice-and-explained-variance.md
+│   ├── 02-random-projection-and-ica-overview.md
+│   ├── 03-tsne-and-umap.md
+│   ├── 04-reconstruction-error-and-information-loss.md
+│   ├── 05-leakage-and-visualization-limitations.md
+│   ├── practice-questions.md
+│   └── Projects/
+│       ├── README.md
+│       └── 01-dimensionality-reduction-comparison.md
 ├── 06-Anomaly-and-Novelty-Detection/
 │   ├── README.md
 │   ├── 01-anomalies-outliers-and-novelty.md
@@ -2902,33 +2913,44 @@ STAGE 5B - Advanced Machine Learning/
 │   ├── 06-density-and-reconstruction-based-methods.md
 │   ├── 07-thresholding-with-scarce-labels.md
 │   ├── 08-anomaly-drift-and-alert-quality.md
-│   └── Projects/01-fraud-or-system-anomaly-detection.md
+│   ├── practice-questions.md
+│   └── Projects/
+│       ├── README.md
+│       └── 01-fraud-or-system-anomaly-detection.md
 ├── 07-Feature-Selection-Interpretability-and-Explainability/
 │   ├── README.md
-│   ├── 01-filter-wrapper-and-embedded-selection.md
+│   ├── 01-feature-selection-filter-wrapper-and-embedded-methods.md
 │   ├── 02-variance-correlation-and-mutual-information.md
 │   ├── 03-recursive-feature-elimination-and-lasso-selection.md
 │   ├── 04-multicollinearity-and-unstable-coefficients.md
 │   ├── 05-model-specific-vs-model-agnostic-explanations.md
 │   ├── 06-permutation-importance.md
 │   ├── 07-shap-and-feature-attribution.md
-│   ├── 08-global-local-partial-dependence-and-ice.md
+│   ├── 08-partial-dependence-and-ice.md
 │   ├── 09-explanation-stability-and-causal-limitations.md
-│   └── Projects/01-explainability-and-model-risk-audit.md
+│   ├── 10-counterfactual-explanations-and-recourse.md
+│   ├── practice-questions.md
+│   └── Projects/
+│       ├── README.md
+│       └── 01-explainability-and-model-risk-audit.md
 ├── 08-Time-Series-Analysis-and-Forecasting/
 │   ├── README.md
 │   ├── 01-trend-seasonality-and-residuals.md
-│   ├── 02-temporal-leakage-and-time-based-validation.md
-│   ├── 03-naive-and-seasonal-naive-baselines.md
-│   ├── 04-lag-features-and-rolling-statistics.md
-│   ├── 05-forecast-horizons-recursive-vs-direct.md
-│   ├── 06-autoregression-and-moving-average-intuition.md
-│   ├── 07-arima-and-sarima-concepts.md
-│   ├── 08-exponential-smoothing.md
-│   ├── 09-regression-based-forecasting.md
-│   ├── 10-rolling-origin-backtesting-and-forecast-metrics.md
-│   ├── 11-forecast-intervals-missing-timestamps-and-drift.md
-│   └── Projects/01-demand-or-traffic-forecasting.md
+│   ├── 02-naive-and-seasonal-naive-baselines.md
+│   ├── 03-lag-features-and-rolling-statistics.md
+│   ├── 04-forecast-horizons-recursive-vs-direct.md
+│   ├── 05-autoregression-and-moving-average-intuition.md
+│   ├── 06-arima-and-sarima-concepts.md
+│   ├── 07-exponential-smoothing-and-prophet-style-models.md
+│   ├── 08-regression-and-gradient-boosting-for-forecasting.md
+│   ├── 09-global-models-and-hierarchical-forecasting.md
+│   ├── 10-probabilistic-forecasting-and-forecast-intervals.md
+│   ├── 11-rolling-origin-backtesting-and-forecast-metrics.md
+│   ├── 12-missing-timestamps-intermittent-demand-and-drift.md
+│   ├── practice-questions.md
+│   └── Projects/
+│       ├── README.md
+│       └── 01-demand-or-traffic-forecasting.md
 ├── 09-Recommender-Systems-and-Learning-to-Rank/
 │   ├── README.md
 │   ├── 01-recommendation-problems-and-baselines.md
@@ -2936,43 +2958,80 @@ STAGE 5B - Advanced Machine Learning/
 │   ├── 03-collaborative-filtering.md
 │   ├── 04-matrix-factorization.md
 │   ├── 05-content-based-and-hybrid-recommendation.md
-│   ├── 06-cold-start-and-sparse-interactions.md
-│   ├── 07-pointwise-pairwise-and-listwise-ranking.md
-│   ├── 08-precision-recall-at-k-map-and-ndcg.md
-│   ├── 09-offline-vs-online-evaluation.md
-│   ├── 10-popularity-bias-diversity-and-feedback-loops.md
-│   └── Projects/01-recommender-and-ranking-evaluation.md
-├── 10-Causal-Inference-and-Experimentation-Foundations/
+│   ├── 06-two-tower-retrieval-and-candidate-generation.md
+│   ├── 07-cold-start-and-sparse-interactions.md
+│   ├── 08-pointwise-pairwise-and-listwise-ranking.md
+│   ├── 09-precision-recall-at-k-map-and-ndcg.md
+│   ├── 10-offline-vs-online-evaluation.md
+│   ├── 11-popularity-bias-diversity-and-feedback-loops.md
+│   ├── practice-questions.md
+│   └── Projects/
+│       ├── README.md
+│       └── 01-recommender-and-ranking-evaluation.md
+├── 10-Causal-Inference-and-Product-Experimentation/
 │   ├── README.md
 │   ├── 01-prediction-vs-causal-inference.md
-│   ├── 02-confounding-and-causal-diagrams-introduction.md
-│   ├── 03-randomized-experiments-and-ab-testing.md
-│   ├── 04-experiment-metrics-and-guardrails.md
-│   ├── 05-treatment-effects-and-selection-bias-introduction.md
-│   └── Projects/01-experiment-analysis.md
+│   ├── 02-confounding-and-causal-diagrams.md
+│   ├── 03-treatment-effects-and-selection-bias.md
+│   ├── 04-propensity-scores-matching-and-weighting.md
+│   ├── 05-difference-in-differences-and-synthetic-control.md
+│   ├── 06-uplift-modeling-and-heterogeneous-treatment-effects.md
+│   ├── 07-instrumental-variables-and-regression-discontinuity-introduction.md
+│   ├── 08-variance-reduction-cuped-and-sequential-testing.md
+│   ├── 09-bandits-and-off-policy-evaluation.md
+│   ├── practice-questions.md
+│   └── Projects/
+│       ├── README.md
+│       ├── 01-causal-effect-estimation-study.md
+│       └── 02-uplift-modeling-lab.md
 ├── 11-Semi-Supervised-Active-and-Weak-Supervision/
 │   ├── README.md
 │   ├── 01-labeled-vs-unlabeled-data.md
 │   ├── 02-pseudo-labeling-and-self-training.md
 │   ├── 03-active-learning-and-query-strategies.md
 │   ├── 04-weak-supervision-and-noisy-labels.md
-│   └── Projects/01-label-efficiency-study.md
-├── 12-Specialist-ML-Electives/
+│   ├── practice-questions.md
+│   └── Projects/
+│       ├── README.md
+│       └── 01-label-efficiency-study.md
+├── 12-Graph-Machine-Learning/
+│   ├── README.md
+│   ├── 01-graph-data-and-graph-features.md
+│   ├── 02-node-embeddings-deepwalk-and-node2vec.md
+│   ├── 03-link-prediction-and-graph-based-fraud-detection.md
+│   ├── 04-graph-laplacian-and-message-passing-gnn-basics.md
+│   ├── 05-graph-ml-evaluation-and-scaling.md
+│   ├── practice-questions.md
+│   └── Projects/
+│       ├── README.md
+│       └── 01-graph-based-fraud-detection.md
+├── 13-Reinforcement-Learning-Foundations/
+│   ├── README.md
+│   ├── 01-mdps-and-bellman-equations.md
+│   ├── 02-value-and-policy-iteration.md
+│   ├── 03-monte-carlo-and-temporal-difference-learning.md
+│   ├── 04-q-learning-and-function-approximation.md
+│   ├── 05-policy-gradients-and-reinforce.md
+│   ├── 06-actor-critic-and-ppo-intuition.md
+│   ├── 07-reward-design-exploration-and-rl-in-practice.md
+│   ├── practice-questions.md
+│   └── Projects/
+│       ├── README.md
+│       ├── 01-tabular-q-learning-agent.md
+│       └── 02-policy-gradient-agent.md
+├── 14-Specialist-ML-Electives/
 │   ├── README.md
 │   ├── 01-survival-analysis-concepts.md
-│   ├── 02-reinforcement-learning-overview.md
-│   ├── 03-gaussian-processes-and-small-data-uncertainty.md
-│   └── 04-selecting-specialist-methods.md
-└── 13-Stage-5B-Advanced-ML-Capstones/
+│   ├── 02-hidden-markov-models-and-kalman-filters-introduction.md
+│   ├── 03-selecting-specialist-methods.md
+│   └── practice-questions.md
+└── 15-Stage-5B-Capstones/
     ├── README.md
-    ├── project-standards-and-rubric.md
-    ├── 01-rare-event-model-with-calibration.md
+    ├── 01-rare-event-model-with-calibration-and-conformal-uncertainty.md
     ├── 02-time-series-forecasting-and-backtesting.md
     ├── 03-recommender-system-with-ranking-metrics.md
-    ├── 04-anomaly-detection-with-scarce-labels.md
-    ├── 05-explainability-and-model-risk-audit.md
-    ├── 06-semi-supervised-label-efficiency-project.md
-    └── 07-advanced-ml-capstone.md
+    ├── 04-advanced-ml-capstone.md
+    └── project-standards-and-rubric.md
 ```
 
 ### Stage 5C — MLOps
@@ -4945,7 +5004,7 @@ Modules exclude the `00-` overview folder. Lessons are the numbered `NN-*.md` fi
 | 4B | Mathematics for Machine Learning | `Stage 4B — Mathematics for Machine Learning/` | 14 | 80 | 159 | `math-for-ml-notebook-library` |
 | 4C | Advanced Mathematics for Machine Learning — Deep Learning | `Stage 4C — Advanced Mathematics for Machine Learning — Deep Learning/` | 10 | 86 | 147 | `deep-learning-math-derivation-notebook` |
 | 5A | Machine Learning Foundation | `Stage 5A — Machine Learning Foundation/` | 13 | 103 | 164 | `foundation-capstone-and-reproducible-report` |
-| 5B | Advanced Machine Learning | `STAGE 5B - Advanced Machine Learning/` | 13 | 94 | 124 | `advanced-ml-capstone` |
+| 5B | Advanced Machine Learning | `Stage 5B — Advanced Machine Learning/` | 15 | 98 | 167 | `advanced-ml-capstone` |
 | 5C | MLOps | `STAGE 5C - MLOps/` | 16 | 100 | 139 | `final-production-mlops-capstone` |
 | 6 | Deep Learning & Transformers | `Deep Learning & Transformers/` | 14 | 69 | 130 | `train-a-small-gpt-and-write-the-report` |
 | 7 | Backend Engineering for AI Systems | `Backend Engineering for AI Systems/` | 11 | 50 | 99 | `production-ready-ai-api-service` |
@@ -4960,7 +5019,7 @@ Modules exclude the `00-` overview folder. Lessons are the numbered `NN-*.md` fi
 | 16 | Flagship Portfolio Projects | `Flagship Portfolio Projects/` | 7 | — | 156 | 7 flagship repos (1 optional) |
 | 17 | Interview Preparation & Getting Hired | `Interview Preparation & Getting Hired/` | 10 | 30 | 75 | `job-search-campaign-tracker` |
 | 18 | Career Growth to Senior | `Career Growth to Senior/` | 6 | 19 | 48 | `senior-readiness-evidence-portfolio` |
-| **Total** | | | **334** | **2159** | **3713** | |
+| **Total** | | | **336** | **2163** | **3756** | |
 
 ## 5. Build order
 
