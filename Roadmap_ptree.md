@@ -1432,7 +1432,6 @@ Stage 2E — Production DevOps & Platform Engineering/
 │
 ├── 00-Stage-2E-Overview/
 │   ├── README.md
-│   ├── learning-plan.md
 │   ├── prerequisites-and-exit-criteria.md
 │   ├── production-devops-tooling-map.md
 │   ├── lab-environment-setup.md
@@ -5223,7 +5222,7 @@ Modules exclude the `00-` overview folder. Lessons are the numbered `NN-*.md` fi
 | 2B | Python for Data Engineering_2 | `Stage 2B — Python for Data Engineering_2/` | 5 | 67 | 92 | 5 stage projects, ending in `system-design-interview-portfolio` |
 | 2C | Data Engineering_3 | `Stage 2C — Data Engineering_3/` | 10 | 79 | 191 | none (module lessons only, no stage project) |
 | 2D | Data Architecture | `Stage 2D — Data Architecture/` | 16 | 124 | 207 | `enterprise-data-architecture-capstone` |
-| 2E | Production DevOps & Platform Engineering | `Stage 2E — Production DevOps & Platform Engineering/` | 17 | 164 | 251 | `end-to-end-production-devops-capstone` |
+| 2E | Production DevOps & Platform Engineering | `Stage 2E — Production DevOps & Platform Engineering/` | 17 | 164 | 249 | `end-to-end-production-devops-capstone` |
 | 3 | Data Structures & Algorithms | `Stage 3 — Data Structures & Algorithms/` | 21 | 235 | 352 | `algorithm-toolkit-and-benchmark` |
 | 4A | Basic Mathematics Prerequisite | `Stage 4A — Basic Mathematics Prerequisite/` | 15 | 125 | 192 | `prerequisite-math-workbook-and-readiness-check` |
 | 4B | Mathematics for Machine Learning | `Stage 4B — Mathematics for Machine Learning/` | 14 | 80 | 159 | `math-for-ml-notebook-library` |
@@ -5244,7 +5243,7 @@ Modules exclude the `00-` overview folder. Lessons are the numbered `NN-*.md` fi
 | 16 | Flagship Portfolio Projects | `Flagship Portfolio Projects/` | 7 | — | 156 | 7 flagship repos (1 optional) |
 | 17 | Interview Preparation & Getting Hired | `Interview Preparation & Getting Hired/` | 10 | 30 | 75 | `job-search-campaign-tracker` |
 | 18 | Career Growth to Senior | `Career Growth to Senior/` | 6 | 19 | 48 | `senior-readiness-evidence-portfolio` |
-| **Total** | | | **345** | **2270** | **4055** | |
+| **Total** | | | **345** | **2270** | **4053** | |
 
 ## 5. Build order
 
