@@ -1,6 +1,6 @@
 # Deep Learning by Modality — ML Specialization Roadmap
 
-**Group 2 (G2)** of the specialization that follows Stage 5D of the [Roadmap](./Roadmap.md). It covers original categories **3 Deep Learning Engineering, 4 Natural Language Processing, 5 Computer Vision Engineering, 19 Speech and Audio Machine Learning and 20 Multimodal Machine Learning**. The group's defining question is: *what kind of raw data does the network learn from?* It follows [`Classical and Applied ML_SPECIALIZATION_Roadmap.md`](./Classical%20and%20Applied%20ML_SPECIALIZATION_Roadmap.md), which holds G1.
+**Group 2 (G2)** of the specialization that follows Stage 5D of the [Roadmap](./Roadmap.md). It covers original categories **3 Deep Learning Engineering, 4 Natural Language Processing, 5 Computer Vision Engineering, 19 Speech and Audio Machine Learning and 20 Multimodal Machine Learning**. The group's defining question is: *what kind of raw data does the network learn from?* It follows [`01_Classical and Applied ML.md`](./01_Classical%20and%20Applied%20ML.md), which holds G1.
 
 ## G2 summary
 

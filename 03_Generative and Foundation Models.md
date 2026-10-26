@@ -1,6 +1,6 @@
 # Generative and Foundation Models — ML Specialization Roadmap
 
-**Group 3 (G3)** of the specialization that follows Stage 5D of the [Roadmap](./Roadmap.md). It covers original categories **6 Generative AI Engineering, 7 Large Language Model Engineering and 8 Transformer Model Engineering**. The group's defining question is: *how do I build, adapt and ship large generative models?* It follows [`Classical and Applied ML_SPECIALIZATION_Roadmap.md`](./Classical%20and%20Applied%20ML_SPECIALIZATION_Roadmap.md) (G1) and [`Deep Learning by Modality ML_SPECIALIZATION_Roadmap.md`](./Deep%20Learning%20by%20Modality%20ML_SPECIALIZATION_Roadmap.md) (G2).
+**Group 3 (G3)** of the specialization that follows Stage 5D of the [Roadmap](./Roadmap.md). It covers original categories **6 Generative AI Engineering, 7 Large Language Model Engineering and 8 Transformer Model Engineering**. The group's defining question is: *how do I build, adapt and ship large generative models?* It follows [`01_Classical and Applied ML.md`](./01_Classical%20and%20Applied%20ML.md) (G1) and [`02_Deep Learning by Modality.md`](./02_Deep%20Learning%20by%20Modality.md) (G2).
 
 ## G3 summary
 
