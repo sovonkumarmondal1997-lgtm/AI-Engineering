@@ -15,7 +15,7 @@ The full project tree of this repository, from Stage 0 to Stage 5D, generated fr
 | Stage 2E | `Stage 2E — Production DevOps & Platform Engineering` | 18 | 36 | 266 |
 | Stage 3 | `Stage 3 — Data Structures & Algorithms` | 22 | 44 | 374 |
 | Stage 4A | `Stage 4A — Basic Mathematics Prerequisite` | 16 | 32 | 208 |
-| Stage 4B | `Stage 4B — Mathematics for Machine Learning` | 15 | 30 | 173 |
+| Stage 4B | `Stage 4B — Mathematics for Machine Learning` | 15 | 30 | 174 |
 | Stage 4C | `Stage 4C — Advanced Mathematics for Machine Learning — Deep Learning` | 11 | 22 | 147 |
 | Stage 5A | `Stage 5A — Machine Learning Foundation` | 14 | 27 | 164 |
 | Stage 5B | `Stage 5B — Advanced Machine Learning` | 16 | 30 | 167 |
@@ -2574,6 +2574,7 @@ Stage 4B — Mathematics for Machine Learning/
 │   ├── 04-logistic-regression-sigmoid-and-log-loss-gradient.md
 │   ├── 05-ridge-and-lasso-regularization-mathematics.md
 │   ├── README.md
+│   ├── SYLLABUS-14-Linear-Models-Mathematics.md
 │   └── practice-questions.md
 └── README.md
 ```
