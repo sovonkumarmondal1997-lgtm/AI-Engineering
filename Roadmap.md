@@ -15,7 +15,7 @@ The full project tree of this repository, from Stage 0 to Stage 5D, generated fr
 | Stage 2E | `Stage 2E — Production DevOps & Platform Engineering` | 18 | 36 | 266 |
 | Stage 3 | `Stage 3 — Data Structures & Algorithms` | 22 | 44 | 374 |
 | Stage 4A | `Stage 4A — Basic Mathematics Prerequisite` | 16 | 32 | 208 |
-| Stage 4B | `Stage 4B — Mathematics for Machine Learning` | 15 | 30 | 163 |
+| Stage 4B | `Stage 4B — Mathematics for Machine Learning` | 15 | 30 | 164 |
 | Stage 4C | `Stage 4C — Advanced Mathematics for Machine Learning — Deep Learning` | 11 | 22 | 147 |
 | Stage 5A | `Stage 5A — Machine Learning Foundation` | 14 | 27 | 164 |
 | Stage 5B | `Stage 5B — Advanced Machine Learning` | 16 | 30 | 167 |
@@ -2434,6 +2434,7 @@ Stage 4B — Mathematics for Machine Learning/
 │   ├── 02-euclidean-versus-cosine-versus-dot-product-similarity.md
 │   ├── 03-high-dimensional-geometry-and-the-curse-of-dimensionality.md
 │   ├── README.md
+│   ├── SYLLABUS-04-Similarity-Distance-and-Embedding-Geometry.md
 │   └── practice-questions.md
 ├── 05-Derivatives-and-Single-Variable-Optimization/
 │   ├── Projects/
