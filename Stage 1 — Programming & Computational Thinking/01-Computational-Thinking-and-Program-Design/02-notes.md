@@ -512,9 +512,102 @@ Predict the output and explain why y does not change.
 
 Create an empty cart list, add three grocery items using .append(), assign it to also_cart, and add another item through also_cart. Print both variables.
 
+### Exercise 2 – Mutation
+
+Let's implement this step by step.
+
+Python code:
+
+```python
+# Step 1: Create an empty cart
+cart = []
+
+# Step 2: Add three grocery items
+cart.append("Milk")
+cart.append("Bread")
+cart.append("Eggs")
+
+# Step 3: Assign cart to another variable
+also_cart = cart
+
+# Step 4: Add another item through also_cart
+also_cart.append("Butter")
+
+# Step 5: Print both variables
+print("Cart:", cart)
+print("Also Cart:", also_cart)
+```
+
+Output:
+
+```text
+Cart: ['Milk', 'Bread', 'Eggs', 'Butter']
+Also Cart: ['Milk', 'Bread', 'Eggs', 'Butter']
+```
+
+Explanation
+
+1. cart = [] creates an empty list.
+2. .append() adds grocery items to the list.
+3. also_cart = cart makes both variables refer to the same list.
+4. also_cart.append("Butter") modifies the shared list.
+5. Both variables display the updated list.
+
+Important concept: This is called mutation because we modified an existing list rather than creating a new list.
+
 ### Exercise 3 – Reassignment
 
 Increase steps_taken by 1,000 twice, starting from zero, using reassignment. Expected result: 2000.
+
+### Exercise 3 – Reassignment
+
+Python code:
+
+```python
+# Step 1: Initialize steps_taken
+steps_taken = 0
+
+# Step 2: Increase by 1,000 using reassignment
+steps_taken = steps_taken + 1000
+
+# Step 3: Increase by another 1,000
+steps_taken = steps_taken + 1000
+
+# Step 4: Print the result
+print(steps_taken)
+```
+
+Output:
+
+```text
+2000
+```
+
+Explanation
+
+| Operation | Calculation | Value |
+| --- | --- | --- |
+| Initial value | steps_taken = 0 | 0 |
+| First reassignment | 0 + 1000 | 1000 |
+| Second reassignment | 1000 + 1000 | 2000 |
+
+Important concept:
+
+```python
+steps_taken = steps_taken + 1000
+```
+
+Python first calculates the right-hand side (steps_taken + 1000) and then assigns the result back to steps_taken.
+
+This is called reassignment because the variable receives a new value.
+
+You can also write the same operation using shorthand:
+
+```python
+steps_taken += 1000
+```
+
+Both approaches produce the same result.
 
 ### Exercise 4 – String immutability
 
