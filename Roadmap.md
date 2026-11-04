@@ -15,7 +15,7 @@ The full project tree of this repository, from Stage 0 to Stage 5D, generated fr
 | Stage 2E | `Stage 2E — Production DevOps & Platform Engineering` | 18 | 36 | 266 |
 | Stage 3 | `Stage 3 — Data Structures & Algorithms` | 22 | 44 | 374 |
 | Stage 4A | `Stage 4A — Basic Mathematics Prerequisite` | 16 | 32 | 208 |
-| Stage 4B | `Stage 4B — Mathematics for Machine Learning` | 15 | 30 | 174 |
+| Stage 4B | `Stage 4B — Mathematics for Machine Learning` | 15 | 30 | 159 |
 | Stage 4C | `Stage 4C — Advanced Mathematics for Machine Learning — Deep Learning` | 11 | 22 | 147 |
 | Stage 5A | `Stage 5A — Machine Learning Foundation` | 14 | 27 | 164 |
 | Stage 5B | `Stage 5B — Advanced Machine Learning` | 16 | 30 | 167 |
@@ -2378,7 +2378,6 @@ Stage 4B — Mathematics for Machine Learning/
 │   │   ├── 01-math-for-ml-notebook-library.md
 │   │   └── README.md
 │   ├── README.md
-│   ├── SYLLABUS-00-Stage-4-Overview.md
 │   ├── how-4b-connects-to-4a-and-4c.md
 │   └── learning-plan.md
 ├── 01-Vectors-Dot-Product-and-Norms/
@@ -2392,7 +2391,6 @@ Stage 4B — Mathematics for Machine Learning/
 │   ├── 04-norms-l1-l2-and-infinity-and-distance.md
 │   ├── 05-linear-combinations-span-and-linear-independence.md
 │   ├── README.md
-│   ├── SYLLABUS-01-Vectors-Dot-Product-and-Norms.md
 │   └── practice-questions.md
 ├── 02-Matrices-and-Linear-Transformations/
 │   ├── Projects/
@@ -2410,7 +2408,6 @@ Stage 4B — Mathematics for Machine Learning/
 │   ├── 08-matrix-inverse-and-when-it-fails.md
 │   ├── 09-rank-and-column-space-intuition.md
 │   ├── README.md
-│   ├── SYLLABUS-02-Matrices-and-Linear-Transformations.md
 │   └── practice-questions.md
 ├── 03-Eigenvalues-SVD-and-Low-Rank-Structure/
 │   ├── Projects/
@@ -2423,7 +2420,6 @@ Stage 4B — Mathematics for Machine Learning/
 │   ├── 04-low-rank-approximation.md
 │   ├── 05-matrix-norms-frobenius-and-spectral.md
 │   ├── README.md
-│   ├── SYLLABUS-03-Eigenvalues-SVD-and-Low-Rank-Structure.md
 │   └── practice-questions.md
 ├── 04-Similarity-Distance-and-Embedding-Geometry/
 │   ├── Projects/
@@ -2434,7 +2430,6 @@ Stage 4B — Mathematics for Machine Learning/
 │   ├── 02-euclidean-versus-cosine-versus-dot-product-similarity.md
 │   ├── 03-high-dimensional-geometry-and-the-curse-of-dimensionality.md
 │   ├── README.md
-│   ├── SYLLABUS-04-Similarity-Distance-and-Embedding-Geometry.md
 │   └── practice-questions.md
 ├── 05-Derivatives-and-Single-Variable-Optimization/
 │   ├── Projects/
@@ -2450,7 +2445,6 @@ Stage 4B — Mathematics for Machine Learning/
 │   ├── 07-finding-minima-and-maxima.md
 │   ├── 08-numerical-versus-analytical-derivatives-and-gradient-checking.md
 │   ├── README.md
-│   ├── SYLLABUS-05-Derivatives-and-Single-Variable-Optimization.md
 │   └── practice-questions.md
 ├── 06-Integral-Calculus/
 │   ├── Projects/
@@ -2464,7 +2458,6 @@ Stage 4B — Mathematics for Machine Learning/
 │   ├── 05-numerical-integration-riemann-sums-and-the-trapezoid-rule.md
 │   ├── 06-double-integrals-introduction.md
 │   ├── README.md
-│   ├── SYLLABUS-06-Integral-Calculus.md
 │   └── practice-questions.md
 ├── 07-Multivariable-Calculus-and-Gradients/
 │   ├── Projects/
@@ -2476,7 +2469,6 @@ Stage 4B — Mathematics for Machine Learning/
 │   ├── 03-gradients-and-the-direction-of-steepest-ascent.md
 │   ├── 04-computational-graphs-and-backpropagation-by-hand.md
 │   ├── README.md
-│   ├── SYLLABUS-07-Multivariable-Calculus-and-Gradients.md
 │   └── practice-questions.md
 ├── 08-Optimization-Fundamentals/
 │   ├── Projects/
@@ -2489,7 +2481,6 @@ Stage 4B — Mathematics for Machine Learning/
 │   ├── 04-stochastic-and-mini-batch-gradient-descent.md
 │   ├── 05-momentum-rmsprop-and-adam-intuition.md
 │   ├── README.md
-│   ├── SYLLABUS-08-Optimization-Fundamentals.md
 │   └── practice-questions.md
 ├── 09-Probability-Fundamentals/
 │   ├── Projects/
@@ -2505,7 +2496,6 @@ Stage 4B — Mathematics for Machine Learning/
 │   ├── 07-expectation-and-variance.md
 │   ├── 08-covariance-and-correlation.md
 │   ├── README.md
-│   ├── SYLLABUS-09-Probability-Fundamentals.md
 │   └── practice-questions.md
 ├── 10-Common-Distributions/
 │   ├── Projects/
@@ -2519,7 +2509,6 @@ Stage 4B — Mathematics for Machine Learning/
 │   ├── 05-normal-distribution.md
 │   ├── 06-beta-and-dirichlet-distributions-in-outline.md
 │   ├── README.md
-│   ├── SYLLABUS-10-Common-Distributions.md
 │   └── practice-questions.md
 ├── 11-Sampling-and-Limit-Theorems/
 │   ├── Projects/
@@ -2531,7 +2520,6 @@ Stage 4B — Mathematics for Machine Learning/
 │   ├── 03-central-limit-theorem.md
 │   ├── 04-sampling-distributions-and-standard-error.md
 │   ├── README.md
-│   ├── SYLLABUS-11-Sampling-and-Limit-Theorems.md
 │   └── practice-questions.md
 ├── 12-Inferential-Statistics-for-Experiments-and-Evals/
 │   ├── Projects/
@@ -2547,7 +2535,6 @@ Stage 4B — Mathematics for Machine Learning/
 │   ├── 06-effect-size-sample-size-and-statistical-power.md
 │   ├── 07-correlation-versus-causation-confounding-and-sampling-bias.md
 │   ├── README.md
-│   ├── SYLLABUS-12-Inferential-Statistics-for-Experiments-and-Evals.md
 │   └── practice-questions.md
 ├── 13-Information-Theory-for-ML/
 │   ├── Projects/
@@ -2560,7 +2547,6 @@ Stage 4B — Mathematics for Machine Learning/
 │   ├── 04-kl-divergence.md
 │   ├── 05-perplexity.md
 │   ├── README.md
-│   ├── SYLLABUS-13-Information-Theory-for-ML.md
 │   └── practice-questions.md
 ├── 14-Linear-Models-Mathematics/
 │   ├── Projects/
@@ -2574,7 +2560,6 @@ Stage 4B — Mathematics for Machine Learning/
 │   ├── 04-logistic-regression-sigmoid-and-log-loss-gradient.md
 │   ├── 05-ridge-and-lasso-regularization-mathematics.md
 │   ├── README.md
-│   ├── SYLLABUS-14-Linear-Models-Mathematics.md
 │   └── practice-questions.md
 └── README.md
 ```
